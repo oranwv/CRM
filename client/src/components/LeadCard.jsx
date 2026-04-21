@@ -40,13 +40,21 @@ const TYPE_META = {
 
 const EVENT_TYPES = ['חתונה', 'בר/בת מצווה', 'אירוסין', 'יום הולדת', 'כנס', 'אירוע חברה', 'אחר'];
 
+const IL = { timeZone: 'Asia/Jerusalem' };
+
 function formatDate(d) {
   if (!d) return '—';
-  return new Date(d).toLocaleDateString('he-IL');
+  return new Date(d).toLocaleDateString('en-GB', IL);
 }
 function formatFull(d) {
   if (!d) return '';
-  return new Date(d).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return new Date(d).toLocaleString('en-GB', { ...IL, day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+}
+// Returns ISO string from separate date (yyyy-mm-dd) + time (hh:mm) inputs, treating as Israel time
+function localToISO(date, time) {
+  if (!date) return null;
+  const str = time ? `${date}T${time}` : `${date}T00:00`;
+  return new Date(str).toISOString(); // browser is in Israel TZ → correct UTC offset
 }
 function fileIcon(mime = '') {
   if (mime.startsWith('image/')) return '🖼️';
@@ -76,8 +84,10 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
   const [loading, setLoading]           = useState(true);
   const [activeTab, setActiveTab]       = useState('info');
   const [savingStage, setSavingStage]   = useState(false);
-  const [showLostModal, setShowLostModal]     = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showLostModal, setShowLostModal]       = useState(false);
+  const [showDeleteModal, setShowDeleteModal]   = useState(false);
+  const [showAddTask, setShowAddTask]           = useState(false);
+  const [taskAction, setTaskAction]             = useState(null); // { task, mode: 'complete'|'reschedule'|'followup' }
   const [editing, setEditing]           = useState(false);
   const [editForm, setEditForm]         = useState({});
 
@@ -135,8 +145,8 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
     onClose();
   }
 
-  async function completeTask(taskId) {
-    await api.patch(`/leads/${leadId}/tasks/${taskId}/complete`);
+  async function completeTask(taskId, result) {
+    await api.patch(`/leads/${leadId}/tasks/${taskId}/complete`, { result });
     await load(); onUpdated();
   }
 
@@ -216,7 +226,8 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
           <div className="max-w-3xl mx-auto p-4 space-y-6">
 
             {/* Status */}
-            <Section title="סטטוס">
+            <Section title="סטטוס"
+              action={<button onClick={() => setShowAddTask(true)} className="text-xs font-bold px-2.5 py-1 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition">+ משימה</button>}>
               {isLost ? (
                 <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-red-100 text-red-600 border border-red-200">
                   ✕ לא סגרו — {LOST_REASONS.find(r => r.value === lead.lost_reason)?.label || lead.lost_reason}
@@ -287,6 +298,12 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
               <FilesSection leadId={leadId} files={files} onChanged={load} />
             </Section>
 
+            {/* Quick-add task */}
+            <Section title={`משימות${openTasks ? ` (${openTasks})` : ''}`}
+              action={<button onClick={() => setActiveTab('tasks')} className="text-xs text-emerald-600 hover:underline font-semibold">הכל</button>}>
+              <QuickAddTask leadId={leadId} users={users} onAdded={load} tasks={tasks} completeTask={completeTask} />
+            </Section>
+
             {/* Interactions */}
             <Section title={`פעילות${timeline.length ? ` (${timeline.length})` : ''}`}>
               <TimelineSection leadId={leadId} timeline={timeline} phone={lead.phone} email={lead.email} onAdded={load} />
@@ -297,7 +314,8 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
 
         {/* ── TASKS TAB ── */}
         {activeTab === 'tasks' && (
-          <TasksTab leadId={leadId} tasks={tasks} users={users} onUpdated={load} completeTask={completeTask} />
+          <TasksTab leadId={leadId} tasks={tasks} users={users} onUpdated={load} completeTask={completeTask}
+            onTaskAction={setTaskAction} onAddTask={() => setShowAddTask(true)} />
         )}
 
         {/* ── WHATSAPP TAB ── */}
@@ -307,6 +325,26 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
       </div>
 
       {showLostModal && <LostModal onClose={() => setShowLostModal(false)} onConfirm={markLost} />}
+
+      {showAddTask && (
+        <AddTaskModal
+          leadId={leadId} users={users}
+          onClose={() => setShowAddTask(false)}
+          onSaved={() => { setShowAddTask(false); load(); onUpdated(); }}
+        />
+      )}
+
+      {taskAction && (
+        <TaskActionModal
+          task={taskAction}
+          leadId={leadId}
+          lead={lead}
+          users={users}
+          onClose={() => setTaskAction(null)}
+          onDone={() => { setTaskAction(null); load(); onUpdated(); }}
+          completeTask={completeTask}
+        />
+      )}
       {showDeleteModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={() => setShowDeleteModal(false)}>
           <div className="bg-white rounded-2xl shadow-2xl p-5 w-80 mx-4" onClick={e => e.stopPropagation()}>
@@ -661,80 +699,104 @@ function TimelineSection({ leadId, timeline, phone, email, onAdded }) {
   );
 }
 
-/* ── TASKS TAB ── */
-function TasksTab({ leadId, tasks, users, onUpdated, completeTask }) {
+/* ── QUICK ADD TASK (inline in info tab) ── */
+function QuickAddTask({ leadId, users, onAdded, tasks, completeTask }) {
   const [adding, setAdding] = useState(false);
-  const [form, setForm]     = useState({ title: '', due_at: '', assigned_to: '' });
+  const [title, setTitle]   = useState('');
+  const [saving, setSaving] = useState(false);
+  const openTasks = tasks.filter(t => !t.completed_at);
 
-  async function addTask() {
-    if (!form.title.trim()) return;
-    const payload = { ...form };
-    if (!payload.due_at) delete payload.due_at;
-    if (!payload.assigned_to) delete payload.assigned_to;
-    await api.post(`/leads/${leadId}/tasks`, payload);
-    setForm({ title: '', due_at: '', assigned_to: '' });
-    setAdding(false);
-    await onUpdated();
+  async function save() {
+    if (!title.trim()) return;
+    setSaving(true);
+    await api.post(`/leads/${leadId}/tasks`, { title });
+    setTitle(''); setAdding(false);
+    await onAdded();
+    setSaving(false);
   }
 
   return (
+    <div className="space-y-2">
+      {openTasks.slice(0, 3).map(task => (
+        <div key={task.id} className="flex items-center gap-2 bg-white rounded-xl px-3 py-2 border border-slate-100">
+          <button onClick={() => completeTask(task.id)}
+            className="shrink-0 w-5 h-5 rounded-full border-2 border-slate-300 hover:border-emerald-400 flex items-center justify-center transition" />
+          <p className="flex-1 text-sm text-slate-700 text-right">{task.title}</p>
+          {task.due_at && <span className="text-xs text-slate-400 shrink-0">{formatFull(task.due_at)}</span>}
+        </div>
+      ))}
+      {openTasks.length === 0 && !adding && (
+        <p className="text-xs text-slate-400 text-center py-1">אין משימות פתוחות</p>
+      )}
+      {adding ? (
+        <div className="flex gap-2">
+          <button onClick={() => { setAdding(false); setTitle(''); }}
+            className="shrink-0 border-2 border-slate-200 text-slate-500 text-xs font-bold px-3 py-2 rounded-xl">ביטול</button>
+          <button onClick={save} disabled={saving || !title.trim()}
+            className="shrink-0 bg-emerald-600 text-white text-xs font-bold px-3 py-2 rounded-xl disabled:opacity-50">
+            {saving ? '...' : 'הוסף'}
+          </button>
+          <input autoFocus value={title} onChange={e => setTitle(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && save()}
+            className="flex-1 border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-400 text-right"
+            placeholder="כותרת המשימה..." />
+        </div>
+      ) : (
+        <button onClick={() => setAdding(true)}
+          className="w-full border-2 border-dashed border-slate-200 text-slate-400 hover:border-emerald-300 hover:text-emerald-600 text-xs font-bold py-2 rounded-xl transition">
+          + משימה חדשה
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ── TASKS TAB ── */
+function TasksTab({ leadId, tasks, users, onUpdated, completeTask, onTaskAction, onAddTask }) {
+  const now = new Date();
+  return (
     <div className="max-w-2xl mx-auto p-4 space-y-3">
-      <button onClick={() => setAdding(!adding)}
-        className={`w-full text-sm font-bold py-2.5 rounded-xl border-2 transition ${
-          adding ? 'bg-emerald-600 text-white border-emerald-600' : 'border-dashed border-slate-200 text-slate-400 hover:border-emerald-300 hover:text-emerald-600'
-        }`}>
+      <button onClick={onAddTask}
+        className="w-full text-sm font-bold py-2.5 rounded-xl border-2 border-dashed border-slate-200 text-slate-400 hover:border-emerald-300 hover:text-emerald-600 transition">
         + משימה חדשה
       </button>
-
-      {adding && (
-        <div className="bg-emerald-50 rounded-2xl p-3 space-y-2">
-          <input autoFocus value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-            className="w-full border-2 border-emerald-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-400"
-            placeholder="כותרת המשימה..." />
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-xs text-slate-500 block mb-1">תאריך יעד</label>
-              <input type="datetime-local" value={form.due_at} onChange={e => setForm(f => ({ ...f, due_at: e.target.value }))}
-                className="w-full border-2 border-slate-200 rounded-xl px-2 py-1.5 text-xs focus:outline-none focus:border-emerald-400" />
-            </div>
-            <div>
-              <label className="text-xs text-slate-500 block mb-1">אחראי</label>
-              <select value={form.assigned_to} onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))}
-                className="w-full border-2 border-slate-200 rounded-xl px-2 py-1.5 text-xs focus:outline-none focus:border-emerald-400">
-                <option value="">ללא</option>
-                {users.map(u => <option key={u.id} value={u.id}>{u.display_name}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={() => setAdding(false)} className="flex-1 border-2 border-slate-200 text-slate-500 text-sm font-bold py-1.5 rounded-xl">ביטול</button>
-            <button onClick={addTask} className="flex-1 bg-emerald-600 text-white text-sm font-bold py-1.5 rounded-xl">הוסף</button>
-          </div>
-        </div>
-      )}
 
       {tasks.length === 0 ? (
         <div className="text-center py-12 text-slate-400 text-sm">אין משימות</div>
       ) : (
         <div className="space-y-2">
-          {tasks.map(task => (
-            <div key={task.id} className={`flex items-start gap-3 p-3 rounded-2xl border ${task.completed_at ? 'bg-slate-50 border-slate-100 opacity-60' : 'bg-white border-slate-200'}`}>
-              <button onClick={() => !task.completed_at && completeTask(task.id)}
-                className={`shrink-0 mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs transition ${
-                  task.completed_at ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300 hover:border-emerald-400'
+          {tasks.map(task => {
+            const isOverdue = !task.completed_at && task.due_at && new Date(task.due_at) <= now;
+            return (
+              <div key={task.id}
+                onClick={() => !task.completed_at && onTaskAction(task)}
+                className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer transition ${
+                  task.completed_at ? 'bg-slate-50 border-slate-100 opacity-60 cursor-default' :
+                  isOverdue ? 'bg-red-50 border-red-200 hover:bg-red-100' :
+                  'bg-white border-slate-200 hover:border-emerald-300 hover:bg-emerald-50'
                 }`}>
-                {task.completed_at && '✓'}
-              </button>
-              <div className="flex-1 text-right">
-                <p className={`text-sm font-semibold ${task.completed_at ? 'line-through text-slate-400' : 'text-slate-700'}`}>{task.title}</p>
-                <div className="flex gap-3 mt-0.5 text-xs text-slate-400">
-                  {task.due_at && <span>📅 {formatFull(task.due_at)}</span>}
-                  {task.assigned_name && <span>👤 {task.assigned_name}</span>}
-                  {task.completed_at && <span>✓ {formatFull(task.completed_at)}</span>}
+                <div className={`shrink-0 mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs ${
+                  task.completed_at ? 'bg-emerald-500 border-emerald-500 text-white' :
+                  isOverdue ? 'border-red-400' : 'border-slate-300'
+                }`}>
+                  {task.completed_at && '✓'}
+                  {isOverdue && !task.completed_at && <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />}
                 </div>
+                <div className="flex-1 text-right">
+                  <p className={`text-sm font-semibold ${task.completed_at ? 'line-through text-slate-400' : isOverdue ? 'text-red-700' : 'text-slate-700'}`}>
+                    {task.title}
+                  </p>
+                  <div className="flex gap-3 mt-0.5 text-xs text-slate-400 flex-wrap justify-end">
+                    {task.due_at && <span className={isOverdue ? 'text-red-500 font-semibold' : ''}>📅 {formatFull(task.due_at)}</span>}
+                    {task.assigned_name && <span>👤 {task.assigned_name}</span>}
+                    {task.completed_at && <span>✓ {formatFull(task.completed_at)}</span>}
+                    {task.result && <span className="text-emerald-600">💬 {task.result}</span>}
+                  </div>
+                </div>
+                {!task.completed_at && <span className="text-slate-300 text-lg shrink-0 mt-0.5">›</span>}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -931,6 +993,304 @@ function CalendarSection({ leadId, calStatus, onUpdated }) {
         </span>
       </div>
     </Section>
+  );
+}
+
+/* ── ADD TASK MODAL ── */
+function AddTaskModal({ leadId, users, onClose, onSaved }) {
+  const [form, setForm] = useState({ title: '', due_date: '', due_time: '', assigned_to: '', remind_via: 'whatsapp' });
+  const [saving, setSaving] = useState(false);
+  const cls = 'w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-400 bg-white';
+
+  async function save() {
+    if (!form.title.trim()) return;
+    setSaving(true);
+    const payload = { title: form.title, remind_via: form.remind_via };
+    if (form.due_date) payload.due_at = localToISO(form.due_date, form.due_time);
+    if (form.assigned_to) payload.assigned_to = form.assigned_to;
+    await api.post(`/leads/${leadId}/tasks`, payload);
+    onSaved();
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl p-5 w-96 mx-4 space-y-3" onClick={e => e.stopPropagation()}>
+        <h3 className="font-black text-slate-800 text-lg text-right">+ משימה חדשה</h3>
+        <input autoFocus value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+          className={cls} placeholder="כותרת המשימה..." />
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-xs text-slate-500 block mb-1 text-right">תאריך</label>
+            <input type="date" lang="he" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} className={cls} />
+          </div>
+          <div>
+            <label className="text-xs text-slate-500 block mb-1 text-right">שעה</label>
+            <input type="time" value={form.due_time} onChange={e => setForm(f => ({ ...f, due_time: e.target.value }))} className={cls} />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-xs text-slate-500 block mb-1 text-right">אחראי</label>
+            <select value={form.assigned_to} onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))} className={cls}>
+              <option value="">ללא</option>
+              {users.map(u => <option key={u.id} value={u.id}>{u.display_name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-slate-500 block mb-1 text-right">תזכורת</label>
+            <select value={form.remind_via} onChange={e => setForm(f => ({ ...f, remind_via: e.target.value }))} className={cls}>
+              <option value="whatsapp">וואטסאפ</option>
+              <option value="app">אפליקציה</option>
+            </select>
+          </div>
+        </div>
+        <div className="flex gap-2 pt-1">
+          <button onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl text-sm">ביטול</button>
+          <button onClick={save} disabled={saving || !form.title.trim()}
+            className="flex-1 bg-emerald-600 text-white font-bold py-2 rounded-xl text-sm disabled:opacity-50">
+            {saving ? '...' : 'הוסף משימה'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── TASK ACTION MODAL ── */
+function TaskActionModal({ task, leadId, lead, users, onClose, onDone, completeTask }) {
+  const [mode, setMode]           = useState(null); // null|'done'|'reschedule'|'followup'
+  const [outcomeType, setOutcomeType] = useState(null); // null|'call'|'meeting'|'note'|'wa_send'|'email_send'
+  const [body, setBody]           = useState('');
+  const [dir, setDir]             = useState('outbound');
+  const [emailTo, setEmailTo]     = useState(lead?.email || '');
+  const [subject, setSubject]     = useState('');
+  const [file, setFile]           = useState(null);
+  const [newDueDate, setNewDueDate]   = useState('');
+  const [newDueTime, setNewDueTime]   = useState('');
+  const [followTitle, setFollowTitle] = useState('');
+  const [followDueDate, setFollowDueDate] = useState('');
+  const [followDueTime, setFollowDueTime] = useState('');
+  const [saving, setSaving]       = useState(false);
+  const fileRef = useRef(null);
+
+  const cls = 'w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-400';
+
+  async function handleDoneSubmit() {
+    if (!outcomeType) return;
+    setSaving(true);
+    try {
+      if (outcomeType === 'wa_send') {
+        const fd = new FormData();
+        fd.append('leadId', leadId);
+        fd.append('message', body);
+        if (file) fd.append('file', file);
+        await api.post('/whatsapp/send-file', fd);
+      } else if (outcomeType === 'email_send') {
+        const fd = new FormData();
+        fd.append('to', emailTo);
+        fd.append('subject', subject);
+        fd.append('body', body);
+        if (file) fd.append('file', file);
+        await api.post(`/leads/${leadId}/email/send`, fd);
+      } else {
+        await api.post(`/leads/${leadId}/interactions`, { type: outcomeType, direction: dir, body });
+      }
+      await completeTask(task.id, body || outcomeType);
+      onDone();
+    } catch { setSaving(false); }
+  }
+
+  async function handleReschedule() {
+    if (!newDueDate) return;
+    setSaving(true);
+    await api.patch(`/leads/${leadId}/tasks/${task.id}/reschedule`, { due_at: localToISO(newDueDate, newDueTime) });
+    onDone();
+  }
+
+  async function handleFollowup() {
+    if (!followTitle.trim()) return;
+    setSaving(true);
+    await completeTask(task.id, 'הועבר למשימת המשך');
+    await api.post(`/leads/${leadId}/tasks`, { title: followTitle, due_at: followDueDate ? localToISO(followDueDate, followDueTime) : undefined });
+    onDone();
+  }
+
+  const isOverdue = task.due_at && new Date(task.due_at) <= new Date();
+
+  const OUTCOME_BTNS = [
+    { type: 'call',       label: '📞 שיחה',          cls: 'border-slate-200 hover:border-emerald-300' },
+    { type: 'meeting',    label: '🤝 פגישה',          cls: 'border-slate-200 hover:border-violet-300' },
+    { type: 'note',       label: '📝 הערה',           cls: 'border-slate-200 hover:border-amber-300' },
+    { type: 'wa_send',    label: '📱 שלח וואטסאפ',   cls: 'border-slate-200 hover:border-green-300' },
+    { type: 'email_send', label: '✉️ שלח אימייל',     cls: 'border-slate-200 hover:border-sky-300' },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl p-5 w-[26rem] mx-4 space-y-3 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="text-right">
+          <h3 className="font-black text-slate-800 text-lg">{task.title}</h3>
+          {task.due_at && (
+            <p className={`text-xs mt-0.5 ${isOverdue ? 'text-red-500 font-semibold' : 'text-slate-400'}`}>
+              📅 {formatFull(task.due_at)} {isOverdue ? '— באיחור!' : ''}
+            </p>
+          )}
+          {task.assigned_name && <p className="text-xs text-slate-400">👤 {task.assigned_name}</p>}
+        </div>
+
+        {/* Top-level mode picker */}
+        {!mode && (
+          <div className="space-y-2 pt-1">
+            <button onClick={() => setMode('done')}
+              className="w-full bg-emerald-600 text-white font-bold py-2.5 rounded-xl text-sm hover:bg-emerald-700 transition">
+              ✅ סמן כהושלם + הוסף תוצאה
+            </button>
+            <button onClick={() => setMode('reschedule')}
+              className="w-full bg-amber-100 text-amber-700 font-bold py-2.5 rounded-xl text-sm hover:bg-amber-200 transition">
+              🔄 קבע מחדש (לא ענה)
+            </button>
+            <button onClick={() => setMode('followup')}
+              className="w-full bg-sky-100 text-sky-700 font-bold py-2.5 rounded-xl text-sm hover:bg-sky-200 transition">
+              ➕ צור משימת המשך
+            </button>
+            <button onClick={onClose}
+              className="w-full border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl text-sm">
+              ביטול
+            </button>
+          </div>
+        )}
+
+        {/* Done — pick outcome type */}
+        {mode === 'done' && !outcomeType && (
+          <div className="space-y-2">
+            <p className="text-xs font-bold text-slate-500 text-right">מה עשית?</p>
+            {OUTCOME_BTNS.map(btn => (
+              <button key={btn.type} onClick={() => setOutcomeType(btn.type)}
+                className={`w-full text-right font-bold py-2.5 px-4 rounded-xl text-sm border-2 transition ${btn.cls}`}>
+                {btn.label}
+              </button>
+            ))}
+            <button onClick={() => setMode(null)}
+              className="w-full border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl text-sm">
+              חזרה
+            </button>
+          </div>
+        )}
+
+        {/* Done — call/meeting/note form */}
+        {mode === 'done' && outcomeType && ['call','meeting','note'].includes(outcomeType) && (
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <button onClick={() => setDir('outbound')}
+                className={`flex-1 text-xs font-bold py-1.5 rounded-xl border-2 transition ${dir === 'outbound' ? 'bg-emerald-600 text-white border-emerald-600' : 'border-slate-200 text-slate-500'}`}>
+                יוצא ↗
+              </button>
+              <button onClick={() => setDir('inbound')}
+                className={`flex-1 text-xs font-bold py-1.5 rounded-xl border-2 transition ${dir === 'inbound' ? 'bg-sky-600 text-white border-sky-600' : 'border-slate-200 text-slate-500'}`}>
+                נכנס ↙
+              </button>
+            </div>
+            <textarea autoFocus value={body} onChange={e => setBody(e.target.value)}
+              className={`${cls} resize-none text-right`} rows={3} placeholder="תיאור..." />
+            <div className="flex gap-2">
+              <button onClick={() => setOutcomeType(null)} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl text-sm">חזרה</button>
+              <button onClick={handleDoneSubmit} disabled={saving || !body.trim()}
+                className="flex-1 bg-emerald-600 text-white font-bold py-2 rounded-xl text-sm disabled:opacity-50">
+                {saving ? '...' : 'שמור וסמן הושלם'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Done — WhatsApp form */}
+        {mode === 'done' && outcomeType === 'wa_send' && (
+          <div className="space-y-2">
+            <p className="text-xs text-slate-500 font-semibold text-right">שלח ל: {lead?.phone || '(אין מספר)'}</p>
+            <textarea autoFocus value={body} onChange={e => setBody(e.target.value)}
+              className={`${cls} resize-none`} rows={3} placeholder="הודעה..." />
+            <input ref={fileRef} type="file" className="hidden" onChange={e => setFile(e.target.files[0] || null)} />
+            <div onClick={() => fileRef.current.click()}
+              className={`w-full border-2 border-dashed rounded-xl py-2 text-xs font-semibold text-center cursor-pointer transition ${file ? 'border-green-300 text-green-700 bg-green-50' : 'border-slate-200 text-slate-400 hover:border-green-300'}`}>
+              {file ? `📎 ${file.name}` : '+ צרף קובץ'}
+            </div>
+            {file && <button onClick={() => setFile(null)} className="text-xs text-red-400 hover:underline">הסר קובץ</button>}
+            <div className="flex gap-2">
+              <button onClick={() => setOutcomeType(null)} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl text-sm">חזרה</button>
+              <button onClick={handleDoneSubmit} disabled={saving || (!body.trim() && !file) || !lead?.phone}
+                className="flex-1 bg-green-600 text-white font-bold py-2 rounded-xl text-sm disabled:opacity-50">
+                {saving ? '...' : 'שלח וסמן הושלם'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Done — Email form */}
+        {mode === 'done' && outcomeType === 'email_send' && (
+          <div className="space-y-2">
+            <input value={emailTo} onChange={e => setEmailTo(e.target.value)}
+              className={cls} placeholder="אימייל נמען..." dir="ltr" />
+            <input value={subject} onChange={e => setSubject(e.target.value)}
+              className={cls} placeholder="נושא..." />
+            <textarea autoFocus value={body} onChange={e => setBody(e.target.value)}
+              className={`${cls} resize-none`} rows={4} placeholder="תוכן ההודעה..." />
+            <input ref={fileRef} type="file" className="hidden" onChange={e => setFile(e.target.files[0] || null)} />
+            <div onClick={() => fileRef.current.click()}
+              className={`w-full border-2 border-dashed rounded-xl py-2 text-xs font-semibold text-center cursor-pointer transition ${file ? 'border-sky-300 text-sky-700 bg-sky-50' : 'border-slate-200 text-slate-400 hover:border-sky-300'}`}>
+              {file ? `📎 ${file.name}` : '+ צרף קובץ'}
+            </div>
+            {file && <button onClick={() => setFile(null)} className="text-xs text-red-400 hover:underline">הסר קובץ</button>}
+            <div className="flex gap-2">
+              <button onClick={() => setOutcomeType(null)} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl text-sm">חזרה</button>
+              <button onClick={handleDoneSubmit} disabled={saving || !emailTo.trim() || !body.trim()}
+                className="flex-1 bg-sky-600 text-white font-bold py-2 rounded-xl text-sm disabled:opacity-50">
+                {saving ? '...' : 'שלח וסמן הושלם'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Reschedule */}
+        {mode === 'reschedule' && (
+          <div className="space-y-2">
+            <label className="text-xs text-slate-500 block text-right">תאריך ושעה חדשים</label>
+            <div className="flex gap-2">
+              <input type="date" lang="he" value={newDueDate} onChange={e => setNewDueDate(e.target.value)}
+                className={`${cls} flex-1`} autoFocus />
+              <input type="time" value={newDueTime} onChange={e => setNewDueTime(e.target.value)}
+                className={`${cls} w-28`} />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setMode(null)} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl text-sm">חזרה</button>
+              <button onClick={handleReschedule} disabled={saving || !newDueDate}
+                className="flex-1 bg-amber-500 text-white font-bold py-2 rounded-xl text-sm disabled:opacity-50">
+                {saving ? '...' : 'קבע מחדש'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Follow-up */}
+        {mode === 'followup' && (
+          <div className="space-y-2">
+            <input value={followTitle} onChange={e => setFollowTitle(e.target.value)}
+              className={`${cls} text-right`} autoFocus placeholder="כותרת משימת המשך..." />
+            <div className="flex gap-2">
+              <input type="date" lang="he" value={followDueDate} onChange={e => setFollowDueDate(e.target.value)}
+                className={`${cls} flex-1`} />
+              <input type="time" value={followDueTime} onChange={e => setFollowDueTime(e.target.value)}
+                className={`${cls} w-28`} />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setMode(null)} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl text-sm">חזרה</button>
+              <button onClick={handleFollowup} disabled={saving || !followTitle.trim()}
+                className="flex-1 bg-sky-600 text-white font-bold py-2 rounded-xl text-sm disabled:opacity-50">
+                {saving ? '...' : 'צור משימת המשך'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

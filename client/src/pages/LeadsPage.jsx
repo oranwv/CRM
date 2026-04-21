@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../api';
 import LeadCard from '../components/LeadCard';
 import AddLeadModal from '../components/AddLeadModal';
@@ -42,14 +43,16 @@ const STAGE_STYLES = {
 
 const PRIORITY_ICONS = { normal: '', hot: '🔥', urgent: '⚡' };
 
+const IL = { timeZone: 'Asia/Jerusalem' };
+
 function formatDate(d) {
   if (!d) return '—';
-  return new Date(d).toLocaleDateString('he-IL');
+  return new Date(d).toLocaleDateString('en-GB', IL);
 }
 
 function formatDateTime(d) {
   if (!d) return '—';
-  return new Date(d).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return new Date(d).toLocaleString('en-GB', { ...IL, day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
 export default function LeadsPage() {
@@ -60,6 +63,16 @@ export default function LeadsPage() {
   const [selectedId, setSelectedId] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const user = JSON.parse(localStorage.getItem('crm_user') || '{}');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Auto-open lead card if ?lead=ID in URL (e.g. from Google Calendar event link)
+  useEffect(() => {
+    const leadParam = searchParams.get('lead');
+    if (leadParam) {
+      setSelectedId(Number(leadParam));
+      setSearchParams({}, { replace: true });
+    }
+  }, []);
 
   const loadLeads = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
@@ -214,7 +227,12 @@ export default function LeadsPage() {
                     </td>
                     <td className="px-4 py-3 text-slate-500 text-xs">{lead.assigned_name || '—'}</td>
                     <td className="px-4 py-3">
-                      {lead.open_tasks > 0 ? (
+                      {lead.overdue_tasks > 0 ? (
+                        <span className="inline-flex items-center gap-1 bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded-full">
+                          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse inline-block" />
+                          {lead.overdue_tasks}
+                        </span>
+                      ) : lead.open_tasks > 0 ? (
                         <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-full">
                           {lead.open_tasks}
                         </span>

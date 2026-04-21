@@ -39,6 +39,7 @@ router.get('/', async (req, res) => {
   let query = `
     SELECT l.*, u.display_name AS assigned_name,
            (SELECT COUNT(*) FROM tasks t WHERE t.lead_id = l.id AND t.completed_at IS NULL) AS open_tasks,
+           (SELECT COUNT(*) FROM tasks t WHERE t.lead_id = l.id AND t.completed_at IS NULL AND t.due_at IS NOT NULL AND t.due_at <= NOW()) AS overdue_tasks,
            (SELECT MAX(created_at) FROM lead_interactions WHERE lead_id = l.id) AS last_interaction_at,
            (SELECT COUNT(*) FROM messages WHERE lead_id = l.id AND direction='inbound' AND is_read=false) +
            (SELECT COUNT(*) FROM lead_interactions WHERE lead_id = l.id AND direction='inbound' AND is_read=false) AS unread_count
@@ -207,12 +208,46 @@ router.post('/:id/tasks', async (req, res) => {
 
 // PATCH /api/leads/:id/tasks/:taskId/complete
 router.patch('/:id/tasks/:taskId/complete', async (req, res) => {
+  const { result } = req.body;
   try {
     const { rows } = await pool.query(
-      'UPDATE tasks SET completed_at = NOW() WHERE id = $1 AND lead_id = $2 RETURNING *',
-      [req.params.taskId, req.params.id]
+      'UPDATE tasks SET completed_at = NOW(), result = $3 WHERE id = $1 AND lead_id = $2 RETURNING *',
+      [req.params.taskId, req.params.id, result || null]
     );
-    res.json(rows[0]);
+    const task = rows[0];
+    // Log result as interaction if provided
+    if (result) {
+      await pool.query(
+        `INSERT INTO lead_interactions (lead_id, type, direction, body, created_by)
+         VALUES ($1, 'note', 'outbound', $2, $3)`,
+        [req.params.id, `✅ משימה הושלמה: ${task.title}\nתוצאה: ${result}`, req.user.id]
+      );
+      await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [req.params.id]);
+    }
+    res.json(task);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/leads/:id/tasks/:taskId/reschedule
+router.patch('/:id/tasks/:taskId/reschedule', async (req, res) => {
+  const { due_at, note } = req.body;
+  try {
+    const { rows } = await pool.query(
+      'UPDATE tasks SET due_at = $3 WHERE id = $1 AND lead_id = $2 RETURNING *',
+      [req.params.taskId, req.params.id, due_at || null]
+    );
+    const task = rows[0];
+    if (note) {
+      await pool.query(
+        `INSERT INTO lead_interactions (lead_id, type, direction, body, created_by)
+         VALUES ($1, 'note', 'outbound', $2, $3)`,
+        [req.params.id, `🔁 משימה נדחתה: ${task.title}\n${note}`, req.user.id]
+      );
+      await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [req.params.id]);
+    }
+    res.json(task);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

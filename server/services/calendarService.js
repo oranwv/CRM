@@ -34,10 +34,8 @@ function buildEventBody(lead, type) {
 
   const colorId = type === 'confirmed' ? '2' : '5'; // green : yellow
 
-  const eventDate = (lead.event_date instanceof Date
-    ? lead.event_date.toISOString()
-    : lead.event_date
-  ).split('T')[0];
+  // Convert to Israel date (not UTC) to avoid off-by-one near midnight
+  const eventDate = new Date(lead.event_date).toLocaleDateString('sv', { timeZone: 'Asia/Jerusalem' });
 
   const times = buildEventTimes(eventDate, lead.event_time);
 
@@ -45,7 +43,7 @@ function buildEventBody(lead, type) {
     summary,
     colorId,
     ...times,
-    description: `ליד #${lead.id} | ${type === 'confirmed' ? 'סגור ✅' : 'אופציה 🟡'}`,
+    description: `ליד #${lead.id} | ${type === 'confirmed' ? 'סגור ✅' : 'אופציה 🟡'}\n🔗 פתח בCRM: ${process.env.SERVER_URL || 'http://localhost:3001'}/?lead=${lead.id}`,
   };
 }
 

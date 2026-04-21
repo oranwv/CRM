@@ -32,6 +32,8 @@ pool.query(`
   );
   ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT TRUE;
   ALTER TABLE lead_interactions ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT TRUE;
+  ALTER TABLE tasks ADD COLUMN IF NOT EXISTS result TEXT;
+  ALTER TABLE tasks ADD COLUMN IF NOT EXISTS remind_sent_at TIMESTAMPTZ;
 `).catch(err => console.error('[DB] Table check error:', err.message));
 
 const app = express();
