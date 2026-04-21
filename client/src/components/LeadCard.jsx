@@ -1,0 +1,965 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import api from '../api';
+
+const STAGES = [
+  { key: 'new',           label: 'חדש',          active: 'bg-sky-500 text-white border-sky-500',         past: 'bg-sky-100 text-sky-600 border-sky-200',         future: 'bg-white text-slate-400 border-slate-200 hover:border-sky-300 hover:text-sky-500' },
+  { key: 'contacted',     label: 'יצירת קשר',    active: 'bg-amber-500 text-white border-amber-500',     past: 'bg-amber-100 text-amber-600 border-amber-200',   future: 'bg-white text-slate-400 border-slate-200 hover:border-amber-300 hover:text-amber-500' },
+  { key: 'meeting',       label: 'פגישה',         active: 'bg-violet-500 text-white border-violet-500',   past: 'bg-violet-100 text-violet-600 border-violet-200', future: 'bg-white text-slate-400 border-slate-200 hover:border-violet-300 hover:text-violet-500' },
+  { key: 'offer_sent',    label: 'הצעת מחיר',    active: 'bg-blue-500 text-white border-blue-500',       past: 'bg-blue-100 text-blue-600 border-blue-200',       future: 'bg-white text-slate-400 border-slate-200 hover:border-blue-300 hover:text-blue-500' },
+  { key: 'negotiation',   label: 'מו"מ',          active: 'bg-orange-500 text-white border-orange-500',   past: 'bg-orange-100 text-orange-600 border-orange-200', future: 'bg-white text-slate-400 border-slate-200 hover:border-orange-300 hover:text-orange-500' },
+  { key: 'contract_sent', label: 'חוזה נשלח',    active: 'bg-indigo-500 text-white border-indigo-500',   past: 'bg-indigo-100 text-indigo-600 border-indigo-200', future: 'bg-white text-slate-400 border-slate-200 hover:border-indigo-300 hover:text-indigo-500' },
+  { key: 'deposit',       label: 'מקדמה',         active: 'bg-emerald-500 text-white border-emerald-500', past: 'bg-emerald-100 text-emerald-600 border-emerald-200', future: 'bg-white text-slate-400 border-slate-200 hover:border-emerald-300 hover:text-emerald-500' },
+  { key: 'production',    label: 'הפקה',          active: 'bg-teal-500 text-white border-teal-500',       past: 'bg-teal-100 text-teal-600 border-teal-200',       future: 'bg-white text-slate-400 border-slate-200 hover:border-teal-300 hover:text-teal-500' },
+];
+
+const LOST_REASONS = [
+  { value: 'price',         label: 'מחיר/תקציב' },
+  { value: 'date',          label: 'תאריך תפוס' },
+  { value: 'competitor',    label: 'בחר מתחרה' },
+  { value: 'ghosted',       label: 'נעלם' },
+  { value: 'plans_changed', label: 'שינוי תוכניות' },
+  { value: 'other',         label: 'אחר' },
+];
+
+const SOURCE_LABELS = {
+  website_popup: 'אתר (פופאפ)', website_form: 'אתר (טופס)',
+  call_event: 'Call Event', telekol: 'טלקול',
+  whatsapp: 'וואטסאפ', facebook: 'פייסבוק',
+  instagram: 'אינסטגרם', manual: 'ידני',
+};
+
+const TYPE_META = {
+  call:      { icon: '📞', label: 'שיחה',      bg: 'bg-blue-100',    text: 'text-blue-700' },
+  meeting:   { icon: '🤝', label: 'פגישה',     bg: 'bg-purple-100',  text: 'text-purple-700' },
+  note:      { icon: '📝', label: 'הערה',      bg: 'bg-amber-100',   text: 'text-amber-700' },
+  email:     { icon: '✉️', label: 'אימייל',    bg: 'bg-sky-100',     text: 'text-sky-700' },
+  whatsapp:  { icon: '💬', label: 'וואטסאפ',  bg: 'bg-green-100',   text: 'text-green-700' },
+  facebook:  { icon: '📘', label: 'פייסבוק',  bg: 'bg-blue-100',    text: 'text-blue-700' },
+  instagram: { icon: '📸', label: 'אינסטגרם', bg: 'bg-pink-100',    text: 'text-pink-700' },
+};
+
+const EVENT_TYPES = ['חתונה', 'בר/בת מצווה', 'אירוסין', 'יום הולדת', 'כנס', 'אירוע חברה', 'אחר'];
+
+function formatDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('he-IL');
+}
+function formatFull(d) {
+  if (!d) return '';
+  return new Date(d).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+function fileIcon(mime = '') {
+  if (mime.startsWith('image/')) return '🖼️';
+  if (mime.includes('pdf')) return '📄';
+  if (mime.includes('word') || mime.includes('document')) return '📝';
+  if (mime.includes('sheet') || mime.includes('excel')) return '📊';
+  return '📎';
+}
+function fileIconByExt(name = '') {
+  const ext = name.split('.').pop().toLowerCase();
+  if (['jpg','jpeg','png','gif','webp','svg'].includes(ext)) return '🖼️';
+  if (ext === 'pdf') return '📄';
+  if (['doc','docx'].includes(ext)) return '📝';
+  if (['xls','xlsx','csv'].includes(ext)) return '📊';
+  return '📎';
+}
+
+export default function LeadCard({ leadId, onClose, onUpdated }) {
+  const currentUser = JSON.parse(localStorage.getItem('crm_user') || '{}');
+  const [lead, setLead]                 = useState(null);
+  const [interactions, setInteractions] = useState([]);
+  const [messages, setMessages]         = useState([]);
+  const [files, setFiles]               = useState([]);
+  const [tasks, setTasks]               = useState([]);
+  const [users, setUsers]               = useState([]);
+  const [calStatus, setCalStatus]       = useState(null);
+  const [loading, setLoading]           = useState(true);
+  const [activeTab, setActiveTab]       = useState('info');
+  const [savingStage, setSavingStage]   = useState(false);
+  const [showLostModal, setShowLostModal]     = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [editing, setEditing]           = useState(false);
+  const [editForm, setEditForm]         = useState({});
+
+  const load = useCallback(async () => {
+    try {
+      const [leadRes, intRes, msgRes, fileRes, taskRes, userRes, calRes] = await Promise.all([
+        api.get(`/leads/${leadId}`),
+        api.get(`/leads/${leadId}/interactions`),
+        api.get(`/leads/${leadId}/messages`),
+        api.get(`/leads/${leadId}/files`),
+        api.get(`/leads/${leadId}/tasks`),
+        api.get('/users'),
+        api.get(`/calendar/leads/${leadId}/status`).catch(() => ({ data: { type: null } })),
+      ]);
+      setLead(leadRes.data);
+      setEditForm(leadRes.data);
+      setCalStatus(calRes.data);
+      setInteractions(intRes.data);
+      setMessages(msgRes.data);
+      setFiles(fileRes.data);
+      setTasks(taskRes.data);
+      setUsers(userRes.data);
+    } catch { }
+    setLoading(false);
+  }, [leadId]);
+
+  useEffect(() => {
+    load();
+    api.post(`/leads/${leadId}/read`).catch(() => {});
+  }, [load, leadId]);
+
+  async function changeStage(stageKey) {
+    if (stageKey === 'lost') { setShowLostModal(true); return; }
+    setSavingStage(true);
+    await api.patch(`/leads/${leadId}`, { stage: stageKey });
+    await load(); onUpdated();
+    setSavingStage(false);
+  }
+
+  async function markLost(reason, reasonText) {
+    await api.patch(`/leads/${leadId}`, { stage: 'lost', lost_reason: reason, lost_reason_text: reasonText });
+    setShowLostModal(false);
+    await load(); onUpdated();
+  }
+
+  async function saveEdit() {
+    await api.patch(`/leads/${leadId}`, editForm);
+    setEditing(false);
+    await load(); onUpdated();
+  }
+
+  async function deleteLead() {
+    await api.delete(`/leads/${leadId}`);
+    onUpdated();
+    onClose();
+  }
+
+  async function completeTask(taskId) {
+    await api.patch(`/leads/${leadId}/tasks/${taskId}/complete`);
+    await load(); onUpdated();
+  }
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 z-50 bg-white flex items-center justify-center">
+        <p className="text-slate-400">טוען...</p>
+      </div>
+    );
+  }
+  if (!lead) return null;
+
+  const stageIndex = STAGES.findIndex(s => s.key === lead.stage);
+  const isLost     = lead.stage === 'lost';
+  const openTasks  = tasks.filter(t => !t.completed_at).length;
+
+  const timeline = [
+    ...interactions.map(i => ({
+      id: `i-${i.id}`, _time: i.created_at,
+      type: i.type, direction: i.direction,
+      body: i.body, author: i.created_by_name,
+    })),
+    ...messages.map(m => ({
+      id: `m-${m.id}`, _time: m.timestamp,
+      type: m.channel, direction: m.direction,
+      body: m.body, author: null,
+    })),
+  ].sort((a, b) => new Date(b._time) - new Date(a._time)); // newest first
+
+  const lastActivity = timeline.length > 0 ? timeline[0]._time : null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-white flex flex-col overflow-hidden">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-emerald-700 to-teal-600 px-4 py-3 flex items-center gap-3 shrink-0">
+        <button onClick={onClose} className="text-emerald-200 hover:text-white text-2xl leading-none">&times;</button>
+        {currentUser.role === 'admin' && (
+          <button onClick={() => setShowDeleteModal(true)} className="text-xs font-bold px-2 py-1 rounded-lg bg-red-600/40 hover:bg-red-600 text-red-200 hover:text-white transition">
+            🗑 מחק ליד
+          </button>
+        )}
+        <div className="flex-1 text-right">
+          <h2 className="text-white font-black text-lg leading-tight">
+            {lead.priority === 'hot' && '🔥 '}
+            {lead.priority === 'urgent' && '⚡ '}
+            {lead.name}
+          </h2>
+          <p className="text-emerald-200 text-xs">
+            {SOURCE_LABELS[lead.source] || lead.source}
+            {' · '}התקבל {formatFull(lead.created_at)}
+            {lastActivity && ` · פעילות אחרונה ${formatFull(lastActivity)}`}
+          </p>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-slate-100 bg-white shrink-0 text-xs font-bold">
+        {[
+          { key: 'info',     label: 'פרטים ופעילות' },
+          { key: 'tasks',    label: `משימות${openTasks ? ` (${openTasks})` : ''}` },
+          { key: 'whatsapp', label: 'וואטסאפ' },
+        ].map(t => (
+          <button key={t.key} onClick={() => setActiveTab(t.key)}
+            className={`flex-1 py-3 transition border-b-2 ${
+              activeTab === t.key ? 'border-emerald-600 text-emerald-700' : 'border-transparent text-slate-400 hover:text-slate-600'
+            }`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto">
+
+        {/* ── INFO + TIMELINE + FILES TAB ── */}
+        {activeTab === 'info' && (
+          <div className="max-w-3xl mx-auto p-4 space-y-6">
+
+            {/* Status */}
+            <Section title="סטטוס">
+              {isLost ? (
+                <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-red-100 text-red-600 border border-red-200">
+                  ✕ לא סגרו — {LOST_REASONS.find(r => r.value === lead.lost_reason)?.label || lead.lost_reason}
+                  {lead.lost_reason_text && <span className="font-normal"> · {lead.lost_reason_text}</span>}
+                </span>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {STAGES.map((s, i) => (
+                    <button key={s.key} onClick={() => !savingStage && changeStage(s.key)}
+                      disabled={savingStage}
+                      className={`text-xs px-3 py-1.5 rounded-full font-bold transition border ${
+                        i === stageIndex ? s.active : i < stageIndex ? s.past : s.future
+                      }`}>
+                      {i < stageIndex && '✓ '}{s.label}
+                    </button>
+                  ))}
+                  <button onClick={() => setShowLostModal(true)} disabled={savingStage}
+                    className="text-xs px-3 py-1.5 rounded-full font-bold bg-white text-slate-400 border border-slate-200 hover:border-red-300 hover:text-red-500 transition">
+                    לא סגרו
+                  </button>
+                </div>
+              )}
+            </Section>
+
+            {/* Calendar */}
+            {lead.event_date && (
+              <CalendarSection leadId={leadId} calStatus={calStatus} onUpdated={load} />
+            )}
+
+            {/* Details */}
+            <Section title="פרטי ליד"
+              action={!editing && <button onClick={() => setEditing(true)} className="text-xs text-emerald-600 hover:underline font-semibold">✏️ עריכה</button>}>
+              {editing ? (
+                <EditForm form={editForm} setForm={setEditForm} users={users} onSave={saveEdit} onCancel={() => setEditing(false)} />
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <InfoRow label="טלפון">
+                      {lead.phone ? <a href={`tel:${lead.phone}`} className="text-emerald-600 hover:underline font-medium" dir="ltr">{lead.phone}</a> : '—'}
+                    </InfoRow>
+                    <InfoRow label="אימייל">{lead.email || '—'}</InfoRow>
+                    <InfoRow label="תאריך אירוע">{formatDate(lead.event_date)}{lead.event_time ? ` · ${lead.event_time}` : ''}</InfoRow>
+                    <InfoRow label="סוג אירוע">{lead.event_type || '—'}</InfoRow>
+                    <InfoRow label="מוזמנים">{lead.guest_count || '—'}</InfoRow>
+                    <InfoRow label="תקציב">{lead.budget ? `₪${Number(lead.budget).toLocaleString()}` : '—'}</InfoRow>
+                    <InfoRow label="אחראי">{lead.assigned_name || '—'}</InfoRow>
+                    <InfoRow label="עדיפות">{lead.priority === 'hot' ? '🔥 חם' : lead.priority === 'urgent' ? '⚡ דחוף' : 'רגיל'}</InfoRow>
+                    <InfoRow label="התקבל ב">{formatFull(lead.created_at)}</InfoRow>
+                    <InfoRow label="פעילות אחרונה">{lastActivity ? formatFull(lastActivity) : '—'}</InfoRow>
+                  </div>
+                  {lead.notes && (
+                    <div className="mt-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 text-sm text-slate-700">
+                      <span className="text-xs font-bold text-amber-600 block mb-1">הערות</span>
+                      {lead.notes}
+                    </div>
+                  )}
+                </>
+              )}
+            </Section>
+
+            {/* Production module — only for deposit/production stage */}
+            {(lead.stage === 'deposit' || lead.stage === 'production') && (
+              <ProductionSection leadId={leadId} lead={lead} onUpdated={load} />
+            )}
+
+            {/* Files */}
+            <Section title={`קבצים${files.length ? ` (${files.length})` : ''}`}>
+              <FilesSection leadId={leadId} files={files} onChanged={load} />
+            </Section>
+
+            {/* Interactions */}
+            <Section title={`פעילות${timeline.length ? ` (${timeline.length})` : ''}`}>
+              <TimelineSection leadId={leadId} timeline={timeline} phone={lead.phone} email={lead.email} onAdded={load} />
+            </Section>
+
+          </div>
+        )}
+
+        {/* ── TASKS TAB ── */}
+        {activeTab === 'tasks' && (
+          <TasksTab leadId={leadId} tasks={tasks} users={users} onUpdated={load} completeTask={completeTask} />
+        )}
+
+        {/* ── WHATSAPP TAB ── */}
+        {activeTab === 'whatsapp' && (
+          <WhatsAppTab leadId={leadId} phone={lead.phone} messages={messages} onSent={load} />
+        )}
+      </div>
+
+      {showLostModal && <LostModal onClose={() => setShowLostModal(false)} onConfirm={markLost} />}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={() => setShowDeleteModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-5 w-80 mx-4" onClick={e => e.stopPropagation()}>
+            <div className="text-center mb-4">
+              <div className="text-4xl mb-2">🗑️</div>
+              <h3 className="font-black text-slate-800 text-lg">האם אתה בטוח?</h3>
+              <p className="text-sm text-slate-500 mt-1">
+                אתה עומד למחוק את הליד של <span className="font-bold text-slate-700">{lead?.name}</span>.
+                <br />פעולה זו אינה ניתנת לביטול.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setShowDeleteModal(false)}
+                className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl text-sm">
+                ביטול
+              </button>
+              <button onClick={deleteLead}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 rounded-xl text-sm transition">
+                כן, מחק
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── SECTION WRAPPER ── */
+function Section({ title, action, children }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <div>{action}</div>
+        <h3 className="text-sm font-black text-slate-700">{title}</h3>
+      </div>
+      <div className="bg-slate-50 rounded-2xl p-3">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/* ── FILES SECTION ── */
+function FilesSection({ leadId, files, onChanged }) {
+  const inputRef = useRef();
+  const [uploading, setUploading] = useState(false);
+  const [dragging, setDragging]   = useState(false);
+
+  async function uploadFile(file) {
+    if (!file) return;
+    setUploading(true);
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      await api.post(`/leads/${leadId}/files`, fd);
+      await onChanged();
+    } catch {
+      alert('שגיאה בהעלאת הקובץ');
+    }
+    setUploading(false);
+  }
+
+  function onDrop(e) {
+    e.preventDefault(); setDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) uploadFile(file);
+  }
+
+  async function deleteFile(fileId) {
+    if (!confirm('למחוק קובץ זה?')) return;
+    await api.delete(`/leads/${leadId}/files/${fileId}`);
+    await onChanged();
+  }
+
+  return (
+    <div className="space-y-2">
+      {files.length === 0 ? (
+        <p className="text-xs text-slate-400 text-center py-2">אין קבצים מצורפים</p>
+      ) : (
+        files.map(f => (
+          <div key={f.id} className="flex items-center gap-2 bg-white rounded-xl px-3 py-2 border border-slate-100">
+            <span className="text-lg shrink-0">{fileIcon(f.file_type)}</span>
+            <div className="flex-1 min-w-0 text-right">
+              <a href={f.url} target="_blank" rel="noreferrer"
+                className="text-sm font-semibold text-emerald-700 hover:underline truncate block"
+                onClick={e => e.stopPropagation()}>
+                {f.filename}
+              </a>
+              <p className="text-xs text-slate-400">{f.uploaded_by_name || ''} · {formatFull(f.created_at)}</p>
+            </div>
+            <button onClick={() => deleteFile(f.id)}
+              className="shrink-0 text-slate-300 hover:text-red-400 transition text-lg leading-none">×</button>
+          </div>
+        ))
+      )}
+      <input ref={inputRef} type="file" className="hidden" onChange={e => { uploadFile(e.target.files[0]); e.target.value = ''; }} />
+      <div
+        onDragOver={e => { e.preventDefault(); setDragging(true); }}
+        onDragEnter={e => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={onDrop}
+        onClick={() => inputRef.current.click()}
+        className={`w-full border-2 border-dashed rounded-xl py-3 text-xs font-semibold text-center cursor-pointer transition ${
+          dragging ? 'border-emerald-400 bg-emerald-50 text-emerald-600' : 'border-slate-200 text-slate-400 hover:border-emerald-300 hover:text-emerald-600'
+        } ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+        {uploading ? 'מעלה...' : dragging ? 'שחרר להעלאה' : '+ העלה קובץ או גרור לכאן'}
+      </div>
+    </div>
+  );
+}
+
+/* ── BODY WITH FILE ATTACHMENT ── */
+function BodyWithFile({ body }) {
+  if (!body) return null;
+  const FILE_RE = /\[\[FILE:([^\|]+)\|([^\]]+)\]\]/g;
+  const text = body.replace(FILE_RE, '').trim();
+  const files = [...body.matchAll(/\[\[FILE:([^\|]+)\|([^\]]+)\]\]/g)]
+    .map(m => ({ url: m[1], name: m[2] }));
+  return (
+    <div>
+      {text.trim() && <p className="text-sm text-slate-700 whitespace-pre-wrap">{text.trim()}</p>}
+      {files.map((f, i) => (
+        <a key={i} href={f.url} target="_blank" rel="noreferrer"
+          className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 text-xs font-semibold text-slate-700 hover:text-emerald-700 transition"
+          onClick={e => e.stopPropagation()}>
+          {fileIconByExt(f.name)} {f.name}
+        </a>
+      ))}
+    </div>
+  );
+}
+
+/* ── TIMELINE SECTION ── */
+function TimelineSection({ leadId, timeline, phone, email, onAdded }) {
+  const [adding, setAdding]     = useState(null); // 'call'|'meeting'|'note'|'wa_send'|'email_send'
+  const [body, setBody]         = useState('');
+  const [dir, setDir]           = useState('outbound');
+  const [file, setFile]         = useState(null);
+  const [emailTo, setEmailTo]   = useState('');
+  const [subject, setSubject]   = useState('');
+  const [saving, setSaving]     = useState(false);
+  const [draggingWA, setDraggingWA]       = useState(false);
+  const [draggingEmail, setDraggingEmail] = useState(false);
+  const fileRef                 = useRef();
+
+  const LOG_TYPES = [
+    { type: 'call',     label: '📞 שיחה' },
+    { type: 'meeting',  label: '🤝 פגישה' },
+    { type: 'note',     label: '📝 הערה' },
+  ];
+
+  function openAdding(type) {
+    setAdding(adding === type ? null : type);
+    setBody(''); setFile(null); setDir('outbound');
+    setEmailTo(email || ''); setSubject('');
+  }
+
+  async function saveLog() {
+    if (!body.trim()) return;
+    setSaving(true);
+    await api.post(`/leads/${leadId}/interactions`, { type: adding, direction: dir, body });
+    setBody(''); setAdding(null);
+    await onAdded();
+    setSaving(false);
+  }
+
+  async function sendWA() {
+    if (!body.trim() && !file) return;
+    setSaving(true);
+    try {
+      if (file) {
+        const fd = new FormData();
+        fd.append('leadId', leadId);
+        fd.append('message', body);
+        fd.append('file', file);
+        await api.post('/whatsapp/send-file', fd);
+      } else {
+        await api.post('/whatsapp/send', { leadId, message: body });
+      }
+      setBody(''); setFile(null); setAdding(null);
+      await onAdded();
+    } catch { alert('שגיאה בשליחת הוואטסאפ'); }
+    setSaving(false);
+  }
+
+  async function sendEmail() {
+    if (!emailTo.trim() || !body.trim()) return;
+    setSaving(true);
+    try {
+      const fd = new FormData();
+      fd.append('to', emailTo);
+      fd.append('subject', subject || '(ללא נושא)');
+      fd.append('body', body);
+      if (file) fd.append('file', file);
+      await api.post(`/leads/${leadId}/email/send`, fd);
+      setBody(''); setFile(null); setAdding(null);
+      await onAdded();
+    } catch (err) { alert(err.response?.data?.error || 'שגיאה בשליחת המייל'); }
+    setSaving(false);
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Quick-log buttons */}
+      <div className="flex flex-wrap gap-1.5">
+        {LOG_TYPES.map(btn => (
+          <button key={btn.type}
+            onClick={() => openAdding(btn.type)}
+            className={`text-xs font-bold px-3 py-1.5 rounded-xl border-2 transition ${
+              adding === btn.type ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300'
+            }`}>
+            {btn.label}
+          </button>
+        ))}
+        <button onClick={() => openAdding('wa_send')}
+          className={`text-xs font-bold px-3 py-1.5 rounded-xl border-2 transition ${
+            adding === 'wa_send' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-slate-600 border-slate-200 hover:border-green-300'
+          }`}>
+          📱 שלח וואטסאפ
+        </button>
+        <button onClick={() => openAdding('email_send')}
+          className={`text-xs font-bold px-3 py-1.5 rounded-xl border-2 transition ${
+            adding === 'email_send' ? 'bg-sky-600 text-white border-sky-600' : 'bg-white text-slate-600 border-slate-200 hover:border-sky-300'
+          }`}>
+          ✉️ שלח אימייל
+        </button>
+      </div>
+
+      {/* Log interaction form */}
+      {adding && ['call','meeting','note'].includes(adding) && (
+        <div className="bg-white border border-emerald-100 rounded-xl p-3 space-y-2">
+          <div className="flex gap-2">
+            <button onClick={() => setDir('outbound')}
+              className={`flex-1 text-xs font-bold py-1.5 rounded-xl border-2 transition ${dir === 'outbound' ? 'bg-emerald-600 text-white border-emerald-600' : 'border-slate-200 text-slate-500'}`}>
+              יוצא ↗
+            </button>
+            <button onClick={() => setDir('inbound')}
+              className={`flex-1 text-xs font-bold py-1.5 rounded-xl border-2 transition ${dir === 'inbound' ? 'bg-sky-600 text-white border-sky-600' : 'border-slate-200 text-slate-500'}`}>
+              נכנס ↙
+            </button>
+          </div>
+          <textarea autoFocus value={body} onChange={e => setBody(e.target.value)}
+            className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-400 resize-none"
+            rows={3} placeholder="תיאור..." />
+          <div className="flex gap-2">
+            <button onClick={() => setAdding(null)} className="flex-1 border-2 border-slate-200 text-slate-500 text-sm font-bold py-1.5 rounded-xl">ביטול</button>
+            <button onClick={saveLog} disabled={saving || !body.trim()}
+              className="flex-1 bg-emerald-600 text-white text-sm font-bold py-1.5 rounded-xl disabled:opacity-50">
+              {saving ? '...' : 'שמור'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* WhatsApp send form */}
+      {adding === 'wa_send' && (
+        <div className="bg-white border border-green-100 rounded-xl p-3 space-y-2">
+          <p className="text-xs text-slate-500 font-semibold text-right">שלח ל: {phone || '(אין מספר)'}</p>
+          <textarea autoFocus value={body} onChange={e => setBody(e.target.value)}
+            className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-green-400 resize-none"
+            rows={3} placeholder="הודעה..." />
+          <input ref={fileRef} type="file" className="hidden" onChange={e => setFile(e.target.files[0] || null)} />
+          <div
+            onDragOver={e => { e.preventDefault(); setDraggingWA(true); }}
+            onDragEnter={e => { e.preventDefault(); setDraggingWA(true); }}
+            onDragLeave={() => setDraggingWA(false)}
+            onDrop={e => { e.preventDefault(); setDraggingWA(false); const f = e.dataTransfer.files[0]; if (f) setFile(f); }}
+            onClick={() => fileRef.current.click()}
+            className={`w-full border-2 border-dashed rounded-xl py-2 text-xs font-semibold text-center cursor-pointer transition ${
+              draggingWA ? 'border-green-400 bg-green-50 text-green-600' : file ? 'border-green-300 text-green-700 bg-green-50' : 'border-slate-200 text-slate-400 hover:border-green-300 hover:text-green-600'
+            }`}>
+            {draggingWA ? 'שחרר להוספה' : file ? `📎 ${file.name}` : '+ צרף קובץ או גרור לכאן'}
+          </div>
+          {file && <button onClick={() => setFile(null)} className="text-xs text-red-400 hover:underline">הסר קובץ</button>}
+          <div className="flex gap-2">
+            <button onClick={() => setAdding(null)} className="flex-1 border-2 border-slate-200 text-slate-500 text-sm font-bold py-1.5 rounded-xl">ביטול</button>
+            <button onClick={sendWA} disabled={saving || (!body.trim() && !file) || !phone}
+              className="flex-1 bg-green-600 text-white text-sm font-bold py-1.5 rounded-xl disabled:opacity-50">
+              {saving ? '...' : 'שלח'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Email send form */}
+      {adding === 'email_send' && (
+        <div className="bg-white border border-sky-100 rounded-xl p-3 space-y-2">
+          <input value={emailTo} onChange={e => setEmailTo(e.target.value)}
+            className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400"
+            placeholder="אימייל נמען..." dir="ltr" />
+          <input value={subject} onChange={e => setSubject(e.target.value)}
+            className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400"
+            placeholder="נושא..." />
+          <textarea autoFocus value={body} onChange={e => setBody(e.target.value)}
+            className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400 resize-none"
+            rows={4} placeholder="תוכן ההודעה..." />
+          <input ref={fileRef} type="file" className="hidden" onChange={e => setFile(e.target.files[0] || null)} />
+          <div
+            onDragOver={e => { e.preventDefault(); setDraggingEmail(true); }}
+            onDragEnter={e => { e.preventDefault(); setDraggingEmail(true); }}
+            onDragLeave={() => setDraggingEmail(false)}
+            onDrop={e => { e.preventDefault(); setDraggingEmail(false); const f = e.dataTransfer.files[0]; if (f) setFile(f); }}
+            onClick={() => fileRef.current.click()}
+            className={`w-full border-2 border-dashed rounded-xl py-2 text-xs font-semibold text-center cursor-pointer transition ${
+              draggingEmail ? 'border-sky-400 bg-sky-50 text-sky-600' : file ? 'border-sky-300 text-sky-700 bg-sky-50' : 'border-slate-200 text-slate-400 hover:border-sky-300 hover:text-sky-600'
+            }`}>
+            {draggingEmail ? 'שחרר להוספה' : file ? `📎 ${file.name}` : '+ צרף קובץ או גרור לכאן'}
+          </div>
+          {file && <button onClick={() => setFile(null)} className="text-xs text-red-400 hover:underline">הסר קובץ</button>}
+          <div className="flex gap-2">
+            <button onClick={() => setAdding(null)} className="flex-1 border-2 border-slate-200 text-slate-500 text-sm font-bold py-1.5 rounded-xl">ביטול</button>
+            <button onClick={sendEmail} disabled={saving || !emailTo.trim() || !body.trim()}
+              className="flex-1 bg-sky-600 text-white text-sm font-bold py-1.5 rounded-xl disabled:opacity-50">
+              {saving ? '...' : 'שלח'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Feed */}
+      {timeline.length === 0 ? (
+        <p className="text-xs text-slate-400 text-center py-4">אין פעילות עדיין</p>
+      ) : (
+        <div className="space-y-2">
+          {timeline.map(item => {
+            const meta = TYPE_META[item.type] || { icon: '💬', label: item.type, bg: 'bg-slate-100', text: 'text-slate-600' };
+            const isIn = item.direction === 'inbound';
+            return (
+              <div key={item.id} className="bg-white border border-slate-100 rounded-xl px-3 py-2.5">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                    <span>{formatFull(item._time)}</span>
+                    {item.author && <span>· {item.author}</span>}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isIn ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-600'}`}>
+                      {isIn ? '↙ נכנס' : '↗ יוצא'}
+                    </span>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${meta.bg} ${meta.text}`}>
+                      {meta.icon} {meta.label}
+                    </span>
+                  </div>
+                </div>
+                <BodyWithFile body={item.body} />
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── TASKS TAB ── */
+function TasksTab({ leadId, tasks, users, onUpdated, completeTask }) {
+  const [adding, setAdding] = useState(false);
+  const [form, setForm]     = useState({ title: '', due_at: '', assigned_to: '' });
+
+  async function addTask() {
+    if (!form.title.trim()) return;
+    const payload = { ...form };
+    if (!payload.due_at) delete payload.due_at;
+    if (!payload.assigned_to) delete payload.assigned_to;
+    await api.post(`/leads/${leadId}/tasks`, payload);
+    setForm({ title: '', due_at: '', assigned_to: '' });
+    setAdding(false);
+    await onUpdated();
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto p-4 space-y-3">
+      <button onClick={() => setAdding(!adding)}
+        className={`w-full text-sm font-bold py-2.5 rounded-xl border-2 transition ${
+          adding ? 'bg-emerald-600 text-white border-emerald-600' : 'border-dashed border-slate-200 text-slate-400 hover:border-emerald-300 hover:text-emerald-600'
+        }`}>
+        + משימה חדשה
+      </button>
+
+      {adding && (
+        <div className="bg-emerald-50 rounded-2xl p-3 space-y-2">
+          <input autoFocus value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+            className="w-full border-2 border-emerald-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-400"
+            placeholder="כותרת המשימה..." />
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs text-slate-500 block mb-1">תאריך יעד</label>
+              <input type="datetime-local" value={form.due_at} onChange={e => setForm(f => ({ ...f, due_at: e.target.value }))}
+                className="w-full border-2 border-slate-200 rounded-xl px-2 py-1.5 text-xs focus:outline-none focus:border-emerald-400" />
+            </div>
+            <div>
+              <label className="text-xs text-slate-500 block mb-1">אחראי</label>
+              <select value={form.assigned_to} onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))}
+                className="w-full border-2 border-slate-200 rounded-xl px-2 py-1.5 text-xs focus:outline-none focus:border-emerald-400">
+                <option value="">ללא</option>
+                {users.map(u => <option key={u.id} value={u.id}>{u.display_name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setAdding(false)} className="flex-1 border-2 border-slate-200 text-slate-500 text-sm font-bold py-1.5 rounded-xl">ביטול</button>
+            <button onClick={addTask} className="flex-1 bg-emerald-600 text-white text-sm font-bold py-1.5 rounded-xl">הוסף</button>
+          </div>
+        </div>
+      )}
+
+      {tasks.length === 0 ? (
+        <div className="text-center py-12 text-slate-400 text-sm">אין משימות</div>
+      ) : (
+        <div className="space-y-2">
+          {tasks.map(task => (
+            <div key={task.id} className={`flex items-start gap-3 p-3 rounded-2xl border ${task.completed_at ? 'bg-slate-50 border-slate-100 opacity-60' : 'bg-white border-slate-200'}`}>
+              <button onClick={() => !task.completed_at && completeTask(task.id)}
+                className={`shrink-0 mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs transition ${
+                  task.completed_at ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300 hover:border-emerald-400'
+                }`}>
+                {task.completed_at && '✓'}
+              </button>
+              <div className="flex-1 text-right">
+                <p className={`text-sm font-semibold ${task.completed_at ? 'line-through text-slate-400' : 'text-slate-700'}`}>{task.title}</p>
+                <div className="flex gap-3 mt-0.5 text-xs text-slate-400">
+                  {task.due_at && <span>📅 {formatFull(task.due_at)}</span>}
+                  {task.assigned_name && <span>👤 {task.assigned_name}</span>}
+                  {task.completed_at && <span>✓ {formatFull(task.completed_at)}</span>}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── WHATSAPP TAB ── */
+function WhatsAppTab({ leadId, phone, messages, onSent }) {
+  const [msg, setMsg]         = useState('');
+  const [sending, setSending] = useState(false);
+
+  async function send() {
+    if (!msg.trim() || !phone) return;
+    setSending(true);
+    try {
+      await api.post('/whatsapp/send', { leadId, message: msg });
+      setMsg('');
+      await onSent();
+    } catch { alert('שגיאה בשליחת ההודעה'); }
+    setSending(false);
+  }
+
+  const waMessages = messages.filter(m => m.channel === 'whatsapp');
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto p-4 space-y-2 max-w-2xl mx-auto w-full">
+        {waMessages.length === 0
+          ? <div className="text-center py-12 text-slate-400 text-sm">אין הודעות וואטסאפ</div>
+          : waMessages.map(m => (
+            <div key={m.id} className={`flex ${m.direction === 'outbound' ? 'justify-start' : 'justify-end'}`}>
+              <div className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${m.direction === 'outbound' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-800'}`}>
+                <p>{m.body}</p>
+                <p className={`text-xs mt-1 ${m.direction === 'outbound' ? 'text-emerald-200' : 'text-slate-400'}`}>{formatFull(m.timestamp)}</p>
+              </div>
+            </div>
+          ))}
+      </div>
+      <div className="border-t border-slate-100 p-3 max-w-2xl mx-auto w-full">
+        {phone ? (
+          <div className="flex gap-2">
+            <button onClick={send} disabled={sending || !msg.trim()}
+              className="bg-emerald-600 text-white text-sm font-bold px-4 py-2 rounded-xl disabled:opacity-50 shrink-0">
+              {sending ? '...' : 'שלח'}
+            </button>
+            <input value={msg} onChange={e => setMsg(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
+              className="flex-1 border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-400"
+              placeholder="הודעה..." />
+          </div>
+        ) : (
+          <p className="text-center text-sm text-slate-400">אין מספר טלפון</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── SHARED ── */
+function InfoRow({ label, children }) {
+  return (
+    <div className="bg-white rounded-xl px-3 py-2 border border-slate-100">
+      <p className="text-xs text-slate-400 font-semibold mb-0.5">{label}</p>
+      <div className="text-slate-700 font-medium text-sm">{children}</div>
+    </div>
+  );
+}
+
+function EditForm({ form, setForm, users, onSave, onCancel }) {
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const cls = 'w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-400 transition bg-white';
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2">
+        <div><label className="text-xs text-slate-500">שם</label><input value={form.name || ''} onChange={e => set('name', e.target.value)} className={cls} /></div>
+        <div><label className="text-xs text-slate-500">טלפון</label><input value={form.phone || ''} onChange={e => set('phone', e.target.value)} className={cls} dir="ltr" /></div>
+        <div><label className="text-xs text-slate-500">אימייל</label><input value={form.email || ''} onChange={e => set('email', e.target.value)} className={cls} dir="ltr" /></div>
+        <div><label className="text-xs text-slate-500">תאריך אירוע</label><input type="date" value={form.event_date ? form.event_date.split('T')[0] : ''} onChange={e => set('event_date', e.target.value)} className={cls} /></div>
+        <div><label className="text-xs text-slate-500">שעת האירוע</label><input type="time" value={form.event_time || ''} onChange={e => set('event_time', e.target.value)} className={cls} /></div>
+        <div><label className="text-xs text-slate-500">סוג אירוע</label>
+          <select value={form.event_type || ''} onChange={e => set('event_type', e.target.value)} className={cls}>
+            <option value="">בחר...</option>
+            {EVENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+          </select></div>
+        <div><label className="text-xs text-slate-500">מוזמנים</label><input type="number" value={form.guest_count || ''} onChange={e => set('guest_count', e.target.value)} className={cls} /></div>
+        <div><label className="text-xs text-slate-500">תקציב</label><input type="number" value={form.budget || ''} onChange={e => set('budget', e.target.value)} className={cls} /></div>
+        <div><label className="text-xs text-slate-500">עדיפות</label>
+          <select value={form.priority || 'normal'} onChange={e => set('priority', e.target.value)} className={cls}>
+            <option value="normal">רגיל</option><option value="hot">🔥 חם</option><option value="urgent">⚡ דחוף</option>
+          </select></div>
+        <div className="col-span-2"><label className="text-xs text-slate-500">אחראי</label>
+          <select value={form.assigned_to || ''} onChange={e => set('assigned_to', e.target.value)} className={cls}>
+            <option value="">ללא</option>
+            {users.map(u => <option key={u.id} value={u.id}>{u.display_name}</option>)}
+          </select></div>
+        <div className="col-span-2"><label className="text-xs text-slate-500">הערות</label>
+          <textarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} className={`${cls} resize-none`} rows={3} /></div>
+      </div>
+      <div className="flex gap-2">
+        <button onClick={onCancel} className="flex-1 border-2 border-slate-200 text-slate-500 text-sm font-bold py-2 rounded-xl">ביטול</button>
+        <button onClick={onSave} className="flex-1 bg-emerald-600 text-white text-sm font-bold py-2 rounded-xl">שמור</button>
+      </div>
+    </div>
+  );
+}
+
+function ProductionSection({ leadId, lead, onUpdated }) {
+  const [form, setForm] = useState({
+    deposit_amount:    lead.deposit_amount    || '',
+    deposit_date:      lead.deposit_date      ? lead.deposit_date.split('T')[0] : '',
+    deposit_confirmed: lead.deposit_confirmed || false,
+    production_notes:  lead.production_notes  || '',
+  });
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api.patch(`/leads/${leadId}`, form);
+      await onUpdated();
+    } catch { alert('שגיאה בשמירה'); }
+    setSaving(false);
+  }
+
+  const cls = 'w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-400 transition bg-white';
+
+  return (
+    <Section title="🎉 הפקה">
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-xs text-slate-500 block mb-1">סכום מקדמה (₪)</label>
+            <input type="number" value={form.deposit_amount}
+              onChange={e => setForm(f => ({ ...f, deposit_amount: e.target.value }))}
+              className={cls} placeholder="0" />
+          </div>
+          <div>
+            <label className="text-xs text-slate-500 block mb-1">תאריך מקדמה</label>
+            <input type="date" value={form.deposit_date}
+              onChange={e => setForm(f => ({ ...f, deposit_date: e.target.value }))}
+              className={cls} />
+          </div>
+        </div>
+        <label className="flex items-center gap-2 cursor-pointer justify-end">
+          <span className="text-sm font-semibold text-slate-700">מקדמה התקבלה</span>
+          <input type="checkbox" checked={form.deposit_confirmed}
+            onChange={e => setForm(f => ({ ...f, deposit_confirmed: e.target.checked }))}
+            className="w-4 h-4 accent-emerald-600" />
+        </label>
+        <div>
+          <label className="text-xs text-slate-500 block mb-1">הערות הפקה</label>
+          <textarea value={form.production_notes}
+            onChange={e => setForm(f => ({ ...f, production_notes: e.target.value }))}
+            className={`${cls} resize-none`} rows={3} placeholder="פרטי הפקה, ספקים, הערות..." />
+        </div>
+        <button onClick={save} disabled={saving}
+          className="w-full bg-emerald-600 text-white font-bold py-2 rounded-xl text-sm disabled:opacity-50">
+          {saving ? 'שומר...' : 'שמור'}
+        </button>
+      </div>
+    </Section>
+  );
+}
+
+function CalendarSection({ leadId, calStatus, onUpdated }) {
+  const [marking, setMarking] = useState(false);
+
+  async function mark(type) {
+    setMarking(true);
+    try {
+      await api.post(`/calendar/leads/${leadId}/mark`, { type });
+      await onUpdated();
+    } catch { alert('שגיאה בסימון יומן'); }
+    setMarking(false);
+  }
+
+  const type = calStatus?.type;
+
+  return (
+    <Section title="יומן Google">
+      <div className="flex items-center gap-3">
+        <div className="flex gap-2">
+          <button onClick={() => mark('option')} disabled={marking}
+            className={`text-xs font-bold px-3 py-1.5 rounded-xl border-2 transition ${type === 'option' ? 'bg-yellow-400 text-white border-yellow-400' : 'border-slate-200 text-slate-500 hover:border-yellow-300 hover:text-yellow-600'}`}>
+            🟡 אופציה
+          </button>
+          <button onClick={() => mark('confirmed')} disabled={marking}
+            className={`text-xs font-bold px-3 py-1.5 rounded-xl border-2 transition ${type === 'confirmed' ? 'bg-emerald-500 text-white border-emerald-500' : 'border-slate-200 text-slate-500 hover:border-emerald-300 hover:text-emerald-600'}`}>
+            ✅ סגור
+          </button>
+        </div>
+        <span className="text-xs text-slate-400">
+          {type === 'confirmed' ? '✅ מסומן כסגור ביומן' : type === 'option' ? '🟡 מסומן כאופציה ביומן' : 'לא מסומן ביומן'}
+        </span>
+      </div>
+    </Section>
+  );
+}
+
+function LostModal({ onClose, onConfirm }) {
+  const [reason, setReason] = useState('');
+  const [text, setText]     = useState('');
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl p-5 w-80 mx-4" onClick={e => e.stopPropagation()}>
+        <h3 className="font-black text-slate-800 text-lg text-right mb-3">סיבת אי-סגירה</h3>
+        <div className="space-y-2 mb-3">
+          {LOST_REASONS.map(r => (
+            <button key={r.value} onClick={() => setReason(r.value)}
+              className={`w-full text-right px-3 py-2 rounded-xl text-sm font-semibold transition border-2 ${reason === r.value ? 'bg-red-50 border-red-400 text-red-700' : 'border-slate-200 text-slate-600 hover:border-red-200'}`}>
+              {r.label}
+            </button>
+          ))}
+        </div>
+        <textarea value={text} onChange={e => setText(e.target.value)}
+          className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-red-300 resize-none mb-3"
+          rows={2} placeholder="פירוט נוסף (אופציונלי)..." />
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl text-sm">ביטול</button>
+          <button onClick={() => reason && onConfirm(reason, text)} disabled={!reason}
+            className="flex-1 bg-red-500 text-white font-bold py-2 rounded-xl text-sm disabled:opacity-50">
+            סמן כלא סגרו
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
