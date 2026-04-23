@@ -1,5 +1,31 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../api';
+
+function DateInput({ value, onChange, className }) {
+  const ref = useRef(null);
+  const display = value ? value.split('-').reverse().join('/') : '';
+  return (
+    <div className={`${className} relative flex items-center cursor-pointer`}
+         onClick={() => ref.current?.showPicker?.()}>
+      <span className={`flex-1 select-none ${display ? '' : 'text-slate-400'}`}>{display || 'DD/MM/YYYY'}</span>
+      <span className="text-slate-400 text-xs">📅</span>
+      <input ref={ref} type="date" value={value || ''} onChange={e => onChange(e.target.value)}
+        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer" />
+    </div>
+  );
+}
+function TimeInput({ value, onChange, className, placeholder }) {
+  const ref = useRef(null);
+  return (
+    <div className={`${className} relative flex items-center cursor-pointer`}
+         onClick={() => ref.current?.showPicker?.()}>
+      <span className={`flex-1 select-none ${value ? '' : 'text-slate-400'}`}>{value || placeholder || 'HH:MM'}</span>
+      <span className="text-slate-400 text-xs">🕐</span>
+      <input ref={ref} type="time" value={value || ''} onChange={e => onChange(e.target.value)}
+        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer" />
+    </div>
+  );
+}
 
 const SOURCE_OPTIONS = [
   { value: 'website_popup', label: 'אתר (פופאפ)' },
@@ -84,12 +110,10 @@ export default function AddLeadModal({ onClose, onSaved }) {
           {/* Event date + time + type */}
           <div className="grid grid-cols-2 gap-3">
             <Field label="תאריך אירוע">
-              <input type="date" value={form.event_date} onChange={e => set('event_date', e.target.value)}
-                className={inputCls} />
+              <DateInput value={form.event_date} onChange={v => set('event_date', v)} className={inputCls} />
             </Field>
             <Field label="שעת האירוע">
-              <input type="time" value={form.event_time} onChange={e => set('event_time', e.target.value)}
-                className={inputCls} placeholder="19:00" />
+              <TimeInput value={form.event_time} onChange={v => set('event_time', v)} className={inputCls} placeholder="19:00" />
             </Field>
           </div>
           <Field label="סוג אירוע">

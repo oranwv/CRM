@@ -104,7 +104,7 @@ async function runReminders() {
       );
     }
 
-    // 4. Due tasks — notify assigned user
+    // 4. Due tasks — notify assigned user (remind_sent_at prevents duplicates)
     const dueTasks = await pool.query(`
       SELECT t.id, t.title, t.lead_id, l.name AS lead_name,
              u.phone AS user_phone, u.display_name
@@ -114,20 +114,17 @@ async function runReminders() {
       WHERE t.completed_at IS NULL
         AND t.due_at BETWEEN NOW() - INTERVAL '1 hour' AND NOW() + INTERVAL '30 minutes'
         AND t.remind_via = 'whatsapp'
+        AND t.remind_sent_at IS NULL
         AND u.phone IS NOT NULL
-        AND NOT EXISTS (
-          SELECT 1 FROM lead_interactions li
-          WHERE li.lead_id = t.lead_id
-            AND li.body LIKE '%תזכורת משימה%' || t.title || '%'
-            AND li.created_at > NOW() - INTERVAL '2 hours'
-        )
     `);
 
     for (const task of dueTasks.rows) {
+      const baseUrl = process.env.SERVER_URL || 'http://localhost:3001';
       await sendWhatsApp(
         task.user_phone,
-        `⏰ תזכורת משימה: "${task.title}" עבור הליד "${task.lead_name}" - עכשיו!`
+        `⏰ תזכורת משימה: "${task.title}" עבור הליד "${task.lead_name}" - עכשיו!\n🔗 ${baseUrl}/?lead=${task.lead_id}`
       );
+      await pool.query('UPDATE tasks SET remind_sent_at = NOW() WHERE id = $1', [task.id]);
     }
 
     if (noContact.rows.length + offerStale.rows.length + contractStale.rows.length + dueTasks.rows.length > 0) {

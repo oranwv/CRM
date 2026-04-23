@@ -164,6 +164,7 @@ export default function LeadsPage() {
             <table className="w-full text-sm min-w-[1050px]">
               <thead>
                 <tr className="bg-gradient-to-r from-emerald-50 to-teal-50 text-xs font-bold text-slate-500 uppercase tracking-wide">
+                  <th className="px-4 py-3 text-right">#</th>
                   <th className="px-4 py-3 text-right">שם</th>
                   <th className="px-4 py-3 text-right">סטטוס</th>
                   <th className="px-4 py-3 text-right">פעילות אחרונה</th>
@@ -178,18 +179,27 @@ export default function LeadsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {leads.map(lead => (
+                {leads.map((lead, idx) => (
                   <tr
                     key={lead.id}
                     onClick={() => setSelectedId(lead.id)}
                     className="hover:bg-emerald-50/50 cursor-pointer transition"
                   >
+                    <td className="px-4 py-3 text-slate-400 text-xs font-medium">{idx + 1}</td>
                     <td className="px-4 py-3 font-semibold text-slate-800">
-                      <div className="flex items-center gap-1.5">
-                        {PRIORITY_ICONS[lead.priority] && (
-                          <span className="text-base">{PRIORITY_ICONS[lead.priority]}</span>
-                        )}
-                        {lead.name || '—'}
+                      <div className="flex items-center gap-2">
+                        {lead.avatar_url
+                          ? <img src={lead.avatar_url} className="w-7 h-7 rounded-full object-cover shrink-0" onError={e => e.target.style.display='none'} />
+                          : <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center text-xs font-bold text-emerald-700 shrink-0">
+                              {(lead.name || '?')[0]}
+                            </div>
+                        }
+                        <span className="flex items-center gap-1">
+                          {PRIORITY_ICONS[lead.priority] && (
+                            <span className="text-base">{PRIORITY_ICONS[lead.priority]}</span>
+                          )}
+                          {lead.name || '—'}
+                        </span>
                       </div>
                     </td>
                     <td className="px-4 py-3">
@@ -208,7 +218,7 @@ export default function LeadsPage() {
                         {formatDateTime(lead.last_interaction_at)}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-slate-500 text-xs">{formatDateTime(lead.created_at)}</td>
+                    <td className="px-4 py-3 text-slate-500 text-xs">{formatDateTime(lead.received_at)}</td>
                     <td className="px-4 py-3 text-slate-600 dir-ltr text-left">
                       {lead.phone ? (
                         <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()}
@@ -233,7 +243,8 @@ export default function LeadsPage() {
                           {lead.overdue_tasks}
                         </span>
                       ) : lead.open_tasks > 0 ? (
-                        <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                        <span className="inline-flex items-center gap-1 bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded-full">
+                          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse inline-block" />
                           {lead.open_tasks}
                         </span>
                       ) : '—'}

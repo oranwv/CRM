@@ -12,21 +12,48 @@ function formatPhone(phone) {
   return digits;
 }
 
-async function findOrCreateLead(phone, name, messageBody) {
+async function fetchContactInfo(chatId) {
+  try {
+    const res = await axios.post(
+      `${BASE()}/getContactInfo/${TOKEN()}`,
+      { chatId },
+      { timeout: 8000 }
+    );
+    const d = res.data || {};
+    const name   = (d.name || d.pushname || '').replace(/@c\.us$/, '').trim() || null;
+    const avatar = d.avatar || d.urlAvatar || null;
+    return { name, avatar };
+  } catch {
+    return { name: null, avatar: null };
+  }
+}
+
+async function findOrCreateLead(phone, senderName, messageBody, chatId) {
   const clean = formatPhone(phone);
   if (!clean) return null;
   const { rows } = await pool.query(
-    `SELECT id FROM leads WHERE
+    `SELECT id, avatar_url FROM leads WHERE
       CASE WHEN REGEXP_REPLACE(phone,'[^0-9]','','g') LIKE '0%'
         THEN '972' || SUBSTRING(REGEXP_REPLACE(phone,'[^0-9]','','g'),2)
         ELSE REGEXP_REPLACE(phone,'[^0-9]','','g')
       END = $1 LIMIT 1`,
     [clean]
   );
-  if (rows.length) return rows[0].id;
+  if (rows.length) {
+    // Backfill avatar if missing
+    if (!rows[0].avatar_url && chatId) {
+      fetchContactInfo(chatId).then(({ avatar }) => {
+        if (avatar) pool.query('UPDATE leads SET avatar_url=$1 WHERE id=$2', [avatar, rows[0].id]).catch(() => {});
+      });
+    }
+    return rows[0].id;
+  }
+  // New lead — fetch WhatsApp profile
+  const { name: profileName, avatar } = chatId ? await fetchContactInfo(chatId) : {};
+  const displayName = profileName || senderName || 'ליד וואטסאפ';
   const { rows: newRows } = await pool.query(
-    `INSERT INTO leads (name, phone, source, stage, notes) VALUES ($1,$2,'whatsapp','new',$3) RETURNING id`,
-    [name || 'ליד חדש מוואטסאפ', clean, `הודעה ראשונה: ${messageBody}`]
+    `INSERT INTO leads (name, phone, source, stage, notes, avatar_url) VALUES ($1,$2,'whatsapp','new',$3,$4) RETURNING id`,
+    [displayName, clean, `הודעה ראשונה: ${messageBody}`, avatar || null]
   );
   return newRows[0].id;
 }
@@ -57,7 +84,7 @@ async function processNotification(notification) {
   const { rows: dup } = await pool.query('SELECT id FROM messages WHERE external_id = $1', [externalId]);
   if (dup.length) return;
 
-  const leadId = await findOrCreateLead(senderPhone, senderName, text);
+  const leadId = await findOrCreateLead(senderPhone, senderName, text, chatId);
   if (!leadId) return;
 
   await pool.query(

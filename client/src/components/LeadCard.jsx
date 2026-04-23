@@ -56,6 +56,35 @@ function localToISO(date, time) {
   const str = time ? `${date}T${time}` : `${date}T00:00`;
   return new Date(str).toISOString(); // browser is in Israel TZ → correct UTC offset
 }
+// Date picker: native calendar for picking, displays dd/mm/yyyy
+function DateInput({ value, onChange, className, autoFocus }) {
+  const ref = useRef(null);
+  const display = value ? value.split('-').reverse().join('/') : '';
+  return (
+    <div className={`${className} relative flex items-center cursor-pointer`}
+         onClick={() => ref.current?.showPicker?.()}>
+      <span className={`flex-1 select-none ${display ? '' : 'text-slate-400'}`}>{display || 'DD/MM/YYYY'}</span>
+      <span className="text-slate-400 text-xs">📅</span>
+      <input ref={ref} type="date" value={value || ''} onChange={e => onChange(e.target.value)}
+        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer" autoFocus={autoFocus} />
+    </div>
+  );
+}
+
+// Time picker: native clock for picking, displays HH:MM 24h
+function TimeInput({ value, onChange, className }) {
+  const ref = useRef(null);
+  return (
+    <div className={`${className} relative flex items-center cursor-pointer`}
+         onClick={() => ref.current?.showPicker?.()}>
+      <span className={`flex-1 select-none ${value ? '' : 'text-slate-400'}`}>{value || 'HH:MM'}</span>
+      <span className="text-slate-400 text-xs">🕐</span>
+      <input ref={ref} type="time" value={value || ''} onChange={e => onChange(e.target.value)}
+        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer" />
+    </div>
+  );
+}
+
 function fileIcon(mime = '') {
   if (mime.startsWith('image/')) return '🖼️';
   if (mime.includes('pdf')) return '📄';
@@ -90,6 +119,9 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
   const [taskAction, setTaskAction]             = useState(null); // { task, mode: 'complete'|'reschedule'|'followup' }
   const [editing, setEditing]           = useState(false);
   const [editForm, setEditForm]         = useState({});
+  const [avatarZoom, setAvatarZoom]     = useState(false);
+  const [editingName, setEditingName]   = useState(false);
+  const [nameDraft, setNameDraft]       = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -188,17 +220,39 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
             🗑 מחק ליד
           </button>
         )}
-        <div className="flex-1 text-right">
-          <h2 className="text-white font-black text-lg leading-tight">
-            {lead.priority === 'hot' && '🔥 '}
-            {lead.priority === 'urgent' && '⚡ '}
-            {lead.name}
-          </h2>
-          <p className="text-emerald-200 text-xs">
-            {SOURCE_LABELS[lead.source] || lead.source}
-            {' · '}התקבל {formatFull(lead.created_at)}
-            {lastActivity && ` · פעילות אחרונה ${formatFull(lastActivity)}`}
-          </p>
+        <div className="flex items-center gap-3 flex-1 justify-end">
+          <div className="text-right">
+            {editingName ? (
+              <form onSubmit={async e => { e.preventDefault(); await api.patch(`/leads/${leadId}`, { name: nameDraft }); setEditingName(false); await load(); onUpdated(); }}
+                className="flex gap-1 justify-end">
+                <input autoFocus value={nameDraft} onChange={e => setNameDraft(e.target.value)}
+                  className="bg-white/20 text-white placeholder-white/50 border border-white/40 rounded-lg px-2 py-0.5 text-sm font-bold focus:outline-none w-44" />
+                <button type="submit" className="text-xs bg-white/20 hover:bg-white/30 text-white px-2 py-0.5 rounded-lg">✓</button>
+                <button type="button" onClick={() => setEditingName(false)} className="text-xs text-white/60 hover:text-white px-1">✕</button>
+              </form>
+            ) : (
+              <h2 className="text-white font-black text-lg leading-tight cursor-pointer hover:text-emerald-200 transition group"
+                  onClick={() => { setNameDraft(lead.name || ''); setEditingName(true); }}>
+                {lead.priority === 'hot' && '🔥 '}
+                {lead.priority === 'urgent' && '⚡ '}
+                {lead.name}
+                <span className="text-xs font-normal text-white/40 group-hover:text-white/70 mr-1">✏️</span>
+              </h2>
+            )}
+            <p className="text-emerald-200 text-xs">
+              {SOURCE_LABELS[lead.source] || lead.source}
+              {' · '}התקבל {formatFull(lead.created_at)}
+              {lastActivity && ` · פעילות אחרונה ${formatFull(lastActivity)}`}
+            </p>
+          </div>
+          {lead.avatar_url
+            ? <img src={lead.avatar_url} onClick={() => setAvatarZoom(true)}
+                className="w-12 h-12 rounded-full object-cover border-2 border-white/30 shrink-0 cursor-pointer hover:scale-105 transition-transform"
+                onError={e => e.target.style.display='none'} />
+            : <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center text-xl font-black text-white shrink-0">
+                {(lead.name || '?')[0]}
+              </div>
+          }
         </div>
       </div>
 
@@ -278,12 +332,7 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
                     <InfoRow label="התקבל ב">{formatFull(lead.created_at)}</InfoRow>
                     <InfoRow label="פעילות אחרונה">{lastActivity ? formatFull(lastActivity) : '—'}</InfoRow>
                   </div>
-                  {lead.notes && (
-                    <div className="mt-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 text-sm text-slate-700">
-                      <span className="text-xs font-bold text-amber-600 block mb-1">הערות</span>
-                      {lead.notes}
-                    </div>
-                  )}
+                  <NotesInlineEdit leadId={leadId} value={lead.notes} onSaved={load} />
                 </>
               )}
             </Section>
@@ -345,6 +394,12 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
           completeTask={completeTask}
         />
       )}
+      {avatarZoom && lead.avatar_url && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70" onClick={() => setAvatarZoom(false)}>
+          <img src={lead.avatar_url} className="max-w-xs max-h-[80vh] rounded-2xl shadow-2xl object-cover" />
+        </div>
+      )}
+
       {showDeleteModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={() => setShowDeleteModal(false)}>
           <div className="bg-white rounded-2xl shadow-2xl p-5 w-80 mx-4" onClick={e => e.stopPropagation()}>
@@ -369,6 +424,45 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ── NOTES INLINE EDIT ── */
+function NotesInlineEdit({ leadId, value, onSaved }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft]     = useState(value || '');
+
+  async function save() {
+    await api.patch(`/leads/${leadId}`, { notes: draft });
+    await onSaved();
+    setEditing(false);
+  }
+
+  if (editing) return (
+    <div className="mt-2">
+      <textarea
+        autoFocus
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        className="w-full border-2 border-emerald-400 rounded-xl px-3 py-2 text-sm focus:outline-none resize-none bg-white"
+        rows={4}
+      />
+      <div className="flex gap-2 mt-1.5">
+        <button onClick={() => setEditing(false)} className="flex-1 border-2 border-slate-200 text-slate-500 text-xs font-bold py-1.5 rounded-xl">ביטול</button>
+        <button onClick={save} className="flex-1 bg-emerald-600 text-white text-xs font-bold py-1.5 rounded-xl">שמור</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="mt-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 text-sm text-slate-700 cursor-pointer group"
+         onClick={() => { setDraft(value || ''); setEditing(true); }}>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs text-amber-400 opacity-0 group-hover:opacity-100 transition">✏️ לחץ לעריכה</span>
+        <span className="text-xs font-bold text-amber-600">תיאור</span>
+      </div>
+      {value ? value : <span className="text-slate-400 text-xs">אין תיאור — לחץ להוספה</span>}
     </div>
   );
 }
@@ -874,8 +968,8 @@ function EditForm({ form, setForm, users, onSave, onCancel }) {
         <div><label className="text-xs text-slate-500">שם</label><input value={form.name || ''} onChange={e => set('name', e.target.value)} className={cls} /></div>
         <div><label className="text-xs text-slate-500">טלפון</label><input value={form.phone || ''} onChange={e => set('phone', e.target.value)} className={cls} dir="ltr" /></div>
         <div><label className="text-xs text-slate-500">אימייל</label><input value={form.email || ''} onChange={e => set('email', e.target.value)} className={cls} dir="ltr" /></div>
-        <div><label className="text-xs text-slate-500">תאריך אירוע</label><input type="date" value={form.event_date ? form.event_date.split('T')[0] : ''} onChange={e => set('event_date', e.target.value)} className={cls} /></div>
-        <div><label className="text-xs text-slate-500">שעת האירוע</label><input type="time" value={form.event_time || ''} onChange={e => set('event_time', e.target.value)} className={cls} /></div>
+        <div><label className="text-xs text-slate-500">תאריך אירוע</label><DateInput value={form.event_date ? form.event_date.split('T')[0] : ''} onChange={v => set('event_date', v)} className={cls} /></div>
+        <div><label className="text-xs text-slate-500">שעת האירוע</label><TimeInput value={form.event_time || ''} onChange={v => set('event_time', v)} className={cls} /></div>
         <div><label className="text-xs text-slate-500">סוג אירוע</label>
           <select value={form.event_type || ''} onChange={e => set('event_type', e.target.value)} className={cls}>
             <option value="">בחר...</option>
@@ -892,7 +986,7 @@ function EditForm({ form, setForm, users, onSave, onCancel }) {
             <option value="">ללא</option>
             {users.map(u => <option key={u.id} value={u.id}>{u.display_name}</option>)}
           </select></div>
-        <div className="col-span-2"><label className="text-xs text-slate-500">הערות</label>
+        <div className="col-span-2"><label className="text-xs text-slate-500">תיאור</label>
           <textarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} className={`${cls} resize-none`} rows={3} /></div>
       </div>
       <div className="flex gap-2">
@@ -935,9 +1029,7 @@ function ProductionSection({ leadId, lead, onUpdated }) {
           </div>
           <div>
             <label className="text-xs text-slate-500 block mb-1">תאריך מקדמה</label>
-            <input type="date" value={form.deposit_date}
-              onChange={e => setForm(f => ({ ...f, deposit_date: e.target.value }))}
-              className={cls} />
+            <DateInput value={form.deposit_date} onChange={v => setForm(f => ({ ...f, deposit_date: v }))} className={cls} />
           </div>
         </div>
         <label className="flex items-center gap-2 cursor-pointer justify-end">
@@ -1021,11 +1113,11 @@ function AddTaskModal({ leadId, users, onClose, onSaved }) {
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="text-xs text-slate-500 block mb-1 text-right">תאריך</label>
-            <input type="date" lang="he" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} className={cls} />
+            <DateInput value={form.due_date} onChange={v => setForm(f => ({ ...f, due_date: v }))} className={cls} />
           </div>
           <div>
             <label className="text-xs text-slate-500 block mb-1 text-right">שעה</label>
-            <input type="time" value={form.due_time} onChange={e => setForm(f => ({ ...f, due_time: e.target.value }))} className={cls} />
+            <TimeInput value={form.due_time} onChange={v => setForm(f => ({ ...f, due_time: v }))} className={cls} />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
@@ -1254,10 +1346,8 @@ function TaskActionModal({ task, leadId, lead, users, onClose, onDone, completeT
           <div className="space-y-2">
             <label className="text-xs text-slate-500 block text-right">תאריך ושעה חדשים</label>
             <div className="flex gap-2">
-              <input type="date" lang="he" value={newDueDate} onChange={e => setNewDueDate(e.target.value)}
-                className={`${cls} flex-1`} autoFocus />
-              <input type="time" value={newDueTime} onChange={e => setNewDueTime(e.target.value)}
-                className={`${cls} w-28`} />
+              <DateInput value={newDueDate} onChange={setNewDueDate} className={`${cls} flex-1`} autoFocus />
+              <TimeInput value={newDueTime} onChange={setNewDueTime} className={`${cls} w-28`} />
             </div>
             <div className="flex gap-2">
               <button onClick={() => setMode(null)} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl text-sm">חזרה</button>
@@ -1275,10 +1365,8 @@ function TaskActionModal({ task, leadId, lead, users, onClose, onDone, completeT
             <input value={followTitle} onChange={e => setFollowTitle(e.target.value)}
               className={`${cls} text-right`} autoFocus placeholder="כותרת משימת המשך..." />
             <div className="flex gap-2">
-              <input type="date" lang="he" value={followDueDate} onChange={e => setFollowDueDate(e.target.value)}
-                className={`${cls} flex-1`} />
-              <input type="time" value={followDueTime} onChange={e => setFollowDueTime(e.target.value)}
-                className={`${cls} w-28`} />
+              <DateInput value={followDueDate} onChange={setFollowDueDate} className={`${cls} flex-1`} />
+              <TimeInput value={followDueTime} onChange={setFollowDueTime} className={`${cls} w-28`} />
             </div>
             <div className="flex gap-2">
               <button onClick={() => setMode(null)} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl text-sm">חזרה</button>

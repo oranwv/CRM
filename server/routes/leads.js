@@ -40,7 +40,17 @@ router.get('/', async (req, res) => {
     SELECT l.*, u.display_name AS assigned_name,
            (SELECT COUNT(*) FROM tasks t WHERE t.lead_id = l.id AND t.completed_at IS NULL) AS open_tasks,
            (SELECT COUNT(*) FROM tasks t WHERE t.lead_id = l.id AND t.completed_at IS NULL AND t.due_at IS NOT NULL AND t.due_at <= NOW()) AS overdue_tasks,
-           (SELECT MAX(created_at) FROM lead_interactions WHERE lead_id = l.id) AS last_interaction_at,
+           GREATEST(
+             (SELECT MAX(created_at) FROM lead_interactions WHERE lead_id = l.id),
+             (SELECT MAX(timestamp)  FROM messages           WHERE lead_id = l.id)
+           ) AS last_interaction_at,
+           COALESCE(
+             LEAST(
+               (SELECT MIN(timestamp)  FROM messages           WHERE lead_id = l.id AND direction='inbound'),
+               (SELECT MIN(created_at) FROM lead_interactions  WHERE lead_id = l.id AND direction='inbound')
+             ),
+             l.created_at
+           ) AS received_at,
            (SELECT COUNT(*) FROM messages WHERE lead_id = l.id AND direction='inbound' AND is_read=false) +
            (SELECT COUNT(*) FROM lead_interactions WHERE lead_id = l.id AND direction='inbound' AND is_read=false) AS unread_count
     FROM leads l
@@ -52,7 +62,7 @@ router.get('/', async (req, res) => {
     params.push(`%${search}%`);
     query += ` AND (l.name ILIKE $${params.length} OR l.phone ILIKE $${params.length} OR l.email ILIKE $${params.length})`;
   }
-  query += ' ORDER BY l.updated_at DESC';
+  query += ' ORDER BY received_at DESC';
   try {
     const { rows } = await pool.query(query, params);
     res.json(rows);

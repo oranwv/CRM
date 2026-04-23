@@ -34,6 +34,7 @@ pool.query(`
   ALTER TABLE lead_interactions ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT TRUE;
   ALTER TABLE tasks ADD COLUMN IF NOT EXISTS result TEXT;
   ALTER TABLE tasks ADD COLUMN IF NOT EXISTS remind_sent_at TIMESTAMPTZ;
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(500);
 `).catch(err => console.error('[DB] Table check error:', err.message));
 
 const app = express();
@@ -84,9 +85,11 @@ function startCronJobs() {
   pollWhatsApp(); // runs forever in a loop
   console.log('[Cron] WhatsApp polling started');
 
-  // Run reminders every 30 minutes
+  // Run reminders every 30 minutes (2min delay on start to avoid re-firing on server restart)
   const { runReminders } = require('./services/reminderService');
-  runReminders();
-  setInterval(runReminders, 30 * 60 * 1000);
+  setTimeout(() => {
+    runReminders();
+    setInterval(runReminders, 30 * 60 * 1000);
+  }, 2 * 60 * 1000);
   console.log('[Cron] Reminder service started');
 }

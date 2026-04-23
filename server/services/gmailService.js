@@ -38,12 +38,16 @@ function parseCallEvent(body) {
 
 function parseWebsitePopup(body) {
   const lines = body.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  // Old format: look for 'אני' line
   const idx = lines.findIndex(l => l.includes('אני'));
-  return {
-    source: 'website_popup',
-    name:  idx >= 0 ? lines[idx + 1] || null : null,
-    phone: idx >= 0 ? lines[idx + 2] || null : null,
-  };
+  if (idx >= 0) {
+    return { source: 'website_popup', name: lines[idx + 1] || null, phone: lines[idx + 2] || null };
+  }
+  // New format: name on line 1, phone on line 2, before '---'
+  const dashIdx = lines.findIndex(l => l.startsWith('---'));
+  const before = dashIdx >= 0 ? lines.slice(0, dashIdx) : lines.slice(0, 3);
+  const valid = before.filter(l => !l.includes('תאריך') && !l.includes('זמן') && !l.includes('קישור') && !l.startsWith('http'));
+  return { source: 'website_popup', name: valid[0] || null, phone: valid[1] || null };
 }
 
 function parseWebsiteForm(body) {
@@ -92,21 +96,42 @@ function decodeBase64(str) {
   return Buffer.from(str.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf-8');
 }
 
+function stripHtml(str) {
+  return str
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/?(tr|p|div|li)[^>]*>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#160;/g, ' ');
+}
+
 function extractBody(payload) {
-  if (payload.body?.data) return decodeBase64(payload.body.data);
+  // Prefer plain text part
+  if (payload.mimeType === 'text/plain' && payload.body?.data)
+    return decodeBase64(payload.body.data);
+  if (payload.mimeType === 'text/html' && payload.body?.data)
+    return stripHtml(decodeBase64(payload.body.data));
   if (payload.parts) {
+    const plain = payload.parts.find(p => p.mimeType === 'text/plain');
+    if (plain) return extractBody(plain);
     for (const part of payload.parts) {
       const text = extractBody(part);
       if (text) return text;
     }
   }
+  if (payload.body?.data) return decodeBase64(payload.body.data);
   return '';
 }
 
 // ── MATCH & UPSERT LEAD ───────────────────────────────────────────────────────
 
-async function upsertLead(parsed, emailId) {
+async function upsertLead(parsed, emailId, emailTs) {
   if (!parsed.phone && !parsed.email && !parsed.name) return;
+
+  const tsExpr = emailTs ? `to_timestamp(${Math.floor(emailTs / 1000)})` : 'NOW()';
 
   // Check if lead already exists by phone or email
   let existing = null;
@@ -120,21 +145,24 @@ async function upsertLead(parsed, emailId) {
   }
 
   if (existing) {
-    // Attach as interaction note
     await pool.query(
-      `INSERT INTO lead_interactions (lead_id, type, direction, body, created_by, is_read)
-       VALUES ($1, 'email', 'inbound', $2, NULL, false)`,
+      `INSERT INTO lead_interactions (lead_id, type, direction, body, created_by, is_read, created_at)
+       VALUES ($1, 'email', 'inbound', $2, NULL, false, ${tsExpr})`,
       [existing.id, `[אימייל אוטומטי - ${parsed.source}] ${parsed.notes || ''}`]
     );
   } else {
-    // Create new lead
     const fields = ['source', 'stage', 'name', 'phone', 'email', 'event_date', 'event_type', 'guest_count', 'budget', 'notes'];
     const values = [parsed.source, 'new', parsed.name, parsed.phone, parsed.email,
                     parsed.event_date || null, parsed.event_type, parsed.guest_count, parsed.budget, parsed.notes];
     const cols = fields.join(', ');
     const placeholders = fields.map((_, i) => `$${i+1}`).join(', ');
     const { rows: newRows } = await pool.query(`INSERT INTO leads (${cols}) VALUES (${placeholders}) RETURNING *`, values);
-    // Auto-add to Google Calendar if event_date set
+    // Insert inbound interaction with real email timestamp so received_at reflects actual email date
+    await pool.query(
+      `INSERT INTO lead_interactions (lead_id, type, direction, body, created_by, is_read, created_at)
+       VALUES ($1, 'email', 'inbound', $2, NULL, false, ${tsExpr})`,
+      [newRows[0].id, `[אימייל אוטומטי - ${parsed.source}] ${parsed.notes || ''}`]
+    );
     if (newRows[0]?.event_date) {
       try {
         const { syncLeadToCalendar } = require('./calendarService');
@@ -143,7 +171,6 @@ async function upsertLead(parsed, emailId) {
     }
   }
 
-  // Mark email as processed
   await pool.query(
     `INSERT INTO processed_emails (gmail_id) VALUES ($1) ON CONFLICT DO NOTHING`,
     [emailId]
@@ -180,6 +207,7 @@ async function pollGmail() {
       if (already.rows.length > 0) continue;
 
       const full = await gmail.users.messages.get({ userId: 'me', id: msg.id, format: 'full' });
+      const emailTs = full.data.internalDate ? Number(full.data.internalDate) : null;
       const headers = full.data.payload.headers;
       const from    = headers.find(h => h.name === 'From')?.value || '';
       const subject = headers.find(h => h.name === 'Subject')?.value || '';
@@ -198,7 +226,7 @@ async function pollGmail() {
       }
 
       if (parsed) {
-        await upsertLead(parsed, msg.id);
+        await upsertLead(parsed, msg.id, emailTs);
         console.log(`[Gmail] Processed: ${subject} → ${parsed.source} lead`);
       } else {
         // Mark as processed so we don't re-check irrelevant emails
