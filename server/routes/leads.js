@@ -180,6 +180,13 @@ router.post('/:id/interactions', async (req, res) => {
       [req.params.id, type, direction, body, req.user.id]
     );
     await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [req.params.id]);
+    // Auto-advance new → contacted on first outbound interaction
+    if (direction === 'outbound') {
+      await pool.query(
+        `UPDATE leads SET stage = 'contacted', updated_at = NOW() WHERE id = $1 AND stage = 'new'`,
+        [req.params.id]
+      );
+    }
     res.status(201).json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -289,6 +296,11 @@ router.post('/:id/email/send', emailUpload.single('file'), async (req, res) => {
       [req.params.id, interactionBody, req.user.id]
     );
     await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [req.params.id]);
+    // Auto-advance new → contacted on first outbound email
+    await pool.query(
+      `UPDATE leads SET stage = 'contacted', updated_at = NOW() WHERE id = $1 AND stage = 'new'`,
+      [req.params.id]
+    );
     res.json({ success: true });
   } catch (err) {
     if (req.file) try { fs.unlinkSync(req.file.path); } catch {}
