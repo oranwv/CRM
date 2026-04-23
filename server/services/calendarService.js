@@ -125,7 +125,7 @@ async function createMeeting({ leadId, title, start, end, guestEmail, guestName 
     sendUpdates: 'none',
     requestBody: {
       summary: title,
-      location: 'שרביה, רחוב יפת 3, יפו',
+      location: 'שרביה, פנחס בן יאיר 3, תל אביב',
       start: { dateTime: start, timeZone: 'Asia/Jerusalem' },
       end:   { dateTime: end,   timeZone: 'Asia/Jerusalem' },
       attendees,
