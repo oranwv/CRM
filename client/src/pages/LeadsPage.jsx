@@ -202,21 +202,21 @@ export default function LeadsPage() {
           </div>
         ) : (
           <div className="bg-white rounded-2xl shadow-sm border border-amber-100 overflow-hidden mt-2">
-            <table className="w-full text-base min-w-[1200px]">
+            <table className="w-full text-xs min-w-[900px]">
               <thead>
-                <tr className="bg-amber-50/60 text-sm font-bold text-stone-500 uppercase tracking-wide border-b border-amber-100">
-                  <th className="px-5 py-4 text-right">#</th>
-                  <th className="px-5 py-4 text-right">שם</th>
-                  <th className="px-5 py-4 text-right">סטטוס</th>
-                  <th className="px-5 py-4 text-right">פעילות אחרונה</th>
-                  <th className="px-5 py-4 text-right">התקבל ב</th>
-                  <th className="px-5 py-4 text-right">טלפון</th>
-                  <th className="px-5 py-4 text-right">תאריך אירוע</th>
-                  <th className="px-5 py-4 text-right">סוג אירוע</th>
-                  <th className="px-5 py-4 text-right">מוזמנים</th>
-                  <th className="px-5 py-4 text-right">מקור</th>
-                  <th className="px-5 py-4 text-right">אחראי</th>
-                  <th className="px-5 py-4 text-right">משימות</th>
+                <tr className="bg-amber-50/60 text-xs font-bold text-stone-500 uppercase tracking-wide border-b border-amber-100">
+                  <th className="px-2 py-3 text-right">#</th>
+                  <th className="px-2 py-3 text-right">שם</th>
+                  <th className="px-2 py-3 text-right">סטטוס</th>
+                  <th className="px-2 py-3 text-right">פעילות אחרונה</th>
+                  <th className="px-2 py-3 text-right">התקבל ב</th>
+                  <th className="px-2 py-3 text-right">טלפון</th>
+                  <th className="px-2 py-3 text-right">תאריך אירוע</th>
+                  <th className="px-2 py-3 text-right">סוג אירוע</th>
+                  <th className="px-2 py-3 text-right">מוזמנים</th>
+                  <th className="px-2 py-3 text-right">מקור</th>
+                  <th className="px-2 py-3 text-right">אחראי</th>
+                  <th className="px-2 py-3 text-right">משימות</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-amber-50">
@@ -226,41 +226,41 @@ export default function LeadsPage() {
                     onClick={() => setSelectedId(lead.id)}
                     className="hover:bg-amber-50/40 cursor-pointer transition"
                   >
-                    <td className="px-5 py-4 text-stone-400 text-sm font-medium">{idx + 1}</td>
-                    <td className="px-5 py-4 font-semibold text-stone-800">
-                      <div className="flex items-center gap-2">
+                    <td className="px-2 py-3 text-stone-400 font-medium">{idx + 1}</td>
+                    <td className="px-2 py-3 font-semibold text-stone-800">
+                      <div className="flex items-center gap-1.5">
                         {lead.avatar_url
-                          ? <img src={lead.avatar_url} className="w-9 h-9 rounded-full object-cover shrink-0" onError={e => e.target.style.display='none'} />
-                          : <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center text-sm font-bold text-amber-700 shrink-0">
+                          ? <img src={lead.avatar_url} className="w-7 h-7 rounded-full object-cover shrink-0" onError={e => e.target.style.display='none'} />
+                          : <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center text-xs font-bold text-amber-700 shrink-0">
                               {(lead.name || '?')[0]}
                             </div>
                         }
-                        <span className="flex items-center gap-1">
+                        <span className="flex items-center gap-0.5">
                           {PRIORITY_ICONS[lead.priority] && (
-                            <span className="text-lg">{PRIORITY_ICONS[lead.priority]}</span>
+                            <span>{PRIORITY_ICONS[lead.priority]}</span>
                           )}
                           {lead.name || '—'}
                         </span>
                       </div>
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-2 py-3">
                       {(() => {
                         const s = STAGE_STYLES[lead.stage];
                         return s ? (
-                          <span className={`text-sm font-bold px-3 py-1 rounded-full ${s.cls}`}>{s.label}</span>
+                          <span className={`font-bold px-2 py-0.5 rounded-full ${s.cls}`}>{s.label}</span>
                         ) : '—';
                       })()}
                     </td>
-                    <td className="px-5 py-4 text-stone-500 text-sm">
-                      <div className="flex items-center gap-1.5">
+                    <td className="px-2 py-3 text-stone-500">
+                      <div className="flex items-center gap-1">
                         {lead.unread_count > 0 && (
-                          <span className="w-2.5 h-2.5 rounded-full bg-green-500 shrink-0 animate-pulse" title="הודעה חדשה שלא נקראה" />
+                          <span className="w-2 h-2 rounded-full bg-green-500 shrink-0 animate-pulse" title="הודעה חדשה שלא נקראה" />
                         )}
                         <DateTimeCell value={lead.last_interaction_at} />
                       </div>
                     </td>
-                    <td className="px-5 py-4 text-stone-500 text-sm"><DateTimeCell value={lead.received_at} /></td>
-                    <td className="px-5 py-4 text-stone-600" dir="ltr" style={{ textAlign: 'left' }}>
+                    <td className="px-2 py-3 text-stone-500"><DateTimeCell value={lead.received_at} /></td>
+                    <td className="px-2 py-3 text-stone-600" dir="ltr" style={{ textAlign: 'left' }}>
                       {lead.phone ? (
                         <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()}
                            className="text-amber-700 hover:underline font-medium">
@@ -268,24 +268,24 @@ export default function LeadsPage() {
                         </a>
                       ) : '—'}
                     </td>
-                    <td className="px-5 py-4 text-stone-600">{formatDate(lead.event_date)}</td>
-                    <td className="px-5 py-4 text-stone-600">{lead.event_type || '—'}</td>
-                    <td className="px-5 py-4 text-stone-600">{lead.guest_count || '—'}</td>
-                    <td className="px-5 py-4">
-                      <span className={`text-sm font-semibold px-2.5 py-1 rounded-full ${SOURCE_COLORS[lead.source] || 'bg-stone-100 text-stone-600'}`}>
+                    <td className="px-2 py-3 text-stone-600">{formatDate(lead.event_date)}</td>
+                    <td className="px-2 py-3 text-stone-600">{lead.event_type || '—'}</td>
+                    <td className="px-2 py-3 text-stone-600">{lead.guest_count || '—'}</td>
+                    <td className="px-2 py-3">
+                      <span className={`font-semibold px-2 py-0.5 rounded-full ${SOURCE_COLORS[lead.source] || 'bg-stone-100 text-stone-600'}`}>
                         {SOURCE_LABELS[lead.source] || lead.source}
                       </span>
                     </td>
-                    <td className="px-5 py-4 text-stone-500 text-sm">{lead.assigned_name || '—'}</td>
-                    <td className="px-5 py-4">
+                    <td className="px-2 py-3 text-stone-500">{lead.assigned_name || '—'}</td>
+                    <td className="px-2 py-3">
                       {lead.overdue_tasks > 0 ? (
-                        <span className="inline-flex items-center gap-1 bg-red-100 text-red-600 text-sm font-bold px-2.5 py-1 rounded-full">
-                          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse inline-block" />
+                        <span className="inline-flex items-center gap-1 bg-red-100 text-red-600 font-bold px-2 py-0.5 rounded-full">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse inline-block" />
                           {lead.overdue_tasks}
                         </span>
                       ) : lead.open_tasks > 0 ? (
-                        <span className="inline-flex items-center gap-1 bg-red-100 text-red-600 text-sm font-bold px-2.5 py-1 rounded-full">
-                          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse inline-block" />
+                        <span className="inline-flex items-center gap-1 bg-red-100 text-red-600 font-bold px-2 py-0.5 rounded-full">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse inline-block" />
                           {lead.open_tasks}
                         </span>
                       ) : '—'}
