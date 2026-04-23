@@ -41,8 +41,8 @@ export default function AnalyticsPage() {
   }, []);
 
   if (loading) return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-50 flex items-center justify-center">
-      <p className="text-slate-400">טוען נתונים...</p>
+    <div className="min-h-screen flex items-center justify-center">
+      <p className="text-stone-400">טוען נתונים...</p>
     </div>
   );
 
@@ -54,13 +54,12 @@ export default function AnalyticsPage() {
   const lostRate = Math.round((parseInt(overview.lost) / total) * 100);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-50">
+    <div className="min-h-screen">
       {/* Header */}
-      <div className="bg-gradient-to-r from-emerald-700 via-teal-600 to-cyan-600 px-4 py-3 flex items-center justify-between shadow-lg">
-        <a href="/" className="text-emerald-200 hover:text-white text-sm transition">← חזרה</a>
+      <div className="bg-white/70 backdrop-blur-sm border-b border-amber-100 px-5 py-4 flex items-center justify-end shadow-sm">
         <div className="text-right">
-          <h1 className="text-lg font-black text-white">📊 אנליטיקס</h1>
-          <p className="text-emerald-200 text-xs">סטטיסטיקות ומדדים</p>
+          <h1 className="text-lg font-black text-stone-900">אנליטיקס</h1>
+          <p className="text-stone-400 text-xs">סטטיסטיקות ומדדים</p>
         </div>
       </div>
 
@@ -90,7 +89,7 @@ export default function AnalyticsPage() {
                   <div key={i} className="flex-1 flex flex-col items-center gap-1">
                     <div className="w-full relative flex flex-col justify-end" style={{ height: '100px' }}>
                       <div className="w-full bg-slate-200 rounded-t-lg absolute bottom-0" style={{ height: `${h}%` }} />
-                      <div className="w-full bg-emerald-400 rounded-t-lg absolute bottom-0" style={{ height: `${wonH}%` }} />
+                      <div className="w-full bg-amber-400 rounded-t-lg absolute bottom-0" style={{ height: `${wonH}%` }} />
                     </div>
                     <span className="text-xs text-slate-500">{m.month}</span>
                     <span className="text-xs font-bold text-slate-700">{m.total}</span>
@@ -100,7 +99,7 @@ export default function AnalyticsPage() {
             </div>
             <div className="flex gap-4 mt-2 text-xs text-slate-500">
               <span className="flex items-center gap-1"><span className="w-3 h-3 bg-slate-200 rounded inline-block" /> כלל לידים</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 bg-emerald-400 rounded inline-block" /> סגרו עסקה</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 bg-amber-400 rounded inline-block" /> סגרו עסקה</span>
             </div>
           </Card>
         )}
@@ -137,7 +136,7 @@ export default function AnalyticsPage() {
                 return (
                   <div key={s.source}>
                     <div className="flex justify-between text-xs mb-0.5">
-                      <span className="font-bold text-slate-700">{parseInt(s.count)} <span className="text-emerald-600 font-normal">({wonPct}% סגרו)</span></span>
+                      <span className="font-bold text-slate-700">{parseInt(s.count)} <span className="text-amber-700 font-normal">({wonPct}% סגרו)</span></span>
                       <span className="text-slate-500">{SOURCE_LABELS[s.source] || s.source}</span>
                     </div>
                     <div className="w-full bg-slate-100 rounded-full h-2">
@@ -153,13 +152,13 @@ export default function AnalyticsPage() {
           <Card title="ביצועי צוות">
             <div className="space-y-2 mt-2">
               {staffPerf.filter(s => s.display_name).map(s => (
-                <div key={s.display_name} className="flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-2">
+                <div key={s.display_name} className="flex items-center gap-2 bg-amber-50/40 rounded-xl px-3 py-2">
                   <div className="flex-1 text-right">
                     <p className="text-sm font-bold text-slate-700">{s.display_name}</p>
                     <p className="text-xs text-slate-400">{s.total} לידים · {s.won} סגרו · {s.lost} לא סגרו</p>
                   </div>
                   <div className="text-right">
-                    <span className="text-lg font-black text-emerald-600">
+                    <span className="text-lg font-black text-amber-700">
                       {parseInt(s.total) > 0 ? Math.round((parseInt(s.won) / parseInt(s.total)) * 100) : 0}%
                     </span>
                     <p className="text-xs text-slate-400">סגירה</p>
@@ -199,7 +198,7 @@ export default function AnalyticsPage() {
 
 function KpiCard({ label, value, color }) {
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-emerald-100 p-4 text-right">
+    <div className="bg-white rounded-2xl shadow-sm border border-amber-100 p-4 text-right">
       <p className={`text-2xl font-black ${color}`}>{value}</p>
       <p className="text-xs text-slate-400 mt-0.5">{label}</p>
     </div>
@@ -208,7 +207,7 @@ function KpiCard({ label, value, color }) {
 
 function Card({ title, children }) {
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-emerald-100 p-4">
+    <div className="bg-white rounded-2xl shadow-sm border border-amber-100 p-4">
       <h3 className="text-sm font-black text-slate-700 text-right">{title}</h3>
       {children}
     </div>

@@ -9,37 +9,36 @@ function PrivateRoute({ children }) {
   return localStorage.getItem('crm_token') ? children : <Navigate to="/login" replace />;
 }
 
-function AppShell() {
-  const location  = useLocation();
-  const navigate  = useNavigate();
-  const [openLeadId, setOpenLeadId] = useState(null);
+const NAV_TABS = [
+  { path: '/',          icon: '👥', label: 'לידים' },
+  { path: '/calendar',  icon: '📅', label: 'לוח שנה' },
+  { path: '/analytics', icon: '📊', label: 'אנליטיקס' },
+];
 
-  if (location.pathname === '/login') return null;
-
-  const tabs = [
-    { path: '/',          icon: '👥', label: 'לידים' },
-    { path: '/calendar',  icon: '📅', label: 'לוח שנה' },
-    { path: '/analytics', icon: '📊', label: 'אנליטיקס' },
-  ];
+function AppShellNav() {
+  const location = useLocation();
+  const navigate = useNavigate();
 
   return (
-    <>
-      {/* Bottom nav */}
-      <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-slate-100 flex shadow-lg">
-        {tabs.map(t => {
-          const active = location.pathname === t.path;
-          return (
-            <button key={t.path} onClick={() => navigate(t.path)}
-              className={`flex-1 flex flex-col items-center py-2 text-xs font-bold transition ${active ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}>
-              <span className="text-xl">{t.icon}</span>
-              {t.label}
-            </button>
-          );
-        })}
-      </nav>
-      {/* Spacer so content isn't hidden behind nav */}
-      <div className="pb-16" />
-    </>
+    <nav className="fixed bottom-0 left-0 right-0 z-30 flex shadow-2xl" style={{ background: '#1c1007', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+      {NAV_TABS.map(t => {
+        const active = location.pathname === t.path;
+        return (
+          <button
+            key={t.path}
+            onClick={() => navigate(t.path)}
+            className="flex-1 flex flex-col items-center py-2.5 text-xs font-bold transition relative"
+            style={{ color: active ? '#d97706' : '#a8895e' }}
+          >
+            {active && (
+              <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full" style={{ background: '#d97706' }} />
+            )}
+            <span className="text-xl mb-0.5">{t.icon}</span>
+            {t.label}
+          </button>
+        );
+      })}
+    </nav>
   );
 }
 
@@ -55,6 +54,7 @@ export default function App() {
             <>
               <LeadsPage />
               <AppShellNav />
+              <div className="pb-16" />
             </>
           </PrivateRoute>
         } />
@@ -63,6 +63,7 @@ export default function App() {
             <>
               <AnalyticsPage />
               <AppShellNav />
+              <div className="pb-16" />
             </>
           </PrivateRoute>
         } />
@@ -71,37 +72,12 @@ export default function App() {
             <>
               <CalendarPage onOpenLead={(id) => setCalendarOpenLead(id)} />
               <AppShellNav />
+              <div className="pb-16" />
             </>
           </PrivateRoute>
         } />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
-  );
-}
-
-function AppShellNav() {
-  const location = useLocation();
-  const navigate = useNavigate();
-
-  const tabs = [
-    { path: '/',          icon: '👥', label: 'לידים' },
-    { path: '/calendar',  icon: '📅', label: 'לוח שנה' },
-    { path: '/analytics', icon: '📊', label: 'אנליטיקס' },
-  ];
-
-  return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-slate-100 flex shadow-lg">
-      {tabs.map(t => {
-        const active = location.pathname === t.path;
-        return (
-          <button key={t.path} onClick={() => navigate(t.path)}
-            className={`flex-1 flex flex-col items-center py-2 text-xs font-bold transition ${active ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}>
-            <span className="text-xl">{t.icon}</span>
-            {t.label}
-          </button>
-        );
-      })}
-    </nav>
   );
 }

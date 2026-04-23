@@ -83,7 +83,7 @@ export default function AddLeadModal({ onClose, onSaved }) {
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-white px-5 pt-5 pb-3 border-b border-slate-100 flex items-center justify-between rounded-t-3xl">
+        <div className="sticky top-0 bg-white px-5 pt-5 pb-3 border-b border-amber-100 flex items-center justify-between rounded-t-3xl">
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
           <h2 className="font-black text-slate-800 text-lg">ליד חדש</h2>
         </div>
@@ -172,7 +172,8 @@ export default function AddLeadModal({ onClose, onSaved }) {
               ביטול
             </button>
             <button type="submit" disabled={saving}
-              className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-500 text-white font-bold py-3 rounded-xl hover:from-emerald-700 hover:to-teal-600 transition disabled:opacity-60">
+              className="flex-1 text-white font-bold py-3 rounded-xl transition disabled:opacity-60 shadow-lg"
+              style={{ background: 'linear-gradient(135deg, #d97706, #b45309)', boxShadow: '0 4px 14px rgba(217,119,6,0.3)' }}>
               {saving ? 'שומר...' : 'הוסף ליד'}
             </button>
           </div>
@@ -182,7 +183,7 @@ export default function AddLeadModal({ onClose, onSaved }) {
   );
 }
 
-const inputCls = 'w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-400 transition bg-white';
+const inputCls = 'w-full border border-amber-200 bg-amber-50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 transition';
 
 function Field({ label, children }) {
   return (

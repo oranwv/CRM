@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>עיצוב 2 — Clean Light</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    .card { background: white; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .card-hover { transition: all 0.15s ease; cursor: pointer; }
+    .card-hover:hover { border-color: #10b981; box-shadow: 0 4px 12px rgba(16,185,129,0.12); transform: translateY(-1px); }
+    .stage-pill { display: inline-flex; align-items: center; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; letter-spacing: 0.02em; }
+    .pulse { animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+    .btn-primary { background: linear-gradient(135deg, #059669, #0d9488); color: white; border-radius: 10px; padding: 8px 16px; font-size: 14px; font-weight: 600; border: none; cursor: pointer; transition: all 0.15s; box-shadow: 0 2px 8px rgba(5,150,105,0.25); }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(5,150,105,0.35); }
+    input:focus { outline: none; border-color: #10b981 !important; box-shadow: 0 0 0 3px rgba(16,185,129,0.1); }
+  </style>
+</head>
+<body class="bg-gray-50 text-slate-800" style="min-height:100vh">
+
+  <!-- Top nav -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
+    <div class="max-w-screen-xl mx-auto px-6 h-16 flex items-center gap-6">
+      <!-- Logo -->
+      <div class="flex items-center gap-3 shrink-0">
+        <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-black text-sm shadow-md shadow-emerald-500/25">ש</div>
+        <span class="font-bold text-slate-900 text-sm">שרביה CRM</span>
+      </div>
+
+      <!-- Nav tabs -->
+      <nav class="flex items-center gap-1">
+        <a class="px-4 py-2 rounded-lg bg-emerald-50 text-emerald-700 font-semibold text-sm cursor-pointer">לידים</a>
+        <a class="px-4 py-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-50 font-medium text-sm cursor-pointer transition">לוח שנה</a>
+        <a class="px-4 py-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-50 font-medium text-sm cursor-pointer transition">אנליטיקס</a>
+      </nav>
+
+      <div class="flex-1"></div>
+
+      <!-- Search -->
+      <div class="relative">
+        <input type="text" placeholder="חיפוש..." class="border border-slate-200 rounded-lg px-4 py-2 text-sm pr-10 w-52 bg-slate-50 transition" />
+        <svg class="absolute right-3 top-2.5 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      </div>
+
+      <!-- Notifications -->
+      <button class="relative p-2 rounded-lg hover:bg-slate-50 text-slate-500 transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+        <span class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500"></span>
+      </button>
+
+      <!-- User avatar -->
+      <div class="flex items-center gap-2.5 cursor-pointer">
+        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-bold text-sm">א</div>
+        <span class="text-sm font-medium text-slate-700">אורן</span>
+        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+      </div>
+    </div>
+  </header>
+
+  <div class="max-w-screen-xl mx-auto px-6 py-6">
+
+    <!-- Page title + action -->
+    <div class="flex items-start justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-black text-slate-900">לידים</h1>
+        <p class="text-slate-500 text-sm mt-0.5">ניהול כל הפניות והלקוחות הפוטנציאליים</p>
+      </div>
+      <button class="btn-primary flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        ליד חדש
+      </button>
+    </div>
+
+    <!-- KPI cards -->
+    <div class="grid grid-cols-4 gap-4 mb-6">
+      <div class="card p-4">
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">סה״כ פניות</p>
+        <p class="text-3xl font-black text-slate-900">24</p>
+        <p class="text-xs text-emerald-600 font-medium mt-1">↑ +3 השבוע</p>
+      </div>
+      <div class="card p-4">
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">בצנרת</p>
+        <p class="text-3xl font-black text-slate-900">₪245K</p>
+        <p class="text-xs text-emerald-600 font-medium mt-1">↑ +₪18K החודש</p>
+      </div>
+      <div class="card p-4">
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">אחוז סגירה</p>
+        <p class="text-3xl font-black text-slate-900">67%</p>
+        <p class="text-xs text-slate-400 font-medium mt-1">ממוצע 3 חודשים</p>
+      </div>
+      <div class="card p-4">
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">זמן ממוצע לסגירה</p>
+        <p class="text-3xl font-black text-slate-900">18</p>
+        <p class="text-xs text-slate-400 font-medium mt-1">ימים</p>
+      </div>
+    </div>
+
+    <!-- Pipeline stages -->
+    <div class="card p-4 mb-6">
+      <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">מצב הצנרת</p>
+      <div class="flex gap-2 items-center">
+        <div class="flex-1 text-center">
+          <div class="bg-sky-100 rounded-xl p-3 mb-1.5">
+            <p class="text-2xl font-black text-sky-700">8</p>
+          </div>
+          <p class="text-xs text-slate-500 font-medium">חדש</p>
+        </div>
+        <svg class="w-4 h-4 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        <div class="flex-1 text-center">
+          <div class="bg-amber-100 rounded-xl p-3 mb-1.5">
+            <p class="text-2xl font-black text-amber-700">4</p>
+          </div>
+          <p class="text-xs text-slate-500 font-medium">יצירת קשר</p>
+        </div>
+        <svg class="w-4 h-4 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        <div class="flex-1 text-center">
+          <div class="bg-violet-100 rounded-xl p-3 mb-1.5">
+            <p class="text-2xl font-black text-violet-700">3</p>
+          </div>
+          <p class="text-xs text-slate-500 font-medium">פגישה</p>
+        </div>
+        <svg class="w-4 h-4 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        <div class="flex-1 text-center">
+          <div class="bg-blue-100 rounded-xl p-3 mb-1.5">
+            <p class="text-2xl font-black text-blue-700">3</p>
+          </div>
+          <p class="text-xs text-slate-500 font-medium">הצעה נשלחה</p>
+        </div>
+        <svg class="w-4 h-4 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        <div class="flex-1 text-center">
+          <div class="bg-orange-100 rounded-xl p-3 mb-1.5">
+            <p class="text-2xl font-black text-orange-700">2</p>
+          </div>
+          <p class="text-xs text-slate-500 font-medium">משא ומתן</p>
+        </div>
+        <svg class="w-4 h-4 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        <div class="flex-1 text-center">
+          <div class="bg-emerald-100 rounded-xl p-3 mb-1.5">
+            <p class="text-2xl font-black text-emerald-700">4</p>
+          </div>
+          <p class="text-xs text-slate-500 font-medium">סגר ✓</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table card -->
+    <div class="card overflow-hidden">
+      <!-- Table toolbar -->
+      <div class="px-5 py-3.5 border-b border-slate-100 flex items-center gap-3">
+        <div class="flex gap-1 bg-slate-100 rounded-lg p-1">
+          <button class="px-3 py-1.5 rounded-md bg-white text-slate-700 text-xs font-semibold shadow-sm">הכל</button>
+          <button class="px-3 py-1.5 rounded-md text-slate-500 text-xs font-medium hover:text-slate-700 transition">חדשים</button>
+          <button class="px-3 py-1.5 rounded-md text-slate-500 text-xs font-medium hover:text-slate-700 transition">בתהליך</button>
+          <button class="px-3 py-1.5 rounded-md text-slate-500 text-xs font-medium hover:text-slate-700 transition">סגרו</button>
+          <button class="px-3 py-1.5 rounded-md text-slate-500 text-xs font-medium hover:text-slate-700 transition">לא סגרו</button>
+        </div>
+        <div class="flex-1"></div>
+        <button class="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/></svg>
+          סינון
+        </button>
+        <button class="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg>
+          מיון
+        </button>
+      </div>
+
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 border-b border-slate-100">
+          <tr class="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+            <th class="text-right py-3 pr-5 pl-4">לקוח</th>
+            <th class="text-right py-3 px-4">סטטוס</th>
+            <th class="text-right py-3 px-4">אירוע</th>
+            <th class="text-right py-3 px-4">תאריך</th>
+            <th class="text-right py-3 px-4">תקציב</th>
+            <th class="text-right py-3 px-4">אחראי</th>
+            <th class="text-right py-3 px-4 pl-5">פעולות</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Row 1 -->
+          <tr class="border-b border-slate-50 hover:bg-emerald-50/40 transition cursor-pointer group">
+            <td class="py-3.5 pr-5 pl-4">
+              <div class="flex items-center gap-3">
+                <div class="relative">
+                  <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-400 to-blue-500 flex items-center justify-center text-white font-black text-sm">ד</div>
+                  <span class="pulse absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-white"></span>
+                </div>
+                <div>
+                  <p class="font-semibold text-slate-900">דנה כהן</p>
+                  <p class="text-xs text-slate-400 mt-0.5">054-1234567</p>
+                </div>
+              </div>
+            </td>
+            <td class="py-3.5 px-4"><span class="stage-pill bg-sky-100 text-sky-700">חדש</span></td>
+            <td class="py-3.5 px-4">
+              <p class="text-slate-700 font-medium">חתונה</p>
+              <p class="text-xs text-slate-400">250 אורחים</p>
+            </td>
+            <td class="py-3.5 px-4">
+              <p class="text-slate-700 font-medium">15/08/2026</p>
+              <p class="text-xs text-slate-400">בעוד 4 חודשים</p>
+            </td>
+            <td class="py-3.5 px-4 font-bold text-slate-800">₪45,000</td>
+            <td class="py-3.5 px-4">
+              <div class="flex items-center gap-1.5">
+                <div class="w-6 h-6 rounded-full bg-violet-500 flex items-center justify-center text-white text-xs font-bold">ג</div>
+                <span class="text-sm text-slate-600">גילי</span>
+              </div>
+            </td>
+            <td class="py-3.5 px-4 pl-5">
+              <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                <button class="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition" title="שלח וואטסאפ">
+                  <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                </button>
+                <button class="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition" title="שלח אימייל">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                </button>
+                <button class="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition" title="פתח ליד">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                </button>
+              </div>
+            </td>
+          </tr>
+          <!-- Row 2 -->
+          <tr class="border-b border-slate-50 hover:bg-emerald-50/40 transition cursor-pointer group">
+            <td class="py-3.5 pr-5 pl-4">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-black text-sm">י</div>
+                <div>
+                  <p class="font-semibold text-slate-900">יוסי לוי</p>
+                  <p class="text-xs text-slate-400 mt-0.5">052-9876543</p>
+                </div>
+              </div>
+            </td>
+            <td class="py-3.5 px-4"><span class="stage-pill bg-blue-100 text-blue-700">הצעה נשלחה</span></td>
+            <td class="py-3.5 px-4">
+              <p class="text-slate-700 font-medium">בר מצווה</p>
+              <p class="text-xs text-slate-400">120 אורחים</p>
+            </td>
+            <td class="py-3.5 px-4">
+              <p class="text-slate-700 font-medium">20/07/2026</p>
+              <p class="text-xs text-slate-400">בעוד 3 חודשים</p>
+            </td>
+            <td class="py-3.5 px-4 font-bold text-slate-800">₪18,000</td>
+            <td class="py-3.5 px-4">
+              <div class="flex items-center gap-1.5">
+                <div class="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-white text-xs font-bold">ש</div>
+                <span class="text-sm text-slate-600">שני</span>
+              </div>
+            </td>
+            <td class="py-3.5 px-4 pl-5">
+              <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                <button class="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg></button>
+                <button class="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></button>
+                <button class="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg></button>
+              </div>
+            </td>
+          </tr>
+          <!-- Row 3 hot -->
+          <tr class="border-b border-slate-50 hover:bg-emerald-50/40 transition cursor-pointer group bg-amber-50/30">
+            <td class="py-3.5 pr-5 pl-4">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-rose-400 to-pink-500 flex items-center justify-center text-white font-black text-sm">מ</div>
+                <div>
+                  <p class="font-semibold text-slate-900 flex items-center gap-1.5">מיכל ישראלי <span class="text-base">🔥</span></p>
+                  <p class="text-xs text-slate-400 mt-0.5">050-1112222</p>
+                </div>
+              </div>
+            </td>
+            <td class="py-3.5 px-4"><span class="stage-pill bg-violet-100 text-violet-700">פגישה</span></td>
+            <td class="py-3.5 px-4">
+              <p class="text-slate-700 font-medium">חתונה</p>
+              <p class="text-xs text-slate-400">300 אורחים</p>
+            </td>
+            <td class="py-3.5 px-4">
+              <p class="text-slate-700 font-medium">03/09/2026</p>
+              <p class="text-xs text-slate-400">בעוד 5 חודשים</p>
+            </td>
+            <td class="py-3.5 px-4 font-bold text-slate-800">₪55,000</td>
+            <td class="py-3.5 px-4">
+              <div class="flex items-center gap-1.5">
+                <div class="w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs font-bold">א</div>
+                <span class="text-sm text-slate-600">אורן</span>
+              </div>
+            </td>
+            <td class="py-3.5 px-4 pl-5">
+              <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                <button class="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg></button>
+                <button class="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></button>
+                <button class="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg></button>
+              </div>
+            </td>
+          </tr>
+          <!-- Row 4 closed -->
+          <tr class="border-b border-slate-50 hover:bg-emerald-50/40 transition cursor-pointer group">
+            <td class="py-3.5 pr-5 pl-4">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-black text-sm">א</div>
+                <div>
+                  <p class="font-semibold text-slate-900">אברהם גולדברג</p>
+                  <p class="text-xs text-slate-400 mt-0.5">053-3334444</p>
+                </div>
+              </div>
+            </td>
+            <td class="py-3.5 px-4"><span class="stage-pill bg-emerald-100 text-emerald-700">✓ סגר</span></td>
+            <td class="py-3.5 px-4">
+              <p class="text-slate-700 font-medium">יום הולדת</p>
+              <p class="text-xs text-slate-400">80 אורחים</p>
+            </td>
+            <td class="py-3.5 px-4">
+              <p class="text-slate-700 font-medium">01/06/2026</p>
+              <p class="text-xs text-slate-400">בעוד 5 שבועות</p>
+            </td>
+            <td class="py-3.5 px-4 font-bold text-emerald-700">₪12,000</td>
+            <td class="py-3.5 px-4">
+              <div class="flex items-center gap-1.5">
+                <div class="w-6 h-6 rounded-full bg-rose-500 flex items-center justify-center text-white text-xs font-bold">ע</div>
+                <span class="text-sm text-slate-600">עורית</span>
+              </div>
+            </td>
+            <td class="py-3.5 px-4 pl-5">
+              <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                <button class="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg></button>
+                <button class="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></button>
+                <button class="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg></button>
+              </div>
+            </td>
+          </tr>
+          <!-- Row 5 -->
+          <tr class="hover:bg-emerald-50/40 transition cursor-pointer group">
+            <td class="py-3.5 pr-5 pl-4">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-400 to-fuchsia-500 flex items-center justify-center text-white font-black text-sm">ר</div>
+                <div>
+                  <p class="font-semibold text-slate-900">רחל אברמוב</p>
+                  <p class="text-xs text-slate-400 mt-0.5">058-5556666</p>
+                </div>
+              </div>
+            </td>
+            <td class="py-3.5 px-4"><span class="stage-pill bg-orange-100 text-orange-700">משא ומתן</span></td>
+            <td class="py-3.5 px-4">
+              <p class="text-slate-700 font-medium">חתונה</p>
+              <p class="text-xs text-slate-400">400 אורחים</p>
+            </td>
+            <td class="py-3.5 px-4">
+              <p class="text-slate-700 font-medium">28/11/2026</p>
+              <p class="text-xs text-slate-400">בעוד 7 חודשים</p>
+            </td>
+            <td class="py-3.5 px-4 font-bold text-slate-800">₪62,000</td>
+            <td class="py-3.5 px-4">
+              <div class="flex items-center gap-1.5">
+                <div class="w-6 h-6 rounded-full bg-violet-500 flex items-center justify-center text-white text-xs font-bold">ג</div>
+                <span class="text-sm text-slate-600">גילי</span>
+              </div>
+            </td>
+            <td class="py-3.5 px-4 pl-5">
+              <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                <button class="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg></button>
+                <button class="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></button>
+                <button class="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg></button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Table footer -->
+      <div class="px-5 py-3 border-t border-slate-100 flex items-center justify-between">
+        <span class="text-xs text-slate-400">5 מתוך 24 לידים</span>
+        <div class="flex gap-1.5">
+          <button class="px-3 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 transition">הקודם</button>
+          <button class="px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-lg shadow-sm">1</button>
+          <button class="px-3 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 transition">2</button>
+          <button class="px-3 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 transition">הבא</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="fixed bottom-4 left-1/2 -translate-x-1/2 bg-emerald-700/90 text-white text-xs font-medium px-4 py-2 rounded-full shadow-lg backdrop-blur-sm">
+    עיצוב 2 — Clean Light (Emerald)
+  </div>
+</body>
+</html>

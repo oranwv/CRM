@@ -4,6 +4,20 @@ const cors    = require('cors');
 const path    = require('path');
 const fs      = require('fs');
 
+// On Railway: reconstruct Google credential files from base64 env vars
+if (process.env.GOOGLE_CREDENTIALS_B64) {
+  fs.writeFileSync(
+    path.join(__dirname, 'credentials.json'),
+    Buffer.from(process.env.GOOGLE_CREDENTIALS_B64, 'base64').toString('utf-8')
+  );
+}
+if (process.env.GOOGLE_TOKEN_B64) {
+  fs.writeFileSync(
+    path.join(__dirname, 'google_token.json'),
+    Buffer.from(process.env.GOOGLE_TOKEN_B64, 'base64').toString('utf-8')
+  );
+}
+
 const requireAuth     = require('./middleware/auth');
 const authRoutes      = require('./routes/auth');
 const leadsRoutes     = require('./routes/leads');
@@ -80,10 +94,20 @@ function startCronJobs() {
     console.log('[Cron] Gmail skipped — no google_token.json');
   }
 
-  // Long-poll WhatsApp inbound messages continuously
-  const { pollWhatsApp } = require('./services/whatsappPoller');
-  pollWhatsApp(); // runs forever in a loop
-  console.log('[Cron] WhatsApp polling started');
+  // WhatsApp: use webhook when SERVER_URL is set (production), otherwise long-poll (local dev)
+  if (process.env.SERVER_URL) {
+    const axios = require('axios');
+    const base  = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}`;
+    const token = process.env.GREEN_API_TOKEN;
+    axios.post(`${base}/setSettings/${token}`, {
+      webhookUrl: `${process.env.SERVER_URL}/api/whatsapp/webhook`
+    }).then(() => console.log('[WhatsApp] Webhook registered:', process.env.SERVER_URL))
+      .catch(err => console.error('[WhatsApp] Webhook registration failed:', err.message));
+  } else {
+    const { pollWhatsApp } = require('./services/whatsappPoller');
+    pollWhatsApp();
+    console.log('[Cron] WhatsApp polling started (local)');
+  }
 
   // Run reminders every 30 minutes (2min delay on start to avoid re-firing on server restart)
   const { runReminders } = require('./services/reminderService');

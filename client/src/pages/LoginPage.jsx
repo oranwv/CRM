@@ -26,34 +26,37 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-100">
-      <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-sm border border-emerald-100">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50">
+      <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-sm border border-amber-100">
         <div className="text-center mb-7">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 text-3xl shadow-lg shadow-emerald-200 mb-4">
-            🌿
+          <div
+            className="inline-flex items-center justify-center w-16 h-16 rounded-2xl text-white text-2xl font-black shadow-lg mb-4"
+            style={{ background: 'linear-gradient(135deg, #d97706, #b45309)', boxShadow: '0 8px 24px rgba(217,119,6,0.35)' }}
+          >
+            ש
           </div>
-          <h1 className="text-2xl font-black text-slate-800">שרביה CRM</h1>
-          <p className="text-slate-400 text-sm mt-1">ברוכים הבאים! התחבר להמשך</p>
+          <h1 className="text-2xl font-black text-stone-900">שרביה CRM</h1>
+          <p className="text-stone-400 text-sm mt-1">ברוכים הבאים! התחבר להמשך</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-slate-600 mb-1.5">שם משתמש</label>
+            <label className="block text-sm font-semibold text-stone-600 mb-1.5">שם משתמש</label>
             <input
               type="text"
               value={username}
               onChange={e => setUsername(e.target.value)}
-              className="w-full border-2 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400 transition"
+              className="w-full border border-amber-200 bg-amber-50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 transition"
               required autoFocus
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-slate-600 mb-1.5">סיסמה</label>
+            <label className="block text-sm font-semibold text-stone-600 mb-1.5">סיסמה</label>
             <input
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              className="w-full border-2 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400 transition"
+              className="w-full border border-amber-200 bg-amber-50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 transition"
               required
             />
           </div>
@@ -67,7 +70,8 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-emerald-200 disabled:opacity-60 mt-2"
+            className="w-full text-white font-bold py-3 rounded-xl transition shadow-lg disabled:opacity-60 mt-2"
+            style={{ background: 'linear-gradient(135deg, #d97706, #b45309)', boxShadow: '0 4px 14px rgba(217,119,6,0.35)' }}
           >
             {loading ? 'מתחבר...' : 'כניסה'}
           </button>

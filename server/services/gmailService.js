@@ -68,7 +68,7 @@ function parseTelekol(body) {
     const m = body.match(new RegExp(`${label}\\s*[:\\s]+([^\\n\\r]+)`));
     return m ? m[1].trim() : null;
   };
-  const phoneMatch = body.match(/מספר טלפון לחזרה\s+(\d[\d\-]+)/);
+  const phoneMatch = body.match(/מספר טלפון לחזרה\s*(\d[\d\-]+)/);
   return {
     source: 'telekol',
     phone:       phoneMatch ? phoneMatch[1].trim() : null,
