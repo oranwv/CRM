@@ -113,4 +113,45 @@ async function getLeadCalendarStatus(leadId) {
   return rows[0] || null;
 }
 
-module.exports = { syncLeadToCalendar, markEventDate, getLeadCalendarStatus };
+async function createMeeting({ leadId, title, start, end, guestEmail, guestName }) {
+  const auth     = getAuth();
+  const calendar = google.calendar({ version: 'v3', auth });
+
+  const attendees = [];
+  if (guestEmail) attendees.push({ email: guestEmail, displayName: guestName || undefined });
+
+  const result = await calendar.events.insert({
+    calendarId: 'primary',
+    sendUpdates: 'none',
+    requestBody: {
+      summary: title,
+      start: { dateTime: start, timeZone: 'Asia/Jerusalem' },
+      end:   { dateTime: end,   timeZone: 'Asia/Jerusalem' },
+      attendees,
+      description: `פגישה עם ליד #${leadId}\n🔗 פתח בCRM: ${process.env.SERVER_URL || 'http://localhost:3001'}/?lead=${leadId}`,
+    },
+  });
+
+  return { eventId: result.data.id, eventLink: result.data.htmlLink };
+}
+
+async function sendMeetingInvite(eventId) {
+  const auth     = getAuth();
+  const calendar = google.calendar({ version: 'v3', auth });
+  await calendar.events.patch({
+    calendarId: 'primary',
+    eventId,
+    sendUpdates: 'all',
+    requestBody: {},
+  });
+}
+
+async function getMeetingRsvpStatus(eventId, guestEmail) {
+  const auth     = getAuth();
+  const calendar = google.calendar({ version: 'v3', auth });
+  const result   = await calendar.events.get({ calendarId: 'primary', eventId });
+  const attendee = (result.data.attendees || []).find(a => a.email === guestEmail);
+  return attendee?.responseStatus || 'needsAction';
+}
+
+module.exports = { syncLeadToCalendar, markEventDate, getLeadCalendarStatus, createMeeting, sendMeetingInvite, getMeetingRsvpStatus };

@@ -120,8 +120,9 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
   const [editing, setEditing]           = useState(false);
   const [editForm, setEditForm]         = useState({});
   const [avatarZoom, setAvatarZoom]     = useState(false);
-  const [editingName, setEditingName]   = useState(false);
-  const [nameDraft, setNameDraft]       = useState('');
+  const [editingName, setEditingName]     = useState(false);
+  const [nameDraft, setNameDraft]         = useState('');
+  const [showMeetingModal, setShowMeetingModal] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -281,7 +282,12 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
 
             {/* Status */}
             <Section title="סטטוס"
-              action={<button onClick={() => setShowAddTask(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-amber-600 text-white hover:bg-amber-700 transition">+ משימה</button>}>
+              action={
+                <div className="flex gap-2">
+                  <button onClick={() => setShowMeetingModal(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition">📅 קבע פגישה</button>
+                  <button onClick={() => setShowAddTask(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-amber-600 text-white hover:bg-amber-700 transition">+ משימה</button>
+                </div>
+              }>
               {isLost ? (
                 <span className="text-sm font-bold px-3 py-1.5 rounded-full bg-red-100 text-red-600 border border-red-200">
                   ✕ לא סגרו — {LOST_REASONS.find(r => r.value === lead.lost_reason)?.label || lead.lost_reason}
@@ -302,6 +308,15 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
                     className="text-sm px-3 py-1.5 rounded-full font-bold bg-white text-slate-400 border border-slate-200 hover:border-red-300 hover:text-red-500 transition">
                     לא סגרו
                   </button>
+                </div>
+              )}
+              {lead.meeting_rsvp_status && lead.meeting_rsvp_status !== 'needsAction' && (
+                <div className="mt-2 flex justify-end">
+                  {{
+                    accepted:  <span className="text-sm font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">✅ הליד אישר את הפגישה</span>,
+                    declined:  <span className="text-sm font-bold px-3 py-1 rounded-full bg-red-100 text-red-600 border border-red-200">❌ הליד דחה את הפגישה</span>,
+                    tentative: <span className="text-sm font-bold px-3 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200">❓ הליד אולי יגיע</span>,
+                  }[lead.meeting_rsvp_status] || null}
                 </div>
               )}
             </Section>
@@ -372,6 +387,15 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
           <WhatsAppTab leadId={leadId} phone={lead.phone} messages={messages} onSent={load} />
         )}
       </div>
+
+      {showMeetingModal && (
+        <ScheduleMeetingModal
+          lead={lead}
+          leadId={leadId}
+          onClose={() => setShowMeetingModal(false)}
+          onDone={() => { setShowMeetingModal(false); load(); onUpdated(); }}
+        />
+      )}
 
       {showLostModal && <LostModal onClose={() => setShowLostModal(false)} onConfirm={markLost} />}
 
@@ -1375,6 +1399,160 @@ function TaskActionModal({ task, leadId, lead, users, onClose, onDone, completeT
                 {saving ? '...' : 'צור משימת המשך'}
               </button>
             </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── SCHEDULE MEETING MODAL ── */
+function ScheduleMeetingModal({ lead, leadId, onClose, onDone }) {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toLocaleDateString('sv', { timeZone: 'Asia/Jerusalem' }); // yyyy-mm-dd
+
+  const [title, setTitle]       = useState(`פגישה עם ${lead.name || ''}`);
+  const [date, setDate]         = useState(tomorrowStr);
+  const [startTime, setStart]   = useState('10:00');
+  const [endTime, setEnd]       = useState('11:00');
+  const [delivery, setDelivery] = useState(lead.phone ? 'whatsapp' : 'email');
+  const [step, setStep]         = useState(1); // 1=form, 2=done
+  const [saving, setSaving]     = useState(false);
+  const [result, setResult]     = useState(null); // { eventId, eventLink }
+  const [rsvp, setRsvp]         = useState(null);
+  const [checkingRsvp, setCheckingRsvp] = useState(false);
+
+  const cls = 'w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-violet-400 bg-white';
+
+  function buildDateTime(d, t) {
+    return new Date(`${d}T${t}`).toISOString();
+  }
+
+  async function submit() {
+    if (!date || !startTime || !endTime) return;
+    setSaving(true);
+    try {
+      const start = buildDateTime(date, startTime);
+      const end   = buildDateTime(date, endTime);
+      const guestEmail = delivery === 'email' ? lead.email : null;
+
+      const { data } = await api.post(`/calendar/leads/${leadId}/meeting`, {
+        title, start, end, guestEmail, guestName: lead.name,
+      });
+
+      if (delivery === 'whatsapp') {
+        await api.post('/whatsapp/send', {
+          leadId,
+          message: `שלום! קישור לפגישה שנקבענו: ${data.eventLink}`,
+        });
+      } else {
+        await api.post(`/calendar/meetings/${data.eventId}/notify`);
+      }
+
+      setResult(data);
+      setStep(2);
+    } catch (err) {
+      alert(err.response?.data?.error || 'שגיאה ביצירת הפגישה');
+    }
+    setSaving(false);
+  }
+
+  async function checkRsvp() {
+    if (!result || !lead.email) return;
+    setCheckingRsvp(true);
+    try {
+      const { data } = await api.get(`/calendar/meetings/${result.eventId}/status`, {
+        params: { leadId, guestEmail: lead.email },
+      });
+      setRsvp(data.status);
+    } catch { }
+    setCheckingRsvp(false);
+  }
+
+  const RSVP_LABELS = {
+    accepted:  { text: '✅ אישר',    cls: 'bg-emerald-100 text-emerald-700' },
+    declined:  { text: '❌ דחה',     cls: 'bg-red-100 text-red-600' },
+    tentative: { text: '❓ אולי',    cls: 'bg-amber-100 text-amber-700' },
+    needsAction: { text: '⏳ ממתין', cls: 'bg-slate-100 text-slate-600' },
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl p-5 w-[22rem] mx-4 space-y-3" onClick={e => e.stopPropagation()}>
+        <h3 className="font-black text-slate-800 text-lg text-right">📅 קבע פגישה</h3>
+
+        {step === 1 && (
+          <>
+            <div>
+              <label className="text-sm text-slate-500 block mb-1 text-right">כותרת</label>
+              <input value={title} onChange={e => setTitle(e.target.value)} className={cls} />
+            </div>
+            <div>
+              <label className="text-sm text-slate-500 block mb-1 text-right">תאריך</label>
+              <DateInput value={date} onChange={setDate} className={cls} />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-sm text-slate-500 block mb-1 text-right">שעת התחלה</label>
+                <TimeInput value={startTime} onChange={setStart} className={cls} />
+              </div>
+              <div>
+                <label className="text-sm text-slate-500 block mb-1 text-right">שעת סיום</label>
+                <TimeInput value={endTime} onChange={setEnd} className={cls} />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm text-slate-500 block mb-1 text-right">שלח הזמנה דרך</label>
+              <div className="flex gap-2">
+                {lead.phone && (
+                  <button onClick={() => setDelivery('whatsapp')}
+                    className={`flex-1 text-sm font-bold py-2 rounded-xl border-2 transition ${delivery === 'whatsapp' ? 'bg-green-600 text-white border-green-600' : 'border-slate-200 text-slate-600 hover:border-green-300'}`}>
+                    📱 וואטסאפ
+                  </button>
+                )}
+                {lead.email && (
+                  <button onClick={() => setDelivery('email')}
+                    className={`flex-1 text-sm font-bold py-2 rounded-xl border-2 transition ${delivery === 'email' ? 'bg-sky-600 text-white border-sky-600' : 'border-slate-200 text-slate-600 hover:border-sky-300'}`}>
+                    ✉️ אימייל
+                  </button>
+                )}
+              </div>
+              {!lead.phone && !lead.email && (
+                <p className="text-sm text-red-400 text-right mt-1">אין מספר טלפון או אימייל</p>
+              )}
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl text-base">ביטול</button>
+              <button onClick={submit} disabled={saving || !date || (!lead.phone && !lead.email)}
+                className="flex-1 bg-violet-600 text-white font-bold py-2 rounded-xl text-base disabled:opacity-50">
+                {saving ? '...' : 'צור ושלח'}
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === 2 && result && (
+          <div className="space-y-3 text-right">
+            <p className="text-base font-bold text-emerald-600">✅ הפגישה נוצרה ונשלחה בהצלחה!</p>
+            <a href={result.eventLink} target="_blank" rel="noreferrer"
+              className="block text-sm text-violet-600 hover:underline font-semibold">
+              🔗 פתח ב-Google Calendar
+            </a>
+            {lead.email && (
+              <div className="flex items-center gap-2">
+                <button onClick={checkRsvp} disabled={checkingRsvp}
+                  className="text-sm font-bold px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition disabled:opacity-50">
+                  {checkingRsvp ? '...' : 'בדוק תשובה'}
+                </button>
+                {rsvp && (
+                  <span className={`text-sm font-bold px-3 py-1 rounded-full ${RSVP_LABELS[rsvp]?.cls || 'bg-slate-100 text-slate-600'}`}>
+                    {RSVP_LABELS[rsvp]?.text || rsvp}
+                  </span>
+                )}
+              </div>
+            )}
+            <button onClick={onDone} className="w-full bg-violet-600 text-white font-bold py-2 rounded-xl text-base">סגור</button>
           </div>
         )}
       </div>

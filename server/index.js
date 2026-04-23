@@ -49,6 +49,8 @@ pool.query(`
   ALTER TABLE tasks ADD COLUMN IF NOT EXISTS result TEXT;
   ALTER TABLE tasks ADD COLUMN IF NOT EXISTS remind_sent_at TIMESTAMPTZ;
   ALTER TABLE leads ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(500);
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS meeting_event_id TEXT;
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS meeting_rsvp_status VARCHAR(20);
 `).catch(err => console.error('[DB] Table check error:', err.message));
 
 const app = express();
