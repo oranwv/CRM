@@ -26,6 +26,7 @@ const whatsappRoutes  = require('./routes/whatsapp');
 const filesRoutes     = require('./routes/files');
 const analyticsRoutes = require('./routes/analytics');
 const calendarRoutes  = require('./routes/calendar');
+const aiRoutes        = require('./routes/ai');
 
 const pool = require('./db/pool');
 
@@ -66,6 +67,7 @@ app.use('/api/leads',               requireAuth, leadsRoutes);
 app.use('/api/leads/:leadId/files', requireAuth, filesRoutes);
 app.use('/api/users',               requireAuth, usersRoutes);
 app.use('/api/analytics',           requireAuth, analyticsRoutes);
+app.use('/api/ai',                  requireAuth, aiRoutes);
 app.use('/api/calendar',            requireAuth, calendarRoutes);
 
 // Serve uploaded files

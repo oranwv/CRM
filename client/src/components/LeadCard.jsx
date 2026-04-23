@@ -609,6 +609,38 @@ function TimelineSection({ leadId, timeline, phone, email, onAdded }) {
   const [draggingEmail, setDraggingEmail] = useState(false);
   const fileRef                 = useRef();
 
+  const [translations, setTranslations]   = useState({}); // itemId → translated text
+  const [translating, setTranslating]     = useState({}); // itemId → bool
+  const [aiLoading, setAiLoading]         = useState(null); // null | 'translate'|'reply'|'improve'
+
+  async function translateItem(itemId, text) {
+    const plain = text.replace(/\[\[FILE:[^\]]+\]\]/g, '').trim();
+    if (!plain) return;
+    setTranslating(t => ({ ...t, [itemId]: true }));
+    try {
+      const { data } = await api.post('/ai/translate', { text: plain, to: 'he' });
+      setTranslations(t => ({ ...t, [itemId]: data.result }));
+    } catch { }
+    setTranslating(t => ({ ...t, [itemId]: false }));
+  }
+
+  async function aiAction(action) {
+    setAiLoading(action);
+    try {
+      if (action === 'translate') {
+        const { data } = await api.post('/ai/translate', { text: body, to: 'en' });
+        setBody(data.result);
+      } else if (action === 'reply') {
+        const { data } = await api.post('/ai/reply', { leadId });
+        setBody(data.result);
+      } else if (action === 'improve') {
+        const { data } = await api.post('/ai/improve', { text: body });
+        setBody(data.result);
+      }
+    } catch { alert('שגיאה בבקשת ה-AI'); }
+    setAiLoading(null);
+  }
+
   const LOG_TYPES = [
     { type: 'call',     label: '📞 שיחה' },
     { type: 'meeting',  label: '🤝 פגישה' },
@@ -725,6 +757,7 @@ function TimelineSection({ leadId, timeline, phone, email, onAdded }) {
           <textarea autoFocus value={body} onChange={e => setBody(e.target.value)}
             className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-green-400 resize-none"
             rows={3} placeholder="הודעה..." />
+          <AiButtons onAction={aiAction} aiLoading={aiLoading} hasBody={!!body.trim()} />
           <input ref={fileRef} type="file" className="hidden" onChange={e => setFile(e.target.files[0] || null)} />
           <div
             onDragOver={e => { e.preventDefault(); setDraggingWA(true); }}
@@ -760,6 +793,7 @@ function TimelineSection({ leadId, timeline, phone, email, onAdded }) {
           <textarea autoFocus value={body} onChange={e => setBody(e.target.value)}
             className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-sky-400 resize-none"
             rows={4} placeholder="תוכן ההודעה..." />
+          <AiButtons onAction={aiAction} aiLoading={aiLoading} hasBody={!!body.trim()} />
           <input ref={fileRef} type="file" className="hidden" onChange={e => setFile(e.target.files[0] || null)} />
           <div
             onDragOver={e => { e.preventDefault(); setDraggingEmail(true); }}
@@ -808,6 +842,23 @@ function TimelineSection({ leadId, timeline, phone, email, onAdded }) {
                   </div>
                 </div>
                 <BodyWithFile body={item.body} />
+                {isIn && (
+                  <div className="mt-1.5">
+                    {translations[item.id] ? (
+                      <div className="text-sm text-slate-600 bg-blue-50 border border-blue-100 rounded-lg px-2 py-1.5 whitespace-pre-wrap">
+                        <span className="text-xs text-blue-400 font-semibold block mb-0.5">תרגום לעברית:</span>
+                        {translations[item.id]}
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => translateItem(item.id, item.body)}
+                        disabled={translating[item.id]}
+                        className="text-xs font-semibold px-2 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-500 hover:text-blue-600 transition disabled:opacity-50">
+                        {translating[item.id] ? '...' : '🌐 תרגם לעברית'}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -1402,6 +1453,27 @@ function TaskActionModal({ task, leadId, lead, users, onClose, onDone, completeT
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ── AI BUTTONS (outgoing compose) ── */
+function AiButtons({ onAction, aiLoading, hasBody }) {
+  const btns = [
+    { key: 'translate', label: '🌐 תרגם לאנגלית', cls: 'hover:border-blue-300 hover:text-blue-600' },
+    { key: 'reply',     label: '🤖 הצע תשובה',    cls: 'hover:border-violet-300 hover:text-violet-600' },
+    { key: 'improve',   label: '✨ שפר',           cls: 'hover:border-amber-300 hover:text-amber-600', requiresBody: true },
+  ];
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {btns.map(btn => (
+        <button key={btn.key}
+          onClick={() => onAction(btn.key)}
+          disabled={!!aiLoading || (btn.requiresBody && !hasBody)}
+          className={`text-xs font-bold px-2.5 py-1 rounded-lg border-2 border-slate-200 text-slate-500 transition disabled:opacity-40 ${aiLoading === btn.key ? 'bg-slate-100' : btn.cls}`}>
+          {aiLoading === btn.key ? '...' : btn.label}
+        </button>
+      ))}
     </div>
   );
 }
