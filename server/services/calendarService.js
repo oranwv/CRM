@@ -125,10 +125,10 @@ async function createMeeting({ leadId, title, start, end, guestEmail, guestName 
     sendUpdates: 'none',
     requestBody: {
       summary: title,
+      location: 'שרביה, רחוב יפת 3, יפו',
       start: { dateTime: start, timeZone: 'Asia/Jerusalem' },
       end:   { dateTime: end,   timeZone: 'Asia/Jerusalem' },
       attendees,
-      description: `פגישה עם ליד #${leadId}\n🔗 פתח בCRM: ${process.env.SERVER_URL || 'http://localhost:3001'}/?lead=${leadId}`,
     },
   });
 
