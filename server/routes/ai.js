@@ -3,7 +3,11 @@ const AnthropicModule = require('@anthropic-ai/sdk');
 const Anthropic = AnthropicModule.default || AnthropicModule;
 const pool = require('../db/pool');
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+function getClient() {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) throw new Error('ANTHROPIC_API_KEY is not set');
+  return new Anthropic({ apiKey: key });
+}
 
 // POST /api/ai/translate — translate text to Hebrew or English
 router.post('/translate', async (req, res) => {
@@ -15,7 +19,7 @@ router.post('/translate', async (req, res) => {
     : 'תרגם את הטקסט הבא לעברית. החזר רק את הטקסט המתורגם, ללא הסברים.';
 
   try {
-    const msg = await client.messages.create({
+    const msg = await getClient().messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
       messages: [{ role: 'user', content: `${instruction}\n\n${text}` }],
@@ -64,7 +68,7 @@ ${history || '(אין היסטוריה)'}
 
 כתוב תגובה מקצועית וחמה בעברית להודעה האחרונה של הלקוח. היה ממוקד, ידידותי ודחוף להמשך התהליך לקראת הזמנת האירוע.`;
 
-    const msg = await client.messages.create({
+    const msg = await getClient().messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
       system: 'אתה איש מכירות מקצועי של אולם אירועים שרביה בתל אביב. אתה כותב תגובות חמות, מקצועיות ומשכנעות ללקוחות פוטנציאליים בעברית. החזר רק את טקסט ההודעה ללא כותרות או הסברים.',
@@ -83,7 +87,7 @@ router.post('/improve', async (req, res) => {
   if (!text) return res.status(400).json({ error: 'text required' });
 
   try {
-    const msg = await client.messages.create({
+    const msg = await getClient().messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
       system: 'אתה עוזר לאיש מכירות של אולם אירועים שרביה לשפר הודעות ללקוחות. שפר את ההודעה הבאה — תהיה מקצועי יותר, חם ומשכנע, תוך שמירה על הכוונה המקורית. החזר רק את טקסט ההודעה המשופרת ללא הסברים.',
