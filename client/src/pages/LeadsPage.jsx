@@ -183,7 +183,7 @@ export default function LeadsPage() {
       </div>
 
       {/* Table */}
-      <div className="px-4 pb-6 overflow-x-auto" dir="rtl">
+      <div className="px-2 pb-6" dir="rtl">
         {loading ? (
           <div className="text-center py-16 text-stone-400">
             <p className="text-3xl mb-2">⏳</p>
@@ -201,7 +201,7 @@ export default function LeadsPage() {
             <p className="text-sm">אין לידים בקטגוריה זו</p>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl shadow-sm border border-amber-100 overflow-hidden mt-2">
+          <div className="bg-white rounded-2xl shadow-sm border border-amber-100 mt-2 overflow-x-auto">
             <table className="w-full text-xs min-w-[900px]">
               <thead>
                 <tr className="bg-amber-50/60 text-xs font-bold text-stone-500 uppercase tracking-wide border-b border-amber-100">
