@@ -70,8 +70,9 @@ app.use('/api/analytics',           requireAuth, analyticsRoutes);
 app.use('/api/ai',                  requireAuth, aiRoutes);
 app.use('/api/calendar',            requireAuth, calendarRoutes);
 
-// Serve uploaded files
+// Serve uploaded files — 404 handler prevents missing files falling through to React SPA
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/uploads', (req, res) => res.status(404).send('File not found'));
 
 // Serve React build
 const clientBuild = path.join(__dirname, '../client/dist');

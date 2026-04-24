@@ -547,11 +547,11 @@ function FilesSection({ leadId, files, onChanged }) {
           <div key={f.id} className="flex items-center gap-2 bg-white rounded-xl px-3 py-2 border border-slate-100">
             <span className="text-lg shrink-0">{fileIcon(f.file_type)}</span>
             <div className="flex-1 min-w-0 text-right">
-              <a href={f.url} target="_blank" rel="noreferrer"
-                className="text-base font-semibold text-amber-700 hover:underline truncate block"
-                onClick={e => e.stopPropagation()}>
+              <button
+                onClick={e => { e.stopPropagation(); window.open(f.url, '_blank', 'noopener,noreferrer'); }}
+                className="text-base font-semibold text-amber-700 hover:underline truncate block text-right">
                 {f.filename}
-              </a>
+              </button>
               <p className="text-sm text-slate-400">{f.uploaded_by_name || ''} · {formatFull(f.created_at)}</p>
             </div>
             <button onClick={() => deleteFile(f.id)}
@@ -586,11 +586,11 @@ function BodyWithFile({ body }) {
     <div>
       {text.trim() && <p className="text-base text-slate-700 whitespace-pre-wrap">{text.trim()}</p>}
       {files.map((f, i) => (
-        <a key={i} href={f.url} target="_blank" rel="noreferrer"
-          className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 text-sm font-semibold text-slate-700 hover:text-amber-700 transition"
-          onClick={e => e.stopPropagation()}>
+        <button key={i}
+          onClick={e => { e.stopPropagation(); window.open(f.url, '_blank', 'noopener,noreferrer'); }}
+          className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 text-sm font-semibold text-slate-700 hover:text-amber-700 transition">
           {fileIconByExt(f.name)} {f.name}
-        </a>
+        </button>
       ))}
     </div>
   );
