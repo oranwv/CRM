@@ -104,7 +104,10 @@ async function runReminders() {
       );
     }
 
-    // 4. Due tasks — notify assigned user (remind_sent_at prevents duplicates)
+    // 4. Due tasks — notify assigned user
+    const baseUrl = process.env.SERVER_URL || 'https://crm-production-c3df.up.railway.app';
+    console.log('[Reminders] baseUrl:', baseUrl);
+
     const dueTasks = await pool.query(`
       SELECT t.id, t.title, t.lead_id, l.name AS lead_name,
              u.phone AS user_phone, u.display_name
@@ -119,12 +122,19 @@ async function runReminders() {
     `);
 
     for (const task of dueTasks.rows) {
-      const baseUrl = process.env.SERVER_URL || 'http://localhost:3001';
+      // Atomically claim the task — prevents duplicates if multiple instances run simultaneously
+      const claim = await pool.query(
+        `UPDATE tasks SET remind_sent_at = NOW()
+         WHERE id = $1 AND remind_sent_at IS NULL
+         RETURNING id`,
+        [task.id]
+      );
+      if (!claim.rows.length) continue; // another instance already claimed it
+
       await sendWhatsApp(
         task.user_phone,
         `⏰ תזכורת משימה: "${task.title}" עבור הליד "${task.lead_name}" - עכשיו!\n🔗 ${baseUrl}/?lead=${task.lead_id}`
       );
-      await pool.query('UPDATE tasks SET remind_sent_at = NOW() WHERE id = $1', [task.id]);
     }
 
     if (noContact.rows.length + offerStale.rows.length + contractStale.rows.length + dueTasks.rows.length > 0) {
