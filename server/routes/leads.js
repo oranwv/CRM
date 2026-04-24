@@ -7,15 +7,7 @@ const multer = require('multer');
 const os = require('os');
 const emailUpload = multer({ dest: os.tmpdir() });
 
-const uploadsDir = path.join(__dirname, '../uploads');
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-function saveToUploads(tempPath, originalName) {
-  const ext = path.extname(originalName);
-  const unique = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
-  const storedName = `${unique}${ext}`;
-  fs.copyFileSync(tempPath, path.join(uploadsDir, storedName));
-  return `/uploads/${storedName}`;
-}
+const { uploadFile } = require('../services/storageService');
 
 const hasGoogle = () => fs.existsSync(path.join(__dirname, '../google_token.json'));
 function syncCalendar(leadId, type = 'option', userId = null) {
@@ -282,7 +274,7 @@ router.post('/:id/email/send', emailUpload.single('file'), async (req, res) => {
       attachmentBuffer = fs.readFileSync(req.file.path);
       attachmentName   = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
       attachmentMime   = req.file.mimetype;
-      fileUrl = saveToUploads(req.file.path, attachmentName);
+      ({ url: fileUrl } = await uploadFile(req.file.path, attachmentName, req.file.mimetype));
       fs.unlinkSync(req.file.path);
     }
     await sendEmail({ to, subject: subject || '(ללא נושא)', body, attachmentBuffer, attachmentName, attachmentMime });

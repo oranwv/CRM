@@ -7,20 +7,9 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const FormData = require('form-data');
+const { uploadFile } = require('../services/storageService');
 
 const upload = multer({ dest: os.tmpdir() });
-
-const uploadsDir = path.join(__dirname, '../../uploads');
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-
-function saveToUploads(tempPath, originalName) {
-  const ext = path.extname(originalName);
-  const unique = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
-  const storedName = `${unique}${ext}`;
-  const destPath = path.join(uploadsDir, storedName);
-  fs.copyFileSync(tempPath, destPath);
-  return { storedName, url: `/uploads/${storedName}` };
-}
 
 function formatPhone(phone) {
   if (!phone) return null;
@@ -149,8 +138,8 @@ router.post('/send-file', requireAuth, upload.single('file'), async (req, res) =
       const uploadRes = await axios.post(uploadUrl, uploadFd, { headers: uploadFd.getHeaders() });
       const urlFile = uploadRes.data.urlFile;
 
-      // Step 2: save to CRM uploads before deleting temp
-      ({ url: fileUrl } = saveToUploads(req.file.path, fileName));
+      // Step 2: save to Supabase storage before deleting temp
+      ({ url: fileUrl } = await uploadFile(req.file.path, fileName, req.file.mimetype || 'application/octet-stream'));
 
       // Step 3: send via URL
       const sendUrl = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/sendFileByUrl/${process.env.GREEN_API_TOKEN}`;
