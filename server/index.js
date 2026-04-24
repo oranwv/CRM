@@ -52,6 +52,20 @@ pool.query(`
   ALTER TABLE leads ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(500);
   ALTER TABLE leads ADD COLUMN IF NOT EXISTS meeting_event_id TEXT;
   ALTER TABLE leads ADD COLUMN IF NOT EXISTS meeting_rsvp_status VARCHAR(20);
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS deposit_amount NUMERIC;
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS deposit_date DATE;
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS deposit_confirmed BOOLEAN DEFAULT FALSE;
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS production_notes TEXT;
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS lost_reason VARCHAR(50);
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS lost_reason_text TEXT;
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS event_time VARCHAR(10);
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'normal';
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS assigned_to INT REFERENCES users(id);
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS created_by INT REFERENCES users(id);
+  ALTER TABLE lead_interactions ADD COLUMN IF NOT EXISTS direction VARCHAR(10) DEFAULT 'outbound';
+  ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assigned_to INT REFERENCES users(id);
+  ALTER TABLE tasks ADD COLUMN IF NOT EXISTS created_by INT REFERENCES users(id);
+  ALTER TABLE tasks ADD COLUMN IF NOT EXISTS remind_via VARCHAR(20) DEFAULT 'app';
 `).catch(err => console.error('[DB] Table check error:', err.message));
 
 const app = express();
