@@ -51,53 +51,60 @@ function buildEventBody(lead, type) {
 
 // Create or update calendar event for a lead — NEVER deletes
 async function syncLeadToCalendar(leadId, type = 'option', userId = null) {
-  try {
-    const tokenPath = path.join(__dirname, '../google_token.json');
-    if (!fs.existsSync(tokenPath)) return null;
+  const { rows } = await pool.query('SELECT * FROM leads WHERE id = $1', [leadId]);
+  const lead = rows[0];
+  if (!lead || !lead.event_date) return null;
 
+  const existing = await pool.query(
+    'SELECT * FROM calendar_events WHERE lead_id = $1 ORDER BY created_at DESC LIMIT 1',
+    [leadId]
+  );
+  const existingEvent = existing.rows[0];
+
+  // Always upsert the DB record first — CRM status always reflects user's intent
+  if (existingEvent) {
+    await pool.query('UPDATE calendar_events SET type = $1 WHERE lead_id = $2', [type, leadId]);
+  } else {
+    // Placeholder row (no googleEventId yet); updated below if Calendar sync succeeds
+    await pool.query(
+      `INSERT INTO calendar_events (lead_id, google_event_id, type, event_date, created_by)
+       VALUES ($1, NULL, $2, $3, $4)`,
+      [leadId, type, lead.event_date, userId]
+    );
+  }
+
+  // Google Calendar sync (best-effort — failure is logged but does not block the DB update above)
+  const tokenPath = path.join(__dirname, '../google_token.json');
+  if (!fs.existsSync(tokenPath)) return existingEvent?.google_event_id || null;
+
+  try {
     const auth     = getAuth();
     const calendar = google.calendar({ version: 'v3', auth });
-
-    const { rows } = await pool.query('SELECT * FROM leads WHERE id = $1', [leadId]);
-    const lead = rows[0];
-    if (!lead || !lead.event_date) return null;
-
-    const existing = await pool.query(
-      'SELECT * FROM calendar_events WHERE lead_id = $1 ORDER BY created_at DESC LIMIT 1',
-      [leadId]
-    );
-
     const eventBody = buildEventBody(lead, type);
 
-    if (existing.rows[0]?.google_event_id) {
-      // Update existing event — never delete
+    if (existingEvent?.google_event_id) {
       await calendar.events.patch({
         calendarId: 'primary',
-        eventId: existing.rows[0].google_event_id,
+        eventId: existingEvent.google_event_id,
         requestBody: eventBody,
       });
-      await pool.query(
-        'UPDATE calendar_events SET type = $1 WHERE lead_id = $2',
-        [type, leadId]
-      );
-      return existing.rows[0].google_event_id;
+      return existingEvent.google_event_id;
     } else {
-      // Create new event
       const result = await calendar.events.insert({
         calendarId: 'primary',
         requestBody: eventBody,
       });
       const googleEventId = result.data.id;
+      // Backfill the googleEventId into the placeholder row we just inserted
       await pool.query(
-        `INSERT INTO calendar_events (lead_id, google_event_id, type, event_date, created_by)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [leadId, googleEventId, type, lead.event_date, userId]
+        'UPDATE calendar_events SET google_event_id = $1 WHERE lead_id = $2 AND google_event_id IS NULL',
+        [googleEventId, leadId]
       );
       return googleEventId;
     }
   } catch (err) {
-    console.error('[Calendar] syncLeadToCalendar error:', err.message);
-    return null;
+    console.error('[Calendar] Google sync error:', err.message);
+    return existingEvent?.google_event_id || null;
   }
 }
 
