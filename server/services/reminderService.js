@@ -1,5 +1,6 @@
 const pool = require('../db/pool');
 const axios = require('axios');
+const jwt   = require('jsonwebtoken');
 
 const GREEN_API_URL      = process.env.GREEN_API_URL;
 const GREEN_API_INSTANCE = process.env.GREEN_API_INSTANCE;
@@ -131,9 +132,16 @@ async function runReminders() {
       );
       if (!claim.rows.length) continue; // another instance already claimed it
 
+      const postponeToken = jwt.sign(
+        { taskId: task.id, type: 'postpone' },
+        process.env.JWT_SECRET,
+        { expiresIn: '48h' }
+      );
+      const postponeUrl = `${baseUrl}/postpone/${task.id}?token=${postponeToken}`;
+
       await sendWhatsApp(
         task.user_phone,
-        `⏰ תזכורת משימה: "${task.title}" עבור הליד "${task.lead_name}" - עכשיו!\n🔗 ${baseUrl}/?lead=${task.lead_id}`
+        `⏰ תזכורת משימה: "${task.title}" עבור הליד "${task.lead_name}" - עכשיו!\n🔗 ${baseUrl}/?lead=${task.lead_id}\n⏩ דחה משימה: ${postponeUrl}`
       );
     }
 

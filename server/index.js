@@ -77,6 +77,7 @@ app.use(express.json());
 // Public
 app.use('/api/auth',      authRoutes);
 app.use('/api/whatsapp',  whatsappRoutes);
+app.use('/api/tasks',     require('./routes/taskPostpone'));
 
 // Protected
 app.use('/api/files',               requireAuth, fileDownloadRoutes);
