@@ -141,7 +141,7 @@ function startCronJobs() {
   const { runReminders } = require('./services/reminderService');
   setTimeout(() => {
     runReminders();
-    setInterval(runReminders, 30 * 60 * 1000);
-  }, 2 * 60 * 1000);
+    setInterval(runReminders, 2 * 60 * 1000);
+  }, 30 * 1000);
   console.log('[Cron] Reminder service started');
 }
