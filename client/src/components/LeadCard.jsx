@@ -506,6 +506,21 @@ function Section({ title, action, children }) {
   );
 }
 
+/* ── OPEN FILE via signed URL ── */
+async function openFile(fileId) {
+  try {
+    const token = localStorage.getItem('crm_token');
+    const res = await fetch(`/api/files/${fileId}/url`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('לא ניתן לפתוח את הקובץ');
+    const { url } = await res.json();
+    window.open(url, '_blank', 'noopener,noreferrer');
+  } catch {
+    alert('שגיאה בפתיחת הקובץ');
+  }
+}
+
 /* ── FILES SECTION ── */
 function FilesSection({ leadId, files, onChanged }) {
   const inputRef = useRef();
@@ -548,7 +563,7 @@ function FilesSection({ leadId, files, onChanged }) {
             <span className="text-lg shrink-0">{fileIcon(f.file_type)}</span>
             <div className="flex-1 min-w-0 text-right">
               <button
-                onClick={e => { e.stopPropagation(); window.open(f.url, '_blank', 'noopener,noreferrer'); }}
+                onClick={e => { e.stopPropagation(); openFile(f.id); }}
                 className="text-base font-semibold text-amber-700 hover:underline truncate block text-right">
                 {f.filename}
               </button>
@@ -581,13 +596,13 @@ function BodyWithFile({ body }) {
   const FILE_RE = /\[\[FILE:([^\|]+)\|([^\]]+)\]\]/g;
   const text = body.replace(FILE_RE, '').trim();
   const files = [...body.matchAll(/\[\[FILE:([^\|]+)\|([^\]]+)\]\]/g)]
-    .map(m => ({ url: m[1], name: m[2] }));
+    .map(m => ({ id: m[1], name: m[2] }));
   return (
     <div>
       {text.trim() && <p className="text-base text-slate-700 whitespace-pre-wrap">{text.trim()}</p>}
       {files.map((f, i) => (
         <button key={i}
-          onClick={e => { e.stopPropagation(); window.open(f.url, '_blank', 'noopener,noreferrer'); }}
+          onClick={e => { e.stopPropagation(); openFile(f.id); }}
           className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 text-sm font-semibold text-slate-700 hover:text-amber-700 transition">
           {fileIconByExt(f.name)} {f.name}
         </button>

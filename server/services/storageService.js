@@ -45,4 +45,11 @@ async function deleteFile(url) {
   }
 }
 
-module.exports = { uploadFile, deleteFile };
+async function getSignedUrl(storedName, expiresIn = 60) {
+  const supabase = getClient();
+  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(storedName, expiresIn);
+  if (error) throw error;
+  return data.signedUrl;
+}
+
+module.exports = { uploadFile, deleteFile, getSignedUrl };

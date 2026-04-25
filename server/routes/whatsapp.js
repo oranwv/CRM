@@ -139,7 +139,7 @@ router.post('/send-file', requireAuth, upload.single('file'), async (req, res) =
       const urlFile = uploadRes.data.urlFile;
 
       // Step 2: save to Supabase storage before deleting temp
-      ({ url: fileUrl } = await uploadFile(req.file.path, fileName, req.file.mimetype || 'application/octet-stream'));
+      const { storedName } = await uploadFile(req.file.path, fileName, req.file.mimetype || 'application/octet-stream');
 
       // Step 3: send via URL
       const sendUrl = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/sendFileByUrl/${process.env.GREEN_API_TOKEN}`;
@@ -150,6 +150,14 @@ router.post('/send-file', requireAuth, upload.single('file'), async (req, res) =
         caption: message,
       });
       fs.unlinkSync(req.file.path);
+
+      // Step 4: insert into files table to get an ID for the timeline marker
+      const { rows: fileRows } = await pool.query(
+        `INSERT INTO files (lead_id, filename, url, stored_name, file_type, uploaded_by)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+        [leadId, fileName, '', storedName, req.file.mimetype || 'application/octet-stream', req.user.id]
+      );
+      fileUrl = fileRows[0].id; // reuse variable to carry the file ID
     } else if (message.trim()) {
       const url = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/sendMessage/${process.env.GREEN_API_TOKEN}`;
       await axios.post(url, { chatId: `${phone}@c.us`, message });

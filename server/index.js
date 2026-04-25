@@ -18,15 +18,16 @@ if (process.env.GOOGLE_TOKEN_B64) {
   );
 }
 
-const requireAuth     = require('./middleware/auth');
-const authRoutes      = require('./routes/auth');
-const leadsRoutes     = require('./routes/leads');
-const usersRoutes     = require('./routes/users');
-const whatsappRoutes  = require('./routes/whatsapp');
-const filesRoutes     = require('./routes/files');
-const analyticsRoutes = require('./routes/analytics');
-const calendarRoutes  = require('./routes/calendar');
-const aiRoutes        = require('./routes/ai');
+const requireAuth         = require('./middleware/auth');
+const authRoutes          = require('./routes/auth');
+const leadsRoutes         = require('./routes/leads');
+const usersRoutes         = require('./routes/users');
+const whatsappRoutes      = require('./routes/whatsapp');
+const filesRoutes         = require('./routes/files');
+const fileDownloadRoutes  = require('./routes/fileDownload');
+const analyticsRoutes     = require('./routes/analytics');
+const calendarRoutes      = require('./routes/calendar');
+const aiRoutes            = require('./routes/ai');
 
 const pool = require('./db/pool');
 
@@ -66,6 +67,7 @@ pool.query(`
   ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assigned_to INT REFERENCES users(id);
   ALTER TABLE tasks ADD COLUMN IF NOT EXISTS created_by INT REFERENCES users(id);
   ALTER TABLE tasks ADD COLUMN IF NOT EXISTS remind_via VARCHAR(20) DEFAULT 'app';
+  ALTER TABLE files ADD COLUMN IF NOT EXISTS stored_name TEXT;
 `).catch(err => console.error('[DB] Table check error:', err.message));
 
 const app = express();
@@ -77,6 +79,7 @@ app.use('/api/auth',      authRoutes);
 app.use('/api/whatsapp',  whatsappRoutes);
 
 // Protected
+app.use('/api/files',               requireAuth, fileDownloadRoutes);
 app.use('/api/leads',               requireAuth, leadsRoutes);
 app.use('/api/leads/:leadId/files', requireAuth, filesRoutes);
 app.use('/api/users',               requireAuth, usersRoutes);

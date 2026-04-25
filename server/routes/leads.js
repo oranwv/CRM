@@ -269,18 +269,21 @@ router.post('/:id/email/send', emailUpload.single('file'), async (req, res) => {
   try {
     const { sendEmail } = require('../services/gmailService');
     let attachmentBuffer, attachmentName, attachmentMime;
-    let fileUrl = null;
+    let fileMarker = '';
     if (req.file) {
       attachmentBuffer = fs.readFileSync(req.file.path);
       attachmentName   = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
       attachmentMime   = req.file.mimetype;
-      ({ url: fileUrl } = await uploadFile(req.file.path, attachmentName, req.file.mimetype));
+      const { storedName } = await uploadFile(req.file.path, attachmentName, req.file.mimetype);
       fs.unlinkSync(req.file.path);
+      const { rows: fileRows } = await pool.query(
+        `INSERT INTO files (lead_id, filename, url, stored_name, file_type, uploaded_by)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+        [req.params.id, attachmentName, '', storedName, attachmentMime, req.user.id]
+      );
+      fileMarker = `\n[[FILE:${fileRows[0].id}|${attachmentName}]]`;
     }
     await sendEmail({ to, subject: subject || '(ללא נושא)', body, attachmentBuffer, attachmentName, attachmentMime });
-
-    // Embed file URL in body so timeline renders a clickable link (not in files section)
-    const fileMarker = fileUrl ? `\n[[FILE:${fileUrl}|${attachmentName}]]` : '';
     const interactionBody = `נשלח ל: ${to} | נושא: ${subject || ''}\n${body}${fileMarker}`;
     await pool.query(
       `INSERT INTO lead_interactions (lead_id, type, direction, body, created_by)
