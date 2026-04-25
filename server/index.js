@@ -76,6 +76,14 @@ pool.query(`
   );
   INSERT INTO settings (key, value) VALUES ('ai_instructions', '')
     ON CONFLICT (key) DO NOTHING;
+  CREATE TABLE IF NOT EXISTS lead_contacts (
+    id SERIAL PRIMARY KEY,
+    lead_id INTEGER REFERENCES leads(id) ON DELETE CASCADE,
+    type TEXT NOT NULL CHECK (type IN ('phone', 'email')),
+    value TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  ALTER TABLE messages ADD COLUMN IF NOT EXISTS contact_value TEXT;
 `).catch(err => console.error('[DB] Table check error:', err.message));
 
 const app = express();

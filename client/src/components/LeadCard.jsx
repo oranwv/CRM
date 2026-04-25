@@ -110,6 +110,7 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
   const [tasks, setTasks]               = useState([]);
   const [users, setUsers]               = useState([]);
   const [calStatus, setCalStatus]       = useState(null);
+  const [contacts, setContacts]         = useState([]);
   const [loading, setLoading]           = useState(true);
   const [activeTab, setActiveTab]       = useState('info');
   const [savingStage, setSavingStage]   = useState(false);
@@ -126,7 +127,7 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
 
   const load = useCallback(async () => {
     try {
-      const [leadRes, intRes, msgRes, fileRes, taskRes, userRes, calRes] = await Promise.all([
+      const [leadRes, intRes, msgRes, fileRes, taskRes, userRes, calRes, contactsRes] = await Promise.all([
         api.get(`/leads/${leadId}`),
         api.get(`/leads/${leadId}/interactions`),
         api.get(`/leads/${leadId}/messages`),
@@ -134,6 +135,7 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
         api.get(`/leads/${leadId}/tasks`),
         api.get('/users'),
         api.get(`/calendar/leads/${leadId}/status`).catch(() => ({ data: { type: null } })),
+        api.get(`/leads/${leadId}/contacts`),
       ]);
       setLead(leadRes.data);
       setEditForm(leadRes.data);
@@ -143,6 +145,7 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
       setFiles(fileRes.data);
       setTasks(taskRes.data);
       setUsers(userRes.data);
+      setContacts(contactsRes.data);
     } catch { }
     setLoading(false);
   }, [leadId]);
@@ -198,6 +201,8 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
   const stageIndex = STAGES.findIndex(s => s.key === lead.stage);
   const isLost     = lead.stage === 'lost';
   const openTasks  = tasks.filter(t => !t.completed_at).length;
+  const allPhones  = [lead.phone, ...contacts.filter(c => c.type === 'phone').map(c => c.value)].filter(Boolean);
+  const allEmails  = [lead.email, ...contacts.filter(c => c.type === 'email').map(c => c.value)].filter(Boolean);
 
   const timeline = [
     ...interactions.map(i => ({
@@ -351,6 +356,7 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
                     <InfoRow label="פעילות אחרונה">{lastActivity ? formatFull(lastActivity) : '—'}</InfoRow>
                   </div>
                   <NotesInlineEdit leadId={leadId} value={lead.notes} onSaved={load} />
+                  <AdditionalContacts leadId={leadId} contacts={contacts} onChanged={load} />
                 </>
               )}
             </Section>
@@ -373,7 +379,7 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
 
             {/* Interactions */}
             <Section title={`פעילות${timeline.length ? ` (${timeline.length})` : ''}`}>
-              <TimelineSection leadId={leadId} timeline={timeline} phone={lead.phone} email={lead.email} onAdded={load} />
+              <TimelineSection leadId={leadId} timeline={timeline} allPhones={allPhones} allEmails={allEmails} onAdded={load} />
             </Section>
 
           </div>
@@ -387,7 +393,7 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
 
         {/* ── WHATSAPP TAB ── */}
         {activeTab === 'whatsapp' && (
-          <WhatsAppTab leadId={leadId} phone={lead.phone} messages={messages} onSent={load} />
+          <WhatsAppTab leadId={leadId} allPhones={allPhones} messages={messages} onSent={load} />
         )}
       </div>
 
@@ -416,6 +422,8 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
           leadId={leadId}
           lead={lead}
           users={users}
+          allPhones={allPhones}
+          allEmails={allEmails}
           onClose={() => setTaskAction(null)}
           onDone={() => { setTaskAction(null); load(); onUpdated(); }}
           completeTask={completeTask}
@@ -617,11 +625,14 @@ function BodyWithFile({ body }) {
 }
 
 /* ── TIMELINE SECTION ── */
-function TimelineSection({ leadId, timeline, phone, email, onAdded }) {
+function TimelineSection({ leadId, timeline, allPhones, allEmails, onAdded }) {
+  const phone = allPhones[0] || null;
+  const email = allEmails[0] || null;
   const [adding, setAdding]     = useState(null); // 'call'|'meeting'|'note'|'wa_send'|'email_send'
   const [body, setBody]         = useState('');
   const [dir, setDir]           = useState('outbound');
   const [file, setFile]         = useState(null);
+  const [waPhone, setWaPhone]   = useState(phone || '');
   const [emailTo, setEmailTo]   = useState('');
   const [subject, setSubject]   = useState('');
   const [saving, setSaving]     = useState(false);
@@ -670,7 +681,8 @@ function TimelineSection({ leadId, timeline, phone, email, onAdded }) {
   function openAdding(type) {
     setAdding(adding === type ? null : type);
     setBody(''); setFile(null); setDir('outbound');
-    setEmailTo(email || ''); setSubject('');
+    setWaPhone(allPhones[0] || '');
+    setEmailTo(allEmails[0] || ''); setSubject('');
   }
 
   async function saveLog() {
@@ -691,9 +703,10 @@ function TimelineSection({ leadId, timeline, phone, email, onAdded }) {
         fd.append('leadId', leadId);
         fd.append('message', body);
         fd.append('file', file);
+        if (waPhone) fd.append('phone', waPhone);
         await api.post('/whatsapp/send-file', fd);
       } else {
-        await api.post('/whatsapp/send', { leadId, message: body });
+        await api.post('/whatsapp/send', { leadId, message: body, phone: waPhone || undefined });
       }
       setBody(''); setFile(null); setAdding(null);
       await onAdded();
@@ -773,7 +786,14 @@ function TimelineSection({ leadId, timeline, phone, email, onAdded }) {
       {/* WhatsApp send form */}
       {adding === 'wa_send' && (
         <div className="bg-white border border-green-100 rounded-xl p-3 space-y-2">
-          <p className="text-sm text-slate-500 font-semibold text-right">שלח ל: {phone || '(אין מספר)'}</p>
+          {allPhones.length > 1 ? (
+            <select value={waPhone} onChange={e => setWaPhone(e.target.value)}
+              className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-green-400 text-right" dir="ltr">
+              {allPhones.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+          ) : (
+            <p className="text-sm text-slate-500 font-semibold text-right">שלח ל: {phone || '(אין מספר)'}</p>
+          )}
           <textarea autoFocus value={body} onChange={e => setBody(e.target.value)}
             className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-green-400 resize-none"
             rows={3} placeholder="הודעה..." />
@@ -793,7 +813,7 @@ function TimelineSection({ leadId, timeline, phone, email, onAdded }) {
           {file && <button onClick={() => setFile(null)} className="text-sm text-red-400 hover:underline">הסר קובץ</button>}
           <div className="flex gap-2">
             <button onClick={() => setAdding(null)} className="flex-1 border-2 border-slate-200 text-slate-500 text-base font-bold py-1.5 rounded-xl">ביטול</button>
-            <button onClick={sendWA} disabled={saving || (!body.trim() && !file) || !phone}
+            <button onClick={sendWA} disabled={saving || (!body.trim() && !file) || !waPhone}
               className="flex-1 bg-green-600 text-white text-base font-bold py-1.5 rounded-xl disabled:opacity-50">
               {saving ? '...' : 'שלח'}
             </button>
@@ -804,9 +824,16 @@ function TimelineSection({ leadId, timeline, phone, email, onAdded }) {
       {/* Email send form */}
       {adding === 'email_send' && (
         <div className="bg-white border border-sky-100 rounded-xl p-3 space-y-2">
-          <input value={emailTo} onChange={e => setEmailTo(e.target.value)}
-            className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-sky-400"
-            placeholder="אימייל נמען..." dir="ltr" />
+          {allEmails.length > 1 ? (
+            <select value={emailTo} onChange={e => setEmailTo(e.target.value)}
+              className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400" dir="ltr">
+              {allEmails.map(e => <option key={e} value={e}>{e}</option>)}
+            </select>
+          ) : (
+            <input value={emailTo} onChange={e => setEmailTo(e.target.value)}
+              className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-sky-400"
+              placeholder="אימייל נמען..." dir="ltr" />
+          )}
           <input value={subject} onChange={e => setSubject(e.target.value)}
             className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-sky-400"
             placeholder="נושא..." />
@@ -993,15 +1020,17 @@ function TasksTab({ leadId, tasks, users, onUpdated, completeTask, onTaskAction,
 }
 
 /* ── WHATSAPP TAB ── */
-function WhatsAppTab({ leadId, phone, messages, onSent }) {
-  const [msg, setMsg]         = useState('');
-  const [sending, setSending] = useState(false);
+function WhatsAppTab({ leadId, allPhones, messages, onSent }) {
+  const [msg, setMsg]           = useState('');
+  const [sending, setSending]   = useState(false);
+  const [waPhone, setWaPhone]   = useState(allPhones[0] || '');
+  const phone = allPhones[0] || null;
 
   async function send() {
-    if (!msg.trim() || !phone) return;
+    if (!msg.trim() || !waPhone) return;
     setSending(true);
     try {
-      await api.post('/whatsapp/send', { leadId, message: msg });
+      await api.post('/whatsapp/send', { leadId, message: msg, phone: waPhone });
       setMsg('');
       await onSent();
     } catch { alert('שגיאה בשליחת ההודעה'); }
@@ -1020,22 +1049,31 @@ function WhatsAppTab({ leadId, phone, messages, onSent }) {
               <div className={`max-w-[75%] rounded-2xl px-3 py-2 text-base ${m.direction === 'outbound' ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-800'}`}>
                 <p>{m.body}</p>
                 <p className={`text-sm mt-1 ${m.direction === 'outbound' ? 'text-green-200' : 'text-slate-400'}`}>{formatFull(m.timestamp)}</p>
+                {m.contact_value && <p className={`text-xs mt-0.5 ${m.direction === 'outbound' ? 'text-green-200' : 'text-slate-400'}`} dir="ltr">{m.contact_value}</p>}
               </div>
             </div>
           ))}
       </div>
-      <div className="border-t border-slate-100 p-3 max-w-2xl mx-auto w-full">
+      <div className="border-t border-slate-100 p-3 max-w-2xl mx-auto w-full space-y-2">
         {phone ? (
-          <div className="flex gap-2">
-            <button onClick={send} disabled={sending || !msg.trim()}
-              className="bg-green-600 text-white text-base font-bold px-4 py-2 rounded-xl disabled:opacity-50 shrink-0">
-              {sending ? '...' : 'שלח'}
-            </button>
-            <input value={msg} onChange={e => setMsg(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
-              className="flex-1 border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-violet-400"
-              placeholder="הודעה..." />
-          </div>
+          <>
+            {allPhones.length > 1 && (
+              <select value={waPhone} onChange={e => setWaPhone(e.target.value)}
+                className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-green-400" dir="ltr">
+                {allPhones.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            )}
+            <div className="flex gap-2">
+              <button onClick={send} disabled={sending || !msg.trim()}
+                className="bg-green-600 text-white text-base font-bold px-4 py-2 rounded-xl disabled:opacity-50 shrink-0">
+                {sending ? '...' : 'שלח'}
+              </button>
+              <input value={msg} onChange={e => setMsg(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
+                className="flex-1 border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-violet-400"
+                placeholder="הודעה..." />
+            </div>
+          </>
         ) : (
           <p className="text-center text-base text-slate-400">אין מספר טלפון</p>
         )}
@@ -1244,12 +1282,13 @@ function AddTaskModal({ leadId, users, onClose, onSaved }) {
 }
 
 /* ── TASK ACTION MODAL ── */
-function TaskActionModal({ task, leadId, lead, users, onClose, onDone, completeTask }) {
+function TaskActionModal({ task, leadId, lead, users, allPhones, allEmails, onClose, onDone, completeTask }) {
   const [mode, setMode]           = useState(null); // null|'done'|'reschedule'|'followup'
   const [outcomeType, setOutcomeType] = useState(null); // null|'call'|'meeting'|'note'|'wa_send'|'email_send'
   const [body, setBody]           = useState('');
   const [dir, setDir]             = useState('outbound');
-  const [emailTo, setEmailTo]     = useState(lead?.email || '');
+  const [emailTo, setEmailTo]     = useState((allEmails && allEmails[0]) || lead?.email || '');
+  const [waPhone, setWaPhone]     = useState((allPhones && allPhones[0]) || lead?.phone || '');
   const [subject, setSubject]     = useState('');
   const [file, setFile]           = useState(null);
   const [newDueDate, setNewDueDate]   = useState('');
@@ -1271,6 +1310,7 @@ function TaskActionModal({ task, leadId, lead, users, onClose, onDone, completeT
         fd.append('leadId', leadId);
         fd.append('message', body);
         if (file) fd.append('file', file);
+        if (waPhone) fd.append('phone', waPhone);
         await api.post('/whatsapp/send-file', fd);
       } else if (outcomeType === 'email_send') {
         const fd = new FormData();
@@ -1392,7 +1432,14 @@ function TaskActionModal({ task, leadId, lead, users, onClose, onDone, completeT
         {/* Done — WhatsApp form */}
         {mode === 'done' && outcomeType === 'wa_send' && (
           <div className="space-y-2">
-            <p className="text-sm text-slate-500 font-semibold text-right">שלח ל: {lead?.phone || '(אין מספר)'}</p>
+            {allPhones && allPhones.length > 1 ? (
+              <select value={waPhone} onChange={e => setWaPhone(e.target.value)}
+                className={`${cls} text-sm`} dir="ltr">
+                {allPhones.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            ) : (
+              <p className="text-sm text-slate-500 font-semibold text-right">שלח ל: {lead?.phone || '(אין מספר)'}</p>
+            )}
             <textarea autoFocus value={body} onChange={e => setBody(e.target.value)}
               className={`${cls} resize-none`} rows={3} placeholder="הודעה..." />
             <input ref={fileRef} type="file" className="hidden" onChange={e => setFile(e.target.files[0] || null)} />
@@ -1403,7 +1450,7 @@ function TaskActionModal({ task, leadId, lead, users, onClose, onDone, completeT
             {file && <button onClick={() => setFile(null)} className="text-sm text-red-400 hover:underline">הסר קובץ</button>}
             <div className="flex gap-2">
               <button onClick={() => setOutcomeType(null)} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl text-base">חזרה</button>
-              <button onClick={handleDoneSubmit} disabled={saving || (!body.trim() && !file) || !lead?.phone}
+              <button onClick={handleDoneSubmit} disabled={saving || (!body.trim() && !file) || !waPhone}
                 className="flex-1 bg-green-600 text-white font-bold py-2 rounded-xl text-base disabled:opacity-50">
                 {saving ? '...' : 'שלח וסמן הושלם'}
               </button>
@@ -1414,8 +1461,15 @@ function TaskActionModal({ task, leadId, lead, users, onClose, onDone, completeT
         {/* Done — Email form */}
         {mode === 'done' && outcomeType === 'email_send' && (
           <div className="space-y-2">
-            <input value={emailTo} onChange={e => setEmailTo(e.target.value)}
-              className={cls} placeholder="אימייל נמען..." dir="ltr" />
+            {allEmails && allEmails.length > 1 ? (
+              <select value={emailTo} onChange={e => setEmailTo(e.target.value)}
+                className={`${cls} text-sm`} dir="ltr">
+                {allEmails.map(e => <option key={e} value={e}>{e}</option>)}
+              </select>
+            ) : (
+              <input value={emailTo} onChange={e => setEmailTo(e.target.value)}
+                className={cls} placeholder="אימייל נמען..." dir="ltr" />
+            )}
             <input value={subject} onChange={e => setSubject(e.target.value)}
               className={cls} placeholder="נושא..." />
             <textarea autoFocus value={body} onChange={e => setBody(e.target.value)}
@@ -1677,6 +1731,76 @@ function LostModal({ onClose, onConfirm }) {
             סמן כלא סגרו
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── ADDITIONAL CONTACTS ── */
+function AdditionalContacts({ leadId, contacts, onChanged }) {
+  const phones = contacts.filter(c => c.type === 'phone');
+  const emails = contacts.filter(c => c.type === 'email');
+
+  async function remove(id) {
+    await api.delete(`/leads/${leadId}/contacts/${id}`);
+    await onChanged();
+  }
+
+  return (
+    <div className="mt-3 space-y-3">
+      <ContactGroup label="📞 טלפונים נוספים" type="phone" items={phones} leadId={leadId}
+        onRemove={remove} onAdded={onChanged} placeholder="מספר טלפון..." inputDir="ltr" />
+      <ContactGroup label="✉️ אימיילים נוספים" type="email" items={emails} leadId={leadId}
+        onRemove={remove} onAdded={onChanged} placeholder="כתובת אימייל..." inputDir="ltr" />
+    </div>
+  );
+}
+
+function ContactGroup({ label, type, items, leadId, onRemove, onAdded, placeholder, inputDir }) {
+  const [adding, setAdding] = useState(false);
+  const [value, setValue]   = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function add() {
+    if (!value.trim()) return;
+    setSaving(true);
+    try {
+      await api.post(`/leads/${leadId}/contacts`, { type, value: value.trim() });
+      setValue(''); setAdding(false);
+      await onAdded();
+    } catch { }
+    setSaving(false);
+  }
+
+  return (
+    <div>
+      <p className="text-sm font-bold text-slate-500 mb-1.5">{label}</p>
+      <div className="space-y-1">
+        {items.map(c => (
+          <div key={c.id} className="flex items-center gap-2 bg-white rounded-xl px-3 py-2 border border-slate-100">
+            <span className="flex-1 text-base text-slate-700 font-medium" dir={inputDir}>{c.value}</span>
+            <button onClick={() => onRemove(c.id)}
+              className="text-slate-300 hover:text-red-400 transition text-sm px-1 rounded">🗑️</button>
+          </div>
+        ))}
+        {adding ? (
+          <div className="flex gap-2">
+            <input autoFocus value={value} onChange={e => setValue(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && add()}
+              className="flex-1 border-2 border-slate-200 rounded-xl px-3 py-1.5 text-base focus:outline-none focus:border-violet-400"
+              placeholder={placeholder} dir={inputDir} />
+            <button onClick={add} disabled={saving || !value.trim()}
+              className="bg-violet-600 text-white text-sm font-bold px-3 py-1.5 rounded-xl disabled:opacity-50">
+              {saving ? '...' : 'הוסף'}
+            </button>
+            <button onClick={() => { setAdding(false); setValue(''); }}
+              className="text-slate-400 hover:text-slate-600 text-sm px-2">✕</button>
+          </div>
+        ) : (
+          <button onClick={() => setAdding(true)} className="text-sm text-violet-600 hover:underline font-semibold">
+            + הוסף
+          </button>
+        )}
       </div>
     </div>
   );

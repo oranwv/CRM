@@ -340,4 +340,45 @@ router.get('/:id/messages', async (req, res) => {
   }
 });
 
+// GET /api/leads/:id/contacts
+router.get('/:id/contacts', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM lead_contacts WHERE lead_id = $1 ORDER BY created_at',
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/leads/:id/contacts
+router.post('/:id/contacts', async (req, res) => {
+  try {
+    const { type, value } = req.body;
+    if (!type || !value) return res.status(400).json({ error: 'type and value required' });
+    const { rows } = await pool.query(
+      'INSERT INTO lead_contacts (lead_id, type, value) VALUES ($1, $2, $3) RETURNING *',
+      [req.params.id, type, value.trim()]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/leads/:id/contacts/:cid
+router.delete('/:id/contacts/:cid', async (req, res) => {
+  try {
+    await pool.query(
+      'DELETE FROM lead_contacts WHERE id = $1 AND lead_id = $2',
+      [req.params.cid, req.params.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
