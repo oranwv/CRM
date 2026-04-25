@@ -15,7 +15,7 @@ export default function PostponePage() {
 
   const [task,       setTask]       = useState(null);
   const [error,      setError]      = useState('');
-  const [selected,   setSelected]   = useState(null); // minutes number | 'custom'
+  const [selected,   setSelected]   = useState(null);
   const [customDate, setCustomDate] = useState('');
   const [saving,     setSaving]     = useState(false);
   const [done,       setDone]       = useState(false);
@@ -51,7 +51,7 @@ export default function PostponePage() {
   }
 
   if (error) return (
-    <div className="min-h-screen flex items-center justify-center bg-amber-50" dir="rtl">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-violet-50 to-indigo-50" dir="rtl">
       <div className="text-center p-6">
         <div className="text-4xl mb-3">❌</div>
         <p className="text-slate-600 font-semibold">{error}</p>
@@ -60,7 +60,7 @@ export default function PostponePage() {
   );
 
   if (done) return (
-    <div className="min-h-screen flex items-center justify-center bg-amber-50" dir="rtl">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-violet-50 to-indigo-50" dir="rtl">
       <div className="text-center p-6">
         <div className="text-4xl mb-3">✅</div>
         <p className="text-slate-700 font-bold text-lg">המשימה נדחתה בהצלחה</p>
@@ -70,14 +70,14 @@ export default function PostponePage() {
   );
 
   if (!task) return (
-    <div className="min-h-screen flex items-center justify-center bg-amber-50">
-      <div className="text-amber-600 font-semibold animate-pulse">טוען...</div>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-violet-50 to-indigo-50">
+      <div className="text-violet-600 font-semibold animate-pulse">טוען...</div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-amber-50 flex items-start justify-center pt-12 px-4" dir="rtl">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-lg p-6">
+    <div className="min-h-screen bg-gradient-to-br from-violet-50 to-indigo-50 flex items-start justify-center pt-12 px-4" dir="rtl">
+      <div className="w-full max-w-sm bg-white rounded-2xl shadow-lg p-6 border border-violet-100">
         <div className="text-center mb-6">
           <div className="text-3xl mb-2">⏰</div>
           <h1 className="text-lg font-black text-slate-800">{task.title}</h1>
@@ -91,8 +91,8 @@ export default function PostponePage() {
             <button key={p.minutes} onClick={() => setSelected(p.minutes)}
               className={`w-full py-3 rounded-xl font-bold text-base border-2 transition ${
                 selected === p.minutes
-                  ? 'border-amber-500 bg-amber-50 text-amber-700'
-                  : 'border-slate-200 bg-white text-slate-700 hover:border-amber-300'
+                  ? 'border-violet-500 bg-violet-50 text-violet-700'
+                  : 'border-slate-200 bg-white text-slate-700 hover:border-violet-300'
               }`}>
               {p.label}
             </button>
@@ -100,8 +100,8 @@ export default function PostponePage() {
           <button onClick={() => setSelected('custom')}
             className={`w-full py-3 rounded-xl font-bold text-base border-2 transition ${
               selected === 'custom'
-                ? 'border-amber-500 bg-amber-50 text-amber-700'
-                : 'border-slate-200 bg-white text-slate-700 hover:border-amber-300'
+                ? 'border-violet-500 bg-violet-50 text-violet-700'
+                : 'border-slate-200 bg-white text-slate-700 hover:border-violet-300'
             }`}>
             זמן מותאם אישית ✏️
           </button>
@@ -110,13 +110,14 @@ export default function PostponePage() {
         {selected === 'custom' && (
           <input type="datetime-local" value={customDate}
             onChange={e => setCustomDate(e.target.value)}
-            className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 mb-4 text-slate-700 focus:outline-none focus:border-amber-400"
+            className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 mb-4 text-slate-700 focus:outline-none focus:border-violet-400"
           />
         )}
 
         <button onClick={handleSubmit}
           disabled={!selected || saving || (selected === 'custom' && !customDate)}
-          className="w-full py-3 rounded-xl font-black text-white transition bg-amber-600 hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed">
+          className="w-full py-3 rounded-xl font-black text-white transition disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
           {saving ? 'שומר...' : 'דחה משימה'}
         </button>
       </div>

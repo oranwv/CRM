@@ -51,7 +51,7 @@ export default function CalendarPage() {
       <div className="p-4 space-y-4">
         <div className="flex items-center gap-2 justify-end">
           <p className="text-xs text-slate-400">לחץ על ליד לפתיחת כרטיס</p>
-          <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded-lg">📋 לידים ביומן</span>
+          <span className="text-xs font-bold text-violet-700 bg-violet-100 px-2 py-1 rounded-lg">📋 לידים ביומן</span>
         </div>
         <LeadList title="אירועים קרובים" leads={upcoming} onOpen={setOpenLeadId} />
         {past.length > 0 && <LeadList title="אירועים שעברו" leads={past} onOpen={setOpenLeadId} muted />}
@@ -72,14 +72,14 @@ export default function CalendarPage() {
 function LeadList({ title, leads, onOpen, muted }) {
   if (!leads.length) return null;
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-amber-100 overflow-hidden">
+    <div className="bg-white rounded-2xl shadow-sm border border-violet-100 overflow-hidden">
       <h3 className="text-sm font-black text-slate-700 px-4 py-3 border-b border-slate-50 text-right">{title}</h3>
       <div className="divide-y divide-slate-50">
         {leads.map(lead => (
           <button key={lead.id} onClick={() => onOpen(lead.id)}
-            className={`w-full flex items-center gap-3 px-4 py-3 text-right hover:bg-amber-50/50 transition ${muted ? 'opacity-60' : ''}`}>
+            className={`w-full flex items-center gap-3 px-4 py-3 text-right hover:bg-violet-50/50 transition ${muted ? 'opacity-60' : ''}`}>
             <div className="shrink-0 text-right">
-              <p className="text-sm font-bold text-amber-700">{formatDate(lead.event_date)}</p>
+              <p className="text-sm font-bold text-violet-700">{formatDate(lead.event_date)}</p>
               {lead.calendar_type === 'confirmed'
                 ? <span className="text-xs text-emerald-600">✅ סגור</span>
                 : lead.calendar_type === 'option'

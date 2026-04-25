@@ -15,8 +15,8 @@ export default function TaskActionPage() {
 
   const [task,   setTask]   = useState(null);
   const [error,  setError]  = useState('');
-  const [done,   setDone]   = useState(''); // success message
-  const [active, setActive] = useState(null); // 'complete' | 'postpone' | 'followup'
+  const [done,   setDone]   = useState('');
+  const [active, setActive] = useState(null);
 
   // complete state
   const [result, setResult] = useState('');
@@ -88,11 +88,11 @@ export default function TaskActionPage() {
   );
 
   if (!task) return (
-    <Screen><div className="text-amber-600 font-semibold animate-pulse">טוען...</div></Screen>
+    <Screen><div className="text-violet-600 font-semibold animate-pulse">טוען...</div></Screen>
   );
 
   return (
-    <div className="min-h-screen bg-amber-50 flex items-start justify-center pt-8 px-4 pb-8" dir="rtl">
+    <div className="min-h-screen bg-gradient-to-br from-violet-50 to-indigo-50 flex items-start justify-center pt-8 px-4 pb-8" dir="rtl">
       <div className="w-full max-w-sm space-y-3">
 
         {/* Header */}
@@ -126,14 +126,14 @@ export default function TaskActionPage() {
           icon="🔁" title="קבע מחדש (לא ענה)"
           open={active === 'postpone'}
           onToggle={() => setActive(active === 'postpone' ? null : 'postpone')}
-          color="amber"
+          color="violet"
         >
           <div className="space-y-2 mb-3">
             {POSTPONE_PRESETS.map(p => (
               <button key={p.minutes} onClick={() => setPostponeSelected(p.minutes)}
                 className={`w-full py-2.5 rounded-xl font-bold text-sm border-2 transition ${
                   postponeSelected === p.minutes
-                    ? 'border-amber-500 bg-amber-50 text-amber-700'
+                    ? 'border-violet-500 bg-violet-50 text-violet-700'
                     : 'border-slate-200 bg-white text-slate-700'
                 }`}>
                 {p.label}
@@ -142,7 +142,7 @@ export default function TaskActionPage() {
             <button onClick={() => setPostponeSelected('custom')}
               className={`w-full py-2.5 rounded-xl font-bold text-sm border-2 transition ${
                 postponeSelected === 'custom'
-                  ? 'border-amber-500 bg-amber-50 text-amber-700'
+                  ? 'border-violet-500 bg-violet-50 text-violet-700'
                   : 'border-slate-200 bg-white text-slate-700'
               }`}>
               זמן מותאם ✏️
@@ -155,7 +155,7 @@ export default function TaskActionPage() {
             />
           )}
           <ActionBtn
-            onClick={handlePostpone} saving={saving} color="amber"
+            onClick={handlePostpone} saving={saving} color="violet"
             disabled={!postponeSelected || (postponeSelected === 'custom' && !customDate)}>
             קבע מחדש
           </ActionBtn>
@@ -193,15 +193,15 @@ export default function TaskActionPage() {
 
 function Screen({ children }) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-amber-50" dir="rtl">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-violet-50 to-indigo-50" dir="rtl">
       <div className="p-6">{children}</div>
     </div>
   );
 }
 
 function ActionCard({ icon, title, open, onToggle, color, children }) {
-  const borders = { green: 'border-green-200', amber: 'border-amber-200', blue: 'border-blue-200' };
-  const headers = { green: 'text-green-700', amber: 'text-amber-700', blue: 'text-blue-700' };
+  const borders = { green: 'border-green-200', violet: 'border-violet-200', blue: 'border-blue-200' };
+  const headers = { green: 'text-green-700', violet: 'text-violet-700', blue: 'text-blue-700' };
   return (
     <div className={`bg-white rounded-2xl shadow border-2 ${open ? borders[color] : 'border-transparent'} overflow-hidden`}>
       <button onClick={onToggle}
@@ -217,9 +217,9 @@ function ActionCard({ icon, title, open, onToggle, color, children }) {
 
 function ActionBtn({ onClick, saving, color, disabled, children }) {
   const colors = {
-    green: 'bg-green-600 hover:bg-green-700',
-    amber: 'bg-amber-600 hover:bg-amber-700',
-    blue:  'bg-blue-600  hover:bg-blue-700',
+    green:  'bg-green-600 hover:bg-green-700',
+    violet: 'bg-violet-600 hover:bg-violet-700',
+    blue:   'bg-blue-600  hover:bg-blue-700',
   };
   return (
     <button onClick={onClick}

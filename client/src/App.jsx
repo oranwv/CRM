@@ -27,7 +27,7 @@ function AppShellNav() {
     : BASE_NAV_TABS;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30 flex shadow-2xl" style={{ background: '#1c1007', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+    <nav className="fixed bottom-0 left-0 right-0 z-30 flex shadow-2xl" style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', borderTop: '1px solid rgba(255,255,255,0.15)' }}>
       {tabs.map(t => {
         const active = location.pathname === t.path;
         return (
@@ -35,10 +35,10 @@ function AppShellNav() {
             key={t.path}
             onClick={() => navigate(t.path)}
             className="flex-1 flex flex-col items-center py-2.5 text-xs font-bold transition relative"
-            style={{ color: active ? '#d97706' : '#a8895e' }}
+            style={{ color: active ? '#ffffff' : 'rgba(255,255,255,0.6)' }}
           >
             {active && (
-              <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full" style={{ background: '#d97706' }} />
+              <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full" style={{ background: '#ffffff' }} />
             )}
             <span className="text-xl mb-0.5">{t.icon}</span>
             {t.label}

@@ -74,7 +74,7 @@ function DateTimeCell({ value }) {
   return (
     <div>
       <div>{parts.date}</div>
-      <div className="text-stone-400 text-xs">{parts.time}</div>
+      <div className="text-slate-400 text-xs">{parts.time}</div>
     </div>
   );
 }
@@ -134,36 +134,36 @@ export default function LeadsPage() {
   return (
     <div className="min-h-screen pb-16">
       {/* Header */}
-      <div className="bg-white/80 backdrop-blur-sm border-b border-amber-100 px-4 py-3 flex items-center gap-3 shadow-sm sticky top-0 z-20">
+      <div className="bg-white/80 backdrop-blur-sm border-b border-violet-100 px-4 py-3 flex items-center gap-3 shadow-sm sticky top-0 z-20">
         <div
           className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-base shrink-0"
-          style={{ background: 'linear-gradient(135deg, #d97706, #b45309)' }}
+          style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}
         >
           ש
         </div>
         <div className="flex-1 min-w-0">
-          <h1 className="text-base font-black text-stone-900 leading-tight">שרביה CRM</h1>
-          <p className="text-stone-400 text-xs leading-tight">{user.display_name}</p>
+          <h1 className="text-base font-black text-slate-900 leading-tight">שרביה CRM</h1>
+          <p className="text-slate-400 text-xs leading-tight">{user.display_name}</p>
         </div>
         <button onClick={() => setShowAdd(true)}
           className="text-white text-sm font-bold px-4 py-2 rounded-xl transition shrink-0"
-          style={{ background: 'linear-gradient(135deg, #d97706, #b45309)', boxShadow: '0 2px 8px rgba(217,119,6,0.3)' }}>
+          style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', boxShadow: '0 2px 8px rgba(124,58,237,0.3)' }}>
           + ליד חדש
         </button>
-        <button onClick={handleLogout} className="text-stone-400 hover:text-stone-600 text-xs transition shrink-0">
+        <button onClick={handleLogout} className="text-slate-400 hover:text-slate-600 text-xs transition shrink-0">
           יציאה
         </button>
       </div>
 
       {/* Tabs */}
       <div className="px-4 pt-4 pb-2">
-        <div className="flex gap-1 bg-amber-100/70 rounded-xl p-1">
+        <div className="flex gap-1 bg-violet-100/70 rounded-xl p-1">
           {TABS.map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
               className={`flex-1 py-2 rounded-lg text-sm font-bold transition ${
                 tab === t.key
-                  ? 'bg-white text-stone-800 shadow-sm'
-                  : 'text-stone-500 hover:text-stone-700'
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
               }`}>
               {t.label}
             </button>
@@ -178,7 +178,7 @@ export default function LeadsPage() {
           placeholder="חיפוש לפי שם, טלפון או אימייל..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="w-full border border-amber-200 bg-amber-50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 transition"
+          className="w-full border border-violet-200 bg-violet-50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 transition"
         />
       </div>
 
@@ -201,10 +201,10 @@ export default function LeadsPage() {
             <p className="text-sm">אין לידים בקטגוריה זו</p>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl shadow-sm border border-amber-100 mt-2 overflow-x-auto">
+          <div className="bg-white rounded-2xl shadow-sm border border-violet-100 mt-2 overflow-x-auto">
             <table className="w-full text-xs min-w-[900px]">
               <thead>
-                <tr className="bg-amber-50/60 text-xs font-bold text-stone-500 uppercase tracking-wide border-b border-amber-100">
+                <tr className="bg-violet-50/60 text-xs font-bold text-slate-500 uppercase tracking-wide border-b border-violet-100">
                   <th className="px-2 py-3 text-right">#</th>
                   <th className="px-2 py-3 text-right">שם</th>
                   <th className="px-2 py-3 text-right">סטטוס</th>
@@ -219,19 +219,19 @@ export default function LeadsPage() {
                   <th className="px-2 py-3 text-right">משימות</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-amber-50">
+              <tbody className="divide-y divide-violet-50">
                 {leads.map((lead, idx) => (
                   <tr
                     key={lead.id}
                     onClick={() => setSelectedId(lead.id)}
-                    className="hover:bg-amber-50/40 cursor-pointer transition"
+                    className="hover:bg-violet-50/40 cursor-pointer transition"
                   >
-                    <td className="px-2 py-3 text-stone-400 font-medium">{idx + 1}</td>
-                    <td className="px-2 py-3 font-semibold text-stone-800">
+                    <td className="px-2 py-3 text-slate-400 font-medium">{idx + 1}</td>
+                    <td className="px-2 py-3 font-semibold text-slate-800">
                       <div className="flex items-center gap-1.5">
                         {lead.avatar_url
                           ? <img src={lead.avatar_url} className="w-7 h-7 rounded-full object-cover shrink-0" onError={e => e.target.style.display='none'} />
-                          : <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center text-xs font-bold text-amber-700 shrink-0">
+                          : <div className="w-7 h-7 rounded-full bg-violet-100 flex items-center justify-center text-xs font-bold text-violet-700 shrink-0">
                               {(lead.name || '?')[0]}
                             </div>
                         }
@@ -251,7 +251,7 @@ export default function LeadsPage() {
                         ) : '—';
                       })()}
                     </td>
-                    <td className="px-2 py-3 text-stone-500">
+                    <td className="px-2 py-3 text-slate-500">
                       <div className="flex items-center gap-1">
                         {lead.unread_count > 0 && (
                           <span className="w-2 h-2 rounded-full bg-green-500 shrink-0 animate-pulse" title="הודעה חדשה שלא נקראה" />
@@ -259,24 +259,24 @@ export default function LeadsPage() {
                         <DateTimeCell value={lead.last_interaction_at} />
                       </div>
                     </td>
-                    <td className="px-2 py-3 text-stone-500"><DateTimeCell value={lead.received_at} /></td>
-                    <td className="px-2 py-3 text-stone-600" dir="ltr" style={{ textAlign: 'left' }}>
+                    <td className="px-2 py-3 text-slate-500"><DateTimeCell value={lead.received_at} /></td>
+                    <td className="px-2 py-3 text-slate-600" dir="ltr" style={{ textAlign: 'left' }}>
                       {lead.phone ? (
                         <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()}
-                           className="text-amber-700 hover:underline font-medium">
+                           className="text-violet-700 hover:underline font-medium">
                           {lead.phone}
                         </a>
                       ) : '—'}
                     </td>
-                    <td className="px-2 py-3 text-stone-600">{formatDate(lead.event_date)}</td>
-                    <td className="px-2 py-3 text-stone-600">{lead.event_type || '—'}</td>
-                    <td className="px-2 py-3 text-stone-600">{lead.guest_count || '—'}</td>
+                    <td className="px-2 py-3 text-slate-600">{formatDate(lead.event_date)}</td>
+                    <td className="px-2 py-3 text-slate-600">{lead.event_type || '—'}</td>
+                    <td className="px-2 py-3 text-slate-600">{lead.guest_count || '—'}</td>
                     <td className="px-2 py-3">
                       <span className={`font-semibold px-2 py-0.5 rounded-full ${SOURCE_COLORS[lead.source] || 'bg-stone-100 text-stone-600'}`}>
                         {SOURCE_LABELS[lead.source] || lead.source}
                       </span>
                     </td>
-                    <td className="px-2 py-3 text-stone-500">{lead.assigned_name || '—'}</td>
+                    <td className="px-2 py-3 text-slate-500">{lead.assigned_name || '—'}</td>
                     <td className="px-2 py-3">
                       {lead.overdue_tasks > 0 ? (
                         <span className="inline-flex items-center gap-1 bg-red-100 text-red-600 font-bold px-2 py-0.5 rounded-full">

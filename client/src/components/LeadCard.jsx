@@ -217,8 +217,8 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
   return (
     <div className="fixed inset-0 z-50 bg-white flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="px-4 py-3 flex items-center gap-3 shrink-0" style={{ background: '#1c1007' }}>
-        <button onClick={onClose} className="text-amber-400/80 hover:text-white text-2xl leading-none">&times;</button>
+      <div className="px-4 py-3 flex items-center gap-3 shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+        <button onClick={onClose} className="text-white/80 hover:text-white text-2xl leading-none">&times;</button>
         {currentUser.role === 'admin' && (
           <button onClick={() => setShowDeleteModal(true)} className="text-sm font-bold px-2 py-1 rounded-lg bg-red-600/40 hover:bg-red-600 text-red-200 hover:text-white transition">
             🗑 מחק ליד
@@ -235,7 +235,7 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
                 <button type="button" onClick={() => setEditingName(false)} className="text-sm text-white/60 hover:text-white px-1">✕</button>
               </form>
             ) : (
-              <h2 className="text-white font-black text-lg leading-tight cursor-pointer hover:text-amber-300 transition group"
+              <h2 className="text-white font-black text-lg leading-tight cursor-pointer hover:text-violet-200 transition group"
                   onClick={() => { setNameDraft(lead.name || ''); setEditingName(true); }}>
                 {lead.priority === 'hot' && '🔥 '}
                 {lead.priority === 'urgent' && '⚡ '}
@@ -243,7 +243,7 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
                 <span className="text-sm font-normal text-white/40 group-hover:text-white/70 mr-1">✏️</span>
               </h2>
             )}
-            <p className="text-amber-400/70 text-sm">
+            <p className="text-white/60 text-sm">
               {SOURCE_LABELS[lead.source] || lead.source}
               {' · '}התקבל {formatFull(lead.created_at)}
               {lastActivity && ` · פעילות אחרונה ${formatFull(lastActivity)}`}
@@ -269,7 +269,7 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
         ].map(t => (
           <button key={t.key} onClick={() => setActiveTab(t.key)}
             className={`flex-1 py-3 transition border-b-2 ${
-              activeTab === t.key ? 'border-amber-600 text-amber-700' : 'border-transparent text-slate-400 hover:text-slate-600'
+              activeTab === t.key ? 'border-violet-600 text-violet-700' : 'border-transparent text-slate-400 hover:text-slate-600'
             }`}>
             {t.label}
           </button>
@@ -288,7 +288,7 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
               action={
                 <div className="flex gap-2">
                   <button onClick={() => setShowMeetingModal(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition">📅 קבע פגישה</button>
-                  <button onClick={() => setShowAddTask(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-amber-600 text-white hover:bg-amber-700 transition">+ משימה</button>
+                  <button onClick={() => setShowAddTask(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition">+ משימה</button>
                 </div>
               }>
               {isLost ? (
@@ -331,14 +331,14 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
 
             {/* Details */}
             <Section title="פרטי ליד"
-              action={!editing && <button onClick={() => setEditing(true)} className="text-sm text-amber-600 hover:underline font-semibold">✏️ עריכה</button>}>
+              action={!editing && <button onClick={() => setEditing(true)} className="text-sm text-violet-600 hover:underline font-semibold">✏️ עריכה</button>}>
               {editing ? (
                 <EditForm form={editForm} setForm={setEditForm} users={users} onSave={saveEdit} onCancel={() => setEditing(false)} />
               ) : (
                 <>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <InfoRow label="טלפון">
-                      {lead.phone ? <a href={`tel:${lead.phone}`} className="text-amber-700 hover:underline font-medium" dir="ltr">{lead.phone}</a> : '—'}
+                      {lead.phone ? <a href={`tel:${lead.phone}`} className="text-violet-700 hover:underline font-medium" dir="ltr">{lead.phone}</a> : '—'}
                     </InfoRow>
                     <InfoRow label="אימייל">{lead.email || '—'}</InfoRow>
                     <InfoRow label="תאריך אירוע">{formatDate(lead.event_date)}{lead.event_time ? ` · ${lead.event_time}` : ''}</InfoRow>
@@ -367,7 +367,7 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
 
             {/* Quick-add task */}
             <Section title={`משימות${openTasks ? ` (${openTasks})` : ''}`}
-              action={<button onClick={() => setActiveTab('tasks')} className="text-sm text-amber-600 hover:underline font-semibold">הכל</button>}>
+              action={<button onClick={() => setActiveTab('tasks')} className="text-sm text-violet-600 hover:underline font-semibold">הכל</button>}>
               <QuickAddTask leadId={leadId} users={users} onAdded={load} tasks={tasks} completeTask={completeTask} />
             </Section>
 
@@ -472,22 +472,22 @@ function NotesInlineEdit({ leadId, value, onSaved }) {
         autoFocus
         value={draft}
         onChange={e => setDraft(e.target.value)}
-        className="w-full border border-amber-200 bg-amber-50 rounded-xl px-3 py-2 text-base focus:outline-none resize-none"
+        className="w-full border border-violet-200 bg-violet-50 rounded-xl px-3 py-2 text-base focus:outline-none resize-none"
         rows={4}
       />
       <div className="flex gap-2 mt-1.5">
         <button onClick={() => setEditing(false)} className="flex-1 border-2 border-slate-200 text-slate-500 text-sm font-bold py-1.5 rounded-xl">ביטול</button>
-        <button onClick={save} className="flex-1 bg-amber-600 text-whitetext-sm font-bold py-1.5 rounded-xl">שמור</button>
+        <button onClick={save} className="flex-1 bg-violet-600 text-white text-sm font-bold py-1.5 rounded-xl">שמור</button>
       </div>
     </div>
   );
 
   return (
-    <div className="mt-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 text-base text-slate-700 cursor-pointer group"
+    <div className="mt-2 bg-violet-50 border border-violet-100 rounded-xl px-3 py-2 text-base text-slate-700 cursor-pointer group"
          onClick={() => { setDraft(value || ''); setEditing(true); }}>
       <div className="flex items-center justify-between mb-1">
-        <span className="text-sm text-amber-400 opacity-0 group-hover:opacity-100 transition">✏️ לחץ לעריכה</span>
-        <span className="text-sm font-bold text-amber-600">תיאור</span>
+        <span className="text-sm text-violet-400 opacity-0 group-hover:opacity-100 transition">✏️ לחץ לעריכה</span>
+        <span className="text-sm font-bold text-violet-600">תיאור</span>
       </div>
       {value ? value : <span className="text-slate-400 text-sm">אין תיאור — לחץ להוספה</span>}
     </div>
@@ -502,7 +502,7 @@ function Section({ title, action, children }) {
         <div>{action}</div>
         <h3 className="text-base font-black text-slate-700">{title}</h3>
       </div>
-      <div className="bg-amber-50/30 rounded-2xl p-3">
+      <div className="bg-violet-50/30 rounded-2xl p-3">
         {children}
       </div>
     </div>
@@ -567,7 +567,7 @@ function FilesSection({ leadId, files, onChanged }) {
             <div className="flex-1 min-w-0 text-right">
               <button
                 onClick={e => { e.stopPropagation(); openFile(f.id); }}
-                className="text-base font-semibold text-amber-700 hover:underline truncate block text-right">
+                className="text-base font-semibold text-violet-700 hover:underline truncate block text-right">
                 {f.filename}
               </button>
               <p className="text-sm text-slate-400">{f.uploaded_by_name || ''} · {formatFull(f.created_at)}</p>
@@ -587,7 +587,7 @@ function FilesSection({ leadId, files, onChanged }) {
         onDrop={onDrop}
         onClick={() => inputRef.current.click()}
         className={`w-full border-2 border-dashed rounded-xl py-3 text-sm font-semibold text-center cursor-pointer transition ${
-          dragging ? 'border-amber-400 bg-amber-50 text-amber-600' : 'border-slate-200 text-slate-400 hover:border-amber-300 hover:text-amber-600'
+          dragging ? 'border-violet-400 bg-violet-50 text-violet-600' : 'border-slate-200 text-slate-400 hover:border-violet-300 hover:text-violet-600'
         } ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
         {uploading ? 'מעלה...' : dragging ? 'שחרר להעלאה' : '+ העלה קובץ או גרור לכאן'}
       </div>
@@ -608,7 +608,7 @@ function BodyWithFile({ body }) {
       {files.map((f, i) => (
         <button key={i}
           onClick={e => { e.stopPropagation(); openFile(f.id); }}
-          className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 text-sm font-semibold text-slate-700 hover:text-amber-700 transition">
+          className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-violet-50 border border-slate-200 hover:border-violet-300 text-sm font-semibold text-slate-700 hover:text-violet-700 transition">
           {fileIconByExt(f.name)} {f.name}
         </button>
       ))}
@@ -725,7 +725,7 @@ function TimelineSection({ leadId, timeline, phone, email, onAdded }) {
           <button key={btn.type}
             onClick={() => openAdding(btn.type)}
             className={`text-sm font-bold px-3 py-1.5 rounded-xl border-2 transition ${
-              adding === btn.type ? 'bg-amber-600 text-white border-amber-600' : 'bg-white text-slate-600 border-slate-200 hover:border-amber-300'
+              adding === btn.type ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-slate-600 border-slate-200 hover:border-violet-300'
             }`}>
             {btn.label}
           </button>
@@ -746,10 +746,10 @@ function TimelineSection({ leadId, timeline, phone, email, onAdded }) {
 
       {/* Log interaction form */}
       {adding && ['call','meeting','note'].includes(adding) && (
-        <div className="bg-white border border-amber-100 rounded-xl p-3 space-y-2">
+        <div className="bg-white border border-violet-100 rounded-xl p-3 space-y-2">
           <div className="flex gap-2">
             <button onClick={() => setDir('outbound')}
-              className={`flex-1 text-sm font-bold py-1.5 rounded-xl border-2 transition ${dir === 'outbound' ? 'bg-amber-600 text-white border-amber-600' : 'border-slate-200 text-slate-500'}`}>
+              className={`flex-1 text-sm font-bold py-1.5 rounded-xl border-2 transition ${dir === 'outbound' ? 'bg-violet-600 text-white border-violet-600' : 'border-slate-200 text-slate-500'}`}>
               יוצא ↗
             </button>
             <button onClick={() => setDir('inbound')}
@@ -758,12 +758,12 @@ function TimelineSection({ leadId, timeline, phone, email, onAdded }) {
             </button>
           </div>
           <textarea autoFocus value={body} onChange={e => setBody(e.target.value)}
-            className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-amber-400 resize-none"
+            className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-violet-400 resize-none"
             rows={3} placeholder="תיאור..." />
           <div className="flex gap-2">
             <button onClick={() => setAdding(null)} className="flex-1 border-2 border-slate-200 text-slate-500 text-base font-bold py-1.5 rounded-xl">ביטול</button>
             <button onClick={saveLog} disabled={saving || !body.trim()}
-              className="flex-1 bg-amber-600 text-whitetext-base font-bold py-1.5 rounded-xl disabled:opacity-50">
+              className="flex-1 bg-violet-600 text-white text-base font-bold py-1.5 rounded-xl disabled:opacity-50">
               {saving ? '...' : 'שמור'}
             </button>
           </div>
@@ -909,7 +909,7 @@ function QuickAddTask({ leadId, users, onAdded, tasks, completeTask }) {
       {openTasks.slice(0, 3).map(task => (
         <div key={task.id} className="flex items-center gap-2 bg-white rounded-xl px-3 py-2 border border-slate-100">
           <button onClick={() => completeTask(task.id)}
-            className="shrink-0 w-5 h-5 rounded-full border-2 border-slate-300 hover:border-amber-400 flex items-center justify-center transition" />
+            className="shrink-0 w-5 h-5 rounded-full border-2 border-slate-300 hover:border-violet-400 flex items-center justify-center transition" />
           <p className="flex-1 text-base text-slate-700 text-right">{task.title}</p>
           {task.due_at && <span className="text-sm text-slate-400 shrink-0">{formatFull(task.due_at)}</span>}
         </div>
@@ -922,17 +922,17 @@ function QuickAddTask({ leadId, users, onAdded, tasks, completeTask }) {
           <button onClick={() => { setAdding(false); setTitle(''); }}
             className="shrink-0 border-2 border-slate-200 text-slate-500 text-sm font-bold px-3 py-2 rounded-xl">ביטול</button>
           <button onClick={save} disabled={saving || !title.trim()}
-            className="shrink-0 bg-amber-600 text-whitetext-sm font-bold px-3 py-2 rounded-xl disabled:opacity-50">
+            className="shrink-0 bg-violet-600 text-white text-sm font-bold px-3 py-2 rounded-xl disabled:opacity-50">
             {saving ? '...' : 'הוסף'}
           </button>
           <input autoFocus value={title} onChange={e => setTitle(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && save()}
-            className="flex-1 border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-amber-400 text-right"
+            className="flex-1 border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-violet-400 text-right"
             placeholder="כותרת המשימה..." />
         </div>
       ) : (
         <button onClick={() => setAdding(true)}
-          className="w-full border-2 border-dashed border-slate-200 text-slate-400 hover:border-amber-300 hover:text-amber-600 text-sm font-bold py-2 rounded-xl transition">
+          className="w-full border-2 border-dashed border-slate-200 text-slate-400 hover:border-violet-300 hover:text-violet-600 text-sm font-bold py-2 rounded-xl transition">
           + משימה חדשה
         </button>
       )}
@@ -946,7 +946,7 @@ function TasksTab({ leadId, tasks, users, onUpdated, completeTask, onTaskAction,
   return (
     <div className="max-w-2xl mx-auto p-4 space-y-3">
       <button onClick={onAddTask}
-        className="w-full text-base font-bold py-2.5 rounded-xl border-2 border-dashed border-slate-200 text-slate-400 hover:border-amber-300 hover:text-amber-600 transition">
+        className="w-full text-base font-bold py-2.5 rounded-xl border-2 border-dashed border-slate-200 text-slate-400 hover:border-violet-300 hover:text-violet-600 transition">
         + משימה חדשה
       </button>
 
@@ -962,7 +962,7 @@ function TasksTab({ leadId, tasks, users, onUpdated, completeTask, onTaskAction,
                 className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer transition ${
                   task.completed_at ? 'bg-slate-50 border-slate-100 opacity-60 cursor-default' :
                   isOverdue ? 'bg-red-50 border-red-200 hover:bg-red-100' :
-                  'bg-white border-slate-200 hover:border-amber-300 hover:bg-amber-50'
+                  'bg-white border-slate-200 hover:border-violet-300 hover:bg-violet-50'
                 }`}>
                 <div className={`shrink-0 mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center text-sm ${
                   task.completed_at ? 'bg-emerald-500 border-emerald-500 text-white' :
@@ -979,7 +979,7 @@ function TasksTab({ leadId, tasks, users, onUpdated, completeTask, onTaskAction,
                     {task.due_at && <span className={isOverdue ? 'text-red-500 font-semibold' : ''}>📅 {formatFull(task.due_at)}</span>}
                     {task.assigned_name && <span>👤 {task.assigned_name}</span>}
                     {task.completed_at && <span>✓ {formatFull(task.completed_at)}</span>}
-                    {task.result && <span className="text-amber-700">💬 {task.result}</span>}
+                    {task.result && <span className="text-violet-700">💬 {task.result}</span>}
                   </div>
                 </div>
                 {!task.completed_at && <span className="text-slate-300 text-lg shrink-0 mt-0.5">›</span>}
@@ -1033,7 +1033,7 @@ function WhatsAppTab({ leadId, phone, messages, onSent }) {
             </button>
             <input value={msg} onChange={e => setMsg(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
-              className="flex-1 border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-amber-400"
+              className="flex-1 border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-violet-400"
               placeholder="הודעה..." />
           </div>
         ) : (
@@ -1056,7 +1056,7 @@ function InfoRow({ label, children }) {
 
 function EditForm({ form, setForm, users, onSave, onCancel }) {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const cls = 'w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-amber-400 transition bg-white';
+  const cls = 'w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-violet-400 transition bg-white';
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
@@ -1086,7 +1086,7 @@ function EditForm({ form, setForm, users, onSave, onCancel }) {
       </div>
       <div className="flex gap-2">
         <button onClick={onCancel} className="flex-1 border-2 border-slate-200 text-slate-500 text-base font-bold py-2 rounded-xl">ביטול</button>
-        <button onClick={onSave} className="flex-1 bg-amber-600 text-whitetext-base font-bold py-2 rounded-xl">שמור</button>
+        <button onClick={onSave} className="flex-1 bg-violet-600 text-white text-base font-bold py-2 rounded-xl">שמור</button>
       </div>
     </div>
   );
@@ -1110,7 +1110,7 @@ function ProductionSection({ leadId, lead, onUpdated }) {
     setSaving(false);
   }
 
-  const cls = 'w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-amber-400 transition bg-white';
+  const cls = 'w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-violet-400 transition bg-white';
 
   return (
     <Section title="🎉 הפקה">
@@ -1131,7 +1131,7 @@ function ProductionSection({ leadId, lead, onUpdated }) {
           <span className="text-base font-semibold text-slate-700">מקדמה התקבלה</span>
           <input type="checkbox" checked={form.deposit_confirmed}
             onChange={e => setForm(f => ({ ...f, deposit_confirmed: e.target.checked }))}
-            className="w-4 h-4 accent-amber-600" />
+            className="w-4 h-4 accent-violet-600" />
         </label>
         <div>
           <label className="text-sm text-slate-500 block mb-1">הערות הפקה</label>
@@ -1140,7 +1140,7 @@ function ProductionSection({ leadId, lead, onUpdated }) {
             className={`${cls} resize-none`} rows={3} placeholder="פרטי הפקה, ספקים, הערות..." />
         </div>
         <button onClick={save} disabled={saving}
-          className="w-full bg-amber-600 text-whitefont-bold py-2 rounded-xl text-base disabled:opacity-50">
+          className="w-full bg-violet-600 text-white font-bold py-2 rounded-xl text-base disabled:opacity-50">
           {saving ? 'שומר...' : 'שמור'}
         </button>
       </div>
@@ -1171,7 +1171,7 @@ function CalendarSection({ leadId, calStatus, onUpdated }) {
             🟡 אופציה
           </button>
           <button onClick={() => mark('confirmed')} disabled={marking}
-            className={`text-sm font-bold px-3 py-1.5 rounded-xl border-2 transition ${type === 'confirmed' ? 'bg-emerald-500 text-white border-emerald-500' : 'border-slate-200 text-slate-500 hover:border-amber-300 hover:text-amber-600'}`}>
+            className={`text-sm font-bold px-3 py-1.5 rounded-xl border-2 transition ${type === 'confirmed' ? 'bg-emerald-500 text-white border-emerald-500' : 'border-slate-200 text-slate-500 hover:border-violet-300 hover:text-violet-600'}`}>
             ✅ סגור
           </button>
         </div>
@@ -1187,7 +1187,7 @@ function CalendarSection({ leadId, calStatus, onUpdated }) {
 function AddTaskModal({ leadId, users, onClose, onSaved }) {
   const [form, setForm] = useState({ title: '', due_date: '', due_time: '', assigned_to: '', remind_via: 'whatsapp' });
   const [saving, setSaving] = useState(false);
-  const cls = 'w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-amber-400 bg-white';
+  const cls = 'w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-violet-400 bg-white';
 
   async function save() {
     if (!form.title.trim()) return;
@@ -1234,7 +1234,7 @@ function AddTaskModal({ leadId, users, onClose, onSaved }) {
         <div className="flex gap-2 pt-1">
           <button onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl text-base">ביטול</button>
           <button onClick={save} disabled={saving || !form.title.trim()}
-            className="flex-1 bg-amber-600 text-whitefont-bold py-2 rounded-xl text-base disabled:opacity-50">
+            className="flex-1 bg-violet-600 text-white font-bold py-2 rounded-xl text-base disabled:opacity-50">
             {saving ? '...' : 'הוסף משימה'}
           </button>
         </div>
@@ -1260,7 +1260,7 @@ function TaskActionModal({ task, leadId, lead, users, onClose, onDone, completeT
   const [saving, setSaving]       = useState(false);
   const fileRef = useRef(null);
 
-  const cls = 'w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-amber-400';
+  const cls = 'w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-violet-400';
 
   async function handleDoneSubmit() {
     if (!outcomeType) return;
@@ -1305,9 +1305,9 @@ function TaskActionModal({ task, leadId, lead, users, onClose, onDone, completeT
   const isOverdue = task.due_at && new Date(task.due_at) <= new Date();
 
   const OUTCOME_BTNS = [
-    { type: 'call',       label: '📞 שיחה',          cls: 'border-slate-200 hover:border-amber-300' },
+    { type: 'call',       label: '📞 שיחה',          cls: 'border-slate-200 hover:border-violet-300' },
     { type: 'meeting',    label: '🤝 פגישה',          cls: 'border-slate-200 hover:border-violet-300' },
-    { type: 'note',       label: '📝 הערה',           cls: 'border-slate-200 hover:border-amber-300' },
+    { type: 'note',       label: '📝 הערה',           cls: 'border-slate-200 hover:border-violet-300' },
     { type: 'wa_send',    label: '📱 שלח וואטסאפ',   cls: 'border-slate-200 hover:border-green-300' },
     { type: 'email_send', label: '✉️ שלח אימייל',     cls: 'border-slate-200 hover:border-sky-300' },
   ];
@@ -1329,11 +1329,11 @@ function TaskActionModal({ task, leadId, lead, users, onClose, onDone, completeT
         {!mode && (
           <div className="space-y-2 pt-1">
             <button onClick={() => setMode('done')}
-              className="w-full bg-amber-600 text-white font-bold py-2.5 rounded-xl text-base hover:bg-amber-700 transition">
+              className="w-full bg-violet-600 text-white font-bold py-2.5 rounded-xl text-base hover:bg-violet-700 transition">
               ✅ סמן כהושלם + הוסף תוצאה
             </button>
             <button onClick={() => setMode('reschedule')}
-              className="w-full bg-amber-100 text-amber-700 font-bold py-2.5 rounded-xl text-base hover:bg-amber-200 transition">
+              className="w-full bg-violet-100 text-violet-700 font-bold py-2.5 rounded-xl text-base hover:bg-violet-200 transition">
               🔄 קבע מחדש (לא ענה)
             </button>
             <button onClick={() => setMode('followup')}
@@ -1369,7 +1369,7 @@ function TaskActionModal({ task, leadId, lead, users, onClose, onDone, completeT
           <div className="space-y-2">
             <div className="flex gap-2">
               <button onClick={() => setDir('outbound')}
-                className={`flex-1 text-sm font-bold py-1.5 rounded-xl border-2 transition ${dir === 'outbound' ? 'bg-amber-600 text-white border-amber-600' : 'border-slate-200 text-slate-500'}`}>
+                className={`flex-1 text-sm font-bold py-1.5 rounded-xl border-2 transition ${dir === 'outbound' ? 'bg-violet-600 text-white border-violet-600' : 'border-slate-200 text-slate-500'}`}>
                 יוצא ↗
               </button>
               <button onClick={() => setDir('inbound')}
@@ -1382,7 +1382,7 @@ function TaskActionModal({ task, leadId, lead, users, onClose, onDone, completeT
             <div className="flex gap-2">
               <button onClick={() => setOutcomeType(null)} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl text-base">חזרה</button>
               <button onClick={handleDoneSubmit} disabled={saving || !body.trim()}
-                className="flex-1 bg-amber-600 text-whitefont-bold py-2 rounded-xl text-base disabled:opacity-50">
+                className="flex-1 bg-violet-600 text-white font-bold py-2 rounded-xl text-base disabled:opacity-50">
                 {saving ? '...' : 'שמור וסמן הושלם'}
               </button>
             </div>
@@ -1447,7 +1447,7 @@ function TaskActionModal({ task, leadId, lead, users, onClose, onDone, completeT
             <div className="flex gap-2">
               <button onClick={() => setMode(null)} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl text-base">חזרה</button>
               <button onClick={handleReschedule} disabled={saving || !newDueDate}
-                className="flex-1 bg-amber-500 text-white font-bold py-2 rounded-xl text-base disabled:opacity-50">
+                className="flex-1 bg-violet-500 text-white font-bold py-2 rounded-xl text-base disabled:opacity-50">
                 {saving ? '...' : 'קבע מחדש'}
               </button>
             </div>
@@ -1482,7 +1482,7 @@ function AiButtons({ onAction, aiLoading, hasBody }) {
   const btns = [
     { key: 'translate', label: '🌐 תרגם לאנגלית', cls: 'hover:border-blue-300 hover:text-blue-600' },
     { key: 'reply',     label: '🤖 הצע תשובה',    cls: 'hover:border-violet-300 hover:text-violet-600' },
-    { key: 'improve',   label: '✨ שפר',           cls: 'hover:border-amber-300 hover:text-amber-600', requiresBody: true },
+    { key: 'improve',   label: '✨ שפר',           cls: 'hover:border-violet-300 hover:text-violet-600', requiresBody: true },
   ];
   return (
     <div className="flex flex-wrap gap-1.5">
