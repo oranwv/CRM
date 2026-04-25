@@ -14,18 +14,31 @@ function getAuth() {
   return oauth2;
 }
 
+function addDays(dateStr, days) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d + days);
+  return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+}
+
 function buildEventTimes(eventDate, eventTime, eventEndTime) {
   const startTime = eventTime || '19:00';
+  let endDateStr = eventDate;
   let endTime;
+
   if (eventEndTime) {
     endTime = eventEndTime;
+    // If end <= start assume it wraps to next day (e.g. midnight show)
+    if (endTime <= startTime) endDateStr = addDays(eventDate, 1);
   } else {
     const [sh, sm] = startTime.split(':').map(Number);
-    endTime = `${String(sh + 2).padStart(2,'0')}:${String(sm).padStart(2,'0')}`;
+    const totalMin = sh * 60 + sm + 120;
+    endTime = `${String(Math.floor(totalMin / 60) % 24).padStart(2,'0')}:${String(totalMin % 60).padStart(2,'0')}`;
+    if (totalMin >= 1440) endDateStr = addDays(eventDate, 1);
   }
+
   return {
     start: { dateTime: `${eventDate}T${startTime}:00`, timeZone: 'Asia/Jerusalem' },
-    end:   { dateTime: `${eventDate}T${endTime}:00`,   timeZone: 'Asia/Jerusalem' },
+    end:   { dateTime: `${endDateStr}T${endTime}:00`,   timeZone: 'Asia/Jerusalem' },
   };
 }
 
