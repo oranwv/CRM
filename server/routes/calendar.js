@@ -29,13 +29,13 @@ router.post('/leads/:leadId/mark', async (req, res) => {
     if (!lead) return res.status(404).json({ error: 'Lead not found' });
     if (!lead.event_date) return res.status(400).json({ error: 'No event date set' });
 
-    const googleEventId = await markEventDate({
+    const { googleEventId, calendarSynced } = await markEventDate({
       leadId: lead.id,
       type,
       userId: req.user.id,
     });
 
-    res.json({ ok: true, googleEventId });
+    res.json({ ok: true, googleEventId, calendarSynced });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

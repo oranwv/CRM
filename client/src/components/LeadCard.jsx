@@ -1189,11 +1189,14 @@ function ProductionSection({ leadId, lead, onUpdated }) {
 
 function CalendarSection({ leadId, calStatus, onUpdated }) {
   const [marking, setMarking] = useState(false);
+  const [syncWarning, setSyncWarning] = useState(false);
 
   async function mark(type) {
     setMarking(true);
+    setSyncWarning(false);
     try {
-      await api.post(`/calendar/leads/${leadId}/mark`, { type });
+      const { data } = await api.post(`/calendar/leads/${leadId}/mark`, { type });
+      if (data.calendarSynced === false) setSyncWarning(true);
       await onUpdated();
     } catch { alert('שגיאה בסימון יומן'); }
     setMarking(false);
@@ -1218,6 +1221,11 @@ function CalendarSection({ leadId, calStatus, onUpdated }) {
           {type === 'confirmed' ? '✅ מסומן כסגור ביומן' : type === 'option' ? '🟡 מסומן כאופציה ביומן' : 'לא מסומן ביומן'}
         </span>
       </div>
+      {syncWarning && (
+        <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 mt-2">
+          ⚠️ הסטטוס עודכן ב-CRM, אך הסנכרון ל-Google Calendar נכשל. בדוק את חיבור Google ביומן.
+        </p>
+      )}
     </Section>
   );
 }

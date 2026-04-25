@@ -75,7 +75,7 @@ async function syncLeadToCalendar(leadId, type = 'option', userId = null) {
 
   // Google Calendar sync (best-effort — failure is logged but does not block the DB update above)
   const tokenPath = path.join(__dirname, '../google_token.json');
-  if (!fs.existsSync(tokenPath)) return existingEvent?.google_event_id || null;
+  if (!fs.existsSync(tokenPath)) return { googleEventId: existingEvent?.google_event_id || null, calendarSynced: false };
 
   try {
     const auth     = getAuth();
@@ -88,7 +88,7 @@ async function syncLeadToCalendar(leadId, type = 'option', userId = null) {
         eventId: existingEvent.google_event_id,
         requestBody: eventBody,
       });
-      return existingEvent.google_event_id;
+      return { googleEventId: existingEvent.google_event_id, calendarSynced: true };
     } else {
       const result = await calendar.events.insert({
         calendarId: 'primary',
@@ -100,15 +100,16 @@ async function syncLeadToCalendar(leadId, type = 'option', userId = null) {
         'UPDATE calendar_events SET google_event_id = $1 WHERE lead_id = $2 AND google_event_id IS NULL',
         [googleEventId, leadId]
       );
-      return googleEventId;
+      return { googleEventId, calendarSynced: true };
     }
   } catch (err) {
     console.error('[Calendar] Google sync error:', err.message);
-    return existingEvent?.google_event_id || null;
+    return { googleEventId: existingEvent?.google_event_id || null, calendarSynced: false };
   }
 }
 
 // Called from the UI to change type (option → confirmed or vice versa)
+// Returns { googleEventId, calendarSynced }
 async function markEventDate({ leadId, type, userId }) {
   return syncLeadToCalendar(leadId, type, userId);
 }
