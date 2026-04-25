@@ -150,6 +150,9 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
   useEffect(() => {
     load();
     api.post(`/leads/${leadId}/read`).catch(() => {});
+    const onVisible = () => { if (document.visibilityState === 'visible') load(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
   }, [load, leadId]);
 
   async function changeStage(stageKey) {

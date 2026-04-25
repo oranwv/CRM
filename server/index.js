@@ -123,7 +123,12 @@ function startCronJobs() {
     const base  = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}`;
     const token = process.env.GREEN_API_TOKEN;
     axios.post(`${base}/setSettings/${token}`, {
-      webhookUrl: `${process.env.SERVER_URL}/api/whatsapp/webhook`
+      webhookUrl: `${process.env.SERVER_URL}/api/whatsapp/webhook`,
+      incomingWebhook: 'yes',
+      outgoingWebhook: 'no',
+      outgoingMessageWebhook: 'yes',
+      stateWebhook: 'no',
+      sendFromUTC: 'yes',
     }).then(() => console.log('[WhatsApp] Webhook registered:', process.env.SERVER_URL))
       .catch(err => console.error('[WhatsApp] Webhook registration failed:', err.message));
   } else {
