@@ -570,7 +570,9 @@ function FilesSection({ leadId, files, onChanged }) {
               <p className="text-sm text-slate-400">{f.uploaded_by_name || ''} · {formatFull(f.created_at)}</p>
             </div>
             <button onClick={() => deleteFile(f.id)}
-              className="shrink-0 text-slate-300 hover:text-red-400 transition text-lg leading-none">×</button>
+              className="shrink-0 text-slate-400 hover:text-red-500 transition text-sm font-medium px-2 py-1 rounded-lg hover:bg-red-50 border border-transparent hover:border-red-200">
+              🗑️
+            </button>
           </div>
         ))
       )}
