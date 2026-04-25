@@ -38,7 +38,7 @@ const TYPE_META = {
   instagram: { icon: '📸', label: 'אינסטגרם', bg: 'bg-pink-100',    text: 'text-pink-700' },
 };
 
-const EVENT_TYPES = ['חתונה', 'בר/בת מצווה', 'אירוסין', 'יום הולדת', 'כנס', 'אירוע חברה', 'אחר'];
+const EVENT_TYPES = ['חתונה', 'בר/בת מצווה', 'אירוסין', 'יום הולדת', 'כנס', 'אירוע חברה', 'חינה', 'אחר'];
 
 const IL = { timeZone: 'Asia/Jerusalem' };
 
@@ -1103,6 +1103,7 @@ function EditForm({ form, setForm, users, onSave, onCancel }) {
         <div><label className="text-sm text-slate-500">אימייל</label><input value={form.email || ''} onChange={e => set('email', e.target.value)} className={cls} dir="ltr" /></div>
         <div><label className="text-sm text-slate-500">תאריך אירוע</label><DateInput value={form.event_date ? form.event_date.split('T')[0] : ''} onChange={v => set('event_date', v)} className={cls} /></div>
         <div><label className="text-sm text-slate-500">שעת האירוע</label><TimeInput value={form.event_time || ''} onChange={v => set('event_time', v)} className={cls} /></div>
+        <div><label className="text-sm text-slate-500">שעת סיום</label><TimeInput value={form.event_end_time || ''} onChange={v => set('event_end_time', v)} className={cls} /></div>
         <div><label className="text-sm text-slate-500">סוג אירוע</label>
           <select value={form.event_type || ''} onChange={e => set('event_type', e.target.value)} className={cls}>
             <option value="">בחר...</option>

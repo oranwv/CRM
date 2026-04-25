@@ -14,13 +14,15 @@ function getAuth() {
   return oauth2;
 }
 
-function buildEventTimes(eventDate, eventTime) {
-  // eventDate: 'yyyy-mm-dd', eventTime: 'HH:MM' or null
+function buildEventTimes(eventDate, eventTime, eventEndTime) {
   const startTime = eventTime || '19:00';
-  const [sh, sm] = startTime.split(':').map(Number);
-  const endH = sh + 2; // 2-hour event
-  const endTime = `${String(endH).padStart(2,'0')}:${String(sm).padStart(2,'0')}`;
-
+  let endTime;
+  if (eventEndTime) {
+    endTime = eventEndTime;
+  } else {
+    const [sh, sm] = startTime.split(':').map(Number);
+    endTime = `${String(sh + 2).padStart(2,'0')}:${String(sm).padStart(2,'0')}`;
+  }
   return {
     start: { dateTime: `${eventDate}T${startTime}:00`, timeZone: 'Asia/Jerusalem' },
     end:   { dateTime: `${eventDate}T${endTime}:00`,   timeZone: 'Asia/Jerusalem' },
@@ -32,12 +34,12 @@ function buildEventBody(lead, type) {
   const eventType = lead.event_type || '';
   const summary   = eventType ? `${name} - ${eventType}` : name;
 
-  const colorId = type === 'confirmed' ? '2' : '5'; // green : yellow
+  const colorId = type === 'confirmed' ? '11' : '5'; // red (Tomato) : yellow (Banana)
 
   // Convert to Israel date (not UTC) to avoid off-by-one near midnight
   const eventDate = new Date(lead.event_date).toLocaleDateString('sv', { timeZone: 'Asia/Jerusalem' });
 
-  const times = buildEventTimes(eventDate, lead.event_time);
+  const times = buildEventTimes(eventDate, lead.event_time, lead.event_end_time);
 
   return {
     summary,

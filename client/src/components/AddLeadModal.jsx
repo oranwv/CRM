@@ -38,14 +38,15 @@ const SOURCE_OPTIONS = [
   { value: 'manual', label: 'ידני' },
 ];
 
-const EVENT_TYPES = ['חתונה', 'בר/בת מצווה', 'אירוסין', 'יום הולדת', 'כנס', 'אירוע חברה', 'אחר'];
+const EVENT_TYPES = ['חתונה', 'בר/בת מצווה', 'אירוסין', 'יום הולדת', 'כנס', 'אירוע חברה', 'חינה', 'אחר'];
 
 export default function AddLeadModal({ onClose, onSaved }) {
   const [users, setUsers] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [customEventType, setCustomEventType] = useState('');
   const [form, setForm] = useState({
     name: '', phone: '', email: '',
-    event_date: '', event_time: '', event_type: '', guest_count: '', budget: '',
+    event_date: '', event_time: '', event_end_time: '', event_type: '', guest_count: '', budget: '',
     source: 'manual', priority: 'normal', assigned_to: '',
     notes: '',
   });
@@ -67,6 +68,10 @@ export default function AddLeadModal({ onClose, onSaved }) {
       if (!payload.budget) delete payload.budget;
       if (!payload.assigned_to) delete payload.assigned_to;
       if (!payload.event_time) delete payload.event_time;
+      if (!payload.event_end_time) delete payload.event_end_time;
+      if (payload.event_type === 'אחר' && customEventType.trim()) {
+        payload.event_type = customEventType.trim();
+      }
       await api.post('/leads', payload);
       onSaved();
     } catch (err) {
@@ -115,6 +120,9 @@ export default function AddLeadModal({ onClose, onSaved }) {
             <Field label="שעת האירוע">
               <TimeInput value={form.event_time} onChange={v => set('event_time', v)} className={inputCls} placeholder="19:00" />
             </Field>
+            <Field label="שעת סיום">
+              <TimeInput value={form.event_end_time} onChange={v => set('event_end_time', v)} className={inputCls} placeholder="23:00" />
+            </Field>
           </div>
           <Field label="סוג אירוע">
             <select value={form.event_type} onChange={e => set('event_type', e.target.value)} className={inputCls}>
@@ -122,6 +130,12 @@ export default function AddLeadModal({ onClose, onSaved }) {
               {EVENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </Field>
+          {form.event_type === 'אחר' && (
+            <Field label="פרט סוג אירוע">
+              <input value={customEventType} onChange={e => setCustomEventType(e.target.value)}
+                className={inputCls} placeholder="הכנס סוג אירוע..." />
+            </Field>
+          )}
 
           {/* Guests + Budget */}
           <div className="grid grid-cols-2 gap-3">
