@@ -116,7 +116,7 @@ async function runReminders() {
       JOIN leads l ON l.id = t.lead_id
       LEFT JOIN users u ON u.id = t.assigned_to
       WHERE t.completed_at IS NULL
-        AND t.due_at BETWEEN NOW() - INTERVAL '1 hour' AND NOW() + INTERVAL '5 minutes'
+        AND t.due_at BETWEEN NOW() - INTERVAL '1 hour' AND NOW() + INTERVAL '2 minutes'
         AND t.remind_via = 'whatsapp'
         AND t.remind_sent_at IS NULL
         AND u.phone IS NOT NULL

@@ -45,6 +45,13 @@ router.post('/:taskId/postpone', async (req, res) => {
       `UPDATE tasks SET due_at = $1, remind_sent_at = NULL WHERE id = $2`,
       [newDueAt, req.params.taskId]
     );
+
+    // Schedule reminder to fire at exactly the new due time
+    const msUntil = newDueAt.getTime() - Date.now();
+    if (msUntil > 0 && msUntil <= 48 * 60 * 60 * 1000) {
+      setTimeout(() => require('../services/reminderService').runReminders(), msUntil);
+    }
+
     res.json({ success: true, newDueAt });
   } catch {
     res.status(401).json({ error: 'קישור לא תקין או פג תוקף' });
