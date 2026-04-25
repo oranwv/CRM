@@ -4,7 +4,8 @@ import LoginPage     from './pages/LoginPage';
 import LeadsPage     from './pages/LeadsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import CalendarPage  from './pages/CalendarPage';
-import PostponePage  from './pages/PostponePage';
+import PostponePage    from './pages/PostponePage';
+import TaskActionPage  from './pages/TaskActionPage';
 
 function PrivateRoute({ children }) {
   return localStorage.getItem('crm_token') ? children : <Navigate to="/login" replace />;
@@ -77,7 +78,8 @@ export default function App() {
             </>
           </PrivateRoute>
         } />
-        <Route path="/postpone/:taskId" element={<PostponePage />} />
+        <Route path="/postpone/:taskId"    element={<PostponePage />} />
+        <Route path="/task-action/:taskId" element={<TaskActionPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

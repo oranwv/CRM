@@ -51,4 +51,48 @@ router.post('/:taskId/postpone', async (req, res) => {
   }
 });
 
+// POST /api/tasks/:taskId/complete — public (from WA link)
+router.post('/:taskId/complete', async (req, res) => {
+  const { token, result } = req.body;
+  try {
+    verifyToken(token, req.params.taskId);
+    const { rows } = await pool.query('SELECT lead_id, title FROM tasks WHERE id = $1', [req.params.taskId]);
+    if (!rows.length) return res.status(404).json({ error: 'משימה לא נמצאה' });
+    const { lead_id, title } = rows[0];
+    await pool.query('UPDATE tasks SET completed_at = NOW(), result = $2 WHERE id = $1', [req.params.taskId, result || null]);
+    if (result) {
+      await pool.query(
+        `INSERT INTO lead_interactions (lead_id, type, direction, body, created_by)
+         VALUES ($1, 'note', 'outbound', $2, NULL)`,
+        [lead_id, `✅ משימה הושלמה: ${title}\nתוצאה: ${result}`]
+      );
+      await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [lead_id]);
+    }
+    res.json({ success: true });
+  } catch {
+    res.status(401).json({ error: 'קישור לא תקין או פג תוקף' });
+  }
+});
+
+// POST /api/tasks/:taskId/create-followup — public (from WA link)
+router.post('/:taskId/create-followup', async (req, res) => {
+  const { token, title, dueAt } = req.body;
+  try {
+    verifyToken(token, req.params.taskId);
+    if (!title?.trim()) return res.status(400).json({ error: 'כותרת נדרשת' });
+    // Inherit lead_id, assigned_to, remind_via from the original task
+    const { rows } = await pool.query('SELECT lead_id, assigned_to, remind_via FROM tasks WHERE id = $1', [req.params.taskId]);
+    if (!rows.length) return res.status(404).json({ error: 'משימה לא נמצאה' });
+    const { lead_id, assigned_to, remind_via } = rows[0];
+    await pool.query(
+      `INSERT INTO tasks (lead_id, title, due_at, remind_via, assigned_to, created_by)
+       VALUES ($1, $2, $3, $4, $5, $5)`,
+      [lead_id, title.trim(), dueAt || null, remind_via || 'app', assigned_to]
+    );
+    res.json({ success: true });
+  } catch {
+    res.status(401).json({ error: 'קישור לא תקין או פג תוקף' });
+  }
+});
+
 module.exports = router;

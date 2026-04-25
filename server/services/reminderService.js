@@ -132,16 +132,16 @@ async function runReminders() {
       );
       if (!claim.rows.length) continue; // another instance already claimed it
 
-      const postponeToken = jwt.sign(
+      const actionToken = jwt.sign(
         { taskId: task.id, type: 'postpone' },
         process.env.JWT_SECRET,
         { expiresIn: '48h' }
       );
-      const postponeUrl = `${baseUrl}/postpone/${task.id}?token=${postponeToken}`;
+      const actionUrl = `${baseUrl}/task-action/${task.id}?token=${actionToken}`;
 
       await sendWhatsApp(
         task.user_phone,
-        `⏰ תזכורת משימה: "${task.title}" עבור הליד "${task.lead_name}" - עכשיו!\n🔗 ${baseUrl}/?lead=${task.lead_id}\n⏩ דחה משימה: ${postponeUrl}`
+        `⏰ תזכורת משימה: "${task.title}" עבור הליד "${task.lead_name}" - עכשיו!\n🔗 לפתיחת הליד: ${baseUrl}/?lead=${task.lead_id}\n👇 פעולות (הושלם / דחייה / המשך): ${actionUrl}`
       );
     }
 
