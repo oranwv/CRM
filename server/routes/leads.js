@@ -107,11 +107,19 @@ router.patch('/:id', async (req, res) => {
   const sets = fields.map((f, i) => `${f} = $${i + 2}`).join(', ');
   const vals = fields.map(f => req.body[f]);
   try {
+    // Capture old stage before update so we can log the transition
+    let oldStage = null;
+    if (fields.includes('stage')) {
+      const { rows: cur } = await pool.query('SELECT stage FROM leads WHERE id = $1', [req.params.id]);
+      oldStage = cur[0]?.stage || null;
+    }
+
     const { rows } = await pool.query(
       `UPDATE leads SET ${sets}, updated_at = NOW() WHERE id = $1 RETURNING *`,
       [req.params.id, ...vals]
     );
     const lead = rows[0];
+
     // Re-sync calendar if event date/time/name/type changed (awaited so calStatus is fresh on reload)
     const calendarFields = ['event_date','event_time','event_type','name'];
     if (lead.event_date && fields.some(f => calendarFields.includes(f))) {
@@ -119,6 +127,22 @@ router.patch('/:id', async (req, res) => {
       const currentType = existing.rows[0]?.type || 'option';
       await syncCalendar(lead.id, currentType, req.user.id);
     }
+
+    // Log stage change to timeline
+    if (oldStage && lead.stage !== oldStage) {
+      const STAGE_NAMES = {
+        new:'חדש', contacted:'ביצירת קשר', meeting:'פגישה', offer_sent:'הצעה נשלחה',
+        negotiation:'מו"מ', contract_sent:'חוזה נשלח', deposit:'מקדמה', production:'הפקה', lost:'אבוד'
+      };
+      const from = STAGE_NAMES[oldStage]  || oldStage;
+      const to   = STAGE_NAMES[lead.stage] || lead.stage;
+      await pool.query(
+        `INSERT INTO lead_interactions (lead_id, type, direction, body, created_by)
+         VALUES ($1, 'note', 'outbound', $2, $3)`,
+        [req.params.id, `🔄 שינוי שלב: ${from} ← ${to}`, req.user.id]
+      );
+    }
+
     res.json(lead);
   } catch (err) {
     res.status(500).json({ error: err.message });

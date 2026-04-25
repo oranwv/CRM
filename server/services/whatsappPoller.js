@@ -1,5 +1,43 @@
 const axios = require('axios');
+const fs    = require('fs');
+const os    = require('os');
+const path  = require('path');
 const pool  = require('../db/pool');
+const { uploadFile } = require('./storageService');
+
+function mediaMimeToExt(mime) {
+  const map = { 'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif','video/mp4':'mp4','audio/ogg':'ogg','audio/mpeg':'mp3','application/pdf':'pdf' };
+  return map[mime] || 'bin';
+}
+
+async function saveInboundMedia(msg, leadId, externalId) {
+  const d = msg.imageMessageData || msg.fileMessageData || {};
+  const mediaUrl = d.downloadUrl || d.url || null;
+  if (!mediaUrl) return { text: d.caption || `[${msg.typeMessage}]` };
+
+  const caption  = d.caption || '';
+  const mime     = d.mimeType || 'application/octet-stream';
+  const fileName = d.fileName || `media_${externalId}.${mediaMimeToExt(mime)}`;
+  const tmpPath  = path.join(os.tmpdir(), `wa_in_${externalId}`);
+
+  try {
+    const { data } = await axios.get(mediaUrl, { responseType: 'arraybuffer', timeout: 30000 });
+    fs.writeFileSync(tmpPath, Buffer.from(data));
+    const { storedName } = await uploadFile(tmpPath, fileName, mime);
+    fs.unlinkSync(tmpPath);
+    const { rows } = await pool.query(
+      `INSERT INTO files (lead_id, filename, url, stored_name, file_type, uploaded_by)
+       VALUES ($1,$2,$3,$4,$5,NULL) RETURNING id`,
+      [leadId, fileName, '', storedName, mime]
+    );
+    const marker = `[[FILE:${rows[0].id}|${fileName}]]`;
+    return { text: caption ? `${caption}\n${marker}` : marker };
+  } catch (err) {
+    console.error('[WhatsApp] media download error:', err.message);
+    try { fs.unlinkSync(tmpPath); } catch {}
+    return { text: caption || `[${msg.typeMessage}]` };
+  }
+}
 
 const BASE  = () => `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}`;
 const TOKEN = () => process.env.GREEN_API_TOKEN;
@@ -65,14 +103,8 @@ async function processNotification(notification) {
   const msg = body.messageData;
   if (!msg) return;
 
-  let text = '';
-  if (msg.typeMessage === 'textMessage') {
-    text = msg.textMessageData?.textMessage || '';
-  } else if (msg.typeMessage === 'extendedTextMessage') {
-    text = msg.extendedTextMessageData?.text || '';
-  } else {
-    return; // ignore media/other for now
-  }
+  const SUPPORTED = ['textMessage','extendedTextMessage','imageMessage','documentMessage','audioMessage','extendedAudioMessage','videoMessage'];
+  if (!SUPPORTED.includes(msg.typeMessage)) return;
 
   const chatId      = body.senderData?.chatId || body.senderData?.sender || '';
   if (chatId.endsWith('@g.us')) return; // ignore group messages
@@ -81,11 +113,24 @@ async function processNotification(notification) {
   const senderName  = body.senderData?.senderName || null;
   const externalId  = body.idMessage;
 
+  // Extract preview text for lead creation
+  const previewText = msg.typeMessage === 'textMessage'
+    ? (msg.textMessageData?.textMessage || '')
+    : msg.typeMessage === 'extendedTextMessage'
+      ? (msg.extendedTextMessageData?.text || '')
+      : ((msg.imageMessageData || msg.fileMessageData || {}).caption || `[${msg.typeMessage}]`);
+
   const { rows: dup } = await pool.query('SELECT id FROM messages WHERE external_id = $1', [externalId]);
   if (dup.length) return;
 
-  const leadId = await findOrCreateLead(senderPhone, senderName, text, chatId);
+  const leadId = await findOrCreateLead(senderPhone, senderName, previewText, chatId);
   if (!leadId) return;
+
+  // Resolve final message body (download media if needed)
+  let text = previewText;
+  if (!['textMessage','extendedTextMessage'].includes(msg.typeMessage)) {
+    ({ text } = await saveInboundMedia(msg, leadId, externalId));
+  }
 
   await pool.query(
     `INSERT INTO messages (lead_id, channel, direction, body, external_id, timestamp, is_read)
