@@ -2,7 +2,6 @@ const router = require('express').Router();
 const pool   = require('../db/pool');
 const AnthropicModule = require('@anthropic-ai/sdk');
 const Anthropic = AnthropicModule.default || AnthropicModule;
-const pool = require('../db/pool');
 
 function getClient() {
   const key = process.env.ANTHROPIC_API_KEY;
