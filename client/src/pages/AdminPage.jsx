@@ -6,6 +6,8 @@ export default function AdminPage() {
   const [saved,   setSaved]   = useState(false);
   const [saving,  setSaving]  = useState(false);
   const [loading, setLoading] = useState(true);
+  const [syncing,  setSyncing]  = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
 
   useEffect(() => {
     api.get('/admin/settings')
@@ -15,6 +17,19 @@ export default function AdminPage() {
       })
       .catch(() => setLoading(false));
   }, []);
+
+  async function handleSyncAll() {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const { data } = await api.post('/calendar/sync-all');
+      setSyncResult(data);
+    } catch (err) {
+      setSyncResult({ error: err.response?.data?.error || err.message });
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -67,6 +82,35 @@ export default function AdminPage() {
                 {saving ? 'שומר...' : saved ? '✅ נשמר' : 'שמור הוראות'}
               </button>
             </>
+          )}
+        </div>
+        {/* Google Calendar sync card */}
+        <div className="rounded-2xl p-4 bg-white border border-violet-100 shadow-sm">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-lg">📅</span>
+            <h2 className="font-black text-base text-slate-800">Google Calendar — סנכרון כולל</h2>
+          </div>
+          <p className="text-xs mb-3 text-slate-400">
+            שלח את כל הלידים עם תאריך אירוע ל-Google Calendar. אירועים קיימים יעודכנו, חסרים ייווצרו.
+          </p>
+          <button
+            onClick={handleSyncAll}
+            disabled={syncing}
+            className="w-full py-2.5 rounded-xl font-black text-sm transition disabled:opacity-50 text-white"
+            style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}
+          >
+            {syncing ? '⏳ מסנכרן...' : 'סנכרן כל האירועים'}
+          </button>
+          {syncResult && !syncResult.error && (
+            <div className="mt-2 text-xs rounded-lg px-3 py-2 bg-emerald-50 border border-emerald-200 text-emerald-700">
+              ✅ סונכרנו {syncResult.synced} אירועים בהצלחה{syncResult.failed > 0 ? `, נכשלו ${syncResult.failed}` : ''}
+              {syncResult.errors?.length > 0 && (
+                <p className="mt-1 text-amber-600">{syncResult.errors[0]}</p>
+              )}
+            </div>
+          )}
+          {syncResult?.error && (
+            <p className="mt-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{syncResult.error}</p>
           )}
         </div>
       </div>

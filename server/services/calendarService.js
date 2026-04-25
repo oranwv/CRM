@@ -53,7 +53,9 @@ function buildEventBody(lead, type) {
 async function syncLeadToCalendar(leadId, type = 'option', userId = null) {
   const { rows } = await pool.query('SELECT * FROM leads WHERE id = $1', [leadId]);
   const lead = rows[0];
-  if (!lead || !lead.event_date) return null;
+  if (!lead || !lead.event_date) {
+    return { googleEventId: null, htmlLink: null, calendarSynced: false, syncError: 'No event date' };
+  }
 
   const existing = await pool.query(
     'SELECT * FROM calendar_events WHERE lead_id = $1 ORDER BY created_at DESC LIMIT 1',
@@ -75,7 +77,9 @@ async function syncLeadToCalendar(leadId, type = 'option', userId = null) {
 
   // Google Calendar sync (best-effort — failure is logged but does not block the DB update above)
   const tokenPath = path.join(__dirname, '../google_token.json');
-  if (!fs.existsSync(tokenPath)) return { googleEventId: existingEvent?.google_event_id || null, calendarSynced: false };
+  if (!fs.existsSync(tokenPath)) {
+    return { googleEventId: existingEvent?.google_event_id || null, htmlLink: existingEvent?.html_link || null, calendarSynced: false, syncError: 'No Google token file on server' };
+  }
 
   try {
     const auth     = getAuth();
@@ -83,28 +87,33 @@ async function syncLeadToCalendar(leadId, type = 'option', userId = null) {
     const eventBody = buildEventBody(lead, type);
 
     if (existingEvent?.google_event_id) {
-      await calendar.events.patch({
+      const patchRes = await calendar.events.patch({
         calendarId: 'primary',
         eventId: existingEvent.google_event_id,
         requestBody: eventBody,
       });
-      return { googleEventId: existingEvent.google_event_id, calendarSynced: true };
+      const htmlLink = patchRes.data.htmlLink || existingEvent.html_link || null;
+      if (htmlLink && !existingEvent.html_link) {
+        await pool.query('UPDATE calendar_events SET html_link = $1 WHERE lead_id = $2', [htmlLink, leadId]);
+      }
+      return { googleEventId: existingEvent.google_event_id, htmlLink, calendarSynced: true };
     } else {
       const result = await calendar.events.insert({
         calendarId: 'primary',
         requestBody: eventBody,
       });
       const googleEventId = result.data.id;
-      // Backfill the googleEventId into the placeholder row we just inserted
+      const htmlLink = result.data.htmlLink || null;
+      // Backfill the googleEventId and htmlLink into the placeholder row
       await pool.query(
-        'UPDATE calendar_events SET google_event_id = $1 WHERE lead_id = $2 AND google_event_id IS NULL',
-        [googleEventId, leadId]
+        'UPDATE calendar_events SET google_event_id = $1, html_link = $2 WHERE lead_id = $3 AND google_event_id IS NULL',
+        [googleEventId, htmlLink, leadId]
       );
-      return { googleEventId, calendarSynced: true };
+      return { googleEventId, htmlLink, calendarSynced: true };
     }
   } catch (err) {
     console.error('[Calendar] Google sync error:', err.message);
-    return { googleEventId: existingEvent?.google_event_id || null, calendarSynced: false };
+    return { googleEventId: existingEvent?.google_event_id || null, htmlLink: existingEvent?.html_link || null, calendarSynced: false, syncError: err.message };
   }
 }
 

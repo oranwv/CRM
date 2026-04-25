@@ -1190,13 +1190,18 @@ function ProductionSection({ leadId, lead, onUpdated }) {
 function CalendarSection({ leadId, calStatus, onUpdated }) {
   const [marking, setMarking] = useState(false);
   const [syncWarning, setSyncWarning] = useState(false);
+  const [syncError, setSyncError] = useState('');
 
   async function mark(type) {
     setMarking(true);
     setSyncWarning(false);
+    setSyncError('');
     try {
       const { data } = await api.post(`/calendar/leads/${leadId}/mark`, { type });
-      if (data.calendarSynced === false) setSyncWarning(true);
+      if (data.calendarSynced === false) {
+        setSyncWarning(true);
+        setSyncError(data.syncError || '');
+      }
       await onUpdated();
     } catch { alert('שגיאה בסימון יומן'); }
     setMarking(false);
@@ -1217,13 +1222,19 @@ function CalendarSection({ leadId, calStatus, onUpdated }) {
             ✅ סגור
           </button>
         </div>
-        <span className="text-sm text-slate-400">
-          {type === 'confirmed' ? '✅ מסומן כסגור ביומן' : type === 'option' ? '🟡 מסומן כאופציה ביומן' : 'לא מסומן ביומן'}
-        </span>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-sm text-slate-400">
+            {type === 'confirmed' ? '✅ מסומן כסגור ביומן' : type === 'option' ? '🟡 מסומן כאופציה ביומן' : 'לא מסומן ביומן'}
+          </span>
+          {calStatus?.html_link && (
+            <a href={calStatus.html_link} target="_blank" rel="noreferrer"
+               className="text-xs text-violet-600 hover:underline">📅 פתח ביומן Google</a>
+          )}
+        </div>
       </div>
       {syncWarning && (
         <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 mt-2">
-          ⚠️ הסטטוס עודכן ב-CRM, אך הסנכרון ל-Google Calendar נכשל. בדוק את חיבור Google ביומן.
+          ⚠️ הסטטוס עודכן ב-CRM, אך הסנכרון ל-Google Calendar נכשל{syncError ? `: ${syncError}` : ''}
         </p>
       )}
     </Section>

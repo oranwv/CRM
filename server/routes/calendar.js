@@ -1,6 +1,6 @@
 const express = require('express');
 const router  = express.Router();
-const { markEventDate, getLeadCalendarStatus, createMeeting, sendMeetingInvite, getMeetingRsvpStatus } = require('../services/calendarService');
+const { markEventDate, getLeadCalendarStatus, syncLeadToCalendar, createMeeting, sendMeetingInvite, getMeetingRsvpStatus } = require('../services/calendarService');
 const pool = require('../db/pool');
 
 // GET /api/calendar/leads — all leads with event dates (for calendar view)
@@ -29,13 +29,13 @@ router.post('/leads/:leadId/mark', async (req, res) => {
     if (!lead) return res.status(404).json({ error: 'Lead not found' });
     if (!lead.event_date) return res.status(400).json({ error: 'No event date set' });
 
-    const { googleEventId, calendarSynced } = await markEventDate({
+    const { googleEventId, htmlLink, calendarSynced, syncError } = await markEventDate({
       leadId: lead.id,
       type,
       userId: req.user.id,
     });
 
-    res.json({ ok: true, googleEventId, calendarSynced });
+    res.json({ ok: true, googleEventId, htmlLink, calendarSynced, syncError });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -105,6 +105,33 @@ router.get('/meetings/:eventId/status', async (req, res) => {
     res.json({ status });
   } catch (err) {
     console.error('[Calendar] getMeetingRsvpStatus error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/calendar/sync-all — bulk-sync all leads with event dates to Google Calendar
+router.post('/sync-all', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT l.id, COALESCE(ce.type, 'option') AS cal_type
+      FROM leads l
+      LEFT JOIN calendar_events ce ON ce.lead_id = l.id
+      WHERE l.event_date IS NOT NULL
+      ORDER BY l.event_date
+    `);
+    let synced = 0, failed = 0;
+    const errors = [];
+    for (const row of rows) {
+      const r = await syncLeadToCalendar(row.id, row.cal_type, req.user.id);
+      if (r?.calendarSynced) {
+        synced++;
+      } else {
+        failed++;
+        if (r?.syncError) errors.push(`Lead ${row.id}: ${r.syncError}`);
+      }
+    }
+    res.json({ synced, failed, errors });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

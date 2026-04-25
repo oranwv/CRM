@@ -85,6 +85,7 @@ pool.query(`
     created_at TIMESTAMPTZ DEFAULT NOW()
   );
   ALTER TABLE messages ADD COLUMN IF NOT EXISTS contact_value TEXT;
+  ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS html_link TEXT;
 `).catch(err => console.error('[DB] Table check error:', err.message));
 
 const app = express();
