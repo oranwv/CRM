@@ -6,12 +6,13 @@ import AnalyticsPage from './pages/AnalyticsPage';
 import CalendarPage  from './pages/CalendarPage';
 import PostponePage    from './pages/PostponePage';
 import TaskActionPage  from './pages/TaskActionPage';
+import AdminPage       from './pages/AdminPage';
 
 function PrivateRoute({ children }) {
   return localStorage.getItem('crm_token') ? children : <Navigate to="/login" replace />;
 }
 
-const NAV_TABS = [
+const BASE_NAV_TABS = [
   { path: '/',          icon: '👥', label: 'לידים' },
   { path: '/calendar',  icon: '📅', label: 'לוח שנה' },
   { path: '/analytics', icon: '📊', label: 'אנליטיקס' },
@@ -20,10 +21,14 @@ const NAV_TABS = [
 function AppShellNav() {
   const location = useLocation();
   const navigate = useNavigate();
+  const user = JSON.parse(localStorage.getItem('crm_user') || '{}');
+  const tabs = user.role === 'admin'
+    ? [...BASE_NAV_TABS, { path: '/admin', icon: '⚙️', label: 'הגדרות' }]
+    : BASE_NAV_TABS;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-30 flex shadow-2xl" style={{ background: '#1c1007', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-      {NAV_TABS.map(t => {
+      {tabs.map(t => {
         const active = location.pathname === t.path;
         return (
           <button
@@ -75,6 +80,14 @@ export default function App() {
               <CalendarPage onOpenLead={(id) => setCalendarOpenLead(id)} />
               <AppShellNav />
               <div className="pb-16" />
+            </>
+          </PrivateRoute>
+        } />
+        <Route path="/admin" element={
+          <PrivateRoute>
+            <>
+              <AdminPage />
+              <AppShellNav />
             </>
           </PrivateRoute>
         } />

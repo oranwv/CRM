@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const pool   = require('../db/pool');
 const AnthropicModule = require('@anthropic-ai/sdk');
 const Anthropic = AnthropicModule.default || AnthropicModule;
 const pool = require('../db/pool');
@@ -68,10 +69,14 @@ ${history || '(אין היסטוריה)'}
 
 כתוב תגובה מקצועית וחמה בעברית להודעה האחרונה של הלקוח. היה ממוקד, ידידותי ודחוף להמשך התהליך לקראת הזמנת האירוע.`;
 
+    const { rows: aiRows } = await pool.query("SELECT value FROM settings WHERE key = 'ai_instructions'");
+    const aiInstructions = aiRows[0]?.value?.trim() || '';
+    const replySystem = `אתה איש מכירות מקצועי של אולם אירועים שרביה בתל אביב. אתה כותב תגובות חמות, מקצועיות ומשכנעות ללקוחות פוטנציאליים בעברית. החזר רק את טקסט ההודעה ללא כותרות או הסברים.${aiInstructions ? '\n\n' + aiInstructions : ''}`;
+
     const msg = await getClient().messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
-      system: 'אתה איש מכירות מקצועי של אולם אירועים שרביה בתל אביב. אתה כותב תגובות חמות, מקצועיות ומשכנעות ללקוחות פוטנציאליים בעברית. החזר רק את טקסט ההודעה ללא כותרות או הסברים.',
+      system: replySystem,
       messages: [{ role: 'user', content: prompt }],
     });
     res.json({ result: msg.content[0].text.trim() });
@@ -87,10 +92,13 @@ router.post('/improve', async (req, res) => {
   if (!text) return res.status(400).json({ error: 'text required' });
 
   try {
+    const { rows: aiRows2 } = await pool.query("SELECT value FROM settings WHERE key = 'ai_instructions'");
+    const aiInstructions2 = aiRows2[0]?.value?.trim() || '';
+    const improveSystem = `אתה עוזר לאיש מכירות של אולם אירועים שרביה לשפר הודעות ללקוחות. שפר את ההודעה הבאה — תהיה מקצועי יותר, חם ומשכנע, תוך שמירה על הכוונה המקורית. החזר רק את טקסט ההודעה המשופרת ללא הסברים.${aiInstructions2 ? '\n\n' + aiInstructions2 : ''}`;
     const msg = await getClient().messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
-      system: 'אתה עוזר לאיש מכירות של אולם אירועים שרביה לשפר הודעות ללקוחות. שפר את ההודעה הבאה — תהיה מקצועי יותר, חם ומשכנע, תוך שמירה על הכוונה המקורית. החזר רק את טקסט ההודעה המשופרת ללא הסברים.',
+      system: improveSystem,
       messages: [{ role: 'user', content: text }],
     });
     res.json({ result: msg.content[0].text.trim() });

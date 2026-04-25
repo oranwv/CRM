@@ -28,6 +28,7 @@ const fileDownloadRoutes  = require('./routes/fileDownload');
 const analyticsRoutes     = require('./routes/analytics');
 const calendarRoutes      = require('./routes/calendar');
 const aiRoutes            = require('./routes/ai');
+const adminRoutes         = require('./routes/admin');
 
 const pool = require('./db/pool');
 
@@ -68,6 +69,13 @@ pool.query(`
   ALTER TABLE tasks ADD COLUMN IF NOT EXISTS created_by INT REFERENCES users(id);
   ALTER TABLE tasks ADD COLUMN IF NOT EXISTS remind_via VARCHAR(20) DEFAULT 'app';
   ALTER TABLE files ADD COLUMN IF NOT EXISTS stored_name TEXT;
+  CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  INSERT INTO settings (key, value) VALUES ('ai_instructions', '')
+    ON CONFLICT (key) DO NOTHING;
 `).catch(err => console.error('[DB] Table check error:', err.message));
 
 const app = express();
@@ -83,6 +91,7 @@ app.use('/api/tasks',     require('./routes/taskPostpone'));
 app.use('/api/files',               requireAuth, fileDownloadRoutes);
 app.use('/api/leads',               requireAuth, leadsRoutes);
 app.use('/api/leads/:leadId/files', requireAuth, filesRoutes);
+app.use('/api/admin',               requireAuth, adminRoutes);
 app.use('/api/users',               requireAuth, usersRoutes);
 app.use('/api/analytics',           requireAuth, analyticsRoutes);
 app.use('/api/ai',                  requireAuth, aiRoutes);
