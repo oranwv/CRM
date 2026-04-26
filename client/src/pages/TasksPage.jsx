@@ -2,6 +2,13 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api';
 import LeadCard from '../components/LeadCard';
 
+const POSTPONE_PRESETS = [
+  { label: '15 דקות', minutes: 15 },
+  { label: '30 דקות', minutes: 30 },
+  { label: 'שעה',     minutes: 60 },
+  { label: 'יום שלם', minutes: 1440 },
+];
+
 function getMe() {
   try {
     const token = localStorage.getItem('crm_token');
@@ -44,7 +51,39 @@ function SectionHeader({ label, color, count }) {
   );
 }
 
-function TaskRow({ task, onComplete, onOpenLead }) {
+function ActionCard({ icon, title, open, onToggle, color, children }) {
+  const borders = { green: 'border-green-200', violet: 'border-violet-200', blue: 'border-blue-200' };
+  const headers = { green: 'text-green-700',  violet: 'text-violet-700',  blue: 'text-blue-700'  };
+  return (
+    <div className={`bg-slate-50 rounded-2xl border-2 ${open ? borders[color] : 'border-transparent'} overflow-hidden`}>
+      <button onClick={onToggle} className="w-full flex items-center gap-3 px-4 py-3.5 text-right">
+        <span className="text-xl">{icon}</span>
+        <span className={`font-black text-base flex-1 ${open ? headers[color] : 'text-slate-700'}`}>{title}</span>
+        <span className="text-slate-400 text-sm">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && <div className="px-4 pb-4">{children}</div>}
+    </div>
+  );
+}
+
+function ActionBtn({ onClick, saving, color, disabled, children }) {
+  const colors = {
+    green:  'bg-green-600 hover:bg-green-700',
+    violet: 'bg-violet-600 hover:bg-violet-700',
+    blue:   'bg-blue-600  hover:bg-blue-700',
+  };
+  return (
+    <button
+      onClick={onClick}
+      disabled={saving || disabled}
+      className={`w-full py-3 rounded-xl font-black text-white transition ${colors[color]} disabled:opacity-40 disabled:cursor-not-allowed`}
+    >
+      {saving ? 'שומר...' : children}
+    </button>
+  );
+}
+
+function TaskRow({ task, onAction, onOpenLead }) {
   const overdue = !task.completed_at && isOverdue(task.due_at);
   const today   = !task.completed_at && !overdue && isToday(task.due_at);
 
@@ -56,22 +95,16 @@ function TaskRow({ task, onComplete, onOpenLead }) {
   return (
     <div
       className={`flex items-center gap-3 px-4 py-3 border-b border-slate-100 transition
-        ${task.completed_at ? 'opacity-55' : 'hover:bg-violet-50/40'}
+        ${task.completed_at ? 'opacity-55' : 'hover:bg-violet-50/40 cursor-pointer'}
         ${overdue ? 'bg-red-50/40' : ''}`}
+      onClick={() => !task.completed_at && onAction(task)}
     >
-      {/* Complete button / done indicator */}
+      {/* Done indicator / tap hint */}
       {task.completed_at ? (
         <span className="w-6 h-6 rounded-full bg-emerald-100 border-2 border-emerald-400
           flex items-center justify-center flex-shrink-0 text-xs text-emerald-600">✓</span>
       ) : (
-        <button
-          onClick={() => onComplete(task)}
-          title="סמן כבוצע"
-          className="w-6 h-6 rounded-full border-2 border-slate-300 hover:border-emerald-500
-            hover:bg-emerald-50 transition flex items-center justify-center flex-shrink-0 group"
-        >
-          <span className="text-emerald-600 text-xs leading-none opacity-0 group-hover:opacity-100">✓</span>
-        </button>
+        <span className="w-6 h-6 rounded-full border-2 border-slate-300 flex-shrink-0" />
       )}
 
       {/* Title + lead name */}
@@ -80,7 +113,7 @@ function TaskRow({ task, onComplete, onOpenLead }) {
           {task.title}
         </p>
         <button
-          onClick={() => onOpenLead(task.lead_id)}
+          onClick={e => { e.stopPropagation(); onOpenLead(task.lead_id); }}
           className="text-xs text-violet-600 hover:underline font-medium"
         >
           {task.lead_name}
@@ -110,20 +143,32 @@ function TaskRow({ task, onComplete, onOpenLead }) {
 
 export default function TasksPage() {
   const me = getMe();
-  const [tasks, setTasks]             = useState([]);
-  const [users, setUsers]             = useState([]);
-  const [loading, setLoading]         = useState(true);
-  const [assignedTo, setAssignedTo]   = useState('');
-  const [status, setStatus]           = useState('pending');
-  const [search, setSearch]           = useState('');
+
+  // List state
+  const [tasks, setTasks]                     = useState([]);
+  const [users, setUsers]                     = useState([]);
+  const [loading, setLoading]                 = useState(true);
+  const [assignedTo, setAssignedTo]           = useState('');
+  const [status, setStatus]                   = useState('pending');
+  const [search, setSearch]                   = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [myOnly, setMyOnly]           = useState(false);
-  const [showCompleted, setShowCompleted] = useState(false);
-  const [completingTask, setCompletingTask] = useState(null);
-  const [resultText, setResultText]   = useState('');
-  const [completing, setCompleting]   = useState(false);
-  const [selectedLeadId, setSelectedLeadId] = useState(null);
+  const [myOnly, setMyOnly]                   = useState(false);
+  const [showCompleted, setShowCompleted]     = useState(false);
+  const [selectedLeadId, setSelectedLeadId]   = useState(null);
   const searchTimer = useRef(null);
+
+  // Action sheet state
+  const [activeTask, setActiveTask]           = useState(null); // task being acted on
+  const [activeCard, setActiveCard]           = useState(null); // 'complete' | 'postpone' | 'followup'
+  const [saving, setSaving]                   = useState(false);
+  // complete
+  const [result, setResult]                   = useState('');
+  // postpone
+  const [postponeSelected, setPostponeSelected] = useState(null);
+  const [customDate, setCustomDate]           = useState('');
+  // follow-up
+  const [followTitle, setFollowTitle]         = useState('');
+  const [followDate, setFollowDate]           = useState('');
 
   useEffect(() => {
     api.get('/tasks/users').then(r => setUsers(r.data)).catch(() => {});
@@ -152,6 +197,77 @@ export default function TasksPage() {
     searchTimer.current = setTimeout(() => setDebouncedSearch(val), 300);
   }
 
+  function openActionSheet(task) {
+    setActiveTask(task);
+    setActiveCard(null);
+    setResult('');
+    setPostponeSelected(null);
+    setCustomDate('');
+    setFollowTitle('');
+    setFollowDate('');
+  }
+
+  function dismissSheet() {
+    setActiveTask(null);
+    setActiveCard(null);
+  }
+
+  function toggleCard(name) {
+    setActiveCard(prev => prev === name ? null : name);
+  }
+
+  async function handleComplete() {
+    setSaving(true);
+    try {
+      await api.patch(
+        `/leads/${activeTask.lead_id}/tasks/${activeTask.id}/complete`,
+        { result: result.trim() || null }
+      );
+      dismissSheet();
+      loadTasks();
+    } catch { /* silent */ } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handlePostpone() {
+    if (!postponeSelected) return;
+    let due_at;
+    if (postponeSelected === 'custom') {
+      due_at = new Date(customDate).toISOString();
+    } else {
+      due_at = new Date(Date.now() + postponeSelected * 60 * 1000).toISOString();
+    }
+    setSaving(true);
+    try {
+      await api.patch(
+        `/leads/${activeTask.lead_id}/tasks/${activeTask.id}/reschedule`,
+        { due_at }
+      );
+      dismissSheet();
+      loadTasks();
+    } catch { /* silent */ } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleFollowup() {
+    if (!followTitle.trim()) return;
+    setSaving(true);
+    try {
+      await api.post(`/leads/${activeTask.lead_id}/tasks`, {
+        title:      followTitle.trim(),
+        due_at:     followDate ? new Date(followDate).toISOString() : null,
+        assigned_to: activeTask.assigned_to,
+        remind_via:  activeTask.remind_via,
+      });
+      dismissSheet();
+      loadTasks();
+    } catch { /* silent */ } finally {
+      setSaving(false);
+    }
+  }
+
   // Group tasks by sort_bucket (already sorted by server)
   const grouped = tasks.reduce((acc, t) => {
     const b = t.sort_bucket;
@@ -162,22 +278,6 @@ export default function TasksPage() {
     else acc.completed.push(t);
     return acc;
   }, { overdue: [], today: [], upcoming: [], noDate: [], completed: [] });
-
-  async function handleConfirmComplete() {
-    if (!completingTask) return;
-    setCompleting(true);
-    try {
-      await api.patch(
-        `/leads/${completingTask.lead_id}/tasks/${completingTask.id}/complete`,
-        { result: resultText.trim() || null }
-      );
-      setCompletingTask(null);
-      setResultText('');
-      loadTasks();
-    } catch { /* silent */ } finally {
-      setCompleting(false);
-    }
-  }
 
   const pendingCount = grouped.overdue.length + grouped.today.length + grouped.upcoming.length + grouped.noDate.length;
 
@@ -198,7 +298,6 @@ export default function TasksPage() {
 
       {/* Filter bar */}
       <div className="sticky top-[60px] z-10 bg-white border-b border-slate-200 px-3 py-2.5 shadow-sm flex flex-wrap gap-2 items-center">
-        {/* Search */}
         <input
           value={search}
           onChange={e => handleSearchChange(e.target.value)}
@@ -206,8 +305,6 @@ export default function TasksPage() {
           className="flex-1 min-w-[140px] border border-slate-200 rounded-xl px-3 py-1.5 text-sm
             focus:outline-none focus:border-violet-400 transition"
         />
-
-        {/* Assigned to */}
         <select
           value={myOnly ? '__me__' : assignedTo}
           onChange={e => {
@@ -222,8 +319,6 @@ export default function TasksPage() {
             <option key={u.id} value={u.id}>{u.display_name}</option>
           ))}
         </select>
-
-        {/* Status */}
         <select
           value={status}
           onChange={e => setStatus(e.target.value)}
@@ -249,7 +344,7 @@ export default function TasksPage() {
               <>
                 <SectionHeader label="באיחור" color="red" count={grouped.overdue.length} />
                 {grouped.overdue.map(t => (
-                  <TaskRow key={t.id} task={t} onComplete={setCompletingTask} onOpenLead={setSelectedLeadId} />
+                  <TaskRow key={t.id} task={t} onAction={openActionSheet} onOpenLead={setSelectedLeadId} />
                 ))}
               </>
             )}
@@ -258,7 +353,7 @@ export default function TasksPage() {
               <>
                 <SectionHeader label="היום" color="amber" count={grouped.today.length} />
                 {grouped.today.map(t => (
-                  <TaskRow key={t.id} task={t} onComplete={setCompletingTask} onOpenLead={setSelectedLeadId} />
+                  <TaskRow key={t.id} task={t} onAction={openActionSheet} onOpenLead={setSelectedLeadId} />
                 ))}
               </>
             )}
@@ -267,7 +362,7 @@ export default function TasksPage() {
               <>
                 <SectionHeader label="קרוב" color="violet" count={grouped.upcoming.length} />
                 {grouped.upcoming.map(t => (
-                  <TaskRow key={t.id} task={t} onComplete={setCompletingTask} onOpenLead={setSelectedLeadId} />
+                  <TaskRow key={t.id} task={t} onAction={openActionSheet} onOpenLead={setSelectedLeadId} />
                 ))}
               </>
             )}
@@ -276,19 +371,18 @@ export default function TasksPage() {
               <>
                 <SectionHeader label="ללא תאריך" color="slate" count={grouped.noDate.length} />
                 {grouped.noDate.map(t => (
-                  <TaskRow key={t.id} task={t} onComplete={setCompletingTask} onOpenLead={setSelectedLeadId} />
+                  <TaskRow key={t.id} task={t} onAction={openActionSheet} onOpenLead={setSelectedLeadId} />
                 ))}
               </>
             )}
 
-            {pendingCount === 0 && grouped.completed.length === 0 && !loading && (
+            {pendingCount === 0 && grouped.completed.length === 0 && (
               <div className="text-center py-16 text-slate-400">
                 <p className="text-4xl mb-2">✅</p>
                 <p className="text-sm font-bold">אין משימות פתוחות</p>
               </div>
             )}
 
-            {/* Completed toggle */}
             {grouped.completed.length > 0 && (
               <>
                 <button
@@ -303,7 +397,7 @@ export default function TasksPage() {
                   <>
                     <SectionHeader label="הושלמו" color="gray" count={grouped.completed.length} />
                     {grouped.completed.map(t => (
-                      <TaskRow key={t.id} task={t} onComplete={setCompletingTask} onOpenLead={setSelectedLeadId} />
+                      <TaskRow key={t.id} task={t} onAction={openActionSheet} onOpenLead={setSelectedLeadId} />
                     ))}
                   </>
                 )}
@@ -313,41 +407,120 @@ export default function TasksPage() {
         )}
       </div>
 
-      {/* Complete bottom sheet */}
-      {completingTask && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => { setCompletingTask(null); setResultText(''); }}>
+      {/* Action bottom sheet */}
+      {activeTask && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={dismissSheet}>
           <div
-            className="bg-white rounded-t-2xl shadow-2xl px-4 pt-4 pb-6 border-t-2 border-violet-200"
+            className="bg-white rounded-t-3xl shadow-2xl px-4 pt-3 pb-8 max-h-[85vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}
           >
+            {/* Handle */}
             <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-4" />
-            <p className="font-black text-slate-700 mb-1 text-sm">סיום משימה</p>
-            <p className="text-xs text-slate-500 mb-3 truncate">{completingTask.title}</p>
-            <textarea
-              autoFocus
-              value={resultText}
-              onChange={e => setResultText(e.target.value)}
-              placeholder="תוצאה / הערה (אופציונלי)..."
-              rows={3}
-              className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm
-                focus:outline-none focus:border-violet-400 transition resize-none mb-3"
-            />
-            <div className="flex gap-2">
-              <button
-                onClick={() => { setCompletingTask(null); setResultText(''); }}
-                className="flex-1 border-2 border-slate-200 text-slate-500 py-2.5 rounded-xl text-sm font-bold"
+
+            {/* Task header */}
+            <div className="mb-4 text-center">
+              <p className="font-black text-slate-800 text-base truncate">{activeTask.title}</p>
+              <p className="text-sm text-slate-500 mt-0.5">
+                {activeTask.lead_name}
+                {activeTask.due_at && (
+                  <span className={`mr-2 ${isOverdue(activeTask.due_at) ? 'text-red-500 font-bold' : ''}`}>
+                    • {formatDate(activeTask.due_at)}
+                  </span>
+                )}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              {/* Card 1 — Complete */}
+              <ActionCard
+                icon="✅" title="סמן כהושלם + הוסף תוצאה"
+                open={activeCard === 'complete'}
+                onToggle={() => toggleCard('complete')}
+                color="green"
               >
-                ביטול
-              </button>
-              <button
-                onClick={handleConfirmComplete}
-                disabled={completing}
-                className="flex-1 text-white font-black py-2.5 rounded-xl text-sm shadow-md
-                  disabled:opacity-60 transition"
-                style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
+                <textarea
+                  autoFocus
+                  value={result}
+                  onChange={e => setResult(e.target.value)}
+                  placeholder="הוסף תוצאה (אופציונלי)..."
+                  rows={3}
+                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-slate-700 text-sm resize-none focus:outline-none focus:border-green-400 mb-3"
+                />
+                <ActionBtn onClick={handleComplete} saving={saving} color="green">
+                  סמן כהושלם
+                </ActionBtn>
+              </ActionCard>
+
+              {/* Card 2 — Reschedule */}
+              <ActionCard
+                icon="🔁" title="קבע מחדש (לא ענה)"
+                open={activeCard === 'postpone'}
+                onToggle={() => toggleCard('postpone')}
+                color="violet"
               >
-                {completing ? '...' : 'סמן כבוצע ✓'}
-              </button>
+                <div className="space-y-2 mb-3">
+                  {POSTPONE_PRESETS.map(p => (
+                    <button key={p.minutes} onClick={() => setPostponeSelected(p.minutes)}
+                      className={`w-full py-2.5 rounded-xl font-bold text-sm border-2 transition ${
+                        postponeSelected === p.minutes
+                          ? 'border-violet-500 bg-violet-50 text-violet-700'
+                          : 'border-slate-200 bg-white text-slate-700'
+                      }`}>
+                      {p.label}
+                    </button>
+                  ))}
+                  <button onClick={() => setPostponeSelected('custom')}
+                    className={`w-full py-2.5 rounded-xl font-bold text-sm border-2 transition ${
+                      postponeSelected === 'custom'
+                        ? 'border-violet-500 bg-violet-50 text-violet-700'
+                        : 'border-slate-200 bg-white text-slate-700'
+                    }`}>
+                    זמן מותאם ✏️
+                  </button>
+                </div>
+                {postponeSelected === 'custom' && (
+                  <input
+                    type="datetime-local"
+                    value={customDate}
+                    onChange={e => setCustomDate(e.target.value)}
+                    className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-slate-700 text-sm focus:outline-none focus:border-violet-400 mb-3"
+                  />
+                )}
+                <ActionBtn
+                  onClick={handlePostpone} saving={saving} color="violet"
+                  disabled={!postponeSelected || (postponeSelected === 'custom' && !customDate)}
+                >
+                  קבע מחדש
+                </ActionBtn>
+              </ActionCard>
+
+              {/* Card 3 — Follow-up */}
+              <ActionCard
+                icon="➕" title="צור משימת המשך"
+                open={activeCard === 'followup'}
+                onToggle={() => toggleCard('followup')}
+                color="blue"
+              >
+                <input
+                  type="text"
+                  value={followTitle}
+                  onChange={e => setFollowTitle(e.target.value)}
+                  placeholder="כותרת המשימה..."
+                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-slate-700 text-sm focus:outline-none focus:border-blue-400 mb-2"
+                />
+                <input
+                  type="datetime-local"
+                  value={followDate}
+                  onChange={e => setFollowDate(e.target.value)}
+                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-slate-700 text-sm focus:outline-none focus:border-blue-400 mb-3"
+                />
+                <ActionBtn
+                  onClick={handleFollowup} saving={saving} color="blue"
+                  disabled={!followTitle.trim()}
+                >
+                  צור משימה
+                </ActionBtn>
+              </ActionCard>
             </div>
           </div>
         </div>
