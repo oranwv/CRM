@@ -45,6 +45,14 @@ async function saveInboundMedia(msg, leadId, externalId) {
   }
 }
 
+// Rate limiter: minimum 3 seconds between any two Green API sends
+let lastWaSendTime = 0;
+async function waitForWaSlot() {
+  const gap = 3000 - (Date.now() - lastWaSendTime);
+  if (gap > 0) await new Promise(r => setTimeout(r, gap));
+  lastWaSendTime = Date.now();
+}
+
 function formatPhone(phone) {
   if (!phone) return null;
   const digits = phone.replace(/\D/g, '');
@@ -143,6 +151,7 @@ router.post('/send', requireAuth, async (req, res) => {
     if (!phone) return res.status(400).json({ error: 'No phone number' });
 
     const url = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/sendMessage/${process.env.GREEN_API_TOKEN}`;
+    await waitForWaSlot();
     await axios.post(url, { chatId: `${phone}@c.us`, message });
 
     // Green API succeeded — log to DB (non-fatal)
@@ -200,6 +209,7 @@ router.post('/send-file', requireAuth, upload.single('file'), async (req, res) =
 
       // Step 3: send via URL
       const sendUrl = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/sendFileByUrl/${process.env.GREEN_API_TOKEN}`;
+      await waitForWaSlot();
       await axios.post(sendUrl, {
         chatId: `${phone}@c.us`,
         urlFile,
@@ -217,6 +227,7 @@ router.post('/send-file', requireAuth, upload.single('file'), async (req, res) =
       fileUrl = fileRows[0].id; // reuse variable to carry the file ID
     } else if (message.trim()) {
       const url = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/sendMessage/${process.env.GREEN_API_TOKEN}`;
+      await waitForWaSlot();
       await axios.post(url, { chatId: `${phone}@c.us`, message });
     }
 

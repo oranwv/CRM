@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../api';
 import LeadCard from '../components/LeadCard';
@@ -95,6 +95,8 @@ export default function LeadsPage() {
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [sortCol, setSortCol] = useState('received_at');
+  const [sortDir, setSortDir] = useState('desc');
   const user = JSON.parse(localStorage.getItem('crm_user') || '{}');
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -124,6 +126,32 @@ export default function LeadsPage() {
     const interval = setInterval(() => loadLeads({ silent: true }), 30000);
     return () => clearInterval(interval);
   }, [loadLeads]);
+
+  function handleSort(col) {
+    if (sortCol === col) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortCol(col);
+      setSortDir('desc');
+    }
+  }
+
+  const sortedLeads = useMemo(() => {
+    if (!sortCol) return leads;
+    return [...leads].sort((a, b) => {
+      const av = a[sortCol], bv = b[sortCol];
+      if (!av && !bv) return 0;
+      if (!av) return 1;
+      if (!bv) return -1;
+      const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [leads, sortCol, sortDir]);
+
+  function SortIcon({ col }) {
+    if (sortCol !== col) return <span className="opacity-30 ml-0.5">↕</span>;
+    return <span className="ml-0.5">{sortDir === 'asc' ? '↑' : '↓'}</span>;
+  }
 
   function handleLogout() {
     localStorage.removeItem('crm_token');
@@ -208,10 +236,10 @@ export default function LeadsPage() {
                   <th className="px-2 py-3 text-right sticky right-0 z-10 bg-violet-50">#</th>
                   <th className="px-2 py-3 text-right sticky right-8 z-10 bg-violet-50 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">שם</th>
                   <th className="px-2 py-3 text-right">סטטוס</th>
-                  <th className="px-2 py-3 text-right">פעילות אחרונה</th>
-                  <th className="px-2 py-3 text-right">התקבל ב</th>
+                  <th onClick={() => handleSort('last_interaction_at')} className="px-2 py-3 text-right cursor-pointer select-none hover:text-violet-700">פעילות אחרונה<SortIcon col="last_interaction_at" /></th>
+                  <th onClick={() => handleSort('received_at')} className="px-2 py-3 text-right cursor-pointer select-none hover:text-violet-700">התקבל ב<SortIcon col="received_at" /></th>
                   <th className="px-2 py-3 text-right">טלפון</th>
-                  <th className="px-2 py-3 text-right">תאריך אירוע</th>
+                  <th onClick={() => handleSort('event_date')} className="px-2 py-3 text-right cursor-pointer select-none hover:text-violet-700">תאריך אירוע<SortIcon col="event_date" /></th>
                   <th className="px-2 py-3 text-right">סוג אירוע</th>
                   <th className="px-2 py-3 text-right">מוזמנים</th>
                   <th className="px-2 py-3 text-right">מקור</th>
@@ -220,7 +248,7 @@ export default function LeadsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-violet-50">
-                {leads.map((lead, idx) => (
+                {sortedLeads.map((lead, idx) => (
                   <tr
                     key={lead.id}
                     onClick={() => setSelectedId(lead.id)}

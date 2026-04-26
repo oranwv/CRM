@@ -164,4 +164,12 @@ function startCronJobs() {
     setInterval(runReminders, 2 * 60 * 1000);
   }, 30 * 1000);
   console.log('[Cron] Reminder service started');
+
+  // WhatsApp message recovery — scan last 24h every 30 minutes, import anything the webhook missed
+  const { syncWhatsAppMessages } = require('./services/waSyncService');
+  setTimeout(() => {
+    syncWhatsAppMessages();
+    setInterval(syncWhatsAppMessages, 30 * 60 * 1000);
+  }, 2 * 60 * 1000); // 2-minute startup delay
+  console.log('[Cron] WhatsApp sync service started');
 }

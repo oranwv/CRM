@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const pool   = require('../db/pool');
+const axios  = require('axios');
 
 function adminOnly(req, res, next) {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'אין הרשאה' });
@@ -30,6 +31,21 @@ router.put('/settings/:key', adminOnly, async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/admin/whatsapp-status
+router.get('/whatsapp-status', adminOnly, async (req, res) => {
+  const { GREEN_API_URL, GREEN_API_INSTANCE, GREEN_API_TOKEN } = process.env;
+  if (!GREEN_API_URL || !GREEN_API_INSTANCE || !GREEN_API_TOKEN) {
+    return res.json({ state: 'notConfigured' });
+  }
+  try {
+    const url = `${GREEN_API_URL}/waInstance${GREEN_API_INSTANCE}/getStateInstance/${GREEN_API_TOKEN}`;
+    const { data } = await axios.get(url, { timeout: 8000 });
+    res.json({ state: data.stateInstance, accountInfo: data.accountInfo || null });
+  } catch (err) {
+    res.json({ state: 'error', error: err.message });
   }
 });
 

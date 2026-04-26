@@ -8,6 +8,8 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [syncing,  setSyncing]  = useState(false);
   const [syncResult, setSyncResult] = useState(null);
+  const [waStatus, setWaStatus] = useState(null);
+  const [waChecking, setWaChecking] = useState(false);
 
   useEffect(() => {
     api.get('/admin/settings')
@@ -16,7 +18,20 @@ export default function AdminPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+    checkWaStatus();
   }, []);
+
+  async function checkWaStatus() {
+    setWaChecking(true);
+    try {
+      const { data } = await api.get('/admin/whatsapp-status');
+      setWaStatus(data);
+    } catch (err) {
+      setWaStatus({ state: 'error', error: err.message });
+    } finally {
+      setWaChecking(false);
+    }
+  }
 
   async function handleSyncAll() {
     setSyncing(true);
@@ -84,6 +99,46 @@ export default function AdminPage() {
             </>
           )}
         </div>
+        {/* WhatsApp status card */}
+        <div className="rounded-2xl p-4 bg-white border border-violet-100 shadow-sm">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-lg">💬</span>
+            <h2 className="font-black text-base text-slate-800">WhatsApp — סטטוס חיבור</h2>
+          </div>
+          <p className="text-xs mb-3 text-slate-400">
+            בדוק אם חיבור ה-WhatsApp (Green API) פעיל. אם לא מחובר — יש להיכנס ל-Green API ולסרוק מחדש.
+          </p>
+          {waChecking ? (
+            <p className="text-xs animate-pulse text-slate-400">בודק סטטוס...</p>
+          ) : waStatus ? (
+            <div className={`text-xs rounded-lg px-3 py-2 border ${
+              waStatus.state === 'authorized'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                : 'bg-red-50 border-red-200 text-red-700'
+            }`}>
+              {waStatus.state === 'authorized' ? (
+                <p>✅ WhatsApp מחובר{waStatus.accountInfo?.wid ? ` — ${waStatus.accountInfo.wid}` : ''}</p>
+              ) : waStatus.state === 'notConfigured' ? (
+                <p>⚙️ Green API לא מוגדר (חסרים ENV variables)</p>
+              ) : (
+                <>
+                  <p>❌ WhatsApp לא מחובר — סטטוס: {waStatus.state || 'שגיאה'}</p>
+                  {waStatus.error && <p className="mt-0.5 opacity-80">{waStatus.error}</p>}
+                  <p className="mt-1">יש להיכנס ל-Green API ולסרוק מחדש את קוד ה-QR.</p>
+                </>
+              )}
+            </div>
+          ) : null}
+          <button
+            onClick={checkWaStatus}
+            disabled={waChecking}
+            className="mt-3 w-full py-2 rounded-xl font-bold text-sm transition disabled:opacity-50 text-white"
+            style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}
+          >
+            {waChecking ? '⏳ בודק...' : 'רענן סטטוס'}
+          </button>
+        </div>
+
         {/* Google Calendar sync card */}
         <div className="rounded-2xl p-4 bg-white border border-violet-100 shadow-sm">
           <div className="flex items-center gap-2 mb-1">

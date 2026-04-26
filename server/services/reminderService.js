@@ -13,6 +13,8 @@ async function sendWhatsApp(phone, message) {
       `${GREEN_API_URL}/waInstance${GREEN_API_INSTANCE}/sendMessage/${GREEN_API_TOKEN}`,
       { chatId, message }
     );
+    // 5-second gap between reminder sends to avoid WhatsApp rate limiting
+    await new Promise(r => setTimeout(r, 5000));
   } catch (err) {
     console.error(`[Reminder] WhatsApp send failed to ${phone}:`, err.message);
   }
