@@ -95,7 +95,8 @@ app.use(express.json());
 // Public
 app.use('/api/auth',      authRoutes);
 app.use('/api/whatsapp',  whatsappRoutes);
-app.use('/api/tasks',     require('./routes/taskPostpone'));
+app.use('/api/tasks',     require('./routes/tasks'));       // global task list (auth per-route)
+app.use('/api/tasks',     require('./routes/taskPostpone')); // public postpone links (WhatsApp)
 
 // Protected
 app.use('/api/files',               requireAuth, fileDownloadRoutes);
