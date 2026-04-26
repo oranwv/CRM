@@ -371,12 +371,6 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
               <FilesSection leadId={leadId} files={files} onChanged={load} />
             </Section>
 
-            {/* Quick-add task */}
-            <Section title={`משימות${openTasks ? ` (${openTasks})` : ''}`}
-              action={<button onClick={() => setActiveTab('tasks')} className="text-sm text-violet-600 hover:underline font-semibold">הכל</button>}>
-              <QuickAddTask leadId={leadId} users={users} onAdded={load} tasks={tasks} completeTask={completeTask} />
-            </Section>
-
             {/* Interactions */}
             <Section title={`פעילות${timeline.length ? ` (${timeline.length})` : ''}`}>
               <TimelineSection leadId={leadId} timeline={timeline} allPhones={allPhones} allEmails={allEmails} onAdded={load} />
