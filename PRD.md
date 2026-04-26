@@ -1,6 +1,6 @@
 # Sharabiya CRM — Product Requirements Document
 
-> **Last updated:** 2026-04-25
+> **Last updated:** 2026-04-26
 > **Live at:** https://www.proevent.co.il
 > **Hosting:** Railway (auto-deploy from GitHub `main` branch)
 > **DB + Storage:** Supabase (PostgreSQL + Storage bucket `crm-files`)
@@ -322,7 +322,16 @@ Files embedded in interaction/message bodies use this format where `id` is the `
 |---|---|---|
 | GET | `/:fileId/url` | Return 60-second signed URL (general — used by timeline [[FILE:]] markers) |
 
-### Tasks — public (token-validated JWT)
+### Tasks — global list (require auth) — `server/routes/tasks.js`
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/tasks` | All tasks across all leads. Params: `?assigned_to`, `?status` (pending/overdue/completed), `?search`. Returns tasks with `sort_bucket` (1=overdue, 2=today, 3=upcoming, 4=no date, 5=completed), `lead_name`, `assigned_name`. |
+| GET | `/api/tasks/overdue-count` | Returns `{ count }` of pending overdue tasks. Used for nav badge. |
+| GET | `/api/tasks/users` | Returns all users for the filter dropdown. |
+
+> **Route order in `index.js`:** `routes/tasks.js` is mounted before `routes/taskPostpone.js`. The global routes use exact paths (`/`, `/overdue-count`, `/users`) so they don't conflict with taskPostpone's `/:taskId/something` pattern.
+
+### Tasks — public (token-validated JWT) — `server/routes/taskPostpone.js`
 | Method | Path | Description |
 |---|---|---|
 | GET | `/api/tasks/:taskId/postpone-info?token=` | Returns task title + lead name for action page |
@@ -406,8 +415,41 @@ Files embedded in interaction/message bodies use this format where `id` is the `
 - `[[FILE:id|name]]` markers rendered as clickable file badges (open via signed URL)
 - Stage change notes shown as `🔄 שינוי שלב: X ← Y`
 
+### `TasksPage.jsx` (`/tasks`) ✅ Built 2026-04-26
+
+Global view of **all tasks across all leads** in one place.
+
+**Ordering (top → bottom):**
+1. 🔴 **באיחור** — overdue, oldest first
+2. 🟡 **היום** — due today
+3. 🟣 **קרוב** — upcoming, sorted by due_at ASC
+4. ⚪ **ללא תאריך** — no due date, sorted by created_at ASC
+5. ✅ **הושלמו** — hidden by default, "הצג הושלמות (N)" toggle reveals them
+
+**Filters:**
+- Search input (debounced 300ms) — by task title or lead name
+- Assigned-to dropdown — all users
+- Status select — ממתינות / באיחור / הכל
+- "שלי" quick toggle — filters to current logged-in user's tasks only
+
+**Task row shows:** ✓ complete button, task title, lead name link (click → opens LeadCard overlay), due date (color-coded by urgency), assigned user pill.
+
+**Inline complete:** ✓ button → bottom sheet → optional result text → `PATCH /api/leads/:leadId/tasks/:taskId/complete`.
+
+**Overdue badge:** Red bubble on the משימות tab icon in the bottom nav. Polled every 60s from `GET /api/tasks/overdue-count`.
+
+### Bottom Navigation (2-row fixed bar)
+
+The nav bar has two rows rendered in `AppShellNav` inside `App.jsx`:
+
+**Row 1 (all users, violet gradient):** 👥 לידים | 📅 לוח שנה | 📊 אנליטיקס | ✅ משימות
+
+**Row 2 (admin only, darker tint below row 1):** ⚙️ הגדרות
+
+Active tab: white top-border indicator + full white text. Overdue count badge on משימות tab icon.
+
 ### `AdminPage.jsx` (`/admin`) — admin only
-- ⚙️ tab visible in bottom nav only for `role = 'admin'` users
+- ⚙️ tab visible in row 2 of bottom nav, admin only
 - **AI Instructions** textarea: free-text rules for how the AI should write replies (tone, phrases to avoid, style). Saved to `settings` table, injected into every `/reply` and `/improve` system prompt.
 - Built to grow — additional settings sections added below over time.
 
@@ -562,13 +604,14 @@ INSERT INTO settings (key, value) VALUES ('ai_instructions', '') ON CONFLICT (ke
 │   │   ├── AnalyticsPage.jsx
 │   │   ├── LoginPage.jsx
 │   │   ├── AdminPage.jsx          # Admin settings (AI instructions, future settings)
+│   │   ├── TasksPage.jsx          # Global tasks screen (all leads, filters, inline complete)
 │   │   ├── PostponePage.jsx       # Legacy standalone postpone page
 │   │   └── TaskActionPage.jsx     # Task action hub (complete/postpone/follow-up)
 │   ├── components/
 │   │   ├── LeadCard.jsx
 │   │   └── AddLeadModal.jsx
 │   ├── api.js                     # Axios instance with auth interceptor
-│   └── App.jsx                    # Routes: / /analytics /calendar /postpone/:id /task-action/:id /login
+│   └── App.jsx                    # Routes: / /analytics /calendar /tasks /postpone/:id /task-action/:id /login. 2-row bottom nav.
 ├── server/
 │   ├── index.js                   # Express app, boot migrations, cron jobs
 │   ├── db/pool.js
@@ -582,6 +625,7 @@ INSERT INTO settings (key, value) VALUES ('ai_instructions', '') ON CONFLICT (ke
 │   │   ├── admin.js               # GET/PUT /api/admin/settings (admin only)
 │   │   ├── files.js               # Upload/delete/signed-URL (scoped to lead)
 │   │   ├── fileDownload.js        # GET /api/files/:fileId/url (general signed URL)
+│   │   ├── tasks.js               # Global task list + overdue-count + users (auth per-route)
 │   │   ├── taskPostpone.js        # Public task actions: postpone/complete/create-followup
 │   │   ├── users.js
 │   │   └── analytics.js
@@ -651,6 +695,16 @@ Deposit amount + date + confirmed checkbox + production notes. Data persists via
 - AI instructions: free-text rules injected into all AI reply/improve calls
 - LeadCard auto-refreshes data on browser tab focus (`visibilitychange`)
 
-### Phase 9 — Facebook/Instagram 🔲 Not started
-### Phase 10 — AI Bot (auto-qualify new leads) 🔲 Not started
-### Phase 11 — Full Analytics Dashboard 🔲 Partial
+### Phase 9 — Global Tasks Screen ✅ Built 2026-04-26
+- Global `/tasks` page showing all tasks across all leads
+- Ordered by: overdue → today → upcoming → no date → completed (hidden behind toggle)
+- Filters: search (debounced), assigned user, status (ממתינות / באיחור / הכל), "שלי" toggle
+- Inline complete: bottom sheet with optional result text
+- Lead name link → opens LeadCard overlay without leaving the page
+- Red overdue badge on משימות nav tab, polled every 60s
+- Bottom nav restructured to 2 rows: tasks added to row 1, הגדרות moves to admin-only row 2
+- New backend routes: `GET /api/tasks`, `/api/tasks/overdue-count`, `/api/tasks/users`
+
+### Phase 10 — Facebook/Instagram 🔲 Not started
+### Phase 11 — AI Bot (auto-qualify new leads) 🔲 Not started
+### Phase 12 — Full Analytics Dashboard 🔲 Partial
