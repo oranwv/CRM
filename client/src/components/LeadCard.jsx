@@ -296,28 +296,29 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
                   <button onClick={() => setShowAddTask(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition">+ משימה</button>
                 </div>
               }>
-              {isLost ? (
-                <span className="text-sm font-bold px-3 py-1.5 rounded-full bg-red-100 text-red-600 border border-red-200">
+              {isLost && (
+                <span className="text-sm font-bold px-3 py-1.5 rounded-full bg-red-100 text-red-600 border border-red-200 mb-2 inline-block">
                   ✕ לא סגרו — {LOST_REASONS.find(r => r.value === lead.lost_reason)?.label || lead.lost_reason}
                   {lead.lost_reason_text && <span className="font-normal"> · {lead.lost_reason_text}</span>}
                 </span>
-              ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {STAGES.map((s, i) => (
-                    <button key={s.key} onClick={() => !savingStage && changeStage(s.key)}
-                      disabled={savingStage}
-                      className={`text-sm px-3 py-1.5 rounded-full font-bold transition border ${
-                        i === stageIndex ? s.active : i < stageIndex ? s.past : s.future
-                      }`}>
-                      {i < stageIndex && '✓ '}{s.label}
-                    </button>
-                  ))}
+              )}
+              <div className="flex flex-wrap gap-1.5">
+                {STAGES.map((s, i) => (
+                  <button key={s.key} onClick={() => !savingStage && changeStage(s.key)}
+                    disabled={savingStage}
+                    className={`text-sm px-3 py-1.5 rounded-full font-bold transition border ${
+                      i === stageIndex ? s.active : i < stageIndex ? s.past : s.future
+                    }`}>
+                    {i < stageIndex && '✓ '}{s.label}
+                  </button>
+                ))}
+                {!isLost && (
                   <button onClick={() => setShowLostModal(true)} disabled={savingStage}
                     className="text-sm px-3 py-1.5 rounded-full font-bold bg-white text-slate-400 border border-slate-200 hover:border-red-300 hover:text-red-500 transition">
                     לא סגרו
                   </button>
-                </div>
-              )}
+                )}
+              </div>
               {lead.meeting_rsvp_status && lead.meeting_rsvp_status !== 'needsAction' && (
                 <div className="mt-2 flex justify-end">
                   {{
