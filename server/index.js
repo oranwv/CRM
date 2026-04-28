@@ -94,6 +94,16 @@ pool.query(`
   ALTER TABLE messages ADD COLUMN IF NOT EXISTS contact_value TEXT;
   ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS html_link TEXT;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255);
+  CREATE TABLE IF NOT EXISTS meetings (
+    id SERIAL PRIMARY KEY,
+    lead_id INT REFERENCES leads(id) ON DELETE CASCADE,
+    google_event_id TEXT,
+    title TEXT,
+    start_time TIMESTAMPTZ,
+    end_time TIMESTAMPTZ,
+    location TEXT DEFAULT 'שרביה, פנחס בן יאיר 3, תל אביב',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
 `).catch(err => console.error('[DB] Table check error:', err.message));
 
 const app = express();
@@ -105,6 +115,9 @@ app.use('/api/auth',      authRoutes);
 app.use('/api/whatsapp',  whatsappRoutes);
 app.use('/api/tasks',     require('./routes/tasks'));       // global task list (auth per-route)
 app.use('/api/tasks',     require('./routes/taskPostpone')); // public postpone links (WhatsApp)
+
+// Public calendar ICS download (no auth — lead clicks link on their phone)
+app.use('/api/calendar', calendarRoutes);
 
 // Protected
 app.use('/api/files',               requireAuth, fileDownloadRoutes);

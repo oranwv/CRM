@@ -1605,7 +1605,7 @@ function ScheduleMeetingModal({ lead, leadId, onClose, onDone }) {
       if (delivery === 'whatsapp') {
         await api.post('/whatsapp/send', {
           leadId,
-          message: `שלום! קישור לפגישה שנקבעה לך בשרביה:\n${data.eventLink}`,
+          message: `שלום! קישור לפגישה שנקבעה לך בשרביה:\n${data.icsUrl}`,
         });
         if (guestEmail) await api.post(`/calendar/meetings/${data.eventId}/notify`);
       } else {

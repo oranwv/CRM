@@ -73,10 +73,57 @@ router.post('/leads/:leadId/meeting', async (req, res) => {
       [eventId, lead.id]
     );
 
-    res.json({ eventId, eventLink });
+    await pool.query(
+      `INSERT INTO meetings (lead_id, google_event_id, title, start_time, end_time)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [lead.id, eventId, title, start, end]
+    );
+
+    const baseUrl = process.env.SERVER_URL || 'http://localhost:3001';
+    const icsUrl = `${baseUrl}/api/calendar/meetings/${eventId}/ics`;
+
+    res.json({ eventId, eventLink, icsUrl });
   } catch (err) {
     console.error('[Calendar] createMeeting error:', err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/calendar/meetings/:eventId/ics — public ICS download for leads
+router.get('/meetings/:eventId/ics', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM meetings WHERE google_event_id = $1',
+      [req.params.eventId]
+    );
+    const meeting = rows[0];
+    if (!meeting) return res.status(404).send('Meeting not found');
+
+    const fmt = (dt) => new Date(dt).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+    const uid = `${req.params.eventId}@proevent`;
+    const location = meeting.location || 'שרביה, פנחס בן יאיר 3, תל אביב';
+
+    const ics = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//ProEvent CRM//EN',
+      'METHOD:PUBLISH',
+      'BEGIN:VEVENT',
+      `UID:${uid}`,
+      `DTSTAMP:${fmt(new Date())}`,
+      `DTSTART:${fmt(meeting.start_time)}`,
+      `DTEND:${fmt(meeting.end_time)}`,
+      `SUMMARY:${meeting.title || 'פגישה'}`,
+      `LOCATION:${location}`,
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="meeting.ics"`);
+    res.send(ics);
+  } catch (err) {
+    res.status(500).send('Error generating ICS');
   }
 });
 
