@@ -2,6 +2,53 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api';
 import LeadCard from '../components/LeadCard';
 
+function TaskEditModal({ task, users, onSaved, onClose }) {
+  const [title, setTitle]           = useState(task.title);
+  const [dueAt, setDueAt]           = useState(task.due_at ? new Date(task.due_at).toISOString().slice(0,16) : '');
+  const [assignedTo, setAssignedTo] = useState(task.assigned_to || '');
+  const [saving, setSaving]         = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api.patch(`/tasks/${task.id}`, {
+        title,
+        due_at: dueAt ? new Date(dueAt).toISOString() : null,
+        assigned_to: assignedTo || null,
+      });
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputCls = 'w-full rounded-xl px-3 py-2 text-sm border border-violet-200 focus:border-violet-400 focus:outline-none text-slate-700';
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl p-5 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()} dir="rtl">
+        <h3 className="font-black text-slate-800 text-base">עריכת משימה</h3>
+        <input className={inputCls} placeholder="כותרת *" value={title} onChange={e => setTitle(e.target.value)} />
+        <input className={inputCls} type="datetime-local" value={dueAt} onChange={e => setDueAt(e.target.value)} />
+        <select className={inputCls} value={assignedTo} onChange={e => setAssignedTo(e.target.value)}>
+          <option value="">ללא שיוך</option>
+          {users.map(u => <option key={u.id} value={u.id}>{u.display_name || u.username}</option>)}
+        </select>
+        <div className="flex gap-2 pt-1">
+          <button onClick={save} disabled={saving || !title.trim()}
+            className="flex-1 py-2.5 rounded-xl font-black text-sm text-white disabled:opacity-50"
+            style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+            {saving ? 'שומר...' : 'שמור'}
+          </button>
+          <button onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl font-bold text-sm border border-slate-200 text-slate-600 hover:bg-slate-50">
+            ביטול
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const POSTPONE_PRESETS = [
   { label: '15 דקות', minutes: 15 },
   { label: '30 דקות', minutes: 30 },
@@ -83,7 +130,7 @@ function ActionBtn({ onClick, saving, color, disabled, children }) {
   );
 }
 
-function TaskRow({ task, onAction, onOpenLead }) {
+function TaskRow({ task, onAction, onOpenLead, onEdit, onDelete }) {
   const overdue = !task.completed_at && isOverdue(task.due_at);
   const today   = !task.completed_at && !overdue && isToday(task.due_at);
 
@@ -99,7 +146,6 @@ function TaskRow({ task, onAction, onOpenLead }) {
         ${overdue ? 'bg-red-50/40' : ''}`}
       onClick={() => !task.completed_at && onAction(task)}
     >
-      {/* Done indicator / tap hint */}
       {task.completed_at ? (
         <span className="w-6 h-6 rounded-full bg-emerald-100 border-2 border-emerald-400
           flex items-center justify-center flex-shrink-0 text-xs text-emerald-600">✓</span>
@@ -107,7 +153,6 @@ function TaskRow({ task, onAction, onOpenLead }) {
         <span className="w-6 h-6 rounded-full border-2 border-slate-300 flex-shrink-0" />
       )}
 
-      {/* Title + lead name */}
       <div className="flex-1 min-w-0">
         <p className={`font-semibold text-slate-800 text-sm truncate ${task.completed_at ? 'line-through' : ''}`}>
           {task.title}
@@ -123,20 +168,23 @@ function TaskRow({ task, onAction, onOpenLead }) {
         )}
       </div>
 
-      {/* Due date */}
       {task.due_at && (
         <span className={`text-xs whitespace-nowrap flex-shrink-0 ${dateColor}`}>
           {formatDate(task.due_at)}
         </span>
       )}
 
-      {/* Assigned badge */}
       {task.assigned_name && (
         <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full
           font-medium flex-shrink-0 max-w-[70px] truncate">
           {task.assigned_name}
         </span>
       )}
+
+      <div className="flex flex-col gap-0.5 shrink-0" onClick={e => e.stopPropagation()}>
+        <button onClick={() => onEdit(task)} className="text-slate-300 hover:text-violet-500 text-xs px-1">✏️</button>
+        <button onClick={() => onDelete(task)} className="text-slate-300 hover:text-red-500 text-xs px-1">🗑</button>
+      </div>
     </div>
   );
 }
@@ -156,6 +204,15 @@ export default function TasksPage() {
   const [showCompleted, setShowCompleted]     = useState(false);
   const [selectedLeadId, setSelectedLeadId]   = useState(null);
   const searchTimer = useRef(null);
+
+  // Edit/delete state
+  const [editingTask, setEditingTask]         = useState(null);
+
+  async function handleDeleteTask(task) {
+    if (!window.confirm('למחוק את המשימה?')) return;
+    await api.delete(`/tasks/${task.id}`);
+    loadTasks();
+  }
 
   // Action sheet state
   const [activeTask, setActiveTask]           = useState(null); // task being acted on
@@ -344,7 +401,7 @@ export default function TasksPage() {
               <>
                 <SectionHeader label="באיחור" color="red" count={grouped.overdue.length} />
                 {grouped.overdue.map(t => (
-                  <TaskRow key={t.id} task={t} onAction={openActionSheet} onOpenLead={setSelectedLeadId} />
+                  <TaskRow key={t.id} task={t} onAction={openActionSheet} onOpenLead={setSelectedLeadId} onEdit={setEditingTask} onDelete={handleDeleteTask} />
                 ))}
               </>
             )}
@@ -353,7 +410,7 @@ export default function TasksPage() {
               <>
                 <SectionHeader label="היום" color="amber" count={grouped.today.length} />
                 {grouped.today.map(t => (
-                  <TaskRow key={t.id} task={t} onAction={openActionSheet} onOpenLead={setSelectedLeadId} />
+                  <TaskRow key={t.id} task={t} onAction={openActionSheet} onOpenLead={setSelectedLeadId} onEdit={setEditingTask} onDelete={handleDeleteTask} />
                 ))}
               </>
             )}
@@ -362,7 +419,7 @@ export default function TasksPage() {
               <>
                 <SectionHeader label="קרוב" color="violet" count={grouped.upcoming.length} />
                 {grouped.upcoming.map(t => (
-                  <TaskRow key={t.id} task={t} onAction={openActionSheet} onOpenLead={setSelectedLeadId} />
+                  <TaskRow key={t.id} task={t} onAction={openActionSheet} onOpenLead={setSelectedLeadId} onEdit={setEditingTask} onDelete={handleDeleteTask} />
                 ))}
               </>
             )}
@@ -371,7 +428,7 @@ export default function TasksPage() {
               <>
                 <SectionHeader label="ללא תאריך" color="slate" count={grouped.noDate.length} />
                 {grouped.noDate.map(t => (
-                  <TaskRow key={t.id} task={t} onAction={openActionSheet} onOpenLead={setSelectedLeadId} />
+                  <TaskRow key={t.id} task={t} onAction={openActionSheet} onOpenLead={setSelectedLeadId} onEdit={setEditingTask} onDelete={handleDeleteTask} />
                 ))}
               </>
             )}
@@ -397,7 +454,7 @@ export default function TasksPage() {
                   <>
                     <SectionHeader label="הושלמו" color="gray" count={grouped.completed.length} />
                     {grouped.completed.map(t => (
-                      <TaskRow key={t.id} task={t} onAction={openActionSheet} onOpenLead={setSelectedLeadId} />
+                      <TaskRow key={t.id} task={t} onAction={openActionSheet} onOpenLead={setSelectedLeadId} onEdit={setEditingTask} onDelete={handleDeleteTask} />
                     ))}
                   </>
                 )}
@@ -524,6 +581,13 @@ export default function TasksPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Task edit modal */}
+      {editingTask && (
+        <TaskEditModal task={editingTask} users={users}
+          onSaved={() => { setEditingTask(null); loadTasks(); }}
+          onClose={() => setEditingTask(null)} />
       )}
 
       {/* LeadCard overlay */}

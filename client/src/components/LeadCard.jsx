@@ -966,6 +966,15 @@ function QuickAddTask({ leadId, users, onAdded, tasks, completeTask }) {
 /* ── TASKS TAB ── */
 function TasksTab({ leadId, tasks, users, onUpdated, completeTask, onTaskAction, onAddTask }) {
   const now = new Date();
+  const [editingTask, setEditingTask] = useState(null);
+
+  async function handleDelete(e, taskId) {
+    e.stopPropagation();
+    if (!window.confirm('למחוק את המשימה?')) return;
+    await api.delete(`/tasks/${taskId}`);
+    onUpdated();
+  }
+
   return (
     <div className="max-w-2xl mx-auto p-4 space-y-3">
       <button onClick={onAddTask}
@@ -1005,11 +1014,22 @@ function TasksTab({ leadId, tasks, users, onUpdated, completeTask, onTaskAction,
                     {task.result && <span className="text-violet-700">💬 {task.result}</span>}
                   </div>
                 </div>
-                {!task.completed_at && <span className="text-slate-300 text-lg shrink-0 mt-0.5">›</span>}
+                <div className="flex flex-col gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                  <button onClick={e => { e.stopPropagation(); setEditingTask(task); }}
+                    className="text-slate-400 hover:text-violet-600 text-sm px-1">✏️</button>
+                  <button onClick={e => handleDelete(e, task.id)}
+                    className="text-slate-400 hover:text-red-500 text-sm px-1">🗑</button>
+                </div>
               </div>
             );
           })}
         </div>
+      )}
+
+      {editingTask && (
+        <TaskEditModal task={editingTask} users={users}
+          onSaved={() => { setEditingTask(null); onUpdated(); }}
+          onClose={() => setEditingTask(null)} />
       )}
     </div>
   );
@@ -1818,6 +1838,54 @@ function ContactGroup({ label, type, items, leadId, onRemove, onAdded, placehold
             + הוסף
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+
+function TaskEditModal({ task, users, onSaved, onClose }) {
+  const [title, setTitle]       = useState(task.title);
+  const [dueAt, setDueAt]       = useState(task.due_at ? new Date(task.due_at).toISOString().slice(0,16) : '');
+  const [assignedTo, setAssignedTo] = useState(task.assigned_to || '');
+  const [saving, setSaving]     = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api.patch(`/tasks/${task.id}`, {
+        title,
+        due_at: dueAt ? new Date(dueAt).toISOString() : null,
+        assigned_to: assignedTo || null,
+      });
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputCls = 'w-full rounded-xl px-3 py-2 text-sm border border-violet-200 focus:border-violet-400 focus:outline-none text-slate-700';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl p-5 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()} dir="rtl">
+        <h3 className="font-black text-slate-800 text-base">עריכת משימה</h3>
+        <input className={inputCls} placeholder="כותרת *" value={title} onChange={e => setTitle(e.target.value)} />
+        <input className={inputCls} type="datetime-local" value={dueAt} onChange={e => setDueAt(e.target.value)} />
+        <select className={inputCls} value={assignedTo} onChange={e => setAssignedTo(e.target.value)}>
+          <option value="">ללא שיוך</option>
+          {users.map(u => <option key={u.id} value={u.id}>{u.display_name || u.username}</option>)}
+        </select>
+        <div className="flex gap-2 pt-1">
+          <button onClick={save} disabled={saving || !title.trim()}
+            className="flex-1 py-2.5 rounded-xl font-black text-sm text-white disabled:opacity-50"
+            style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+            {saving ? 'שומר...' : 'שמור'}
+          </button>
+          <button onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl font-bold text-sm border border-slate-200 text-slate-600 hover:bg-slate-50">
+            ביטול
+          </button>
+        </div>
       </div>
     </div>
   );

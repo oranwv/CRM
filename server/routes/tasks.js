@@ -84,4 +84,35 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
+// PATCH /api/tasks/:id — edit task title, due_at, assigned_to, remind_via
+router.patch('/:id', requireAuth, async (req, res) => {
+  const { title, due_at, assigned_to, remind_via } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE tasks SET
+         title       = COALESCE($1, title),
+         due_at      = $2,
+         assigned_to = $3,
+         remind_via  = COALESCE($4, remind_via)
+       WHERE id = $5
+       RETURNING *`,
+      [title || null, due_at || null, assigned_to || null, remind_via || null, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Task not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/tasks/:id
+router.delete('/:id', requireAuth, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM tasks WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
