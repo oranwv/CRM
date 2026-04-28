@@ -186,4 +186,17 @@ async function getMeetingRsvpStatus(eventId, guestEmail) {
   return attendee?.responseStatus || 'needsAction';
 }
 
-module.exports = { syncLeadToCalendar, markEventDate, getLeadCalendarStatus, createMeeting, sendMeetingInvite, getMeetingRsvpStatus };
+async function patchEventDescription(eventId, prependText) {
+  const auth     = getAuth();
+  const calendar = google.calendar({ version: 'v3', auth });
+  const existing = await calendar.events.get({ calendarId: 'primary', eventId });
+  const oldDesc  = existing.data.description || '';
+  const newDesc  = prependText + (oldDesc ? '\n' + oldDesc : '');
+  await calendar.events.patch({
+    calendarId: 'primary',
+    eventId,
+    requestBody: { description: newDesc },
+  });
+}
+
+module.exports = { syncLeadToCalendar, markEventDate, getLeadCalendarStatus, createMeeting, sendMeetingInvite, getMeetingRsvpStatus, patchEventDescription };

@@ -104,6 +104,9 @@ pool.query(`
     location TEXT DEFAULT 'שרביה, פנחס בן יאיר 3, תל אביב',
     created_at TIMESTAMPTZ DEFAULT NOW()
   );
+  ALTER TABLE meetings ADD COLUMN IF NOT EXISTS confirm_token TEXT;
+  ALTER TABLE meetings ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMPTZ;
+  ALTER TABLE meetings ADD COLUMN IF NOT EXISTS confirmed_at TIMESTAMPTZ;
 `).catch(err => console.error('[DB] Table check error:', err.message));
 
 const app = express();
@@ -193,4 +196,12 @@ function startCronJobs() {
     setInterval(syncWhatsAppMessages, 30 * 60 * 1000);
   }, 2 * 60 * 1000); // 2-minute startup delay
   console.log('[Cron] WhatsApp sync service started');
+
+  // Meeting reminders — send WhatsApp 2 days before scheduled meeting, hourly check
+  const { sendMeetingReminders } = require('./services/meetingReminderService');
+  setTimeout(() => {
+    sendMeetingReminders();
+    setInterval(sendMeetingReminders, 60 * 60 * 1000);
+  }, 2 * 60 * 1000);
+  console.log('[Cron] Meeting reminder service started');
 }

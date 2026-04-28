@@ -291,8 +291,9 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
             {/* Status */}
             <Section title="סטטוס"
               action={
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <button onClick={() => setShowMeetingModal(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition">📅 קבע פגישה</button>
+                  {lead.meeting_event_id && <SendReminderButton eventId={lead.meeting_event_id} />}
                   <button onClick={() => setShowAddTask(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition">+ משימה</button>
                 </div>
               }>
@@ -1819,5 +1820,26 @@ function ContactGroup({ label, type, items, leadId, onRemove, onAdded, placehold
         )}
       </div>
     </div>
+  );
+}
+
+function SendReminderButton({ eventId }) {
+  const [state, setState] = useState('idle'); // idle | sending | sent | error
+  async function send() {
+    setState('sending');
+    try {
+      await api.post(`/calendar/meetings/${eventId}/remind`);
+      setState('sent');
+      setTimeout(() => setState('idle'), 3000);
+    } catch {
+      setState('error');
+      setTimeout(() => setState('idle'), 3000);
+    }
+  }
+  return (
+    <button onClick={send} disabled={state === 'sending'}
+      className="text-sm font-bold px-2.5 py-1 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 transition disabled:opacity-50">
+      {state === 'sending' ? '⏳...' : state === 'sent' ? '✅ נשלח' : state === 'error' ? '❌ שגיאה' : '🔔 שלח תזכורת'}
+    </button>
   );
 }
