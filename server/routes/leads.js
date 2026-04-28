@@ -83,12 +83,12 @@ router.get('/:id', async (req, res) => {
 
 // POST /api/leads — manual creation
 router.post('/', async (req, res) => {
-  const { name, phone, email, event_date, event_time, event_end_time, event_type, guest_count, budget, source = 'manual', notes, assigned_to, priority = 'normal' } = req.body;
+  const { name, phone, email, event_name, event_date, event_time, event_end_time, event_type, guest_count, budget, source = 'manual', notes, assigned_to, priority = 'normal' } = req.body;
   try {
     const { rows } = await pool.query(
-      `INSERT INTO leads (name, phone, email, event_date, event_time, event_end_time, event_type, guest_count, budget, source, notes, assigned_to, priority, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
-      [name, phone, email, event_date || null, event_time || null, event_end_time || null, event_type, guest_count, budget, source, notes, assigned_to || null, priority, req.user.id]
+      `INSERT INTO leads (name, phone, email, event_name, event_date, event_time, event_end_time, event_type, guest_count, budget, source, notes, assigned_to, priority, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
+      [name, phone, email, event_name || name, event_date || null, event_time || null, event_end_time || null, event_type, guest_count, budget, source, notes, assigned_to || null, priority, req.user.id]
     );
     const lead = rows[0];
     // Auto-create Google Calendar event as "option" if event_date set
@@ -101,7 +101,7 @@ router.post('/', async (req, res) => {
 
 // PATCH /api/leads/:id
 router.patch('/:id', async (req, res) => {
-  const allowed = ['name','phone','email','event_date','event_time','event_end_time','event_type','guest_count','budget','stage','lost_reason','lost_reason_text','priority','assigned_to','notes','deposit_amount','deposit_date','deposit_confirmed','production_notes'];
+  const allowed = ['name','phone','email','event_name','event_date','event_time','event_end_time','event_type','guest_count','budget','stage','lost_reason','lost_reason_text','priority','assigned_to','notes','deposit_amount','deposit_date','deposit_confirmed','production_notes'];
   const fields = Object.keys(req.body).filter(k => allowed.includes(k));
   if (!fields.length) return res.status(400).json({ error: 'No valid fields' });
   const sets = fields.map((f, i) => `${f} = $${i + 2}`).join(', ');

@@ -107,6 +107,8 @@ pool.query(`
   ALTER TABLE meetings ADD COLUMN IF NOT EXISTS confirm_token TEXT;
   ALTER TABLE meetings ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMPTZ;
   ALTER TABLE meetings ADD COLUMN IF NOT EXISTS confirmed_at TIMESTAMPTZ;
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS event_name VARCHAR(255);
+  UPDATE leads SET event_name = name WHERE event_name IS NULL;
 `).catch(err => console.error('[DB] Table check error:', err.message));
 
 const app = express();

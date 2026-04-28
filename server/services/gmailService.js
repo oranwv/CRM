@@ -151,9 +151,9 @@ async function upsertLead(parsed, emailId, emailTs) {
       [existing.id, `[אימייל אוטומטי - ${parsed.source}] ${parsed.notes || ''}`]
     );
   } else {
-    const fields = ['source', 'stage', 'name', 'phone', 'email', 'event_date', 'event_type', 'guest_count', 'budget', 'notes'];
+    const fields = ['source', 'stage', 'name', 'phone', 'email', 'event_date', 'event_type', 'guest_count', 'budget', 'notes', 'event_name'];
     const values = [parsed.source, 'new', parsed.name, parsed.phone, parsed.email,
-                    parsed.event_date || null, parsed.event_type, parsed.guest_count, parsed.budget, parsed.notes];
+                    parsed.event_date || null, parsed.event_type, parsed.guest_count, parsed.budget, parsed.notes, parsed.name];
     const cols = fields.join(', ');
     const placeholders = fields.map((_, i) => `$${i+1}`).join(', ');
     const { rows: newRows } = await pool.query(`INSERT INTO leads (${cols}) VALUES (${placeholders}) RETURNING *`, values);

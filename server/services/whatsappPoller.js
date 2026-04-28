@@ -90,8 +90,8 @@ async function findOrCreateLead(phone, senderName, messageBody, chatId) {
   const { name: profileName, avatar } = chatId ? await fetchContactInfo(chatId) : {};
   const displayName = profileName || senderName || 'ליד וואטסאפ';
   const { rows: newRows } = await pool.query(
-    `INSERT INTO leads (name, phone, source, stage, notes, avatar_url) VALUES ($1,$2,'whatsapp','new',$3,$4) RETURNING id`,
-    [displayName, clean, `הודעה ראשונה: ${messageBody}`, avatar || null]
+    `INSERT INTO leads (name, phone, source, stage, notes, avatar_url, event_name) VALUES ($1,$2,'whatsapp','new',$3,$4,$5) RETURNING id`,
+    [displayName, clean, `הודעה ראשונה: ${messageBody}`, avatar || null, displayName]
   );
   return newRows[0].id;
 }

@@ -234,7 +234,7 @@ export default function LeadsPage() {
               <thead>
                 <tr className="bg-violet-50/60 text-xs font-bold text-slate-500 uppercase tracking-wide border-b border-violet-100">
                   <th className="px-2 py-3 text-right sticky right-0 z-10 bg-violet-50">#</th>
-                  <th className="px-2 py-3 text-right sticky right-8 z-10 bg-violet-50 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">שם</th>
+                  <th className="px-2 py-3 text-right sticky right-8 z-10 bg-violet-50 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">שם האירוע</th>
                   <th className="px-2 py-3 text-right">סטטוס</th>
                   <th onClick={() => handleSort('last_interaction_at')} className="px-2 py-3 text-right cursor-pointer select-none hover:text-violet-700">פעילות אחרונה<SortIcon col="last_interaction_at" /></th>
                   <th onClick={() => handleSort('received_at')} className="px-2 py-3 text-right cursor-pointer select-none hover:text-violet-700">התקבל ב<SortIcon col="received_at" /></th>
@@ -260,14 +260,14 @@ export default function LeadsPage() {
                         {lead.avatar_url
                           ? <img src={lead.avatar_url} className="w-7 h-7 rounded-full object-cover shrink-0" onError={e => e.target.style.display='none'} />
                           : <div className="w-7 h-7 rounded-full bg-violet-100 flex items-center justify-center text-xs font-bold text-violet-700 shrink-0">
-                              {(lead.name || '?')[0]}
+                              {(lead.event_name || lead.name || '?')[0]}
                             </div>
                         }
                         <span className="flex items-center gap-0.5">
                           {PRIORITY_ICONS[lead.priority] && (
                             <span>{PRIORITY_ICONS[lead.priority]}</span>
                           )}
-                          {lead.name || '—'}
+                          {lead.event_name || lead.name || '—'}
                         </span>
                       </div>
                     </td>

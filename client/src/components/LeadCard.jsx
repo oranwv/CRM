@@ -291,6 +291,9 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
             {/* Status */}
             <Section title="סטטוס"
               action={
+                {lead.event_name && (
+                  <p className="text-sm font-bold text-slate-700 mb-2">🎉 {lead.event_name}</p>
+                )}
                 <div className="flex gap-2 flex-wrap">
                   <button onClick={() => setShowMeetingModal(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition">📅 קבע פגישה</button>
                   {lead.meeting_event_id && <SendReminderButton eventId={lead.meeting_event_id} />}
@@ -1116,6 +1119,7 @@ function EditForm({ form, setForm, users, onSave, onCancel }) {
       <div className="grid grid-cols-2 gap-2">
         <div><label className="text-sm text-slate-500">שם</label><input value={form.name || ''} onChange={e => set('name', e.target.value)} className={cls} /></div>
         <div><label className="text-sm text-slate-500">טלפון</label><input value={form.phone || ''} onChange={e => set('phone', e.target.value)} className={cls} dir="ltr" /></div>
+        <div className="col-span-2"><label className="text-sm text-slate-500">שם האירוע</label><input value={form.event_name || ''} onChange={e => set('event_name', e.target.value)} className={cls} placeholder="שם האירוע" /></div>
         <div><label className="text-sm text-slate-500">אימייל</label><input value={form.email || ''} onChange={e => set('email', e.target.value)} className={cls} dir="ltr" /></div>
         <div><label className="text-sm text-slate-500">תאריך אירוע</label><DateInput value={form.event_date ? form.event_date.split('T')[0] : ''} onChange={v => set('event_date', v)} className={cls} /></div>
         <div><label className="text-sm text-slate-500">שעת האירוע</label><TimeInput value={form.event_time || ''} onChange={v => set('event_time', v)} className={cls} /></div>

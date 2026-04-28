@@ -45,7 +45,7 @@ export default function AddLeadModal({ onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [customEventType, setCustomEventType] = useState('');
   const [form, setForm] = useState({
-    name: '', phone: '', email: '',
+    name: '', phone: '', email: '', event_name: '',
     event_date: '', event_time: '', event_end_time: '', event_type: '', guest_count: '', budget: '',
     source: 'manual', priority: 'normal', assigned_to: '',
     notes: '',
@@ -105,6 +105,12 @@ export default function AddLeadModal({ onClose, onSaved }) {
                 className={inputCls} placeholder="05X-XXXXXXX" dir="ltr" />
             </Field>
           </div>
+
+          {/* Event name */}
+          <Field label="שם האירוע">
+            <input value={form.event_name} onChange={e => set('event_name', e.target.value)}
+              className={inputCls} placeholder="שם האירוע (ברירת מחדל: שם הליד)" />
+          </Field>
 
           {/* Email */}
           <Field label="אימייל">

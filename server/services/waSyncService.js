@@ -35,10 +35,11 @@ async function findOrCreateLead(phone, name, previewText) {
   const existing = await findLeadByPhone(phone);
   if (existing) return existing;
 
+  const leadName = name || 'ליד חדש מוואטסאפ';
   const { rows } = await pool.query(
-    `INSERT INTO leads (name, phone, source, stage, notes)
-     VALUES ($1, $2, 'whatsapp', 'new', $3) RETURNING id`,
-    [name || 'ליד חדש מוואטסאפ', clean, `הודעה ראשונה: ${previewText}`]
+    `INSERT INTO leads (name, phone, source, stage, notes, event_name)
+     VALUES ($1, $2, 'whatsapp', 'new', $3, $4) RETURNING id`,
+    [leadName, clean, `הודעה ראשונה: ${previewText}`, leadName]
   );
   return rows[0].id;
 }
