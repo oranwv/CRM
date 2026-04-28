@@ -152,12 +152,14 @@ async function createMeeting({ leadId, title, start, end, guestEmail, guestName 
   const attendees = [];
   if (guestEmail) attendees.push({ email: guestEmail, displayName: guestName || undefined });
 
+  const baseUrl = process.env.SERVER_URL || 'http://localhost:3001';
   const result = await calendar.events.insert({
     calendarId: 'primary',
     sendUpdates: 'none',
     requestBody: {
       summary: title,
       location: 'שרביה, פנחס בן יאיר 3, תל אביב',
+      description: `🔗 פתח ליד ב-CRM: ${baseUrl}/?lead=${leadId}`,
       start: { dateTime: start, timeZone: 'Asia/Jerusalem' },
       end:   { dateTime: end,   timeZone: 'Asia/Jerusalem' },
       attendees,
