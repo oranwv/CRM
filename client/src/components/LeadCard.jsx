@@ -291,13 +291,15 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
             {/* Status */}
             <Section title="סטטוס"
               action={
-                {lead.event_name && (
-                  <p className="text-sm font-bold text-slate-700 mb-2">🎉 {lead.event_name}</p>
-                )}
-                <div className="flex gap-2 flex-wrap">
-                  <button onClick={() => setShowMeetingModal(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition">📅 קבע פגישה</button>
-                  {lead.meeting_event_id && <SendReminderButton eventId={lead.meeting_event_id} />}
-                  <button onClick={() => setShowAddTask(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition">+ משימה</button>
+                <div>
+                  {lead.event_name && (
+                    <p className="text-sm font-bold text-slate-700 mb-2">🎉 {lead.event_name}</p>
+                  )}
+                  <div className="flex gap-2 flex-wrap">
+                    <button onClick={() => setShowMeetingModal(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition">📅 קבע פגישה</button>
+                    {lead.meeting_event_id && <SendReminderButton eventId={lead.meeting_event_id} />}
+                    <button onClick={() => setShowAddTask(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition">+ משימה</button>
+                  </div>
                 </div>
               }>
               {isLost && (
