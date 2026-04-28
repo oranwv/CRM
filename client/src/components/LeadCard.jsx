@@ -1596,7 +1596,7 @@ function ScheduleMeetingModal({ lead, leadId, onClose, onDone }) {
     try {
       const start = buildDateTime(date, startTime);
       const end   = buildDateTime(date, endTime);
-      const guestEmail = delivery === 'email' ? lead.email : null;
+      const guestEmail = lead.email || null;
 
       const { data } = await api.post(`/calendar/leads/${leadId}/meeting`, {
         title, start, end, guestEmail, guestName: lead.name,
@@ -1605,8 +1605,9 @@ function ScheduleMeetingModal({ lead, leadId, onClose, onDone }) {
       if (delivery === 'whatsapp') {
         await api.post('/whatsapp/send', {
           leadId,
-          message: `שלום! קישור לפגישה שנקבענו: ${data.eventLink}`,
+          message: `שלום! קישור לפגישה שנקבעה לך בשרביה:\n${data.eventLink}`,
         });
+        if (guestEmail) await api.post(`/calendar/meetings/${data.eventId}/notify`);
       } else {
         await api.post(`/calendar/meetings/${data.eventId}/notify`);
       }
