@@ -17,6 +17,13 @@ if (process.env.GOOGLE_TOKEN_B64) {
     Buffer.from(process.env.GOOGLE_TOKEN_B64, 'base64').toString('utf-8')
   );
 }
+// Alternative: build token file from plain GOOGLE_REFRESH_TOKEN env var (simpler, no encoding)
+if (process.env.GOOGLE_REFRESH_TOKEN && !process.env.GOOGLE_TOKEN_B64) {
+  fs.writeFileSync(
+    path.join(__dirname, 'google_token.json'),
+    JSON.stringify({ refresh_token: process.env.GOOGLE_REFRESH_TOKEN, token_type: 'Bearer' })
+  );
+}
 
 const requireAuth         = require('./middleware/auth');
 const authRoutes          = require('./routes/auth');
