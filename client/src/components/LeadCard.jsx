@@ -124,6 +124,8 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
   const [editingName, setEditingName]     = useState(false);
   const [nameDraft, setNameDraft]         = useState('');
   const [showMeetingModal, setShowMeetingModal] = useState(false);
+  const [editingInteractionId, setEditingInteractionId] = useState(null);
+  const [editInteractionBody, setEditInteractionBody]   = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -176,6 +178,13 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
     await api.patch(`/leads/${leadId}`, editForm);
     setEditing(false);
     await load(); onUpdated();
+  }
+
+  async function saveInteractionEdit(rawId) {
+    await api.patch(`/leads/${leadId}/interactions/${rawId}`, { body: editInteractionBody.trim() });
+    setEditingInteractionId(null);
+    setEditInteractionBody('');
+    load();
   }
 
   async function deleteLead() {
@@ -887,9 +896,39 @@ function TimelineSection({ leadId, timeline, allPhones, allEmails, onAdded }) {
                     <span className={`text-sm font-semibold px-2 py-0.5 rounded-full ${meta.bg} ${meta.text}`}>
                       {meta.icon} {meta.label}
                     </span>
+                    {item.id.startsWith('i-') && ['call','meeting','note'].includes(item.type) && (
+                      <button
+                        onClick={() => { setEditingInteractionId(item.id); setEditInteractionBody(item.body); }}
+                        className="text-slate-300 hover:text-violet-500 transition text-xs px-1"
+                        title="ערוך"
+                      >✏️</button>
+                    )}
                   </div>
                 </div>
-                <BodyWithFile body={item.body} />
+                {editingInteractionId === item.id ? (
+                  <div className="mt-1">
+                    <textarea
+                      autoFocus
+                      value={editInteractionBody}
+                      onChange={e => setEditInteractionBody(e.target.value)}
+                      rows={3}
+                      className="w-full border border-violet-300 rounded-xl px-3 py-2 text-sm text-slate-700 resize-none focus:outline-none focus:border-violet-500"
+                    />
+                    <div className="flex gap-2 mt-1.5">
+                      <button
+                        onClick={() => saveInteractionEdit(item.id.replace('i-', ''))}
+                        disabled={!editInteractionBody.trim()}
+                        className="px-3 py-1 rounded-lg text-xs font-black text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-40"
+                      >שמור</button>
+                      <button
+                        onClick={() => { setEditingInteractionId(null); setEditInteractionBody(''); }}
+                        className="px-3 py-1 rounded-lg text-xs font-bold text-slate-500 border border-slate-200 hover:bg-slate-50"
+                      >ביטול</button>
+                    </div>
+                  </div>
+                ) : (
+                  <BodyWithFile body={item.body} />
+                )}
                 {isIn && (
                   <div className="mt-1.5">
                     {translations[item.id] ? (

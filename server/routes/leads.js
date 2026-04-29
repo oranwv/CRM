@@ -209,6 +209,22 @@ router.post('/:id/interactions', async (req, res) => {
   }
 });
 
+// PATCH /api/leads/:id/interactions/:interactionId — edit body text
+router.patch('/:id/interactions/:interactionId', async (req, res) => {
+  const { body } = req.body;
+  if (!body?.trim()) return res.status(400).json({ error: 'body required' });
+  try {
+    const { rows } = await pool.query(
+      'UPDATE lead_interactions SET body = $1 WHERE id = $2 AND lead_id = $3 RETURNING *',
+      [body.trim(), req.params.interactionId, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/leads/:id/tasks
 router.get('/:id/tasks', async (req, res) => {
   try {
