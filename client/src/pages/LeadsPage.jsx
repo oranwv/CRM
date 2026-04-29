@@ -261,15 +261,13 @@ export default function LeadsPage() {
                     <td className="px-2 py-3 text-slate-400 font-medium sticky right-0 z-10 bg-white">{idx + 1}</td>
                     <td className="px-2 py-3 font-semibold text-slate-800 sticky right-8 z-10 bg-white shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
                       <div className="flex items-center gap-1.5">
+                        {PRIORITY_ICONS[lead.priority] && (
+                          <span>{PRIORITY_ICONS[lead.priority]}</span>
+                        )}
                         {lead.avatar_url && (
                           <img src={lead.avatar_url} className="w-7 h-7 rounded-full object-cover shrink-0" onError={e => e.target.style.display='none'} />
                         )}
-                        <span className="flex items-center gap-0.5">
-                          {PRIORITY_ICONS[lead.priority] && (
-                            <span>{PRIORITY_ICONS[lead.priority]}</span>
-                          )}
-                          {lead.event_name || lead.name || '—'}
-                        </span>
+                        <span>{lead.event_name || lead.name || '—'}</span>
                       </div>
                     </td>
                     <td className="px-2 py-3">
