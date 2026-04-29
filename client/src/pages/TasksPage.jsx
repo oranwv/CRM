@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import api from '../api';
 import LeadCard from '../components/LeadCard';
 
@@ -83,6 +83,22 @@ function isToday(due_at) {
   return d === now;
 }
 
+function isCompletedToday(completed_at) {
+  if (!completed_at) return false;
+  const d   = new Date(completed_at).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' });
+  const now = new Date().toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' });
+  return d === now;
+}
+
+function isCompletedThisWeek(completed_at) {
+  if (!completed_at) return false;
+  const dt = new Date(completed_at);
+  const startOfWeek = new Date();
+  startOfWeek.setHours(0, 0, 0, 0);
+  startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+  return dt >= startOfWeek && !isCompletedToday(completed_at);
+}
+
 function SectionHeader({ label, color, count }) {
   const styles = {
     red:    'bg-red-50 text-red-700 border-red-200',
@@ -131,6 +147,7 @@ function ActionBtn({ onClick, saving, color, disabled, children }) {
 }
 
 function TaskRow({ task, onAction, onOpenLead, onEdit, onDelete }) {
+  const [expanded, setExpanded] = useState(false);
   const overdue = !task.completed_at && isOverdue(task.due_at);
   const today   = !task.completed_at && !overdue && isToday(task.due_at);
 
@@ -154,7 +171,12 @@ function TaskRow({ task, onAction, onOpenLead, onEdit, onDelete }) {
       )}
 
       <div className="flex-1 min-w-0">
-        <p className={`font-semibold text-slate-800 text-sm truncate ${task.completed_at ? 'line-through' : ''}`}>
+        <p
+          onClick={e => { e.stopPropagation(); setExpanded(v => !v); }}
+          className={`font-semibold text-slate-800 text-sm cursor-pointer select-none
+            ${expanded ? 'whitespace-normal break-words' : 'truncate'}
+            ${task.completed_at ? 'line-through' : ''}`}
+        >
           {task.title}
         </p>
         <button
@@ -338,6 +360,22 @@ export default function TasksPage() {
 
   const pendingCount = grouped.overdue.length + grouped.today.length + grouped.upcoming.length + grouped.noDate.length;
 
+  const completedGrouped = useMemo(() => {
+    if (status !== 'completed') return null;
+    const byDate = (a, b) => new Date(b.completed_at) - new Date(a.completed_at);
+    const today = [], week = [], older = [];
+    for (const t of tasks) {
+      if (isCompletedToday(t.completed_at))         today.push(t);
+      else if (isCompletedThisWeek(t.completed_at)) week.push(t);
+      else                                           older.push(t);
+    }
+    return {
+      today: today.sort(byDate),
+      week:  week.sort(byDate),
+      older: older.sort(byDate),
+    };
+  }, [tasks, status]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-violet-50 to-indigo-50" dir="rtl">
       {/* Header */}
@@ -383,6 +421,7 @@ export default function TasksPage() {
         >
           <option value="pending">ממתינות</option>
           <option value="overdue">באיחור</option>
+          <option value="completed">בוצעו</option>
           <option value="">הכל</option>
         </select>
       </div>
@@ -397,65 +436,102 @@ export default function TasksPage() {
         ) : (
           <div className="bg-white rounded-2xl shadow-sm border border-violet-100 mt-3 mx-3 overflow-hidden">
 
-            {grouped.overdue.length > 0 && (
+            {completedGrouped ? (
               <>
-                <SectionHeader label="באיחור" color="red" count={grouped.overdue.length} />
-                {grouped.overdue.map(t => (
-                  <TaskRow key={t.id} task={t} onAction={openActionSheet} onOpenLead={setSelectedLeadId} onEdit={setEditingTask} onDelete={handleDeleteTask} />
-                ))}
-              </>
-            )}
-
-            {grouped.today.length > 0 && (
-              <>
-                <SectionHeader label="היום" color="amber" count={grouped.today.length} />
-                {grouped.today.map(t => (
-                  <TaskRow key={t.id} task={t} onAction={openActionSheet} onOpenLead={setSelectedLeadId} onEdit={setEditingTask} onDelete={handleDeleteTask} />
-                ))}
-              </>
-            )}
-
-            {grouped.upcoming.length > 0 && (
-              <>
-                <SectionHeader label="קרוב" color="violet" count={grouped.upcoming.length} />
-                {grouped.upcoming.map(t => (
-                  <TaskRow key={t.id} task={t} onAction={openActionSheet} onOpenLead={setSelectedLeadId} onEdit={setEditingTask} onDelete={handleDeleteTask} />
-                ))}
-              </>
-            )}
-
-            {grouped.noDate.length > 0 && (
-              <>
-                <SectionHeader label="ללא תאריך" color="slate" count={grouped.noDate.length} />
-                {grouped.noDate.map(t => (
-                  <TaskRow key={t.id} task={t} onAction={openActionSheet} onOpenLead={setSelectedLeadId} onEdit={setEditingTask} onDelete={handleDeleteTask} />
-                ))}
-              </>
-            )}
-
-            {pendingCount === 0 && grouped.completed.length === 0 && (
-              <div className="text-center py-16 text-slate-400">
-                <p className="text-4xl mb-2">✅</p>
-                <p className="text-sm font-bold">אין משימות פתוחות</p>
-              </div>
-            )}
-
-            {grouped.completed.length > 0 && (
-              <>
-                <button
-                  onClick={() => setShowCompleted(v => !v)}
-                  className="w-full flex items-center justify-center gap-2 py-3 text-xs font-bold
-                    text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition border-t border-slate-100"
-                >
-                  {showCompleted ? '▲' : '▼'}
-                  {showCompleted ? 'הסתר הושלמות' : `הצג הושלמות (${grouped.completed.length})`}
-                </button>
-                {showCompleted && (
+                {completedGrouped.today.length > 0 && (
                   <>
-                    <SectionHeader label="הושלמו" color="gray" count={grouped.completed.length} />
-                    {grouped.completed.map(t => (
+                    <SectionHeader label="היום" color="amber" count={completedGrouped.today.length} />
+                    {completedGrouped.today.map(t => (
                       <TaskRow key={t.id} task={t} onAction={openActionSheet} onOpenLead={setSelectedLeadId} onEdit={setEditingTask} onDelete={handleDeleteTask} />
                     ))}
+                  </>
+                )}
+                {completedGrouped.week.length > 0 && (
+                  <>
+                    <SectionHeader label="השבוע" color="violet" count={completedGrouped.week.length} />
+                    {completedGrouped.week.map(t => (
+                      <TaskRow key={t.id} task={t} onAction={openActionSheet} onOpenLead={setSelectedLeadId} onEdit={setEditingTask} onDelete={handleDeleteTask} />
+                    ))}
+                  </>
+                )}
+                {completedGrouped.older.length > 0 && (
+                  <>
+                    <SectionHeader label="ישן יותר" color="slate" count={completedGrouped.older.length} />
+                    {completedGrouped.older.map(t => (
+                      <TaskRow key={t.id} task={t} onAction={openActionSheet} onOpenLead={setSelectedLeadId} onEdit={setEditingTask} onDelete={handleDeleteTask} />
+                    ))}
+                  </>
+                )}
+                {tasks.length === 0 && (
+                  <div className="text-center py-16 text-slate-400">
+                    <p className="text-4xl mb-2">📋</p>
+                    <p className="text-sm font-bold">אין משימות שהושלמו</p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                {grouped.overdue.length > 0 && (
+                  <>
+                    <SectionHeader label="באיחור" color="red" count={grouped.overdue.length} />
+                    {grouped.overdue.map(t => (
+                      <TaskRow key={t.id} task={t} onAction={openActionSheet} onOpenLead={setSelectedLeadId} onEdit={setEditingTask} onDelete={handleDeleteTask} />
+                    ))}
+                  </>
+                )}
+
+                {grouped.today.length > 0 && (
+                  <>
+                    <SectionHeader label="היום" color="amber" count={grouped.today.length} />
+                    {grouped.today.map(t => (
+                      <TaskRow key={t.id} task={t} onAction={openActionSheet} onOpenLead={setSelectedLeadId} onEdit={setEditingTask} onDelete={handleDeleteTask} />
+                    ))}
+                  </>
+                )}
+
+                {grouped.upcoming.length > 0 && (
+                  <>
+                    <SectionHeader label="קרוב" color="violet" count={grouped.upcoming.length} />
+                    {grouped.upcoming.map(t => (
+                      <TaskRow key={t.id} task={t} onAction={openActionSheet} onOpenLead={setSelectedLeadId} onEdit={setEditingTask} onDelete={handleDeleteTask} />
+                    ))}
+                  </>
+                )}
+
+                {grouped.noDate.length > 0 && (
+                  <>
+                    <SectionHeader label="ללא תאריך" color="slate" count={grouped.noDate.length} />
+                    {grouped.noDate.map(t => (
+                      <TaskRow key={t.id} task={t} onAction={openActionSheet} onOpenLead={setSelectedLeadId} onEdit={setEditingTask} onDelete={handleDeleteTask} />
+                    ))}
+                  </>
+                )}
+
+                {pendingCount === 0 && grouped.completed.length === 0 && (
+                  <div className="text-center py-16 text-slate-400">
+                    <p className="text-4xl mb-2">✅</p>
+                    <p className="text-sm font-bold">אין משימות פתוחות</p>
+                  </div>
+                )}
+
+                {grouped.completed.length > 0 && (
+                  <>
+                    <button
+                      onClick={() => setShowCompleted(v => !v)}
+                      className="w-full flex items-center justify-center gap-2 py-3 text-xs font-bold
+                        text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition border-t border-slate-100"
+                    >
+                      {showCompleted ? '▲' : '▼'}
+                      {showCompleted ? 'הסתר הושלמות' : `הצג הושלמות (${grouped.completed.length})`}
+                    </button>
+                    {showCompleted && (
+                      <>
+                        <SectionHeader label="הושלמו" color="gray" count={grouped.completed.length} />
+                        {grouped.completed.map(t => (
+                          <TaskRow key={t.id} task={t} onAction={openActionSheet} onOpenLead={setSelectedLeadId} onEdit={setEditingTask} onDelete={handleDeleteTask} />
+                        ))}
+                      </>
+                    )}
                   </>
                 )}
               </>
