@@ -54,18 +54,43 @@ async function waitForWaSlot() {
   lastWaSendTime = Date.now();
 }
 
-async function findOrCreateLead(phone, name, messageBody) {
+async function fetchAvatar(chatId) {
+  try {
+    const res = await axios.post(
+      `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/getContactInfo/${process.env.GREEN_API_TOKEN}`,
+      { chatId },
+      { timeout: 8000 }
+    );
+    return res.data?.avatar || res.data?.urlAvatar || null;
+  } catch {
+    return null;
+  }
+}
+
+async function findOrCreateLead(phone, name, messageBody, chatId) {
   const clean = normalizePhone(phone);
   if (!clean) return null;
 
   const existing = await findLeadByPhone(pool, clean);
-  if (existing) return existing;
+  if (existing) {
+    // Backfill avatar for existing leads that are missing one
+    if (chatId) {
+      const { rows: cur } = await pool.query('SELECT avatar_url FROM leads WHERE id = $1', [existing]);
+      if (!cur[0]?.avatar_url) {
+        fetchAvatar(chatId).then(avatar => {
+          if (avatar) pool.query('UPDATE leads SET avatar_url = $1 WHERE id = $2', [avatar, existing]).catch(() => {});
+        });
+      }
+    }
+    return existing;
+  }
 
+  const avatar = chatId ? await fetchAvatar(chatId) : null;
   const leadName = name || 'ליד חדש מוואטסאפ';
   const { rows } = await pool.query(
-    `INSERT INTO leads (name, phone, source, stage, notes, event_name)
-     VALUES ($1, $2, 'whatsapp', 'new', $3, $4) RETURNING id`,
-    [leadName, clean, `הודעה ראשונה: ${messageBody}`, leadName]
+    `INSERT INTO leads (name, phone, source, stage, notes, event_name, avatar_url)
+     VALUES ($1, $2, 'whatsapp', 'new', $3, $4, $5) RETURNING id`,
+    [leadName, clean, `הודעה ראשונה: ${messageBody}`, leadName, avatar]
   );
   return rows[0].id;
 }
@@ -97,7 +122,7 @@ router.post('/webhook', async (req, res) => {
     const { rows: dup } = await pool.query('SELECT id FROM messages WHERE external_id = $1', [externalId]);
     if (dup.length) return res.sendStatus(200);
 
-    const leadId = await findOrCreateLead(senderPhone, senderName, previewText);
+    const leadId = await findOrCreateLead(senderPhone, senderName, previewText, chatId);
     if (!leadId) return res.sendStatus(200);
 
     // Resolve final message body (download media if needed)
