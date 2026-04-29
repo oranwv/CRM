@@ -31,6 +31,7 @@ const STAGE_STYLES = {
 };
 
 const PRIORITY_ICONS = { normal: '', hot: '🔥', urgent: '⚡' };
+const PRIORITY_ORDER = { urgent: 0, hot: 1, normal: 2 };
 
 const SOURCE_COLORS = {
   website_popup: 'bg-violet-100 text-violet-700',
@@ -137,8 +138,11 @@ export default function LeadsPage() {
   }
 
   const sortedLeads = useMemo(() => {
-    if (!sortCol) return leads;
     return [...leads].sort((a, b) => {
+      const pa = PRIORITY_ORDER[a.priority] ?? 2;
+      const pb = PRIORITY_ORDER[b.priority] ?? 2;
+      if (pa !== pb) return pa - pb;
+      if (!sortCol) return 0;
       const av = a[sortCol], bv = b[sortCol];
       if (!av && !bv) return 0;
       if (!av) return 1;

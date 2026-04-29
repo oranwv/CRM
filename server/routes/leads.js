@@ -158,6 +158,15 @@ router.patch('/:id', async (req, res) => {
          VALUES ($1, 'note', 'outbound', $2, $3)`,
         [req.params.id, `🔄 שינוי שלב: ${from} ← ${to}`, req.user.id]
       );
+
+      // Auto-clear hot/urgent priority when lead is closed (deposit or production)
+      if (lead.stage === 'deposit' || lead.stage === 'production') {
+        await pool.query(
+          `UPDATE leads SET priority = 'normal' WHERE id = $1 AND priority != 'normal'`,
+          [req.params.id]
+        );
+        lead.priority = 'normal';
+      }
     }
 
     res.json(lead);

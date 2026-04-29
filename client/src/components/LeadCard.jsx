@@ -299,6 +299,20 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
                     <button onClick={() => setShowMeetingModal(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition">📅 קבע פגישה</button>
                     {lead.meeting_event_id && <SendReminderButton eventId={lead.meeting_event_id} />}
                     <button onClick={() => setShowAddTask(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition">+ משימה</button>
+                    <button
+                      onClick={async () => {
+                        const newPriority = lead.priority === 'hot' ? 'normal' : 'hot';
+                        const { data } = await api.patch(`/leads/${lead.id}`, { priority: newPriority });
+                        setLead(data);
+                      }}
+                      className={`text-sm font-bold px-2.5 py-1 rounded-xl transition ${
+                        lead.priority === 'hot'
+                          ? 'bg-orange-500 text-white hover:bg-orange-600'
+                          : 'bg-slate-100 text-slate-600 hover:bg-orange-100 hover:text-orange-700'
+                      }`}
+                    >
+                      🔥 {lead.priority === 'hot' ? 'חם ✓' : 'ליד חם'}
+                    </button>
                   </div>
                 </div>
               }>
