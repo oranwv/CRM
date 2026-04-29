@@ -19,6 +19,10 @@ async function findOrCreateLead(phone, name, previewText) {
 }
 
 function extractText(msg) {
+  // lastIncomingMessages / lastOutgoingMessages: text is at top level
+  if (msg.textMessage) return msg.textMessage;
+  if (msg.extendedTextMessage?.text) return msg.extendedTextMessage.text;
+  // webhook / receiveNotification: text is nested
   if (msg.textMessageData?.textMessage) return msg.textMessageData.textMessage;
   if (msg.extendedTextMessageData?.text) return msg.extendedTextMessageData.text;
   if (msg.imageMessageData?.caption) return msg.imageMessageData.caption;
