@@ -166,7 +166,7 @@ export default function LeadsPage() {
   return (
     <div className="min-h-screen pb-16">
       {/* Header */}
-      <div className="bg-white/80 backdrop-blur-sm border-b border-violet-100 px-4 py-3 flex items-center gap-3 shadow-sm sticky top-0 z-20">
+      <div className="bg-white border-b border-violet-100 px-4 py-3 flex items-center gap-3 shadow-sm sticky top-0 z-20">
         <div
           className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-base shrink-0"
           style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}
@@ -233,7 +233,7 @@ export default function LeadsPage() {
             <p className="text-sm">אין לידים בקטגוריה זו</p>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl shadow-sm border border-violet-100 mt-2 overflow-x-auto">
+          <div className="bg-white rounded-2xl shadow-sm border border-violet-100 mt-2 overflow-x-auto [transform:translateZ(0)]">
             <table className="w-full text-xs min-w-[900px]">
               <thead>
                 <tr className="bg-violet-50/60 text-xs font-bold text-slate-500 uppercase tracking-wide border-b border-violet-100">
@@ -261,12 +261,9 @@ export default function LeadsPage() {
                     <td className="px-2 py-3 text-slate-400 font-medium sticky right-0 z-10 bg-white">{idx + 1}</td>
                     <td className="px-2 py-3 font-semibold text-slate-800 sticky right-8 z-10 bg-white shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
                       <div className="flex items-center gap-1.5">
-                        {lead.avatar_url
-                          ? <img src={lead.avatar_url} className="w-7 h-7 rounded-full object-cover shrink-0" onError={e => e.target.style.display='none'} />
-                          : <div className="w-7 h-7 rounded-full bg-violet-100 flex items-center justify-center text-xs font-bold text-violet-700 shrink-0">
-                              {(lead.event_name || lead.name || '?')[0]}
-                            </div>
-                        }
+                        {lead.avatar_url && (
+                          <img src={lead.avatar_url} className="w-7 h-7 rounded-full object-cover shrink-0" onError={e => e.target.style.display='none'} />
+                        )}
                         <span className="flex items-center gap-0.5">
                           {PRIORITY_ICONS[lead.priority] && (
                             <span>{PRIORITY_ICONS[lead.priority]}</span>
