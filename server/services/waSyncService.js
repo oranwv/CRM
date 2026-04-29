@@ -1,38 +1,12 @@
 const pool  = require('../db/pool');
 const axios = require('axios');
-
-function formatPhone(phone) {
-  if (!phone) return null;
-  const digits = phone.replace(/\D/g, '');
-  if (digits.startsWith('972')) return digits;
-  if (digits.startsWith('0')) return '972' + digits.slice(1);
-  return digits;
-}
-
-async function findLeadByPhone(phone) {
-  const clean = formatPhone(phone);
-  if (!clean) return null;
-
-  const { rows } = await pool.query(
-    'SELECT id FROM leads WHERE REGEXP_REPLACE(phone, $1, $2) = $3 LIMIT 1',
-    ['\\D', '', clean]
-  );
-  if (rows.length) return rows[0].id;
-
-  const { rows: byContact } = await pool.query(
-    `SELECT lead_id FROM lead_contacts
-     WHERE type = 'phone' AND REGEXP_REPLACE(value, '\\D', '', 'g') = $1
-     LIMIT 1`,
-    [clean]
-  );
-  return byContact.length ? byContact[0].lead_id : null;
-}
+const { normalizePhone, findLeadByPhone } = require('../utils/phoneUtils');
 
 async function findOrCreateLead(phone, name, previewText) {
-  const clean = formatPhone(phone);
+  const clean = normalizePhone(phone);
   if (!clean) return null;
 
-  const existing = await findLeadByPhone(phone);
+  const existing = await findLeadByPhone(pool, clean);
   if (existing) return existing;
 
   const leadName = name || 'ליד חדש מוואטסאפ';
@@ -105,11 +79,11 @@ async function syncWhatsAppMessages() {
       );
       if (dup.length) continue;
 
-      const recipientPhone = formatPhone((msg.chatId || '').replace('@c.us', ''));
+      const recipientPhone = normalizePhone((msg.chatId || '').replace('@c.us', ''));
       if (!recipientPhone) continue;
 
       // Only attach to existing leads — don't create new ones for outgoing
-      const leadId = await findLeadByPhone(recipientPhone);
+      const leadId = await findLeadByPhone(pool, recipientPhone);
       if (!leadId) continue;
 
       const text = extractText(msg);

@@ -4,6 +4,7 @@ const os    = require('os');
 const path  = require('path');
 const pool  = require('../db/pool');
 const { uploadFile } = require('./storageService');
+const { normalizePhone, findLeadByPhone } = require('../utils/phoneUtils');
 
 function mediaMimeToExt(mime) {
   const map = { 'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif','video/mp4':'mp4','audio/ogg':'ogg','audio/mpeg':'mp3','application/pdf':'pdf' };
@@ -42,14 +43,6 @@ async function saveInboundMedia(msg, leadId, externalId) {
 const BASE  = () => `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}`;
 const TOKEN = () => process.env.GREEN_API_TOKEN;
 
-function formatPhone(phone) {
-  if (!phone) return null;
-  const digits = phone.replace(/\D/g, '');
-  if (digits.startsWith('972')) return digits;
-  if (digits.startsWith('0')) return '972' + digits.slice(1);
-  return digits;
-}
-
 async function fetchContactInfo(chatId) {
   try {
     const res = await axios.post(
@@ -67,25 +60,24 @@ async function fetchContactInfo(chatId) {
 }
 
 async function findOrCreateLead(phone, senderName, messageBody, chatId) {
-  const clean = formatPhone(phone);
+  const clean = normalizePhone(phone);
   if (!clean) return null;
-  const { rows } = await pool.query(
-    `SELECT id, avatar_url FROM leads WHERE
-      CASE WHEN REGEXP_REPLACE(phone,'[^0-9]','','g') LIKE '0%'
-        THEN '972' || SUBSTRING(REGEXP_REPLACE(phone,'[^0-9]','','g'),2)
-        ELSE REGEXP_REPLACE(phone,'[^0-9]','','g')
-      END = $1 LIMIT 1`,
-    [clean]
-  );
-  if (rows.length) {
+
+  // Check leads + lead_contacts with full format normalization
+  const existingId = await findLeadByPhone(pool, clean);
+  if (existingId) {
     // Backfill avatar if missing
-    if (!rows[0].avatar_url && chatId) {
-      fetchContactInfo(chatId).then(({ avatar }) => {
-        if (avatar) pool.query('UPDATE leads SET avatar_url=$1 WHERE id=$2', [avatar, rows[0].id]).catch(() => {});
-      });
+    if (chatId) {
+      const { rows: cur } = await pool.query('SELECT avatar_url FROM leads WHERE id=$1', [existingId]);
+      if (!cur[0]?.avatar_url) {
+        fetchContactInfo(chatId).then(({ avatar }) => {
+          if (avatar) pool.query('UPDATE leads SET avatar_url=$1 WHERE id=$2', [avatar, existingId]).catch(() => {});
+        });
+      }
     }
-    return rows[0].id;
+    return existingId;
   }
+
   // New lead — fetch WhatsApp profile
   const { name: profileName, avatar } = chatId ? await fetchContactInfo(chatId) : {};
   const displayName = profileName || senderName || 'ליד וואטסאפ';

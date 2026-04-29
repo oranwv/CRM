@@ -8,6 +8,7 @@ const os = require('os');
 const emailUpload = multer({ dest: os.tmpdir() });
 
 const { uploadFile } = require('../services/storageService');
+const { normalizePhone } = require('../utils/phoneUtils');
 
 const hasGoogle = () => fs.existsSync(path.join(__dirname, '../google_token.json'));
 function syncCalendar(leadId, type = 'option', userId = null) {
@@ -52,7 +53,23 @@ router.get('/', async (req, res) => {
   const params = [...stages];
   if (search) {
     params.push(`%${search}%`);
-    query += ` AND (l.name ILIKE $${params.length} OR l.phone ILIKE $${params.length} OR l.email ILIKE $${params.length})`;
+    const likeIdx = params.length;
+    const normalizedSearch = normalizePhone(search);
+    let phoneNormCondition = '';
+    if (normalizedSearch) {
+      params.push(`%${normalizedSearch}%`);
+      const normIdx = params.length;
+      phoneNormCondition = ` OR (
+        CASE
+          WHEN REGEXP_REPLACE(l.phone,'[^0-9]','','g') LIKE '972%'
+            THEN REGEXP_REPLACE(l.phone,'[^0-9]','','g')
+          WHEN REGEXP_REPLACE(l.phone,'[^0-9]','','g') LIKE '0%'
+            THEN '972' || SUBSTRING(REGEXP_REPLACE(l.phone,'[^0-9]','','g'), 2)
+          ELSE REGEXP_REPLACE(l.phone,'[^0-9]','','g')
+        END LIKE $${normIdx}
+      )`;
+    }
+    query += ` AND (l.name ILIKE $${likeIdx} OR l.phone ILIKE $${likeIdx} OR l.email ILIKE $${likeIdx}${phoneNormCondition})`;
   }
   query += ' ORDER BY received_at DESC';
   try {

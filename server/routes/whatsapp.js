@@ -8,6 +8,7 @@ const os = require('os');
 const path = require('path');
 const FormData = require('form-data');
 const { uploadFile } = require('../services/storageService');
+const { normalizePhone, findLeadByPhone } = require('../utils/phoneUtils');
 
 const upload = multer({ dest: os.tmpdir() });
 
@@ -53,33 +54,12 @@ async function waitForWaSlot() {
   lastWaSendTime = Date.now();
 }
 
-function formatPhone(phone) {
-  if (!phone) return null;
-  const digits = phone.replace(/\D/g, '');
-  if (digits.startsWith('972')) return digits;
-  if (digits.startsWith('0')) return '972' + digits.slice(1);
-  return digits;
-}
-
 async function findOrCreateLead(phone, name, messageBody) {
-  const clean = formatPhone(phone);
+  const clean = normalizePhone(phone);
   if (!clean) return null;
 
-  // Check primary phone on leads table
-  const { rows: existing } = await pool.query(
-    'SELECT id FROM leads WHERE REGEXP_REPLACE(phone, $1, $2) = $3 LIMIT 1',
-    ['\\D', '', clean]
-  );
-  if (existing.length) return existing[0].id;
-
-  // Check additional contacts table
-  const { rows: byContact } = await pool.query(
-    `SELECT lead_id FROM lead_contacts
-     WHERE type = 'phone' AND REGEXP_REPLACE(value, '\\D', '', 'g') = $1
-     LIMIT 1`,
-    [clean]
-  );
-  if (byContact.length) return byContact[0].lead_id;
+  const existing = await findLeadByPhone(pool, clean);
+  if (existing) return existing;
 
   const leadName = name || 'ליד חדש מוואטסאפ';
   const { rows } = await pool.query(
@@ -148,7 +128,7 @@ router.post('/send', requireAuth, async (req, res) => {
     const { rows } = await pool.query('SELECT phone FROM leads WHERE id = $1', [leadId]);
     if (!rows.length) return res.status(404).json({ error: 'Lead not found' });
 
-    const phone = formatPhone(phoneOverride || rows[0].phone);
+    const phone = normalizePhone(phoneOverride || rows[0].phone);
     if (!phone) return res.status(400).json({ error: 'No phone number' });
 
     const url = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/sendMessage/${process.env.GREEN_API_TOKEN}`;
@@ -185,7 +165,7 @@ router.post('/send-file', requireAuth, upload.single('file'), async (req, res) =
     const { rows } = await pool.query('SELECT phone FROM leads WHERE id = $1', [leadId]);
     if (!rows.length) return res.status(404).json({ error: 'Lead not found' });
 
-    const phone = formatPhone(phoneOverride || rows[0].phone);
+    const phone = normalizePhone(phoneOverride || rows[0].phone);
     if (!phone) return res.status(400).json({ error: 'No phone number' });
 
     let fileUrl = null;
