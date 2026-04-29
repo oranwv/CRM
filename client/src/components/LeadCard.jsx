@@ -124,8 +124,6 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
   const [editingName, setEditingName]     = useState(false);
   const [nameDraft, setNameDraft]         = useState('');
   const [showMeetingModal, setShowMeetingModal] = useState(false);
-  const [editingInteractionId, setEditingInteractionId] = useState(null);
-  const [editInteractionBody, setEditInteractionBody]   = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -178,13 +176,6 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
     await api.patch(`/leads/${leadId}`, editForm);
     setEditing(false);
     await load(); onUpdated();
-  }
-
-  async function saveInteractionEdit(rawId) {
-    await api.patch(`/leads/${leadId}/interactions/${rawId}`, { body: editInteractionBody.trim() });
-    setEditingInteractionId(null);
-    setEditInteractionBody('');
-    load();
   }
 
   async function deleteLead() {
@@ -653,6 +644,16 @@ function TimelineSection({ leadId, timeline, allPhones, allEmails, onAdded }) {
   const [translations, setTranslations]   = useState({}); // itemId → translated text
   const [translating, setTranslating]     = useState({}); // itemId → bool
   const [aiLoading, setAiLoading]         = useState(null); // null | 'translate'|'reply'|'improve'
+
+  const [editingInteractionId, setEditingInteractionId] = useState(null);
+  const [editInteractionBody, setEditInteractionBody]   = useState('');
+
+  async function saveInteractionEdit(rawId) {
+    await api.patch(`/leads/${leadId}/interactions/${rawId}`, { body: editInteractionBody.trim() });
+    setEditingInteractionId(null);
+    setEditInteractionBody('');
+    onAdded();
+  }
 
   async function translateItem(itemId, text) {
     const plain = text.replace(/\[\[FILE:[^\]]+\]\]/g, '').trim();
