@@ -295,7 +295,7 @@ export default function LeadsPage() {
                         </a>
                       ) : '—'}
                     </td>
-                    <td className="px-2 py-3 text-slate-600">{formatDate(lead.event_date)}</td>
+                    <td className="px-2 py-3 text-slate-600">{lead.event_date_text || formatDate(lead.event_date)}</td>
                     <td className="px-2 py-3 text-slate-600">{lead.event_type || '—'}</td>
                     <td className="px-2 py-3 text-slate-600">{lead.guest_count || '—'}</td>
                     <td className="px-2 py-3">
