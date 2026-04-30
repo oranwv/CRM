@@ -147,8 +147,8 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
       ]);
       setLead(leadRes.data);
       const _d = leadRes.data;
-      const _displayDate = _d.event_date ? _d.event_date.split('T')[0].split('-').reverse().join('/') : '';
-      setEditForm({ ..._d, event_date: _displayDate });
+      const _displayDate = _d.event_date_text || (_d.event_date ? _d.event_date.split('T')[0].split('-').reverse().join('/') : '');
+      setEditForm({ ..._d, event_date_text: _displayDate });
       setCalStatus(calRes.data);
       setInteractions(intRes.data);
       setMessages(msgRes.data);
@@ -184,23 +184,7 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
 
   async function saveEdit() {
     const payload = { ...editForm };
-    if (editForm.event_date) {
-      const parsed = parseDateIL(editForm.event_date);
-      if (!parsed) { alert('תאריך לא תקין — אנא הכנס בפורמט DD/MM/YYYY'); return; }
-      payload.event_date = parsed;
-    } else {
-      payload.event_date = null;
-    }
-    if (editForm.event_time) {
-      const parsed = parseTimeIL(editForm.event_time);
-      if (!parsed) { alert('שעה לא תקינה — אנא הכנס בפורמט HH:MM'); return; }
-      payload.event_time = parsed;
-    }
-    if (editForm.event_end_time) {
-      const parsed = parseTimeIL(editForm.event_end_time);
-      if (!parsed) { alert('שעת סיום לא תקינה — אנא הכנס בפורמט HH:MM'); return; }
-      payload.event_end_time = parsed;
-    }
+    delete payload.event_date; // managed only by CalendarSection (DATE column)
     await api.patch(`/leads/${leadId}`, payload);
     setEditing(false);
     await load(); onUpdated();
@@ -393,10 +377,10 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
                       {lead.phone ? <a href={`tel:${lead.phone}`} className="text-violet-700 hover:underline font-medium" dir="ltr">{lead.phone}</a> : '—'}
                     </InfoRow>
                     <InfoRow label="אימייל">{lead.email || '—'}</InfoRow>
-                    <InfoRow label="תאריך אירוע">{formatDate(lead.event_date)}{lead.event_time ? ` · ${lead.event_time}` : ''}</InfoRow>
+                    <InfoRow label="תאריך אירוע">{lead.event_date_text || formatDate(lead.event_date)}{lead.event_time ? ` · ${lead.event_time}` : ''}</InfoRow>
                     <InfoRow label="סוג אירוע">{lead.event_type || '—'}</InfoRow>
                     <InfoRow label="מוזמנים">{lead.guest_count || '—'}</InfoRow>
-                    <InfoRow label="תקציב">{lead.budget ? `₪${Number(lead.budget).toLocaleString()}` : '—'}</InfoRow>
+                    <InfoRow label="תקציב">{lead.budget || '—'}</InfoRow>
                     <InfoRow label="אחראי">{lead.assigned_name || '—'}</InfoRow>
                     <InfoRow label="עדיפות">{lead.priority === 'hot' ? '🔥 חם' : lead.priority === 'urgent' ? '⚡ דחוף' : 'רגיל'}</InfoRow>
                     <InfoRow label="התקבל ב">{formatFull(lead.created_at)}</InfoRow>
@@ -1203,7 +1187,7 @@ function EditForm({ form, setForm, users, onSave, onCancel }) {
         <div><label className="text-sm text-slate-500">טלפון</label><input value={form.phone || ''} onChange={e => set('phone', e.target.value)} className={cls} dir="ltr" /></div>
         <div className="col-span-2"><label className="text-sm text-slate-500">שם האירוע</label><input value={form.event_name || ''} onChange={e => set('event_name', e.target.value)} className={cls} placeholder="שם האירוע" /></div>
         <div><label className="text-sm text-slate-500">אימייל</label><input value={form.email || ''} onChange={e => set('email', e.target.value)} className={cls} dir="ltr" /></div>
-        <div><label className="text-sm text-slate-500">תאריך אירוע</label><DateInput value={form.event_date ? form.event_date.split('T')[0] : ''} onChange={v => set('event_date', v)} className={cls} /></div>
+        <div><label className="text-sm text-slate-500">תאריך אירוע</label><DateInput value={form.event_date_text || ''} onChange={v => set('event_date_text', v)} className={cls} /></div>
         <div><label className="text-sm text-slate-500">שעת האירוע</label><TimeInput value={form.event_time || ''} onChange={v => set('event_time', v)} className={cls} /></div>
         <div><label className="text-sm text-slate-500">שעת סיום</label><TimeInput value={form.event_end_time || ''} onChange={v => set('event_end_time', v)} className={cls} /></div>
         <div><label className="text-sm text-slate-500">סוג אירוע</label>
@@ -1211,8 +1195,8 @@ function EditForm({ form, setForm, users, onSave, onCancel }) {
             <option value="">בחר...</option>
             {EVENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
           </select></div>
-        <div><label className="text-sm text-slate-500">מוזמנים</label><input type="number" value={form.guest_count || ''} onChange={e => set('guest_count', e.target.value)} className={cls} /></div>
-        <div><label className="text-sm text-slate-500">תקציב</label><input type="number" value={form.budget || ''} onChange={e => set('budget', e.target.value)} className={cls} /></div>
+        <div><label className="text-sm text-slate-500">מוזמנים</label><input type="text" value={form.guest_count || ''} onChange={e => set('guest_count', e.target.value)} className={cls} /></div>
+        <div><label className="text-sm text-slate-500">תקציב</label><input type="text" value={form.budget || ''} onChange={e => set('budget', e.target.value)} className={cls} /></div>
         <div><label className="text-sm text-slate-500">עדיפות</label>
           <select value={form.priority || 'normal'} onChange={e => set('priority', e.target.value)} className={cls}>
             <option value="normal">רגיל</option><option value="hot">🔥 חם</option><option value="urgent">⚡ דחוף</option>
@@ -1296,7 +1280,7 @@ function CalendarSection({ leadId, editForm, calStatus, onUpdated }) {
   const [pendingMark, setPendingMark] = useState(null);
 
   function handleMarkClick(type) {
-    const dateStr = editForm?.event_date || '';
+    const dateStr = editForm?.event_date_text || '';
     const timeStr = editForm?.event_time || '';
 
     if (!dateStr.trim() && !timeStr.trim()) {
@@ -1331,7 +1315,7 @@ function CalendarSection({ leadId, editForm, calStatus, onUpdated }) {
     setSyncWarning(false);
     setSyncError('');
     try {
-      await api.patch(`/leads/${leadId}`, { event_date: parsedDate, event_time: parsedTime });
+      await api.patch(`/leads/${leadId}`, { event_date: parsedDate, event_time: parsedTime, event_date_text: editForm?.event_date_text || null });
       const { data } = await api.post(`/calendar/leads/${leadId}/mark`, { type });
       if (data.calendarSynced === false) {
         setSyncWarning(true);

@@ -118,7 +118,7 @@ router.post('/', async (req, res) => {
 
 // PATCH /api/leads/:id
 router.patch('/:id', async (req, res) => {
-  const allowed = ['name','phone','email','event_name','event_date','event_time','event_end_time','event_type','guest_count','budget','stage','lost_reason','lost_reason_text','priority','assigned_to','notes','deposit_amount','deposit_date','deposit_confirmed','production_notes'];
+  const allowed = ['name','phone','email','event_name','event_date','event_time','event_end_time','event_date_text','event_type','guest_count','budget','stage','lost_reason','lost_reason_text','priority','assigned_to','notes','deposit_amount','deposit_date','deposit_confirmed','production_notes'];
   const fields = Object.keys(req.body).filter(k => allowed.includes(k));
   if (!fields.length) return res.status(400).json({ error: 'No valid fields' });
   const sets = fields.map((f, i) => `${f} = $${i + 2}`).join(', ');
