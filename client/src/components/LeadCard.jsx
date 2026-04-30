@@ -56,32 +56,40 @@ function localToISO(date, time) {
   const str = time ? `${date}T${time}` : `${date}T00:00`;
   return new Date(str).toISOString(); // browser is in Israel TZ → correct UTC offset
 }
-// Date picker: native calendar for picking, displays dd/mm/yyyy
-function DateInput({ value, onChange, className, autoFocus }) {
-  const ref = useRef(null);
-  const display = value ? value.split('-').reverse().join('/') : '';
+// Parses free-text date (day first) → 'YYYY-MM-DD' or null
+function parseDateIL(str) {
+  if (!str || !str.trim()) return null;
+  const m = str.trim().match(/^(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](\d{2,4})$/);
+  if (!m) return null;
+  let [, d, mo, y] = m.map(Number);
+  if (y < 100) y += 2000;
+  if (d < 1 || d > 31 || mo < 1 || mo > 12 || y < 2020) return null;
+  return `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+// Parses free-text time → 'HH:MM' or null
+function parseTimeIL(str) {
+  if (!str || !str.trim()) return null;
+  const s = str.trim();
+  let m = s.match(/^(\d{1,2})[:.](\d{2})$/);
+  if (!m) {
+    const d4 = s.match(/^(\d{3,4})$/);
+    if (d4) m = [null, d4[1].slice(0, -2) || '0', d4[1].slice(-2)];
+  }
+  if (!m) return null;
+  const h = parseInt(m[1], 10), mi = parseInt(m[2], 10);
+  if (h > 23 || mi > 59) return null;
+  return `${String(h).padStart(2,'0')}:${String(mi).padStart(2,'0')}`;
+}
+function DateInput({ value, onChange, className }) {
   return (
-    <div className={`${className} relative flex items-center cursor-pointer`}
-         onClick={() => ref.current?.showPicker?.()}>
-      <span className={`flex-1 select-none ${display ? '' : 'text-slate-400'}`}>{display || 'DD/MM/YYYY'}</span>
-      <span className="text-slate-400 text-sm">📅</span>
-      <input ref={ref} type="date" value={value || ''} onChange={e => onChange(e.target.value)}
-        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer" autoFocus={autoFocus} />
-    </div>
+    <input type="text" value={value || ''} onChange={e => onChange(e.target.value)}
+      placeholder="DD/MM/YYYY" className={className} dir="ltr" />
   );
 }
-
-// Time picker: native clock for picking, displays HH:MM 24h
 function TimeInput({ value, onChange, className }) {
-  const ref = useRef(null);
   return (
-    <div className={`${className} relative flex items-center cursor-pointer`}
-         onClick={() => ref.current?.showPicker?.()}>
-      <span className={`flex-1 select-none ${value ? '' : 'text-slate-400'}`}>{value || 'HH:MM'}</span>
-      <span className="text-slate-400 text-sm">🕐</span>
-      <input ref={ref} type="time" value={value || ''} onChange={e => onChange(e.target.value)}
-        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer" />
-    </div>
+    <input type="text" value={value || ''} onChange={e => onChange(e.target.value)}
+      placeholder="HH:MM" className={className} dir="ltr" />
   );
 }
 
@@ -138,7 +146,9 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
         api.get(`/leads/${leadId}/contacts`),
       ]);
       setLead(leadRes.data);
-      setEditForm(leadRes.data);
+      const _d = leadRes.data;
+      const _displayDate = _d.event_date ? _d.event_date.split('T')[0].split('-').reverse().join('/') : '';
+      setEditForm({ ..._d, event_date: _displayDate });
       setCalStatus(calRes.data);
       setInteractions(intRes.data);
       setMessages(msgRes.data);
@@ -173,7 +183,25 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
   }
 
   async function saveEdit() {
-    await api.patch(`/leads/${leadId}`, editForm);
+    const payload = { ...editForm };
+    if (editForm.event_date) {
+      const parsed = parseDateIL(editForm.event_date);
+      if (!parsed) { alert('תאריך לא תקין — אנא הכנס בפורמט DD/MM/YYYY'); return; }
+      payload.event_date = parsed;
+    } else {
+      payload.event_date = null;
+    }
+    if (editForm.event_time) {
+      const parsed = parseTimeIL(editForm.event_time);
+      if (!parsed) { alert('שעה לא תקינה — אנא הכנס בפורמט HH:MM'); return; }
+      payload.event_time = parsed;
+    }
+    if (editForm.event_end_time) {
+      const parsed = parseTimeIL(editForm.event_end_time);
+      if (!parsed) { alert('שעת סיום לא תקינה — אנא הכנס בפורמט HH:MM'); return; }
+      payload.event_end_time = parsed;
+    }
+    await api.patch(`/leads/${leadId}`, payload);
     setEditing(false);
     await load(); onUpdated();
   }
@@ -351,9 +379,7 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
             </Section>
 
             {/* Calendar */}
-            {lead.event_date && (
-              <CalendarSection leadId={leadId} calStatus={calStatus} onUpdated={load} />
-            )}
+            <CalendarSection leadId={leadId} editForm={editForm} calStatus={calStatus} onUpdated={load} />
 
             {/* Details */}
             <Section title="פרטי ליד"
@@ -1263,16 +1289,49 @@ function ProductionSection({ leadId, lead, onUpdated }) {
   );
 }
 
-function CalendarSection({ leadId, calStatus, onUpdated }) {
+function CalendarSection({ leadId, editForm, calStatus, onUpdated }) {
   const [marking, setMarking] = useState(false);
   const [syncWarning, setSyncWarning] = useState(false);
   const [syncError, setSyncError] = useState('');
+  const [pendingMark, setPendingMark] = useState(null);
 
-  async function mark(type) {
+  function handleMarkClick(type) {
+    const dateStr = editForm?.event_date || '';
+    const timeStr = editForm?.event_time || '';
+
+    if (!dateStr.trim() && !timeStr.trim()) {
+      alert('צריך למלא את התאריך וזמן האירוע על מנת להכניס ליומן');
+      return;
+    }
+
+    const parsedDate = parseDateIL(dateStr);
+    const parsedTime = parseTimeIL(timeStr);
+
+    if (!parsedDate && !parsedTime) {
+      alert('התאריך והשעה לא ברורים — אנא הכנס תאריך בפורמט DD/MM/YYYY ושעה בפורמט HH:MM');
+      return;
+    }
+    if (!parsedDate) {
+      alert('התאריך לא ברור — אנא הכנס תאריך בפורמט DD/MM/YYYY');
+      return;
+    }
+    if (!parsedTime) {
+      alert('השעה לא ברורה — אנא הכנס שעה בפורמט HH:MM');
+      return;
+    }
+
+    const [y, mo, d] = parsedDate.split('-');
+    setPendingMark({ type, parsedDate, parsedTime, displayDate: `${d}/${mo}/${y}` });
+  }
+
+  async function confirmMark() {
+    const { type, parsedDate, parsedTime } = pendingMark;
+    setPendingMark(null);
     setMarking(true);
     setSyncWarning(false);
     setSyncError('');
     try {
+      await api.patch(`/leads/${leadId}`, { event_date: parsedDate, event_time: parsedTime });
       const { data } = await api.post(`/calendar/leads/${leadId}/mark`, { type });
       if (data.calendarSynced === false) {
         setSyncWarning(true);
@@ -1289,29 +1348,43 @@ function CalendarSection({ leadId, calStatus, onUpdated }) {
     <Section title="יומן Google">
       <div className="flex items-center gap-3">
         <div className="flex gap-2">
-          <button onClick={() => mark('option')} disabled={marking}
+          <button onClick={() => handleMarkClick('option')} disabled={marking}
             className={`text-sm font-bold px-3 py-1.5 rounded-xl border-2 transition ${type === 'option' ? 'bg-yellow-400 text-white border-yellow-400' : 'border-slate-200 text-slate-500 hover:border-yellow-300 hover:text-yellow-600'}`}>
-            🟡 אופציה
+            אופציה
           </button>
-          <button onClick={() => mark('confirmed')} disabled={marking}
+          <button onClick={() => handleMarkClick('confirmed')} disabled={marking}
             className={`text-sm font-bold px-3 py-1.5 rounded-xl border-2 transition ${type === 'confirmed' ? 'bg-emerald-500 text-white border-emerald-500' : 'border-slate-200 text-slate-500 hover:border-violet-300 hover:text-violet-600'}`}>
-            ✅ סגור
+            סגור
           </button>
         </div>
         <div className="flex flex-col gap-0.5">
           <span className="text-sm text-slate-400">
-            {type === 'confirmed' ? '✅ מסומן כסגור ביומן' : type === 'option' ? '🟡 מסומן כאופציה ביומן' : 'לא מסומן ביומן'}
+            {type === 'confirmed' ? 'מסומן כסגור ביומן' : type === 'option' ? 'מסומן כאופציה ביומן' : 'לא מסומן ביומן'}
           </span>
           {calStatus?.html_link && (
             <a href={calStatus.html_link} target="_blank" rel="noreferrer"
-               className="text-xs text-violet-600 hover:underline">📅 פתח ביומן Google</a>
+               className="text-xs text-violet-600 hover:underline">פתח ביומן Google</a>
           )}
         </div>
       </div>
       {syncWarning && (
         <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 mt-2">
-          ⚠️ הסטטוס עודכן ב-CRM, אך הסנכרון ל-Google Calendar נכשל{syncError ? `: ${syncError}` : ''}
+          הסטטוס עודכן ב-CRM, אך הסנכרון ל-Google Calendar נכשל{syncError ? `: ${syncError}` : ''}
         </p>
+      )}
+      {pendingMark && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={() => setPendingMark(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-5 w-80 mx-4 text-right space-y-3" onClick={e => e.stopPropagation()}>
+            <p className="font-bold text-slate-800 text-base">האם אלו התאריך וזמן האירוע הנכונים?</p>
+            <p className="text-slate-700 text-lg font-semibold">{pendingMark.displayDate} · {pendingMark.parsedTime}</p>
+            <div className="flex gap-2">
+              <button onClick={() => setPendingMark(null)}
+                className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl">ביטול</button>
+              <button onClick={confirmMark}
+                className="flex-1 bg-violet-600 text-white font-bold py-2 rounded-xl">אישור</button>
+            </div>
+          </div>
+        </div>
       )}
     </Section>
   );
