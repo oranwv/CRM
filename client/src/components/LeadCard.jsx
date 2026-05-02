@@ -140,6 +140,7 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
   const [editingName, setEditingName]     = useState(false);
   const [nameDraft, setNameDraft]         = useState('');
   const [showMeetingModal, setShowMeetingModal] = useState(false);
+  const [showPriceOffer, setShowPriceOffer]     = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -319,6 +320,7 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
                     <button onClick={() => setShowMeetingModal(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition">📅 קבע פגישה</button>
                     {lead.meeting_event_id && <SendReminderButton eventId={lead.meeting_event_id} />}
                     <button onClick={() => setShowAddTask(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition">+ משימה</button>
+                    <button onClick={() => setShowPriceOffer(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition">הצעת מחיר</button>
                     <button
                       onClick={async () => {
                         const newPriority = lead.priority === 'hot' ? 'normal' : 'hot';
@@ -436,6 +438,15 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
           leadId={leadId}
           onClose={() => setShowMeetingModal(false)}
           onDone={() => { setShowMeetingModal(false); load(); onUpdated(); }}
+        />
+      )}
+
+      {showPriceOffer && (
+        <PriceOfferModal
+          lead={lead}
+          allEmails={allEmails}
+          onClose={() => setShowPriceOffer(false)}
+          onSaved={() => { setShowPriceOffer(false); load(); }}
         />
       )}
 
@@ -1061,7 +1072,6 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, onAdded
   const [translating, setTranslating]     = useState({}); // itemId → bool
   const [aiLoading, setAiLoading]         = useState(null); // null | 'translate'|'reply'|'improve'
 
-  const [showPriceOffer, setShowPriceOffer] = useState(false);
   const [editingInteractionId, setEditingInteractionId] = useState(null);
   const [editInteractionBody, setEditInteractionBody]   = useState('');
 
@@ -1183,20 +1193,7 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, onAdded
           }`}>
           ✉️ שלח אימייל
         </button>
-        <button onClick={() => setShowPriceOffer(true)}
-          className="text-sm font-bold px-3 py-1.5 rounded-xl border-2 transition bg-white text-amber-600 border-amber-200 hover:border-amber-400 hover:bg-amber-50">
-          הצעת מחיר
-        </button>
       </div>
-
-      {showPriceOffer && (
-        <PriceOfferModal
-          lead={lead}
-          allEmails={allEmails}
-          onClose={() => setShowPriceOffer(false)}
-          onSaved={() => { setShowPriceOffer(false); onAdded(); }}
-        />
-      )}
 
       {/* Log interaction form */}
       {adding && ['call','meeting','note'].includes(adding) && (
