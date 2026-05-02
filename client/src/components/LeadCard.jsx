@@ -412,7 +412,7 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
 
             {/* Interactions */}
             <Section title={`פעילות${timeline.length ? ` (${timeline.length})` : ''}`}>
-              <TimelineSection leadId={leadId} timeline={timeline} allPhones={allPhones} allEmails={allEmails} onAdded={load} />
+              <TimelineSection leadId={leadId} lead={lead} timeline={timeline} allPhones={allPhones} allEmails={allEmails} onAdded={load} />
             </Section>
 
           </div>
@@ -659,8 +659,389 @@ function BodyWithFile({ body }) {
   );
 }
 
+/* ── PRICE OFFER MODAL ── */
+function EditableCell({ value, onChange, multiline, dir: cellDir }) {
+  const [editing, setEditing] = useState(false);
+  const commit = () => setEditing(false);
+  const style = { cursor: 'pointer', borderBottom: '1px dashed #94a3b8', padding: '1px 2px', display: 'inline' };
+  const inputStyle = { border: '1px solid #6366f1', borderRadius: 4, padding: '2px 6px', fontSize: 'inherit', fontFamily: 'inherit', width: '100%', direction: cellDir || 'rtl' };
+  if (editing) {
+    if (multiline) return <textarea autoFocus value={value} onChange={e => onChange(e.target.value)} onBlur={commit}
+      style={{ ...inputStyle, resize: 'none', minHeight: 40 }} rows={2} />;
+    return <input autoFocus value={value} onChange={e => onChange(e.target.value)}
+      onBlur={commit} onKeyDown={e => e.key === 'Enter' && commit()} style={inputStyle} />;
+  }
+  return <span onClick={() => setEditing(true)} style={style}>{value || '(ריק)'}</span>;
+}
+
+function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
+  const FIELD_STEPS = 9;
+  const FIELD_DEFS = [
+    { key: 'name',      label: 'לכבוד',                type: 'text' },
+    { key: 'email',     label: 'מייל',                  type: 'email' },
+    { key: 'phone',     label: 'טלפון',                 type: 'tel' },
+    { key: 'eventDate', label: 'תאריך האירוע',          type: 'text' },
+    { key: 'doorTime',  label: 'שעת פתיחת דלתות',       type: 'time' },
+    { key: 'endTime',   label: 'שעת סיום האירוע',        type: 'time' },
+    { key: 'guests',    label: 'מספר אורחים (מינימום)', type: 'number' },
+    { key: 'chefMenu',  label: 'תפריט שף',              type: 'text' },
+    { key: 'barMenu',   label: 'תפריט בר',              type: 'text' },
+  ];
+
+  const [step, setStep]       = useState(0);
+  const [editMode, setEditMode] = useState(false);
+  const [fields, setFields]   = useState({
+    name: lead.name || '', email: allEmails[0] || '', phone: lead.phone || '',
+    eventDate: lead.event_date_text || '', doorTime: lead.event_time || '',
+    endTime: lead.event_end_time || '', guests: '', chefMenu: '', barMenu: '', notes: '',
+  });
+  const [rows, setRows] = useState([
+    { id: 1, label: 'מחיר אורח', desc: 'כולל שכירות המקום, תפריט קייטרינג, תפריט בר', qty: 0, price: 395 },
+    { id: 2, label: 'שירות מלצרים', desc: '', qty: 1, price: 500 },
+    { id: 3, label: 'שירות ברמנים', desc: '', qty: 1, price: 550 },
+    { id: 4, label: 'מנהל אירוע / קייטרינג שירות', desc: '', qty: 1, price: 900 },
+    { id: 5, label: 'תאורה והגברה + תפעול לאורך האירוע', desc: '', qty: 1, price: 0 },
+  ]);
+  const [newRow, setNewRow]     = useState({ label: '', desc: '', qty: 1, price: 0 });
+  const [saving, setSaving]     = useState(false);
+  const [sending, setSending]   = useState(false);
+  const [showEmailForm, setShowEmailForm] = useState(false);
+  const [emailTo, setEmailTo]     = useState(allEmails[0] || '');
+  const [emailSubject, setEmailSubject] = useState(`הצעת מחיר - ${lead.name} - שרביה`);
+  const [emailBody, setEmailBody] = useState(`שלום ${lead.name},\nמצורפת הצעת המחיר שלנו לאירוע שלך.\nנשמח לראותכם, צוות שרביה.`);
+  const previewRef = useRef(null);
+
+  // Sync מחיר אורח qty with guests count
+  useEffect(() => {
+    const g = parseInt(fields.guests) || 0;
+    setRows(prev => prev.map(r => r.id === 1 ? { ...r, qty: g } : r));
+  }, [fields.guests]);
+
+  const addRowStep  = FIELD_STEPS + rows.length;
+  const previewStep = addRowStep + 1;
+  const isFieldStep  = step < FIELD_STEPS;
+  const isRowStep    = step >= FIELD_STEPS && step < addRowStep;
+  const isAddRowStep = step === addRowStep;
+  const isPreviewStep = step === previewStep;
+
+  const subtotal = rows.reduce((s, r) => s + r.qty * r.price, 0);
+  const vat      = Math.round(subtotal * 0.18);
+  const total    = subtotal + vat;
+
+  const advance = () => { setEditMode(false); setStep(s => s + 1); };
+  const back    = () => { setEditMode(false); setStep(s => Math.max(0, s - 1)); };
+
+  function deleteCurrentRow() {
+    const idx = step - FIELD_STEPS;
+    const next = rows.filter((_, i) => i !== idx);
+    setRows(next);
+    setEditMode(false);
+    if (idx >= next.length) setStep(FIELD_STEPS + next.length);
+  }
+
+  function addNewRow() {
+    if (!newRow.label.trim()) return;
+    const nextId = Math.max(0, ...rows.map(r => r.id)) + 1;
+    setRows(prev => [...prev, { ...newRow, id: nextId, qty: parseFloat(newRow.qty) || 0, price: parseFloat(newRow.price) || 0 }]);
+    setNewRow({ label: '', desc: '', qty: 1, price: 0 });
+    setStep(s => s + 1);
+  }
+
+  function updateRow(idx, patch) {
+    setRows(prev => prev.map((r, i) => i === idx ? { ...r, ...patch } : r));
+  }
+
+  async function generateBlob() {
+    document.activeElement?.blur();
+    await new Promise(r => setTimeout(r, 120));
+    const html2pdf = (await import('html2pdf.js')).default;
+    return html2pdf()
+      .set({ margin: 10, filename: `הצעת מחיר - ${fields.name}.pdf`,
+             html2canvas: { scale: 2, useCORS: true },
+             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } })
+      .from(previewRef.current)
+      .outputPdf('blob');
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const blob = await generateBlob();
+      const fd = new FormData();
+      fd.append('file', blob, `הצעת מחיר - ${fields.name}.pdf`);
+      await api.post(`/leads/${lead.id}/files`, fd);
+      onSaved(); onClose();
+    } catch { alert('שגיאה בשמירת הקובץ'); setSaving(false); }
+  }
+
+  async function handleSendWA() {
+    setSending(true);
+    try {
+      const blob = await generateBlob();
+      const fd1 = new FormData();
+      fd1.append('leadId', lead.id);
+      fd1.append('file', blob, `הצעת מחיר - ${fields.name}.pdf`);
+      fd1.append('message', 'הצעת המחיר שלנו עבור האירוע שלך');
+      await api.post('/whatsapp/send-file', fd1);
+      const fd2 = new FormData();
+      fd2.append('file', blob, `הצעת מחיר - ${fields.name}.pdf`);
+      await api.post(`/leads/${lead.id}/files`, fd2);
+      onSaved(); onClose();
+    } catch { alert('שגיאה בשליחה'); setSending(false); }
+  }
+
+  async function handleSendEmail() {
+    setSending(true);
+    try {
+      const blob = await generateBlob();
+      const fd = new FormData();
+      fd.append('to', emailTo);
+      fd.append('subject', emailSubject);
+      fd.append('body', emailBody);
+      fd.append('file', blob, `הצעת מחיר - ${fields.name}.pdf`);
+      await api.post(`/leads/${lead.id}/email/send`, fd);
+      onSaved(); onClose();
+    } catch { alert('שגיאה בשליחת אימייל'); setSending(false); }
+  }
+
+  const progressPct = isPreviewStep ? 100 : Math.round((step / previewStep) * 100);
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4" dir="rtl">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">✕</button>
+          <h2 className="font-bold text-lg text-slate-800">הצעת מחיר</h2>
+        </div>
+
+        {/* Progress bar */}
+        <div className="h-1 bg-slate-100 shrink-0">
+          <div className="h-1 bg-amber-400 transition-all duration-300" style={{ width: `${progressPct}%` }} />
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-5">
+
+          {/* ── Field step ── */}
+          {isFieldStep && (() => {
+            const def = FIELD_DEFS[step];
+            const val = fields[def.key];
+            const isLtr = def.type === 'email' || def.type === 'tel';
+            return (
+              <div className="space-y-5">
+                <p className="text-slate-400 text-sm font-semibold">{def.label}</p>
+                {editMode ? (
+                  <input autoFocus type={def.type} value={val}
+                    onChange={e => setFields(f => ({ ...f, [def.key]: e.target.value }))}
+                    onKeyDown={e => e.key === 'Enter' && advance()}
+                    className="w-full border-2 border-amber-300 rounded-xl px-4 py-3 text-lg focus:outline-none focus:border-amber-500"
+                    dir={isLtr ? 'ltr' : 'rtl'} />
+                ) : (
+                  <p className="text-2xl font-bold text-slate-800 py-1 min-h-[2.5rem]">{val || <span className="text-slate-300">(ריק)</span>}</p>
+                )}
+                <div className="flex gap-2 pt-1">
+                  {step > 0 && <button onClick={back} className="border-2 border-slate-200 text-slate-500 font-bold py-2.5 px-4 rounded-xl">חזור</button>}
+                  {!editMode && <button onClick={() => setEditMode(true)} className="border-2 border-amber-300 text-amber-600 font-bold py-2.5 px-4 rounded-xl hover:bg-amber-50">ערוך</button>}
+                  <button onClick={advance} className="flex-1 bg-amber-500 text-white font-bold py-2.5 rounded-xl">המשך</button>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ── Row step ── */}
+          {isRowStep && (() => {
+            const rowIdx = step - FIELD_STEPS;
+            const row = rows[rowIdx];
+            if (!row) return null;
+            return (
+              <div className="space-y-5">
+                <p className="text-slate-400 text-sm font-semibold">שורה בטבלת עלויות</p>
+                {editMode ? (
+                  <div className="space-y-2">
+                    <input value={row.label} onChange={e => updateRow(rowIdx, { label: e.target.value })}
+                      className="w-full border-2 border-amber-300 rounded-xl px-3 py-2 text-base focus:outline-none" placeholder="שם פריט" />
+                    <input value={row.desc} onChange={e => updateRow(rowIdx, { desc: e.target.value })}
+                      className="w-full border-2 border-amber-300 rounded-xl px-3 py-2 text-sm focus:outline-none text-slate-500" placeholder="תיאור (אופציונלי)" />
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <p className="text-xs text-slate-400 mb-1">כמות</p>
+                        <input type="number" value={row.qty} onChange={e => updateRow(rowIdx, { qty: parseFloat(e.target.value) || 0 })}
+                          className="w-full border-2 border-amber-300 rounded-xl px-3 py-2 text-base focus:outline-none" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs text-slate-400 mb-1">מחיר ש"ח</p>
+                        <input type="number" value={row.price} onChange={e => updateRow(rowIdx, { price: parseFloat(e.target.value) || 0 })}
+                          className="w-full border-2 border-amber-300 rounded-xl px-3 py-2 text-base focus:outline-none" />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <p className="text-xl font-bold text-slate-800">{row.label}</p>
+                    {row.desc && <p className="text-sm text-slate-500">{row.desc}</p>}
+                    <div className="flex flex-wrap gap-4 text-base text-slate-600 mt-2">
+                      <span>כמות: <strong>{row.qty}</strong></span>
+                      <span>מחיר: <strong>{row.price.toLocaleString()} ש"ח</strong></span>
+                      <span>סה"כ: <strong>{(row.qty * row.price).toLocaleString()} ש"ח</strong></span>
+                    </div>
+                  </div>
+                )}
+                <div className="flex gap-2 flex-wrap pt-1">
+                  <button onClick={back} className="border-2 border-slate-200 text-slate-500 font-bold py-2.5 px-4 rounded-xl">חזור</button>
+                  <button onClick={deleteCurrentRow} className="border-2 border-red-200 text-red-500 font-bold py-2.5 px-4 rounded-xl hover:bg-red-50">מחק שורה</button>
+                  {!editMode && <button onClick={() => setEditMode(true)} className="border-2 border-amber-300 text-amber-600 font-bold py-2.5 px-4 rounded-xl hover:bg-amber-50">ערוך</button>}
+                  <button onClick={advance} className="flex-1 bg-amber-500 text-white font-bold py-2.5 rounded-xl">המשך</button>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ── Add row step ── */}
+          {isAddRowStep && (
+            <div className="space-y-5">
+              <p className="text-slate-400 text-sm font-semibold">הוסף שורה לטבלת העלויות</p>
+              <div className="space-y-2">
+                <input value={newRow.label} onChange={e => setNewRow(r => ({ ...r, label: e.target.value }))}
+                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-amber-400" placeholder="שם פריט *" />
+                <input value={newRow.desc} onChange={e => setNewRow(r => ({ ...r, desc: e.target.value }))}
+                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-400 text-slate-600" placeholder="תיאור (אופציונלי)" />
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <p className="text-xs text-slate-400 mb-1">כמות</p>
+                    <input type="number" value={newRow.qty} onChange={e => setNewRow(r => ({ ...r, qty: parseFloat(e.target.value) || 0 }))}
+                      className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-amber-400" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs text-slate-400 mb-1">מחיר ש"ח</p>
+                    <input type="number" value={newRow.price} onChange={e => setNewRow(r => ({ ...r, price: parseFloat(e.target.value) || 0 }))}
+                      className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-amber-400" />
+                  </div>
+                </div>
+              </div>
+              <button onClick={addNewRow} disabled={!newRow.label.trim()}
+                className="w-full border-2 border-amber-300 text-amber-600 font-bold py-2.5 rounded-xl hover:bg-amber-50 disabled:opacity-40 disabled:cursor-not-allowed transition">
+                + הוסף שורה
+              </button>
+              <div className="flex gap-2">
+                <button onClick={back} className="border-2 border-slate-200 text-slate-500 font-bold py-2.5 px-4 rounded-xl">חזור</button>
+                <button onClick={advance} className="flex-1 bg-amber-500 text-white font-bold py-2.5 rounded-xl">המשך לתצוגה מקדימה</button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Preview step ── */}
+          {isPreviewStep && (
+            <div>
+              <p className="text-xs text-slate-400 text-center mb-3">לחץ על כל טקסט לעריכה</p>
+              <div ref={previewRef} dir="rtl" style={{ fontFamily: 'Arial, sans-serif', fontSize: '10pt', color: '#222', background: '#fff', padding: '12mm', lineHeight: 1.6 }}>
+                <h2 style={{ textAlign: 'center', fontSize: '15pt', fontWeight: 'bold', marginBottom: '12pt' }}>הצעת מחיר - אירוע בשרביה</h2>
+                <p><strong>לכבוד:</strong> <EditableCell value={fields.name} onChange={v => setFields(f => ({ ...f, name: v }))} /></p>
+                <p><strong>מייל:</strong> <EditableCell value={fields.email} onChange={v => setFields(f => ({ ...f, email: v }))} dir="ltr" /></p>
+                <p><strong>טלפון:</strong> <EditableCell value={fields.phone} onChange={v => setFields(f => ({ ...f, phone: v }))} dir="ltr" /></p>
+                <p><strong>תאריך האירוע:</strong> <EditableCell value={fields.eventDate} onChange={v => setFields(f => ({ ...f, eventDate: v }))} /></p>
+                <p><strong>שעת פתיחת דלתות:</strong> <EditableCell value={fields.doorTime} onChange={v => setFields(f => ({ ...f, doorTime: v }))} /></p>
+                <p><strong>שעת סיום האירוע:</strong> <EditableCell value={fields.endTime} onChange={v => setFields(f => ({ ...f, endTime: v }))} /></p>
+                <p style={{ marginTop: '8pt', fontSize: '9pt', color: '#555' }}>כניסה לאירוע: דרך רחוב פנחס בן יאיר 3, תל אביב יפו</p>
+
+                <h3 style={{ marginTop: '12pt', marginBottom: '4pt' }}>עלויות:</h3>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt' }}>
+                  <thead>
+                    <tr style={{ background: '#f5f5f5' }}>
+                      {['שם הפריט', 'תיאור', 'כמות', 'מחיר', 'סה"כ לפני מע"מ'].map(h => (
+                        <th key={h} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{h}</th>
+                      ))}
+                      <th style={{ border: '1px solid #ccc', padding: '4px 6px', width: 24 }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row, i) => (
+                      <tr key={row.id}>
+                        <td style={{ border: '1px solid #ccc', padding: '4px 6px' }}>
+                          <EditableCell value={row.label} onChange={v => updateRow(i, { label: v })} />
+                        </td>
+                        <td style={{ border: '1px solid #ccc', padding: '4px 6px', fontSize: '8pt', color: '#555' }}>
+                          <EditableCell value={row.desc} onChange={v => updateRow(i, { desc: v })} />
+                        </td>
+                        <td style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>
+                          <EditableCell value={String(row.qty)} onChange={v => updateRow(i, { qty: parseFloat(v) || 0 })} />
+                        </td>
+                        <td style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>
+                          <EditableCell value={String(row.price)} onChange={v => updateRow(i, { price: parseFloat(v) || 0 })} />
+                        </td>
+                        <td style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>
+                          {(row.qty * row.price).toLocaleString()} ש"ח
+                        </td>
+                        <td style={{ border: '1px solid #ccc', padding: '2px', textAlign: 'center' }}>
+                          <button onClick={() => setRows(prev => prev.filter((_, idx) => idx !== i))}
+                            style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '12px', background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px' }}>✕</button>
+                        </td>
+                      </tr>
+                    ))}
+                    <tr>
+                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>סה"כ חייב במע"מ:</td>
+                      <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center', fontWeight: 'bold' }}>{subtotal.toLocaleString()} ש"ח</td>
+                    </tr>
+                    <tr>
+                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right' }}>מע"מ (18%):</td>
+                      <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{vat.toLocaleString()} ש"ח</td>
+                    </tr>
+                    <tr style={{ fontWeight: 'bold' }}>
+                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right' }}>סה"כ לתשלום:</td>
+                      <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{total.toLocaleString()} ש"ח</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <p style={{ marginTop: '10pt' }}>הצעת מחיר זו הינה עבור קיום אירוע עם מינימום <EditableCell value={fields.guests} onChange={v => setFields(f => ({ ...f, guests: v }))} /> אישים</p>
+                <p>המחיר כולל בתוכו: שכירות האולם, צוות הקמה, צוות תפעול, תפריט שף <EditableCell value={fields.chefMenu} onChange={v => setFields(f => ({ ...f, chefMenu: v }))} />, תפריט בר <EditableCell value={fields.barMenu} onChange={v => setFields(f => ({ ...f, barMenu: v }))} />, אבטחה, צוות ניקיון, מקרן, במה, מיקרופון, עיצוב המקום</p>
+                {fields.notes && <p style={{ marginTop: '6pt' }}>הערות: <EditableCell value={fields.notes} onChange={v => setFields(f => ({ ...f, notes: v }))} multiline /></p>}
+                <p style={{ marginTop: '10pt', fontSize: '9pt', color: '#555' }}>תנאי תשלום: מקדמה 30% והיתרה לתשלום ביום האירוע לפני תחילת האירוע.</p>
+                <p style={{ fontSize: '9pt', color: '#555' }}>הצעה זו תקפה ל 3 ימים.</p>
+                <p style={{ marginTop: '6pt', fontWeight: 'bold' }}>נשמח לראותכם, צוות שרביה</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer — only on preview step */}
+        {isPreviewStep && (
+          <div className="border-t border-slate-100 p-4 space-y-2 shrink-0">
+            {showEmailForm ? (
+              <div className="space-y-2">
+                <input value={emailTo} onChange={e => setEmailTo(e.target.value)}
+                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400" placeholder="אימייל נמען" dir="ltr" />
+                <input value={emailSubject} onChange={e => setEmailSubject(e.target.value)}
+                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400" placeholder="נושא" />
+                <textarea value={emailBody} onChange={e => setEmailBody(e.target.value)} rows={3}
+                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400 resize-none" placeholder="גוף ההודעה" />
+                <div className="flex gap-2">
+                  <button onClick={() => setShowEmailForm(false)} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl">ביטול</button>
+                  <button onClick={handleSendEmail} disabled={sending || !emailTo.trim()}
+                    className="flex-1 bg-sky-600 text-white font-bold py-2 rounded-xl disabled:opacity-50">{sending ? '...' : 'שלח'}</button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-2 flex-wrap">
+                <button onClick={back} className="border-2 border-slate-200 text-slate-500 font-bold py-2 px-4 rounded-xl">חזור</button>
+                <button onClick={handleSave} disabled={saving}
+                  className="flex-1 bg-amber-500 text-white font-bold py-2 rounded-xl disabled:opacity-50">{saving ? '...' : 'שמור כ-PDF'}</button>
+                <button onClick={handleSendWA} disabled={sending || !lead.phone}
+                  className="flex-1 bg-green-600 text-white font-bold py-2 rounded-xl disabled:opacity-50">{sending ? '...' : 'שלח בוואטסאפ'}</button>
+                <button onClick={() => setShowEmailForm(true)} disabled={sending}
+                  className="flex-1 bg-sky-600 text-white font-bold py-2 rounded-xl disabled:opacity-50">שלח באימייל</button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ── TIMELINE SECTION ── */
-function TimelineSection({ leadId, timeline, allPhones, allEmails, onAdded }) {
+function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, onAdded }) {
   const phone = allPhones[0] || null;
   const email = allEmails[0] || null;
   const [adding, setAdding]     = useState(null); // 'call'|'meeting'|'note'|'wa_send'|'email_send'
@@ -680,6 +1061,7 @@ function TimelineSection({ leadId, timeline, allPhones, allEmails, onAdded }) {
   const [translating, setTranslating]     = useState({}); // itemId → bool
   const [aiLoading, setAiLoading]         = useState(null); // null | 'translate'|'reply'|'improve'
 
+  const [showPriceOffer, setShowPriceOffer] = useState(false);
   const [editingInteractionId, setEditingInteractionId] = useState(null);
   const [editInteractionBody, setEditInteractionBody]   = useState('');
 
@@ -801,7 +1183,20 @@ function TimelineSection({ leadId, timeline, allPhones, allEmails, onAdded }) {
           }`}>
           ✉️ שלח אימייל
         </button>
+        <button onClick={() => setShowPriceOffer(true)}
+          className="text-sm font-bold px-3 py-1.5 rounded-xl border-2 transition bg-white text-amber-600 border-amber-200 hover:border-amber-400 hover:bg-amber-50">
+          הצעת מחיר
+        </button>
       </div>
+
+      {showPriceOffer && (
+        <PriceOfferModal
+          lead={lead}
+          allEmails={allEmails}
+          onClose={() => setShowPriceOffer(false)}
+          onSaved={() => { setShowPriceOffer(false); onAdded(); }}
+        />
+      )}
 
       {/* Log interaction form */}
       {adding && ['call','meeting','note'].includes(adding) && (
