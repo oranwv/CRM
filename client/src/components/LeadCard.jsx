@@ -82,8 +82,8 @@ function parseTimeIL(str) {
 }
 function DateInput({ value, onChange, className }) {
   return (
-    <input type="text" value={value || ''} onChange={e => onChange(e.target.value)}
-      placeholder="DD/MM/YYYY" className={className} dir="ltr" />
+    <input type="date" value={value || ''} onChange={e => onChange(e.target.value)}
+      className={className} dir="ltr" />
   );
 }
 function TimeInput({ value, onChange, className }) {
@@ -1390,6 +1390,7 @@ function CalendarSection({ lead, leadId, editForm, calStatus, onUpdated }) {
       )}
       {showMeetingAction && (
         <MeetingActionModal
+          lead={lead}
           leadId={leadId}
           eventId={lead.meeting_event_id}
           meeting={meeting}
@@ -1747,12 +1748,13 @@ function AiButtons({ onAction, aiLoading, hasBody }) {
 }
 
 /* ── MEETING ACTION MODAL (cancel / postpone) ── */
-function MeetingActionModal({ leadId, eventId, meeting, onClose, onUpdated }) {
+function MeetingActionModal({ lead, leadId, eventId, meeting, onClose, onUpdated }) {
   const [step, setStep] = useState(1); // 1=choose, 2=cancel, 3=postpone
   const [reason, setReason] = useState('');
   const [date, setDate] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
+  const [delivery, setDelivery] = useState(lead?.phone ? 'whatsapp' : 'email');
   const [saving, setSaving] = useState(false);
   const cls = 'w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-violet-400 bg-white';
 
@@ -1782,6 +1784,18 @@ function MeetingActionModal({ leadId, eventId, meeting, onClose, onUpdated }) {
     setSaving(true);
     try {
       await api.patch(`/calendar/meetings/${eventId}/reschedule`, { date, startTime, endTime, reason });
+
+      const icsUrl = `${window.location.origin}/api/calendar/meetings/${eventId}/ics`;
+      if (delivery === 'whatsapp') {
+        await api.post('/whatsapp/send', {
+          leadId,
+          message: `שלום! הפגישה שלך נדחתה. הנה הקישור המעודכן:\n${icsUrl}`,
+        });
+        if (lead?.email) await api.post(`/calendar/meetings/${eventId}/notify`);
+      } else {
+        await api.post(`/calendar/meetings/${eventId}/notify`);
+      }
+
       await onUpdated();
     } catch { alert('שגיאה בדחיית הפגישה'); }
     setSaving(false);
@@ -1851,11 +1865,31 @@ function MeetingActionModal({ leadId, eventId, meeting, onClose, onUpdated }) {
                 <TimeInput value={endTime} onChange={setEndTime} className={cls} />
               </div>
             </div>
+            <div>
+              <label className="text-sm text-slate-500 block mb-1">שלח עדכון דרך</label>
+              <div className="flex gap-2">
+                {lead?.phone && (
+                  <button onClick={() => setDelivery('whatsapp')}
+                    className={`flex-1 text-sm font-bold py-2 rounded-xl border-2 transition ${delivery === 'whatsapp' ? 'bg-green-600 text-white border-green-600' : 'border-slate-200 text-slate-600 hover:border-green-300'}`}>
+                    וואטסאפ
+                  </button>
+                )}
+                {lead?.email && (
+                  <button onClick={() => setDelivery('email')}
+                    className={`flex-1 text-sm font-bold py-2 rounded-xl border-2 transition ${delivery === 'email' ? 'bg-sky-600 text-white border-sky-600' : 'border-slate-200 text-slate-600 hover:border-sky-300'}`}>
+                    אימייל
+                  </button>
+                )}
+                {!lead?.phone && !lead?.email && (
+                  <p className="text-sm text-red-400">אין מספר טלפון או אימייל</p>
+                )}
+              </div>
+            </div>
             <div className="flex gap-2 pt-1">
               <button onClick={() => setStep(1)} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl">חזור</button>
               <button onClick={confirmPostpone} disabled={saving || !date || !startTime || !endTime}
                 className="flex-1 bg-amber-500 text-white font-bold py-2 rounded-xl disabled:opacity-50">
-                {saving ? '...' : 'דחה פגישה'}
+                {saving ? '...' : 'דחה ושלח'}
               </button>
             </div>
           </>
