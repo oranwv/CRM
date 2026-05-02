@@ -674,7 +674,7 @@ function BodyWithFile({ body }) {
 function EditableCell({ value, onChange, multiline, dir: cellDir }) {
   const [editing, setEditing] = useState(false);
   const commit = () => setEditing(false);
-  const style = { cursor: 'pointer', borderBottom: '1px dashed #94a3b8', padding: '1px 2px', display: 'inline' };
+  const style = { cursor: 'pointer', padding: '1px 2px', display: 'inline' };
   const inputStyle = { border: '1px solid #6366f1', borderRadius: 4, padding: '2px 6px', fontSize: 'inherit', fontFamily: 'inherit', width: '100%', direction: cellDir || 'rtl' };
   if (editing) {
     if (multiline) return <textarea autoFocus value={value} onChange={e => onChange(e.target.value)} onBlur={commit}
@@ -685,10 +685,9 @@ function EditableCell({ value, onChange, multiline, dir: cellDir }) {
   return <span onClick={() => setEditing(true)} style={style}>{value ? value.replace(/ /g, ' ') : ' '}</span>;
 }
 
-const nbsp = str => str.replace(/ /g, ' ');
 
 function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
-  const FIELD_STEPS = 9;
+  const FIELD_STEPS = 10;
   const FIELD_DEFS = [
     { key: 'name',      label: 'לכבוד',                type: 'text' },
     { key: 'email',     label: 'מייל',                  type: 'email' },
@@ -699,6 +698,7 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
     { key: 'guests',    label: 'מספר אורחים (מינימום)', type: 'number' },
     { key: 'chefMenu',  label: 'תפריט שף',              type: 'text' },
     { key: 'barMenu',   label: 'תפריט בר',              type: 'text' },
+    { key: 'notes',    label: 'הערות',               type: 'textarea' },
   ];
 
   const [step, setStep]       = useState(0);
@@ -723,6 +723,42 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
   const [emailSubject, setEmailSubject] = useState(`הצעת מחיר - ${lead.name} - שרביה`);
   const [emailBody, setEmailBody] = useState(`שלום ${lead.name},\nמצורפת הצעת המחיר שלנו לאירוע שלך.\nנשמח לראותכם, צוות שרביה.`);
   const previewRef = useRef(null);
+  const [texts, setTexts] = useState({
+    title:          'הצעת מחיר - אירוע בשרביה',
+    arrival:        'כניסה לאירוע: דרך רחוב פנחס בן יאיר 3, תל אביב יפו',
+    costsHeader:    'עלויות:',
+    tableHeaders:   ['שם הפריט', 'תיאור', 'כמות', 'מחיר', 'סה"כ לפני מע"מ'],
+    includesHeader: 'המחיר כולל בתוכו:',
+    includes: [
+      'שכירות האולם',
+      'צוות הקמה',
+      'צוות תפעול',
+      'תפריט שף',
+      'תפריט בר',
+      'אבטחה',
+      'צוות נקיון',
+      'מקרן להקרנה על מסך (לא כולל מחשב וכבל HDMI)',
+      'במה והקמת עמדת די גיי',
+      'מיקרופון',
+      'עיצוב המקום - שולחנות אבירים עם מפות לבנות, כדי נוי דקורטיבים, פינות ישיבה אלטרנטיבות כולל ספות, שולחנות בר גבוהים, שולחנות נמוכים, חביות יין עתיקות, שטיחים מפוארים',
+    ],
+    extrasHeader:    'תוספות (אופציונלי):',
+    extras: [
+      'דיג׳יי: 5,500 ש"ח לא כולל מע"מ',
+      'צלם סטילס + היילייטס: 5,500 ש"ח לא כולל מע"מ',
+      'בר קוקטיילים של האלכימאי (לשעתיים בקבלת פנים): 4,500 ש"ח לא כולל מע"מ',
+      'חניות: 40 ש"ח לרכב (יש הסדר חניה עם חניון "חצרות יפו". שעת סגירת החניון ב- 24:00. במידה והאירוע התארך לאחר השעה 24:00, על בעל האירוע לשלם 100 שקלים על כל שעה נוספת לשומר החניון)',
+    ],
+    minGuestsPrefix: 'הצעת מחיר זו הינה עבור קיום אירוע עם מינימום',
+    minGuestsSuffix: 'אישים',
+    payment:  'תנאי תשלום: מקדמה 30% והיתרה לתשלום ביום האירוע לפני תחילת האירוע.',
+    validity: 'הצעה זו תקפה ל 3 ימים.',
+    closing:  'נשמח לראותכם, צוות שרביה',
+  });
+  const setTxt = (k, v) => setTexts(t => ({ ...t, [k]: v }));
+  const setInc = (i, v) => setTexts(t => ({ ...t, includes: t.includes.map((x, j) => j === i ? v : x) }));
+  const setExt = (i, v) => setTexts(t => ({ ...t, extras: t.extras.map((x, j) => j === i ? v : x) }));
+  const setTh  = (i, v) => setTexts(t => ({ ...t, tableHeaders: t.tableHeaders.map((x, j) => j === i ? v : x) }));
 
   // Sync מחיר אורח qty with guests count
   useEffect(() => {
@@ -853,11 +889,18 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
               <div className="space-y-5">
                 <p className="text-slate-400 text-sm font-semibold">{def.label}</p>
                 {editMode ? (
+                  def.type === 'textarea' ? (
+                    <textarea autoFocus value={val}
+                      onChange={e => setFields(f => ({ ...f, [def.key]: e.target.value }))}
+                      rows={4} dir="rtl"
+                      className="w-full border-2 border-amber-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-amber-500 resize-none" />
+                  ) : (
                   <input autoFocus type={def.type} value={val}
                     onChange={e => setFields(f => ({ ...f, [def.key]: e.target.value }))}
                     onKeyDown={e => e.key === 'Enter' && advance()}
                     className="w-full border-2 border-amber-300 rounded-xl px-4 py-3 text-lg focus:outline-none focus:border-amber-500"
                     dir={isLtr ? 'ltr' : 'rtl'} />
+                  )
                 ) : (
                   <p className="text-2xl font-bold text-slate-800 py-1 min-h-[2.5rem]">{val || <span className="text-slate-300">(ריק)</span>}</p>
                 )}
@@ -962,7 +1005,9 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                   <img src="/logo.jpg" alt="Sharabiya" crossOrigin="anonymous" style={{ height: '80px', objectFit: 'contain', display: 'inline-block' }} />
                 </div>
 
-                <h2 style={{ textAlign: 'center', fontSize: '15pt', fontWeight: 'bold', marginBottom: '12pt' }}>{nbsp('הצעת מחיר - אירוע בשרביה')}</h2>
+                <h2 style={{ textAlign: 'center', fontSize: '15pt', fontWeight: 'bold', marginBottom: '12pt', direction: 'rtl', unicodeBidi: 'embed' }}>
+                  <EditableCell value={texts.title} onChange={v => setTxt('title', v)} />
+                </h2>
 
                 {/* Header fields — table keeps label:value correct in RTL */}
                 <table style={{ marginBottom: '8pt', borderCollapse: 'collapse' }}>
@@ -987,14 +1032,20 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                   </tbody>
                 </table>
 
-                <p style={{ marginTop: '8pt', fontSize: '9pt', color: '#555' }}>כניסה לאירוע: דרך רחוב פנחס בן יאיר 3, תל אביב יפו</p>
+                <p style={{ marginTop: '8pt', fontSize: '9pt', color: '#555' }}>
+                  <EditableCell value={texts.arrival} onChange={v => setTxt('arrival', v)} />
+                </p>
 
-                <h3 style={{ marginTop: '12pt', marginBottom: '4pt' }}>עלויות:</h3>
+                <h3 style={{ marginTop: '12pt', marginBottom: '4pt' }}>
+                  <EditableCell value={texts.costsHeader} onChange={v => setTxt('costsHeader', v)} />
+                </h3>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt' }}>
                   <thead>
                     <tr style={{ background: '#f5f5f5' }}>
-                      {['שם הפריט', 'תיאור', 'כמות', 'מחיר', 'סה"כ לפני מע"מ'].map(h => (
-                        <th key={h} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{h}</th>
+                      {texts.tableHeaders.map((h, i) => (
+                        <th key={i} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>
+                          <EditableCell value={h} onChange={v => setTh(i, v)} />
+                        </th>
                       ))}
                       <th data-html2canvas-ignore="true" style={{ border: '1px solid #ccc', padding: '4px 6px', width: 24 }} />
                     </tr>
@@ -1012,7 +1063,7 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                           <EditableCell value={String(row.qty)} onChange={v => updateRow(i, { qty: parseFloat(v) || 0 })} />
                         </td>
                         <td style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>
-                          <EditableCell value={String(row.price)} onChange={v => updateRow(i, { price: parseFloat(v) || 0 })} />
+                          <EditableCell value={String(row.price)} onChange={v => updateRow(i, { price: parseFloat(v) || 0 })} />{' ש"ח'}
                         </td>
                         <td style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>
                           {(row.qty * row.price).toLocaleString()} {'ש"ח'}
@@ -1024,15 +1075,15 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                       </tr>
                     ))}
                     <tr>
-                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>{'סה"כ חייב במע"מ:'}</td>
+                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold', direction: 'rtl', unicodeBidi: 'embed' }}>{'סה"כ חייב במע"מ:'}</td>
                       <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center', fontWeight: 'bold' }}>{subtotal.toLocaleString()} {'ש"ח'}</td>
                     </tr>
                     <tr>
-                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right' }}>{'מע"מ (18%):'}</td>
+                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right', direction: 'rtl', unicodeBidi: 'embed' }}>{'מע"מ‏ (18%)‏:'}</td>
                       <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{vat.toLocaleString()} {'ש"ח'}</td>
                     </tr>
                     <tr style={{ fontWeight: 'bold' }}>
-                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right' }}>{'סה"כ לתשלום:'}</td>
+                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right', direction: 'rtl', unicodeBidi: 'embed' }}>{'סה"כ לתשלום:'}</td>
                       <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{total.toLocaleString()} {'ש"ח'}</td>
                     </tr>
                   </tbody>
@@ -1040,34 +1091,41 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
 
                 {/* Minimum guests */}
                 <p style={{ marginTop: '10pt' }}>
-                  {'הצעת מחיר זו הינה עבור קיום אירוע עם מינימום '}
+                  <EditableCell value={texts.minGuestsPrefix} onChange={v => setTxt('minGuestsPrefix', v)} />
+                  {' '}
                   <EditableCell value={fields.guests} onChange={v => setFields(f => ({ ...f, guests: v }))} />
-                  {' אישים'}
+                  {' '}
+                  <EditableCell value={texts.minGuestsSuffix} onChange={v => setTxt('minGuestsSuffix', v)} />
                 </p>
 
                 {/* Included items */}
-                <p style={{ marginTop: '8pt', marginBottom: '2pt', fontWeight: 'bold' }}>המחיר כולל בתוכו:</p>
+                <p style={{ marginTop: '8pt', marginBottom: '2pt', fontWeight: 'bold' }}>
+                  <EditableCell value={texts.includesHeader} onChange={v => setTxt('includesHeader', v)} />
+                </p>
                 <div style={{ lineHeight: 2 }}>
-                  <div>שכירות האולם</div>
-                  <div>צוות הקמה</div>
-                  <div>צוות תפעול</div>
-                  <div>{'תפריט שף '}<EditableCell value={fields.chefMenu} onChange={v => setFields(f => ({ ...f, chefMenu: v }))} /></div>
-                  <div>{'תפריט בר '}<EditableCell value={fields.barMenu} onChange={v => setFields(f => ({ ...f, barMenu: v }))} /></div>
-                  <div>אבטחה</div>
-                  <div>צוות נקיון</div>
-                  <div>{'מקרן להקרנה על מסך (לא כולל מחשב וכבל HDMI)'}</div>
-                  <div>במה והקמת עמדת די גיי</div>
-                  <div>מיקרופון</div>
-                  <div>{'עיצוב המקום - שולחנות אבירים עם מפות לבנות, כדי נוי דקורטיבים, פינות ישיבה אלטרנטיביות כולל ספות, שולחנות בר גבוהים, שולחנות נמוכים, חביות יין עתיקות, שטיחים מפוארים'}</div>
+                  {texts.includes.map((item, i) => (
+                    <div key={i} style={{ direction: 'rtl' }}>
+                      {i === 3 ? (
+                        <><EditableCell value={item} onChange={v => setInc(i, v)} />{' '}<EditableCell value={fields.chefMenu} onChange={v => setFields(f => ({ ...f, chefMenu: v }))} /></>
+                      ) : i === 4 ? (
+                        <><EditableCell value={item} onChange={v => setInc(i, v)} />{' '}<EditableCell value={fields.barMenu} onChange={v => setFields(f => ({ ...f, barMenu: v }))} /></>
+                      ) : (
+                        <EditableCell value={item} onChange={v => setInc(i, v)} multiline={i === 10} />
+                      )}
+                    </div>
+                  ))}
                 </div>
 
                 {/* Optional extras */}
-                <p style={{ marginTop: '10pt', fontWeight: 'bold' }}>תוספות (אופציונלי):</p>
+                <p style={{ marginTop: '10pt', fontWeight: 'bold' }}>
+                  <EditableCell value={texts.extrasHeader} onChange={v => setTxt('extrasHeader', v)} />
+                </p>
                 <div style={{ lineHeight: 2 }}>
-                  <div>{'דיג׳יי: 5,500 ש"ח לא כולל מע"מ'}</div>
-                  <div>{'צלם סטילס + היילייטס: 5,500 ש"ח לא כולל מע"מ'}</div>
-                  <div>{'בר קוקטיילים של האלכימאי (לשעתיים בקבלת פנים): 4,500 ש"ח לא כולל מע"מ'}</div>
-                  <div>{'חניות: 40 ש"ח לרכב (יש הסדר חניה עם חניון "חצרות יפו". שעת סגירת החניון ב- 24:00. במידה והאירוע התארך לאחר השעה 24:00, על בעל האירוע לשלם 100 שקלים על כל שעה נוספת לשומר החניון)'}</div>
+                  {texts.extras.map((item, i) => (
+                    <div key={i} style={{ direction: 'rtl' }}>
+                      <EditableCell value={item} onChange={v => setExt(i, v)} multiline />
+                    </div>
+                  ))}
                 </div>
 
                 {fields.notes && (
@@ -1076,9 +1134,15 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                   </p>
                 )}
 
-                <p style={{ marginTop: '10pt', fontSize: '9pt', color: '#555' }}>תנאי תשלום: מקדמה 30% והיתרה לתשלום ביום האירוע לפני תחילת האירוע.</p>
-                <p style={{ fontSize: '9pt', color: '#555' }}>הצעה זו תקפה ל 3 ימים.</p>
-                <p style={{ marginTop: '6pt', fontWeight: 'bold' }}>נשמח לראותכם, צוות שרביה</p>
+                <p style={{ marginTop: '10pt', fontSize: '9pt', color: '#555' }}>
+                  <EditableCell value={texts.payment} onChange={v => setTxt('payment', v)} multiline />
+                </p>
+                <p style={{ fontSize: '9pt', color: '#555' }}>
+                  <EditableCell value={texts.validity} onChange={v => setTxt('validity', v)} />
+                </p>
+                <p style={{ marginTop: '6pt', fontWeight: 'bold' }}>
+                  <EditableCell value={texts.closing} onChange={v => setTxt('closing', v)} />
+                </p>
               </div>
             </div>
           )}
