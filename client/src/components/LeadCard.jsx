@@ -363,7 +363,7 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
             </Section>
 
             {/* Calendar */}
-            <CalendarSection leadId={leadId} editForm={editForm} calStatus={calStatus} onUpdated={load} />
+            <CalendarSection lead={lead} leadId={leadId} editForm={editForm} calStatus={calStatus} onUpdated={load} />
 
             {/* Details */}
             <Section title="פרטי ליד"
@@ -1275,11 +1275,27 @@ function ProductionSection({ leadId, lead, onUpdated }) {
   );
 }
 
-function CalendarSection({ leadId, editForm, calStatus, onUpdated }) {
+function formatMeetingDateTime(isoStr) {
+  const dt = new Date(isoStr);
+  const date = dt.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Jerusalem' });
+  const time = dt.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem', hour12: false });
+  return `${date} ${time}`;
+}
+
+function CalendarSection({ lead, leadId, editForm, calStatus, onUpdated }) {
   const [marking, setMarking] = useState(false);
   const [syncWarning, setSyncWarning] = useState(false);
   const [syncError, setSyncError] = useState('');
   const [pendingMark, setPendingMark] = useState(null);
+  const [meeting, setMeeting] = useState(null);
+  const [showMeetingAction, setShowMeetingAction] = useState(false);
+
+  useEffect(() => {
+    if (!lead?.meeting_event_id) { setMeeting(null); return; }
+    api.get(`/calendar/meetings/${lead.meeting_event_id}/details`)
+      .then(r => setMeeting(r.data))
+      .catch(() => setMeeting(null));
+  }, [lead?.meeting_event_id]);
 
   function handleMarkClick(type) {
     const dateStr = editForm?.event_date_text || '';
@@ -1353,10 +1369,33 @@ function CalendarSection({ leadId, editForm, calStatus, onUpdated }) {
           )}
         </div>
       </div>
+      {lead?.meeting_event_id && (
+        <div className="mt-3 bg-violet-50 border border-violet-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+          <div className="text-sm text-right">
+            <span className="font-bold text-violet-700">נקבעה פגישה ל-</span>
+            <span className="text-slate-700 font-semibold">
+              {meeting ? formatMeetingDateTime(meeting.start_time) : '...'}
+            </span>
+          </div>
+          <button onClick={() => setShowMeetingAction(true)}
+            className="text-sm font-bold px-3 py-1.5 rounded-xl border-2 border-red-200 text-red-600 hover:bg-red-50 transition whitespace-nowrap">
+            בטל\דחה פגישה
+          </button>
+        </div>
+      )}
       {syncWarning && (
         <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 mt-2">
           הסטטוס עודכן ב-CRM, אך הסנכרון ל-Google Calendar נכשל{syncError ? `: ${syncError}` : ''}
         </p>
+      )}
+      {showMeetingAction && (
+        <MeetingActionModal
+          leadId={leadId}
+          eventId={lead.meeting_event_id}
+          meeting={meeting}
+          onClose={() => setShowMeetingAction(false)}
+          onUpdated={async () => { setShowMeetingAction(false); await onUpdated(); }}
+        />
       )}
       {pendingMark && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={() => setPendingMark(null)}>
@@ -1703,6 +1742,126 @@ function AiButtons({ onAction, aiLoading, hasBody }) {
           {aiLoading === btn.key ? '...' : btn.label}
         </button>
       ))}
+    </div>
+  );
+}
+
+/* ── MEETING ACTION MODAL (cancel / postpone) ── */
+function MeetingActionModal({ leadId, eventId, meeting, onClose, onUpdated }) {
+  const [step, setStep] = useState(1); // 1=choose, 2=cancel, 3=postpone
+  const [reason, setReason] = useState('');
+  const [date, setDate] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [saving, setSaving] = useState(false);
+  const cls = 'w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-violet-400 bg-white';
+
+  useEffect(() => {
+    if (meeting?.start_time) {
+      const dt = new Date(meeting.start_time);
+      setDate(dt.toLocaleDateString('sv', { timeZone: 'Asia/Jerusalem' }));
+      setStartTime(dt.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem', hour12: false }));
+    }
+    if (meeting?.end_time) {
+      const dt = new Date(meeting.end_time);
+      setEndTime(dt.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem', hour12: false }));
+    }
+  }, [meeting]);
+
+  async function confirmCancel() {
+    setSaving(true);
+    try {
+      await api.delete(`/calendar/meetings/${eventId}`, { data: { reason } });
+      await onUpdated();
+    } catch { alert('שגיאה בביטול הפגישה'); }
+    setSaving(false);
+  }
+
+  async function confirmPostpone() {
+    if (!date || !startTime || !endTime) return;
+    setSaving(true);
+    try {
+      await api.patch(`/calendar/meetings/${eventId}/reschedule`, { date, startTime, endTime, reason });
+      await onUpdated();
+    } catch { alert('שגיאה בדחיית הפגישה'); }
+    setSaving(false);
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl p-5 w-[22rem] mx-4 space-y-3 text-right" onClick={e => e.stopPropagation()}>
+
+        {step === 1 && (
+          <>
+            <h3 className="font-black text-slate-800 text-lg">מה ברצונך לעשות?</h3>
+            {meeting && (
+              <p className="text-sm text-slate-500">פגישה: {formatMeetingDateTime(meeting.start_time)}</p>
+            )}
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setStep(3)}
+                className="flex-1 border-2 border-amber-300 text-amber-700 font-bold py-2 rounded-xl hover:bg-amber-50 transition">
+                דחה פגישה
+              </button>
+              <button onClick={() => setStep(2)}
+                className="flex-1 border-2 border-red-300 text-red-600 font-bold py-2 rounded-xl hover:bg-red-50 transition">
+                בטל פגישה
+              </button>
+            </div>
+            <button onClick={onClose} className="w-full text-sm text-slate-400 hover:text-slate-600 transition">חזור</button>
+          </>
+        )}
+
+        {step === 2 && (
+          <>
+            <h3 className="font-black text-slate-800 text-lg">ביטול פגישה</h3>
+            <div>
+              <label className="text-sm text-slate-500 block mb-1">הכנס את סיבת הביטול</label>
+              <textarea value={reason} onChange={e => setReason(e.target.value)} rows={3}
+                className={cls} placeholder="סיבת הביטול..." />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setStep(1)} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl">חזור</button>
+              <button onClick={confirmCancel} disabled={saving}
+                className="flex-1 bg-red-600 text-white font-bold py-2 rounded-xl disabled:opacity-50">
+                {saving ? '...' : 'בטל פגישה'}
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === 3 && (
+          <>
+            <h3 className="font-black text-slate-800 text-lg">דחיית פגישה</h3>
+            <div>
+              <label className="text-sm text-slate-500 block mb-1">סיבת הדחייה</label>
+              <textarea value={reason} onChange={e => setReason(e.target.value)} rows={2}
+                className={cls} placeholder="סיבת הדחייה..." />
+            </div>
+            <div>
+              <label className="text-sm text-slate-500 block mb-1">תאריך חדש</label>
+              <DateInput value={date} onChange={setDate} className={cls} />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-sm text-slate-500 block mb-1">שעת התחלה</label>
+                <TimeInput value={startTime} onChange={setStartTime} className={cls} />
+              </div>
+              <div>
+                <label className="text-sm text-slate-500 block mb-1">שעת סיום</label>
+                <TimeInput value={endTime} onChange={setEndTime} className={cls} />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setStep(1)} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl">חזור</button>
+              <button onClick={confirmPostpone} disabled={saving || !date || !startTime || !endTime}
+                className="flex-1 bg-amber-500 text-white font-bold py-2 rounded-xl disabled:opacity-50">
+                {saving ? '...' : 'דחה פגישה'}
+              </button>
+            </div>
+          </>
+        )}
+
+      </div>
     </div>
   );
 }

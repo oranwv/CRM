@@ -2,7 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const crypto  = require('crypto');
 const axios   = require('axios');
-const { markEventDate, getLeadCalendarStatus, syncLeadToCalendar, createMeeting, sendMeetingInvite, getMeetingRsvpStatus, patchEventDescription } = require('../services/calendarService');
+const { markEventDate, getLeadCalendarStatus, syncLeadToCalendar, createMeeting, sendMeetingInvite, getMeetingRsvpStatus, patchEventDescription, deleteMeeting, updateMeetingTime } = require('../services/calendarService');
 const pool = require('../db/pool');
 
 // GET /api/calendar/leads — all leads with event dates (for calendar view)
@@ -80,6 +80,17 @@ router.post('/leads/:leadId/meeting', async (req, res) => {
       `INSERT INTO meetings (lead_id, google_event_id, title, start_time, end_time, confirm_token)
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [lead.id, eventId, title, start, end, confirmToken]
+    );
+
+    const startDt = new Date(start);
+    const endDt   = new Date(end);
+    const fmtDate = startDt.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Jerusalem' });
+    const fmtStart = startDt.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem', hour12: false });
+    const fmtEnd   = endDt.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem', hour12: false });
+    await pool.query(
+      `INSERT INTO lead_interactions (lead_id, type, direction, body, created_by)
+       VALUES ($1, 'meeting', 'outbound', $2, $3)`,
+      [lead.id, `📅 פגישה נקבעה: ${title} | ${fmtDate} ${fmtStart}–${fmtEnd}`, req.user?.id || null]
     );
 
     const baseUrl = process.env.SERVER_URL || 'http://localhost:3001';
@@ -218,6 +229,102 @@ router.get('/meetings/:eventId/status', async (req, res) => {
     res.json({ status });
   } catch (err) {
     console.error('[Calendar] getMeetingRsvpStatus error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/calendar/meetings/:eventId/details — fetch meeting details
+router.get('/meetings/:eventId/details', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM meetings WHERE google_event_id = $1',
+      [req.params.eventId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Meeting not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/calendar/meetings/:eventId — cancel a meeting
+router.delete('/meetings/:eventId', async (req, res) => {
+  const { reason } = req.body;
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM meetings WHERE google_event_id = $1',
+      [req.params.eventId]
+    );
+    const meeting = rows[0];
+    if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
+
+    try { await deleteMeeting(req.params.eventId); } catch (e) {
+      console.error('[Calendar] deleteMeeting GCal error:', e.message);
+    }
+
+    await pool.query(
+      `UPDATE leads SET meeting_event_id = NULL, meeting_rsvp_status = NULL, updated_at = NOW()
+       WHERE meeting_event_id = $1`,
+      [req.params.eventId]
+    );
+    await pool.query('DELETE FROM meetings WHERE google_event_id = $1', [req.params.eventId]);
+
+    const startDt  = new Date(meeting.start_time);
+    const fmtDate  = startDt.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Jerusalem' });
+    const fmtTime  = startDt.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem', hour12: false });
+    const body     = `❌ פגישה בוטלה | תאריך שהיה: ${fmtDate} ${fmtTime}${reason ? ` | סיבה: ${reason}` : ''}`;
+    await pool.query(
+      `INSERT INTO lead_interactions (lead_id, type, direction, body, created_by)
+       VALUES ($1, 'note', 'outbound', $2, $3)`,
+      [meeting.lead_id, body, req.user?.id || null]
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[Calendar] cancelMeeting error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/calendar/meetings/:eventId/reschedule — postpone a meeting
+router.patch('/meetings/:eventId/reschedule', async (req, res) => {
+  const { date, startTime, endTime, reason } = req.body;
+  if (!date || !startTime || !endTime) return res.status(400).json({ error: 'date, startTime and endTime required' });
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM meetings WHERE google_event_id = $1',
+      [req.params.eventId]
+    );
+    const meeting = rows[0];
+    if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
+
+    const newStart = new Date(`${date}T${startTime}`).toISOString();
+    const newEnd   = new Date(`${date}T${endTime}`).toISOString();
+
+    try { await updateMeetingTime(req.params.eventId, newStart, newEnd); } catch (e) {
+      console.error('[Calendar] updateMeetingTime GCal error:', e.message);
+    }
+
+    await pool.query(
+      'UPDATE meetings SET start_time = $1, end_time = $2 WHERE google_event_id = $3',
+      [newStart, newEnd, req.params.eventId]
+    );
+
+    const startDt  = new Date(newStart);
+    const fmtDate  = startDt.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Jerusalem' });
+    const fmtStart = startDt.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem', hour12: false });
+    const endDt2   = new Date(newEnd);
+    const fmtEnd   = endDt2.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem', hour12: false });
+    const body     = `🔄 פגישה נדחתה | תאריך חדש: ${fmtDate} ${fmtStart}–${fmtEnd}${reason ? ` | סיבה: ${reason}` : ''}`;
+    await pool.query(
+      `INSERT INTO lead_interactions (lead_id, type, direction, body, created_by)
+       VALUES ($1, 'note', 'outbound', $2, $3)`,
+      [meeting.lead_id, body, req.user?.id || null]
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[Calendar] rescheduleMeeting error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

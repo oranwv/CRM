@@ -201,4 +201,23 @@ async function patchEventDescription(eventId, prependText) {
   });
 }
 
-module.exports = { syncLeadToCalendar, markEventDate, getLeadCalendarStatus, createMeeting, sendMeetingInvite, getMeetingRsvpStatus, patchEventDescription };
+async function deleteMeeting(googleEventId) {
+  const auth     = getAuth();
+  const calendar = google.calendar({ version: 'v3', auth });
+  await calendar.events.delete({ calendarId: 'primary', eventId: googleEventId });
+}
+
+async function updateMeetingTime(googleEventId, start, end) {
+  const auth     = getAuth();
+  const calendar = google.calendar({ version: 'v3', auth });
+  await calendar.events.patch({
+    calendarId: 'primary',
+    eventId: googleEventId,
+    requestBody: {
+      start: { dateTime: start, timeZone: 'Asia/Jerusalem' },
+      end:   { dateTime: end,   timeZone: 'Asia/Jerusalem' },
+    },
+  });
+}
+
+module.exports = { syncLeadToCalendar, markEventDate, getLeadCalendarStatus, createMeeting, sendMeetingInvite, getMeetingRsvpStatus, patchEventDescription, deleteMeeting, updateMeetingTime };
