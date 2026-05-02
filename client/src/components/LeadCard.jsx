@@ -682,7 +682,7 @@ function EditableCell({ value, onChange, multiline, dir: cellDir }) {
     return <input autoFocus value={value} onChange={e => onChange(e.target.value)}
       onBlur={commit} onKeyDown={e => e.key === 'Enter' && commit()} style={inputStyle} />;
   }
-  return <span onClick={() => setEditing(true)} style={style}>{value || '(ריק)'}</span>;
+  return <span onClick={() => setEditing(true)} style={style}>{value || ' '}</span>;
 }
 
 function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
@@ -953,24 +953,40 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
           {isPreviewStep && (
             <div>
               <p className="text-xs text-slate-400 text-center mb-3">לחץ על כל טקסט לעריכה</p>
-              <div ref={previewRef} dir="rtl" style={{ fontFamily: 'Arial, sans-serif', fontSize: '10pt', color: '#222', background: '#fff', padding: '12mm', lineHeight: 1.6 }}>
-                <h2 style={{ textAlign: 'center', fontSize: '15pt', fontWeight: 'bold', marginBottom: '12pt' }}>הצעת מחיר - אירוע בשרביה</h2>
-                <p><strong>לכבוד:</strong> <EditableCell value={fields.name} onChange={v => setFields(f => ({ ...f, name: v }))} /></p>
-                <p><strong>מייל:</strong> <EditableCell value={fields.email} onChange={v => setFields(f => ({ ...f, email: v }))} dir="ltr" /></p>
-                <p><strong>טלפון:</strong> <EditableCell value={fields.phone} onChange={v => setFields(f => ({ ...f, phone: v }))} dir="ltr" /></p>
-                <p><strong>תאריך האירוע:</strong> <EditableCell value={fields.eventDate} onChange={v => setFields(f => ({ ...f, eventDate: v }))} /></p>
-                <p><strong>שעת פתיחת דלתות:</strong> <EditableCell value={fields.doorTime} onChange={v => setFields(f => ({ ...f, doorTime: v }))} /></p>
-                <p><strong>שעת סיום האירוע:</strong> <EditableCell value={fields.endTime} onChange={v => setFields(f => ({ ...f, endTime: v }))} /></p>
-                <p style={{ marginTop: '8pt', fontSize: '9pt', color: '#555' }}>כניסה לאירוע: דרך רחוב פנחס בן יאיר 3, תל אביב יפו</p>
+              <div ref={previewRef} dir="rtl" style={{ fontFamily: 'Arial, sans-serif', fontSize: '10pt', color: '#222', background: '#fff', padding: '12mm', lineHeight: 1.7, wordSpacing: '0.15px', whiteSpace: 'pre-wrap' }}>
 
-                <h3 style={{ marginTop: '12pt', marginBottom: '4pt' }}>עלויות:</h3>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt' }}>
+                {/* Logo */}
+                <div style={{ textAlign: 'center', marginBottom: '10pt', whiteSpace: 'normal' }}>
+                  <img src="/logo.jpg" alt="Sharabiya" crossOrigin="anonymous" style={{ height: '80px', objectFit: 'contain' }} />
+                </div>
+
+                <h2 style={{ textAlign: 'center', fontSize: '15pt', fontWeight: 'bold', marginBottom: '12pt', whiteSpace: 'normal' }}>{'הצעת מחיר - אירוע בשרביה'}</h2>
+
+                {/* Header fields — flex rows to keep label:value correct in RTL */}
+                {[
+                  { label: 'לכבוד', key: 'name' },
+                  { label: 'מייל', key: 'email', ltr: true },
+                  { label: 'טלפון', key: 'phone', ltr: true },
+                  { label: 'תאריך האירוע', key: 'eventDate' },
+                  { label: 'שעת פתיחת דלתות', key: 'doorTime' },
+                  { label: 'שעת סיום האירוע', key: 'endTime' },
+                ].map(({ label, key, ltr }) => (
+                  <div key={key} style={{ display: 'flex', flexDirection: 'row', gap: '6px', marginBottom: '2pt', alignItems: 'baseline', whiteSpace: 'normal' }}>
+                    <strong style={{ whiteSpace: 'nowrap' }}>{label}:</strong>
+                    <EditableCell value={fields[key]} onChange={v => setFields(f => ({ ...f, [key]: v }))} dir={ltr ? 'ltr' : 'rtl'} />
+                  </div>
+                ))}
+
+                <p style={{ marginTop: '8pt', fontSize: '9pt', color: '#555', whiteSpace: 'normal' }}>כניסה לאירוע: דרך רחוב פנחס בן יאיר 3, תל אביב יפו</p>
+
+                <h3 style={{ marginTop: '12pt', marginBottom: '4pt', whiteSpace: 'normal' }}>עלויות:</h3>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt', whiteSpace: 'normal' }}>
                   <thead>
                     <tr style={{ background: '#f5f5f5' }}>
                       {['שם הפריט', 'תיאור', 'כמות', 'מחיר', 'סה"כ לפני מע"מ'].map(h => (
                         <th key={h} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{h}</th>
                       ))}
-                      <th style={{ border: '1px solid #ccc', padding: '4px 6px', width: 24 }}></th>
+                      <th data-html2canvas-ignore="true" style={{ border: '1px solid #ccc', padding: '4px 6px', width: 24 }} />
                     </tr>
                   </thead>
                   <tbody>
@@ -989,35 +1005,70 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                           <EditableCell value={String(row.price)} onChange={v => updateRow(i, { price: parseFloat(v) || 0 })} />
                         </td>
                         <td style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>
-                          {(row.qty * row.price).toLocaleString()} ש"ח
+                          {(row.qty * row.price).toLocaleString()} {'ש"ח'}
                         </td>
-                        <td style={{ border: '1px solid #ccc', padding: '2px', textAlign: 'center' }}>
+                        <td data-html2canvas-ignore="true" style={{ border: '1px solid #ccc', padding: '2px', textAlign: 'center' }}>
                           <button onClick={() => setRows(prev => prev.filter((_, idx) => idx !== i))}
                             style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '12px', background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px' }}>✕</button>
                         </td>
                       </tr>
                     ))}
                     <tr>
-                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>סה"כ חייב במע"מ:</td>
-                      <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center', fontWeight: 'bold' }}>{subtotal.toLocaleString()} ש"ח</td>
+                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>{'סה"כ חייב במע"מ:'}</td>
+                      <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center', fontWeight: 'bold' }}>{subtotal.toLocaleString()} {'ש"ח'}</td>
                     </tr>
                     <tr>
-                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right' }}>מע"מ (18%):</td>
-                      <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{vat.toLocaleString()} ש"ח</td>
+                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right' }}>{'מע"מ (18%):'}</td>
+                      <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{vat.toLocaleString()} {'ש"ח'}</td>
                     </tr>
                     <tr style={{ fontWeight: 'bold' }}>
-                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right' }}>סה"כ לתשלום:</td>
-                      <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{total.toLocaleString()} ש"ח</td>
+                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right' }}>{'סה"כ לתשלום:'}</td>
+                      <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{total.toLocaleString()} {'ש"ח'}</td>
                     </tr>
                   </tbody>
                 </table>
 
-                <p style={{ marginTop: '10pt' }}>הצעת מחיר זו הינה עבור קיום אירוע עם מינימום <EditableCell value={fields.guests} onChange={v => setFields(f => ({ ...f, guests: v }))} /> אישים</p>
-                <p>המחיר כולל בתוכו: שכירות האולם, צוות הקמה, צוות תפעול, תפריט שף <EditableCell value={fields.chefMenu} onChange={v => setFields(f => ({ ...f, chefMenu: v }))} />, תפריט בר <EditableCell value={fields.barMenu} onChange={v => setFields(f => ({ ...f, barMenu: v }))} />, אבטחה, צוות ניקיון, מקרן, במה, מיקרופון, עיצוב המקום</p>
-                {fields.notes && <p style={{ marginTop: '6pt' }}>הערות: <EditableCell value={fields.notes} onChange={v => setFields(f => ({ ...f, notes: v }))} multiline /></p>}
-                <p style={{ marginTop: '10pt', fontSize: '9pt', color: '#555' }}>תנאי תשלום: מקדמה 30% והיתרה לתשלום ביום האירוע לפני תחילת האירוע.</p>
-                <p style={{ fontSize: '9pt', color: '#555' }}>הצעה זו תקפה ל 3 ימים.</p>
-                <p style={{ marginTop: '6pt', fontWeight: 'bold' }}>נשמח לראותכם, צוות שרביה</p>
+                {/* Minimum guests */}
+                <p style={{ marginTop: '10pt', whiteSpace: 'normal' }}>
+                  {'הצעת מחיר זו הינה עבור קיום אירוע עם מינימום '}
+                  <EditableCell value={fields.guests} onChange={v => setFields(f => ({ ...f, guests: v }))} />
+                  {' אישים'}
+                </p>
+
+                {/* Included items */}
+                <p style={{ marginTop: '8pt', marginBottom: '2pt', fontWeight: 'bold', whiteSpace: 'normal' }}>המחיר כולל בתוכו:</p>
+                <div style={{ lineHeight: 2, whiteSpace: 'normal' }}>
+                  <div>שכירות האולם</div>
+                  <div>צוות הקמה</div>
+                  <div>צוות תפעול</div>
+                  <div>{'תפריט שף '}<EditableCell value={fields.chefMenu} onChange={v => setFields(f => ({ ...f, chefMenu: v }))} /></div>
+                  <div>{'תפריט בר '}<EditableCell value={fields.barMenu} onChange={v => setFields(f => ({ ...f, barMenu: v }))} /></div>
+                  <div>אבטחה</div>
+                  <div>צוות נקיון</div>
+                  <div>{'מקרן להקרנה על מסך (לא כולל מחשב וכבל HDMI)'}</div>
+                  <div>במה והקמת עמדת די גיי</div>
+                  <div>מיקרופון</div>
+                  <div>{'עיצוב המקום - שולחנות אבירים עם מפות לבנות, כדי נוי דקורטיבים, פינות ישיבה אלטרנטיביות כולל ספות, שולחנות בר גבוהים, שולחנות נמוכים, חביות יין עתיקות, שטיחים מפוארים'}</div>
+                </div>
+
+                {/* Optional extras */}
+                <p style={{ marginTop: '10pt', fontWeight: 'bold', whiteSpace: 'normal' }}>תוספות (אופציונלי):</p>
+                <div style={{ lineHeight: 2, whiteSpace: 'normal' }}>
+                  <div>{'דיג׳יי: 5,500 ש"ח לא כולל מע"מ'}</div>
+                  <div>{'צלם סטילס + היילייטס: 5,500 ש"ח לא כולל מע"מ'}</div>
+                  <div>{'בר קוקטיילים של האלכימאי (לשעתיים בקבלת פנים): 4,500 ש"ח לא כולל מע"מ'}</div>
+                  <div>{'חניות: 40 ש"ח לרכב (יש הסדר חניה עם חניון "חצרות יפו". שעת סגירת החניון ב- 24:00. במידה והאירוע התארך לאחר השעה 24:00, על בעל האירוע לשלם 100 שקלים על כל שעה נוספת לשומר החניון)'}</div>
+                </div>
+
+                {fields.notes && (
+                  <p style={{ marginTop: '8pt', whiteSpace: 'normal' }}>
+                    {'הערות: '}<EditableCell value={fields.notes} onChange={v => setFields(f => ({ ...f, notes: v }))} multiline />
+                  </p>
+                )}
+
+                <p style={{ marginTop: '10pt', fontSize: '9pt', color: '#555', whiteSpace: 'normal' }}>תנאי תשלום: מקדמה 30% והיתרה לתשלום ביום האירוע לפני תחילת האירוע.</p>
+                <p style={{ fontSize: '9pt', color: '#555', whiteSpace: 'normal' }}>הצעה זו תקפה ל 3 ימים.</p>
+                <p style={{ marginTop: '6pt', fontWeight: 'bold', whiteSpace: 'normal' }}>נשמח לראותכם, צוות שרביה</p>
               </div>
             </div>
           )}
