@@ -1,6 +1,6 @@
 # Sharabiya CRM — Product Requirements Document
 
-> **Last updated:** 2026-04-26
+> **Last updated:** 2026-05-02
 > **Live at:** https://www.proevent.co.il
 > **Hosting:** Railway (auto-deploy from GitHub `main` branch)
 > **DB + Storage:** Supabase (PostgreSQL + Storage bucket `crm-files`)
@@ -171,6 +171,22 @@ body TEXT                    -- plain text, or [[FILE:id|name]] for media
 external_id TEXT             -- Green API message ID (dedup key)
 is_read BOOLEAN DEFAULT TRUE
 timestamp TIMESTAMPTZ
+sent_by INT → users.id       -- NULL for inbound / system; set for CRM-initiated outbound sends
+```
+
+### meetings
+```
+id SERIAL PRIMARY KEY
+lead_id INT → leads.id ON DELETE CASCADE
+google_event_id TEXT
+title TEXT
+start_time TIMESTAMPTZ
+end_time TIMESTAMPTZ
+location TEXT DEFAULT 'שרביה, פנחס בן יאיר 3, תל אביב'
+confirm_token TEXT           -- UUID for lead self-confirmation link
+reminder_sent_at TIMESTAMPTZ
+confirmed_at TIMESTAMPTZ
+created_at TIMESTAMPTZ
 ```
 
 ### tasks
@@ -339,15 +355,22 @@ Files embedded in interaction/message bodies use this format where `id` is the `
 | POST | `/api/tasks/:taskId/complete` | Complete task: `{ token, result? }`. Logs result to timeline. |
 | POST | `/api/tasks/:taskId/create-followup` | Create follow-up task: `{ token, title, dueAt? }`. Inherits lead_id, assigned_to, remind_via. |
 
-### Calendar (`/api/calendar`) — all require auth
-| Method | Path | Description |
-|---|---|---|
-| GET | `/leads` | All leads with event dates + calendar status |
-| POST | `/leads/:leadId/mark` | Mark event as option or confirmed |
-| GET | `/leads/:leadId/status` | Get calendar_events row |
-| POST | `/leads/:leadId/meeting` | Create Google Calendar meeting. Body: `{ title, start, end, guestEmail, guestName }` |
-| POST | `/meetings/:eventId/notify` | Send Google Calendar invite email |
-| GET | `/meetings/:eventId/status` | Check attendee RSVP, update lead.meeting_rsvp_status |
+### Calendar (`/api/calendar`) — auth required except ICS + confirm
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/leads` | ✅ | All leads with event dates + calendar status |
+| POST | `/leads/:leadId/mark` | ✅ | Mark event as option or confirmed |
+| GET | `/leads/:leadId/status` | ✅ | Get calendar_events row |
+| POST | `/leads/:leadId/meeting` | ✅ | Create Google Calendar meeting. Logs `meeting` interaction to timeline. Body: `{ title, start, end, guestEmail, guestName }` |
+| GET | `/meetings/:eventId/details` | ✅ | Fetch meeting row (title, start_time, end_time) |
+| DELETE | `/meetings/:eventId` | ✅ | Cancel meeting: delete GCal event, clear `leads.meeting_event_id`, log cancellation with reason to timeline. Body: `{ reason }` |
+| PATCH | `/meetings/:eventId/reschedule` | ✅ | Postpone meeting: update GCal event, update DB, log to timeline. Body: `{ newStart, newEnd, reason }` — ISO strings built on frontend (Jerusalem TZ) |
+| GET | `/meetings/:eventId/ics` | public | ICS download — lead clicks from phone |
+| GET | `/meetings/:token/confirm` | public | Lead self-confirmation link → updates confirmed_at + patches GCal description |
+| POST | `/meetings/:eventId/remind` | ✅ | Send WhatsApp reminder to lead |
+| POST | `/meetings/:eventId/notify` | ✅ | Send Google Calendar email invite to attendees |
+| GET | `/meetings/:eventId/status` | ✅ | Check attendee RSVP, update lead.meeting_rsvp_status |
+| POST | `/sync-all` | ✅ | Bulk-sync all leads with event dates to Google Calendar |
 
 ### AI (`/api/ai`) — all require auth
 | Method | Path | Description |
@@ -395,7 +418,12 @@ Files embedded in interaction/message bodies use this format where `id` is the `
 
 **סטטוס** — stage pills, "לא סגרו" button, "📅 קבע פגישה", "+ משימה", RSVP badge
 
-**יומן Google** — 🟡 אופציה / ✅ סגור toggle
+**יומן Google**
+- 🟡 אופציה / ✅ סגור toggle for event date calendar marking
+- When `lead.meeting_event_id` is set: shows "נקבעה פגישה ל-[DD/MM/YYYY HH:MM]" block
+- Button "בטל\דחה פגישה" opens `MeetingActionModal`:
+  - **בטל פגישה**: enter reason → deletes GCal event, clears `meeting_event_id`, logs `❌ פגישה בוטלה` to activity
+  - **דחה פגישה**: enter reason + new date (calendar picker) + start/end time (time picker) + delivery channel (WhatsApp/Email) → updates GCal event, sends updated invite, logs `🔄 פגישה נדחתה` to activity
 
 **פרטי ליד** — all lead fields, inline notes editor
 
@@ -409,11 +437,18 @@ Files embedded in interaction/message bodies use this format where `id` is the `
 
 **פעילות (Timeline)**
 - Combined feed of `lead_interactions` + `messages`, newest-first
+- Every entry shows: timestamp, author name (who performed the action), direction badge, type badge
 - Quick-log: 📞 שיחה | 🤝 פגישה | 📝 הערה | 📱 שלח וואטסאפ | ✉️ שלח אימייל
+- Sending WhatsApp: shows confirmation popup "האם אתה בטוח שאתה רוצה לשלוח את הודעת הוואטסאפ?" before sending
 - Inbound items: 🌐 תרגם לעברית button
 - Compose forms: AI buttons (🌐 תרגם לאנגלית / 🤖 הצע תשובה / ✨ שפר)
 - `[[FILE:id|name]]` markers rendered as clickable file badges (open via signed URL)
 - Stage change notes shown as `🔄 שינוי שלב: X ← Y`
+- Auto-logged events (all include acting user name):
+  - Meeting scheduled: `📅 פגישה נקבעה: [title] | [date] [start]–[end]`
+  - Meeting cancelled: `❌ פגישה בוטלה | תאריך שהיה: [date time] | סיבה: [reason]`
+  - Meeting postponed: `🔄 פגישה נדחתה | תאריך חדש: [date] [start]–[end] | סיבה: [reason]`
+  - Stage change: `🔄 שינוי שלב: [from] ← [to]`
 
 ### `TasksPage.jsx` (`/tasks`) ✅ Built 2026-04-26
 
@@ -503,11 +538,18 @@ Runs every 30 minutes. Four reminder types:
 - Title: `{lead name} - {event type}`, time: `event_date T event_time` (2-hour block, Israel timezone)
 
 ### Meeting Scheduling
-- `createMeeting({ leadId, title, start, end, guestEmail, guestName })` — creates event with guest attendee, `sendUpdates: 'none'`
-- `sendMeetingInvite(eventId)` — patches with `sendUpdates: 'all'`
+- `createMeeting({ leadId, title, start, end, guestEmail, guestName })` — creates GCal event with guest attendee, `sendUpdates: 'none'`; stores row in `meetings` table; logs `meeting` interaction to timeline
+- `sendMeetingInvite(eventId)` — patches with `sendUpdates: 'all'` (sends email invite)
 - `getMeetingRsvpStatus(eventId, guestEmail)` — returns attendee `responseStatus`
+- `deleteMeeting(googleEventId)` — deletes GCal event
+- `updateMeetingTime(googleEventId, start, end)` — patches GCal event start/end times
+- `patchEventDescription(eventId, prependText)` — prepends text to event description (used by lead self-confirmation)
 - Location: `שרביה, פנחס בן יאיר 3, תל אביב`
-- No description (clean customer-facing event)
+- **ISO string timezone rule:** start/end ISO strings are always built on the **frontend** (browser in Jerusalem TZ via `new Date(...).toISOString()`) — never on the server — to avoid UTC offset errors
+
+### WhatsApp Meeting Messages
+- New meeting: `שלום! קישור לפגישה שנקבעה לך ל-[DD/MM/YYYY] בשעה [HH:MM] בשרביה:\n[ICS URL]`
+- Rescheduled: `שלום! הפגישה שלך נדחתה לתאריך [DD/MM/YYYY] בשעה [HH:MM]–[HH:MM].\nהנה הקישור המעודכן:\n[ICS URL]`
 
 ---
 
@@ -579,6 +621,7 @@ ALTER TABLE tasks ADD COLUMN IF NOT EXISTS remind_via VARCHAR(20) DEFAULT 'app'
 ALTER TABLE files ADD COLUMN IF NOT EXISTS stored_name TEXT
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT, updated_at TIMESTAMPTZ DEFAULT NOW())
 INSERT INTO settings (key, value) VALUES ('ai_instructions', '') ON CONFLICT (key) DO NOTHING
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) ON DELETE SET NULL
 ```
 
 ---
@@ -705,6 +748,34 @@ Deposit amount + date + confirmed checkbox + production notes. Data persists via
 - Bottom nav restructured to 2 rows: tasks added to row 1, הגדרות moves to admin-only row 2
 - New backend routes: `GET /api/tasks`, `/api/tasks/overdue-count`, `/api/tasks/users`
 
-### Phase 10 — Facebook/Instagram 🔲 Not started
-### Phase 11 — AI Bot (auto-qualify new leads) 🔲 Not started
-### Phase 12 — Full Analytics Dashboard 🔲 Partial
+### Phase 10 — Meeting Management ✅ Built 2026-05-02
+
+**יומן Google section — meeting status & controls:**
+- When a meeting is scheduled (`lead.meeting_event_id` set), shows "נקבעה פגישה ל-[DD/MM/YYYY HH:MM]"
+- Button "בטל\דחה פגישה" opens action modal with two flows:
+  - **Cancel:** textarea for reason → deletes GCal event, clears `lead.meeting_event_id`, logs cancellation to activity
+  - **Postpone:** textarea for reason + date picker (DD/MM/YYYY) + time pickers (start/end) + WhatsApp/Email delivery toggle → updates GCal event, sends updated invite, logs postponement to activity
+
+**Activity log — author attribution:**
+- Every log entry shows the name of the user who performed the action
+- Fixed root cause: calendar routes were double-mounted (once without auth, once with) — removed the unprotected mount; ICS download and confirm link remain public via path-based exception
+- `messages` table now has `sent_by INT → users.id`; set on every CRM-initiated outbound WhatsApp send
+- `GET /api/leads/:id/messages` now joins `users` and returns `sent_by_name`
+
+**UI — date/time inputs:**
+- All date fields use `react-datepicker` (DD/MM/YYYY, calendar popup, locale-independent)
+- All time fields use `<input type="time">` (native time picker, no manual text entry)
+- **Rule:** DD/MM/YYYY for all dates, HH:MM for all times, always pickers — never free-text
+
+**WhatsApp improvements:**
+- New meeting message includes date and time: `שלום! קישור לפגישה שנקבעה לך ל-[date] בשעה [time] בשרביה`
+- Reschedule message includes new date and time range
+- Sending WhatsApp from the פעילות compose area now shows a confirmation popup before sending
+
+**New calendarService functions:** `deleteMeeting(googleEventId)`, `updateMeetingTime(googleEventId, start, end)`
+
+**New calendar endpoints:** `GET /meetings/:eventId/details`, `DELETE /meetings/:eventId`, `PATCH /meetings/:eventId/reschedule`
+
+### Phase 11 — Facebook/Instagram 🔲 Not started
+### Phase 12 — AI Bot (auto-qualify new leads) 🔲 Not started
+### Phase 13 — Full Analytics Dashboard 🔲 Partial
