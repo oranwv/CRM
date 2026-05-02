@@ -544,6 +544,7 @@ function Section({ title, action, children }) {
 
 /* ── OPEN FILE via signed URL ── */
 async function openFile(fileId) {
+  const win = window.open('', '_blank');
   try {
     const token = localStorage.getItem('crm_token');
     const res = await fetch(`/api/files/${fileId}/url`, {
@@ -551,8 +552,9 @@ async function openFile(fileId) {
     });
     if (!res.ok) throw new Error('לא ניתן לפתוח את הקובץ');
     const { url } = await res.json();
-    window.open(url, '_blank', 'noopener,noreferrer');
+    win.location.href = url;
   } catch {
+    win?.close();
     alert('שגיאה בפתיחת הקובץ');
   }
 }
