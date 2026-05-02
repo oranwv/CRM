@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 const STAGES = [
   { key: 'new',           label: 'חדש',          active: 'bg-sky-500 text-white border-sky-500',         past: 'bg-sky-100 text-sky-600 border-sky-200',         future: 'bg-white text-slate-400 border-slate-200 hover:border-sky-300 hover:text-sky-500' },
@@ -81,15 +83,21 @@ function parseTimeIL(str) {
   return `${String(h).padStart(2,'0')}:${String(mi).padStart(2,'0')}`;
 }
 function DateInput({ value, onChange, className }) {
+  const selected = value ? new Date(value + 'T00:00:00') : null;
   return (
-    <input type="date" value={value || ''} onChange={e => onChange(e.target.value)}
-      className={className} dir="ltr" />
+    <DatePicker
+      selected={selected}
+      onChange={d => onChange(d ? d.toLocaleDateString('sv') : '')}
+      dateFormat="dd/MM/yyyy"
+      placeholderText="dd/MM/yyyy"
+      className={className}
+    />
   );
 }
 function TimeInput({ value, onChange, className }) {
   return (
-    <input type="text" value={value || ''} onChange={e => onChange(e.target.value)}
-      placeholder="HH:MM" className={className} dir="ltr" />
+    <input type="time" value={value || ''} onChange={e => onChange(e.target.value)}
+      className={className} dir="ltr" />
   );
 }
 
@@ -1783,7 +1791,9 @@ function MeetingActionModal({ lead, leadId, eventId, meeting, onClose, onUpdated
     if (!date || !startTime || !endTime) return;
     setSaving(true);
     try {
-      await api.patch(`/calendar/meetings/${eventId}/reschedule`, { date, startTime, endTime, reason });
+      const newStart = new Date(`${date}T${startTime}`).toISOString();
+      const newEnd   = new Date(`${date}T${endTime}`).toISOString();
+      await api.patch(`/calendar/meetings/${eventId}/reschedule`, { newStart, newEnd, reason });
 
       const icsUrl = `${window.location.origin}/api/calendar/meetings/${eventId}/ics`;
       if (delivery === 'whatsapp') {

@@ -288,8 +288,8 @@ router.delete('/meetings/:eventId', async (req, res) => {
 
 // PATCH /api/calendar/meetings/:eventId/reschedule — postpone a meeting
 router.patch('/meetings/:eventId/reschedule', async (req, res) => {
-  const { date, startTime, endTime, reason } = req.body;
-  if (!date || !startTime || !endTime) return res.status(400).json({ error: 'date, startTime and endTime required' });
+  const { newStart, newEnd, reason } = req.body;
+  if (!newStart || !newEnd) return res.status(400).json({ error: 'newStart and newEnd required' });
   try {
     const { rows } = await pool.query(
       'SELECT * FROM meetings WHERE google_event_id = $1',
@@ -297,9 +297,6 @@ router.patch('/meetings/:eventId/reschedule', async (req, res) => {
     );
     const meeting = rows[0];
     if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
-
-    const newStart = new Date(`${date}T${startTime}`).toISOString();
-    const newEnd   = new Date(`${date}T${endTime}`).toISOString();
 
     try { await updateMeetingTime(req.params.eventId, newStart, newEnd); } catch (e) {
       console.error('[Calendar] updateMeetingTime GCal error:', e.message);
