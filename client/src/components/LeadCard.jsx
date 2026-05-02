@@ -765,8 +765,15 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
   async function generateBlob() {
     document.activeElement?.blur();
     await new Promise(r => setTimeout(r, 120));
-    const html2pdf = (await import('html2pdf.js')).default;
-    return html2pdf()
+    if (!window.html2pdf) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+        s.onload = resolve; s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+    return window.html2pdf()
       .set({ margin: 10, filename: `הצעת מחיר - ${fields.name}.pdf`,
              html2canvas: { scale: 2, useCORS: true },
              jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } })
