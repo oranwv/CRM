@@ -373,7 +373,9 @@ router.post('/:id/email/send', emailUpload.single('file'), async (req, res) => {
 router.get('/:id/messages', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT * FROM messages WHERE lead_id = $1 ORDER BY timestamp ASC',
+      `SELECT m.*, u.display_name AS sent_by_name
+       FROM messages m LEFT JOIN users u ON u.id = m.sent_by
+       WHERE m.lead_id = $1 ORDER BY m.timestamp ASC`,
       [req.params.id]
     );
     res.json(rows);

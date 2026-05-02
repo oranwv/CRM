@@ -233,7 +233,7 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
     ...messages.map(m => ({
       id: `m-${m.id}`, _time: m.timestamp,
       type: m.channel, direction: m.direction,
-      body: m.body, author: null,
+      body: m.body, author: m.sent_by_name || null,
     })),
   ].sort((a, b) => new Date(b._time) - new Date(a._time)); // newest first
 
@@ -671,6 +671,7 @@ function TimelineSection({ leadId, timeline, allPhones, allEmails, onAdded }) {
   const [emailTo, setEmailTo]   = useState('');
   const [subject, setSubject]   = useState('');
   const [saving, setSaving]     = useState(false);
+  const [confirmWA, setConfirmWA] = useState(false);
   const [draggingWA, setDraggingWA]       = useState(false);
   const [draggingEmail, setDraggingEmail] = useState(false);
   const fileRef                 = useRef();
@@ -858,10 +859,23 @@ function TimelineSection({ leadId, timeline, allPhones, allEmails, onAdded }) {
           {file && <button onClick={() => setFile(null)} className="text-sm text-red-400 hover:underline">הסר קובץ</button>}
           <div className="flex gap-2">
             <button onClick={() => setAdding(null)} className="flex-1 border-2 border-slate-200 text-slate-500 text-base font-bold py-1.5 rounded-xl">ביטול</button>
-            <button onClick={sendWA} disabled={saving || (!body.trim() && !file) || !waPhone}
+            <button onClick={() => setConfirmWA(true)} disabled={saving || (!body.trim() && !file) || !waPhone}
               className="flex-1 bg-green-600 text-white text-base font-bold py-1.5 rounded-xl disabled:opacity-50">
               {saving ? '...' : 'שלח'}
             </button>
+          </div>
+        </div>
+      )}
+      {confirmWA && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50" onClick={() => setConfirmWA(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-5 w-80 mx-4 text-right space-y-3" onClick={e => e.stopPropagation()}>
+            <p className="font-bold text-slate-800 text-base">האם אתה בטוח שאתה רוצה לשלוח את הודעת הוואטסאפ?</p>
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmWA(false)}
+                className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl">לא</button>
+              <button onClick={() => { setConfirmWA(false); sendWA(); }}
+                className="flex-1 bg-green-600 text-white font-bold py-2 rounded-xl">כן, שלח</button>
+            </div>
           </div>
         </div>
       )}
@@ -1796,10 +1810,12 @@ function MeetingActionModal({ lead, leadId, eventId, meeting, onClose, onUpdated
       await api.patch(`/calendar/meetings/${eventId}/reschedule`, { newStart, newEnd, reason });
 
       const icsUrl = `${window.location.origin}/api/calendar/meetings/${eventId}/ics`;
+      const newDt = new Date(`${date}T${startTime}`);
+      const fmtDate = newDt.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
       if (delivery === 'whatsapp') {
         await api.post('/whatsapp/send', {
           leadId,
-          message: `שלום! הפגישה שלך נדחתה. הנה הקישור המעודכן:\n${icsUrl}`,
+          message: `שלום! הפגישה שלך נדחתה לתאריך ${fmtDate} בשעה ${startTime}–${endTime}.\nהנה הקישור המעודכן:\n${icsUrl}`,
         });
         if (lead?.email) await api.post(`/calendar/meetings/${eventId}/notify`);
       } else {

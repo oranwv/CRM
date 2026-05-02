@@ -163,8 +163,8 @@ router.post('/send', requireAuth, async (req, res) => {
     // Green API succeeded — log to DB (non-fatal)
     try {
       await pool.query(
-        `INSERT INTO messages (lead_id, channel, direction, body, timestamp, contact_value) VALUES ($1, 'whatsapp', 'outbound', $2, NOW(), $3)`,
-        [leadId, message, phone]
+        `INSERT INTO messages (lead_id, channel, direction, body, timestamp, contact_value, sent_by) VALUES ($1, 'whatsapp', 'outbound', $2, NOW(), $3, $4)`,
+        [leadId, message, phone, req.user?.id || null]
       );
       await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [leadId]);
       // Auto-advance new → contacted on first outbound WhatsApp
@@ -241,8 +241,8 @@ router.post('/send-file', requireAuth, upload.single('file'), async (req, res) =
     const logBody = fileUrl ? `${message}\n[[FILE:${fileUrl}|${fileName}]]` : message;
     try {
       await pool.query(
-        `INSERT INTO messages (lead_id, channel, direction, body, timestamp, contact_value) VALUES ($1, 'whatsapp', 'outbound', $2, NOW(), $3)`,
-        [leadId, logBody, phone]
+        `INSERT INTO messages (lead_id, channel, direction, body, timestamp, contact_value, sent_by) VALUES ($1, 'whatsapp', 'outbound', $2, NOW(), $3, $4)`,
+        [leadId, logBody, phone, req.user?.id || null]
       );
       await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [leadId]);
       // Auto-advance new → contacted on first outbound WhatsApp

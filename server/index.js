@@ -110,6 +110,7 @@ pool.query(`
   ALTER TABLE meetings ADD COLUMN IF NOT EXISTS confirm_token TEXT;
   ALTER TABLE meetings ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMPTZ;
   ALTER TABLE meetings ADD COLUMN IF NOT EXISTS confirmed_at TIMESTAMPTZ;
+  ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) ON DELETE SET NULL;
   ALTER TABLE leads ADD COLUMN IF NOT EXISTS event_name VARCHAR(255);
   UPDATE leads SET event_name = name WHERE event_name IS NULL;
 `).catch(err => console.error('[DB] Table check error:', err.message));
@@ -124,9 +125,6 @@ app.use('/api/whatsapp',  whatsappRoutes);
 app.use('/api/tasks',     require('./routes/tasks'));       // global task list (auth per-route)
 app.use('/api/tasks',     require('./routes/taskPostpone')); // public postpone links (WhatsApp)
 
-// Public calendar ICS download (no auth — lead clicks link on their phone)
-app.use('/api/calendar', calendarRoutes);
-
 // Protected
 app.use('/api/files',               requireAuth, fileDownloadRoutes);
 app.use('/api/leads',               requireAuth, leadsRoutes);
@@ -135,7 +133,11 @@ app.use('/api/admin',               requireAuth, adminRoutes);
 app.use('/api/users',               requireAuth, usersRoutes);
 app.use('/api/analytics',           requireAuth, analyticsRoutes);
 app.use('/api/ai',                  requireAuth, aiRoutes);
-app.use('/api/calendar',            requireAuth, calendarRoutes);
+app.use('/api/calendar', (req, res, next) => {
+  // ICS download and lead confirmation are public — no auth required
+  if (/^\/meetings\/[^/]+\/(ics|confirm)$/.test(req.path)) return next();
+  requireAuth(req, res, next);
+}, calendarRoutes);
 
 // Serve uploaded files — 404 handler prevents missing files falling through to React SPA
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
