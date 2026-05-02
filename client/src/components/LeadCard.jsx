@@ -682,8 +682,10 @@ function EditableCell({ value, onChange, multiline, dir: cellDir }) {
     return <input autoFocus value={value} onChange={e => onChange(e.target.value)}
       onBlur={commit} onKeyDown={e => e.key === 'Enter' && commit()} style={inputStyle} />;
   }
-  return <span onClick={() => setEditing(true)} style={style}>{value || ' '}</span>;
+  return <span onClick={() => setEditing(true)} style={style}>{value ? value.replace(/ /g, ' ') : ' '}</span>;
 }
+
+const nbsp = str => str.replace(/ /g, ' ');
 
 function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
   const FIELD_STEPS = 9;
@@ -707,11 +709,11 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
     endTime: lead.event_end_time || '', guests: '', chefMenu: '', barMenu: '', notes: '',
   });
   const [rows, setRows] = useState([
-    { id: 1, label: 'מחיר אורח', desc: 'כולל שכירות המקום, תפריט קייטרינג, תפריט בר', qty: 0, price: 395 },
-    { id: 2, label: 'שירות מלצרים', desc: '', qty: 1, price: 500 },
-    { id: 3, label: 'שירות ברמנים', desc: '', qty: 1, price: 550 },
-    { id: 4, label: 'מנהל אירוע / קייטרינג שירות', desc: '', qty: 1, price: 900 },
-    { id: 5, label: 'תאורה והגברה + תפעול לאורך האירוע', desc: '', qty: 1, price: 0 },
+    { id: 1, label: 'מחיר אורח', desc: 'כולל שכירות המקום, תפריט קייטרינג, תפריט בר', qty: 0, price: 395 },
+    { id: 2, label: 'שירות מלצרים', desc: '', qty: 1, price: 500 },
+    { id: 3, label: 'שירות ברמנים', desc: '', qty: 1, price: 550 },
+    { id: 4, label: 'מנהל אירוע / קייטרינג שירות', desc: '', qty: 1, price: 900 },
+    { id: 5, label: 'תאורה והגברה + תפעול לאורך האירוע', desc: '', qty: 1, price: 0 },
   ]);
   const [newRow, setNewRow]     = useState({ label: '', desc: '', qty: 1, price: 0 });
   const [saving, setSaving]     = useState(false);
@@ -719,10 +721,10 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [emailTo, setEmailTo]     = useState(allEmails[0] || '');
   const [emailSubject, setEmailSubject] = useState(`הצעת מחיר - ${lead.name} - שרביה`);
-  const [emailBody, setEmailBody] = useState(`שלום ${lead.name},\nמצורפת הצעת המחיר שלנו לאירוע שלך.\nנשמח לראותכם, צוות שרביה.`);
+  const [emailBody, setEmailBody] = useState(`שלום ${lead.name},\nמצורפת הצעת המחיר שלנו לאירוע שלך.\nנשמח לראותכם, צוות שרביה.`);
   const previewRef = useRef(null);
 
-  // Sync מחיר אורח qty with guests count
+  // Sync מחיר אורח qty with guests count
   useEffect(() => {
     const g = parseInt(fields.guests) || 0;
     setRows(prev => prev.map(r => r.id === 1 ? { ...r, qty: g } : r));
@@ -953,37 +955,45 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
           {isPreviewStep && (
             <div>
               <p className="text-xs text-slate-400 text-center mb-3">לחץ על כל טקסט לעריכה</p>
-              <div ref={previewRef} dir="rtl" style={{ fontFamily: 'Arial, sans-serif', fontSize: '10pt', color: '#222', background: '#fff', padding: '12mm', lineHeight: 1.7, wordSpacing: '0.15px', whiteSpace: 'pre-wrap' }}>
+              <div ref={previewRef} dir="rtl" style={{ fontFamily: 'Arial, sans-serif', fontSize: '10pt', color: '#222', background: '#fff', padding: '12mm', lineHeight: 1.7 }}>
 
                 {/* Logo */}
-                <div style={{ textAlign: 'center', marginBottom: '10pt', whiteSpace: 'normal' }}>
-                  <img src="/logo.jpg" alt="Sharabiya" crossOrigin="anonymous" style={{ height: '80px', objectFit: 'contain' }} />
+                <div style={{ textAlign: 'center', marginBottom: '10pt' }}>
+                  <img src="/logo.jpg" alt="Sharabiya" crossOrigin="anonymous" style={{ height: '80px', objectFit: 'contain', display: 'inline-block' }} />
                 </div>
 
-                <h2 style={{ textAlign: 'center', fontSize: '15pt', fontWeight: 'bold', marginBottom: '12pt', whiteSpace: 'normal' }}>{'הצעת מחיר - אירוע בשרביה'}</h2>
+                <h2 style={{ textAlign: 'center', fontSize: '15pt', fontWeight: 'bold', marginBottom: '12pt' }}>{nbsp('הצעת מחיר - אירוע בשרביה')}</h2>
 
-                {/* Header fields — flex rows to keep label:value correct in RTL */}
-                {[
-                  { label: 'לכבוד', key: 'name' },
-                  { label: 'מייל', key: 'email', ltr: true },
-                  { label: 'טלפון', key: 'phone', ltr: true },
-                  { label: 'תאריך האירוע', key: 'eventDate' },
-                  { label: 'שעת פתיחת דלתות', key: 'doorTime' },
-                  { label: 'שעת סיום האירוע', key: 'endTime' },
-                ].map(({ label, key, ltr }) => (
-                  <div key={key} style={{ display: 'flex', flexDirection: 'row', gap: '6px', marginBottom: '2pt', alignItems: 'baseline', whiteSpace: 'normal' }}>
-                    <strong style={{ whiteSpace: 'nowrap' }}>{label}:</strong>
-                    <EditableCell value={fields[key]} onChange={v => setFields(f => ({ ...f, [key]: v }))} dir={ltr ? 'ltr' : 'rtl'} />
-                  </div>
-                ))}
+                {/* Header fields — table keeps label:value correct in RTL */}
+                <table style={{ marginBottom: '8pt', borderCollapse: 'collapse' }}>
+                  <tbody>
+                    {[
+                      { label: 'לכבוד', key: 'name' },
+                      { label: 'מייל', key: 'email', ltr: true },
+                      { label: 'טלפון', key: 'phone', ltr: true },
+                      { label: 'תאריך האירוע', key: 'eventDate' },
+                      { label: 'שעת פתיחת דלתות', key: 'doorTime' },
+                      { label: 'שעת סיום האירוע', key: 'endTime' },
+                    ].map(({ label, key, ltr }) => (
+                      <tr key={key}>
+                        <td style={{ fontWeight: 'bold', whiteSpace: 'nowrap', paddingLeft: '6pt', verticalAlign: 'top', paddingBottom: '2pt' }}>
+                          {label}:
+                        </td>
+                        <td style={{ direction: ltr ? 'ltr' : 'rtl', paddingBottom: '2pt', verticalAlign: 'top' }}>
+                          <EditableCell value={fields[key]} onChange={v => setFields(f => ({ ...f, [key]: v }))} dir={ltr ? 'ltr' : 'rtl'} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
 
-                <p style={{ marginTop: '8pt', fontSize: '9pt', color: '#555', whiteSpace: 'normal' }}>כניסה לאירוע: דרך רחוב פנחס בן יאיר 3, תל אביב יפו</p>
+                <p style={{ marginTop: '8pt', fontSize: '9pt', color: '#555' }}>כניסה לאירוע: דרך רחוב פנחס בן יאיר 3, תל אביב יפו</p>
 
-                <h3 style={{ marginTop: '12pt', marginBottom: '4pt', whiteSpace: 'normal' }}>עלויות:</h3>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt', whiteSpace: 'normal' }}>
+                <h3 style={{ marginTop: '12pt', marginBottom: '4pt' }}>עלויות:</h3>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt' }}>
                   <thead>
                     <tr style={{ background: '#f5f5f5' }}>
-                      {['שם הפריט', 'תיאור', 'כמות', 'מחיר', 'סה"כ לפני מע"מ'].map(h => (
+                      {['שם הפריט', 'תיאור', 'כמות', 'מחיר', 'סה"כ לפני מע"מ'].map(h => (
                         <th key={h} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{h}</th>
                       ))}
                       <th data-html2canvas-ignore="true" style={{ border: '1px solid #ccc', padding: '4px 6px', width: 24 }} />
@@ -1014,7 +1024,7 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                       </tr>
                     ))}
                     <tr>
-                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>{'סה"כ חייב במע"מ:'}</td>
+                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>{'סה"כ חייב במע"מ:'}</td>
                       <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center', fontWeight: 'bold' }}>{subtotal.toLocaleString()} {'ש"ח'}</td>
                     </tr>
                     <tr>
@@ -1029,46 +1039,46 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                 </table>
 
                 {/* Minimum guests */}
-                <p style={{ marginTop: '10pt', whiteSpace: 'normal' }}>
-                  {'הצעת מחיר זו הינה עבור קיום אירוע עם מינימום '}
+                <p style={{ marginTop: '10pt' }}>
+                  {'הצעת מחיר זו הינה עבור קיום אירוע עם מינימום '}
                   <EditableCell value={fields.guests} onChange={v => setFields(f => ({ ...f, guests: v }))} />
-                  {' אישים'}
+                  {' אישים'}
                 </p>
 
                 {/* Included items */}
-                <p style={{ marginTop: '8pt', marginBottom: '2pt', fontWeight: 'bold', whiteSpace: 'normal' }}>המחיר כולל בתוכו:</p>
-                <div style={{ lineHeight: 2, whiteSpace: 'normal' }}>
-                  <div>שכירות האולם</div>
-                  <div>צוות הקמה</div>
-                  <div>צוות תפעול</div>
-                  <div>{'תפריט שף '}<EditableCell value={fields.chefMenu} onChange={v => setFields(f => ({ ...f, chefMenu: v }))} /></div>
-                  <div>{'תפריט בר '}<EditableCell value={fields.barMenu} onChange={v => setFields(f => ({ ...f, barMenu: v }))} /></div>
+                <p style={{ marginTop: '8pt', marginBottom: '2pt', fontWeight: 'bold' }}>המחיר כולל בתוכו:</p>
+                <div style={{ lineHeight: 2 }}>
+                  <div>שכירות האולם</div>
+                  <div>צוות הקמה</div>
+                  <div>צוות תפעול</div>
+                  <div>{'תפריט שף '}<EditableCell value={fields.chefMenu} onChange={v => setFields(f => ({ ...f, chefMenu: v }))} /></div>
+                  <div>{'תפריט בר '}<EditableCell value={fields.barMenu} onChange={v => setFields(f => ({ ...f, barMenu: v }))} /></div>
                   <div>אבטחה</div>
-                  <div>צוות נקיון</div>
-                  <div>{'מקרן להקרנה על מסך (לא כולל מחשב וכבל HDMI)'}</div>
-                  <div>במה והקמת עמדת די גיי</div>
+                  <div>צוות נקיון</div>
+                  <div>{'מקרן להקרנה על מסך (לא כולל מחשב וכבל HDMI)'}</div>
+                  <div>במה והקמת עמדת די גיי</div>
                   <div>מיקרופון</div>
-                  <div>{'עיצוב המקום - שולחנות אבירים עם מפות לבנות, כדי נוי דקורטיבים, פינות ישיבה אלטרנטיביות כולל ספות, שולחנות בר גבוהים, שולחנות נמוכים, חביות יין עתיקות, שטיחים מפוארים'}</div>
+                  <div>{'עיצוב המקום - שולחנות אבירים עם מפות לבנות, כדי נוי דקורטיבים, פינות ישיבה אלטרנטיביות כולל ספות, שולחנות בר גבוהים, שולחנות נמוכים, חביות יין עתיקות, שטיחים מפוארים'}</div>
                 </div>
 
                 {/* Optional extras */}
-                <p style={{ marginTop: '10pt', fontWeight: 'bold', whiteSpace: 'normal' }}>תוספות (אופציונלי):</p>
-                <div style={{ lineHeight: 2, whiteSpace: 'normal' }}>
-                  <div>{'דיג׳יי: 5,500 ש"ח לא כולל מע"מ'}</div>
-                  <div>{'צלם סטילס + היילייטס: 5,500 ש"ח לא כולל מע"מ'}</div>
-                  <div>{'בר קוקטיילים של האלכימאי (לשעתיים בקבלת פנים): 4,500 ש"ח לא כולל מע"מ'}</div>
-                  <div>{'חניות: 40 ש"ח לרכב (יש הסדר חניה עם חניון "חצרות יפו". שעת סגירת החניון ב- 24:00. במידה והאירוע התארך לאחר השעה 24:00, על בעל האירוע לשלם 100 שקלים על כל שעה נוספת לשומר החניון)'}</div>
+                <p style={{ marginTop: '10pt', fontWeight: 'bold' }}>תוספות (אופציונלי):</p>
+                <div style={{ lineHeight: 2 }}>
+                  <div>{'דיג׳יי: 5,500 ש"ח לא כולל מע"מ'}</div>
+                  <div>{'צלם סטילס + היילייטס: 5,500 ש"ח לא כולל מע"מ'}</div>
+                  <div>{'בר קוקטיילים של האלכימאי (לשעתיים בקבלת פנים): 4,500 ש"ח לא כולל מע"מ'}</div>
+                  <div>{'חניות: 40 ש"ח לרכב (יש הסדר חניה עם חניון "חצרות יפו". שעת סגירת החניון ב- 24:00. במידה והאירוע התארך לאחר השעה 24:00, על בעל האירוע לשלם 100 שקלים על כל שעה נוספת לשומר החניון)'}</div>
                 </div>
 
                 {fields.notes && (
-                  <p style={{ marginTop: '8pt', whiteSpace: 'normal' }}>
+                  <p style={{ marginTop: '8pt' }}>
                     {'הערות: '}<EditableCell value={fields.notes} onChange={v => setFields(f => ({ ...f, notes: v }))} multiline />
                   </p>
                 )}
 
-                <p style={{ marginTop: '10pt', fontSize: '9pt', color: '#555', whiteSpace: 'normal' }}>תנאי תשלום: מקדמה 30% והיתרה לתשלום ביום האירוע לפני תחילת האירוע.</p>
-                <p style={{ fontSize: '9pt', color: '#555', whiteSpace: 'normal' }}>הצעה זו תקפה ל 3 ימים.</p>
-                <p style={{ marginTop: '6pt', fontWeight: 'bold', whiteSpace: 'normal' }}>נשמח לראותכם, צוות שרביה</p>
+                <p style={{ marginTop: '10pt', fontSize: '9pt', color: '#555' }}>תנאי תשלום: מקדמה 30% והיתרה לתשלום ביום האירוע לפני תחילת האירוע.</p>
+                <p style={{ fontSize: '9pt', color: '#555' }}>הצעה זו תקפה ל 3 ימים.</p>
+                <p style={{ marginTop: '6pt', fontWeight: 'bold' }}>נשמח לראותכם, צוות שרביה</p>
               </div>
             </div>
           )}
