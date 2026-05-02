@@ -1964,7 +1964,7 @@ function ScheduleMeetingModal({ lead, leadId, onClose, onDone }) {
       if (delivery === 'whatsapp') {
         await api.post('/whatsapp/send', {
           leadId,
-          message: `שלום! קישור לפגישה שנקבעה לך בשרביה:\n${data.icsUrl}`,
+          message: `שלום! קישור לפגישה שנקבעה לך ל-${new Date(`${date}T${startTime}`).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' })} בשעה ${startTime} בשרביה:\n${data.icsUrl}`,
         });
         if (guestEmail) await api.post(`/calendar/meetings/${data.eventId}/notify`);
       } else {
