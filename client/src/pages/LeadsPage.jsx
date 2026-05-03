@@ -234,21 +234,21 @@ export default function LeadsPage() {
           </div>
         ) : (
           <div className="bg-white rounded-2xl shadow-sm border border-violet-100 mt-2 overflow-x-auto">
-            <table className="w-full text-xs md:min-w-[900px]">
+            <table className="w-full text-xs min-w-[900px]">
               <thead>
                 <tr className="bg-violet-50/60 text-xs font-bold text-slate-500 uppercase tracking-wide border-b border-violet-100">
-                  <th className="px-2 py-3 text-right bg-violet-50 md:sticky md:right-0 md:z-10">#</th>
-                  <th className="px-2 py-3 text-right bg-violet-50 md:sticky md:right-8 md:z-10 md:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">שם האירוע</th>
+                  <th className="px-2 py-3 text-right sticky right-0 z-10 bg-violet-50 [transform:translateZ(0)]">#</th>
+                  <th className="px-2 py-3 text-right sticky right-8 z-10 bg-violet-50 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] [transform:translateZ(0)]">שם האירוע</th>
                   <th className="px-2 py-3 text-right">סטטוס</th>
                   <th onClick={() => handleSort('last_interaction_at')} className="px-2 py-3 text-right cursor-pointer select-none hover:text-violet-700">פעילות אחרונה<SortIcon col="last_interaction_at" /></th>
-                  <th onClick={() => handleSort('received_at')} className="hidden md:table-cell px-2 py-3 text-right cursor-pointer select-none hover:text-violet-700">התקבל ב<SortIcon col="received_at" /></th>
-                  <th className="hidden md:table-cell px-2 py-3 text-right">טלפון</th>
-                  <th onClick={() => handleSort('event_date')} className="hidden md:table-cell px-2 py-3 text-right cursor-pointer select-none hover:text-violet-700">תאריך אירוע<SortIcon col="event_date" /></th>
-                  <th className="hidden md:table-cell px-2 py-3 text-right">סוג אירוע</th>
-                  <th className="hidden md:table-cell px-2 py-3 text-right">מוזמנים</th>
-                  <th className="hidden md:table-cell px-2 py-3 text-right">מקור</th>
-                  <th className="hidden md:table-cell px-2 py-3 text-right">אחראי</th>
-                  <th className="hidden md:table-cell px-2 py-3 text-right">משימות</th>
+                  <th onClick={() => handleSort('received_at')} className="px-2 py-3 text-right cursor-pointer select-none hover:text-violet-700">התקבל ב<SortIcon col="received_at" /></th>
+                  <th className="px-2 py-3 text-right">טלפון</th>
+                  <th onClick={() => handleSort('event_date')} className="px-2 py-3 text-right cursor-pointer select-none hover:text-violet-700">תאריך אירוע<SortIcon col="event_date" /></th>
+                  <th className="px-2 py-3 text-right">סוג אירוע</th>
+                  <th className="px-2 py-3 text-right">מוזמנים</th>
+                  <th className="px-2 py-3 text-right">מקור</th>
+                  <th className="px-2 py-3 text-right">אחראי</th>
+                  <th className="px-2 py-3 text-right">משימות</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-violet-50">
@@ -258,8 +258,8 @@ export default function LeadsPage() {
                     onClick={() => setSelectedId(lead.id)}
                     className="hover:bg-violet-50/40 cursor-pointer transition"
                   >
-                    <td className="px-2 py-3 text-slate-400 font-medium bg-white md:sticky md:right-0 md:z-10">{idx + 1}</td>
-                    <td className="px-2 py-3 font-semibold text-slate-800 bg-white md:sticky md:right-8 md:z-10 md:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                    <td className="px-2 py-3 text-slate-400 font-medium sticky right-0 z-10 bg-white [transform:translateZ(0)]">{idx + 1}</td>
+                    <td className="px-2 py-3 font-semibold text-slate-800 sticky right-8 z-10 bg-white shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] [transform:translateZ(0)]">
                       <div className="flex items-center gap-1.5">
                         {PRIORITY_ICONS[lead.priority] && (
                           <span>{PRIORITY_ICONS[lead.priority]}</span>
@@ -286,8 +286,8 @@ export default function LeadsPage() {
                         <DateTimeCell value={lead.last_interaction_at} />
                       </div>
                     </td>
-                    <td className="hidden md:table-cell px-2 py-3 text-slate-500"><DateTimeCell value={lead.received_at} /></td>
-                    <td className="hidden md:table-cell px-2 py-3 text-slate-600" dir="ltr" style={{ textAlign: 'left' }}>
+                    <td className="px-2 py-3 text-slate-500"><DateTimeCell value={lead.received_at} /></td>
+                    <td className="px-2 py-3 text-slate-600" dir="ltr" style={{ textAlign: 'left' }}>
                       {lead.phone ? (
                         <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()}
                            className="text-violet-700 hover:underline font-medium">
@@ -295,16 +295,16 @@ export default function LeadsPage() {
                         </a>
                       ) : '—'}
                     </td>
-                    <td className="hidden md:table-cell px-2 py-3 text-slate-600">{lead.event_date_text || formatDate(lead.event_date)}</td>
-                    <td className="hidden md:table-cell px-2 py-3 text-slate-600">{lead.event_type || '—'}</td>
-                    <td className="hidden md:table-cell px-2 py-3 text-slate-600">{lead.guest_count || '—'}</td>
-                    <td className="hidden md:table-cell px-2 py-3">
+                    <td className="px-2 py-3 text-slate-600">{lead.event_date_text || formatDate(lead.event_date)}</td>
+                    <td className="px-2 py-3 text-slate-600">{lead.event_type || '—'}</td>
+                    <td className="px-2 py-3 text-slate-600">{lead.guest_count || '—'}</td>
+                    <td className="px-2 py-3">
                       <span className={`font-semibold px-2 py-0.5 rounded-full ${SOURCE_COLORS[lead.source] || 'bg-stone-100 text-stone-600'}`}>
                         {SOURCE_LABELS[lead.source] || lead.source}
                       </span>
                     </td>
-                    <td className="hidden md:table-cell px-2 py-3 text-slate-500">{lead.assigned_name || '—'}</td>
-                    <td className="hidden md:table-cell px-2 py-3">
+                    <td className="px-2 py-3 text-slate-500">{lead.assigned_name || '—'}</td>
+                    <td className="px-2 py-3">
                       {lead.overdue_tasks > 0 ? (
                         <span className="inline-flex items-center gap-1 bg-red-100 text-red-600 font-bold px-2 py-0.5 rounded-full">
                           <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse inline-block" />
