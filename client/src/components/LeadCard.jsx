@@ -92,6 +92,32 @@ function TimeInput({ value, onChange, className }) {
       placeholder="HH:MM" className={className} dir="ltr" />
   );
 }
+// Calendar + clock pickers — for task/meeting modals where exact datetime is required
+function PickerDateInput({ value, onChange, className }) {
+  const ref = useRef(null);
+  const display = value ? value.split('-').reverse().join('/') : '';
+  return (
+    <div className={`${className} relative flex items-center cursor-pointer`}
+         onClick={() => ref.current?.showPicker?.()}>
+      <span className={`flex-1 select-none ${display ? '' : 'text-slate-400'}`}>{display || 'DD/MM/YYYY'}</span>
+      <span className="text-slate-400 text-xs ml-1">📅</span>
+      <input ref={ref} type="date" value={value || ''} onChange={e => onChange(e.target.value)}
+        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer" />
+    </div>
+  );
+}
+function PickerTimeInput({ value, onChange, className }) {
+  const ref = useRef(null);
+  return (
+    <div className={`${className} relative flex items-center cursor-pointer`}
+         onClick={() => ref.current?.showPicker?.()}>
+      <span className={`flex-1 select-none ${value ? '' : 'text-slate-400'}`}>{value || 'HH:MM'}</span>
+      <span className="text-slate-400 text-xs ml-1">🕐</span>
+      <input ref={ref} type="time" value={value || ''} onChange={e => onChange(e.target.value)}
+        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer" />
+    </div>
+  );
+}
 
 function fileIcon(mime = '') {
   if (mime.startsWith('image/')) return '🖼️';
@@ -1980,11 +2006,11 @@ function AddTaskModal({ leadId, users, onClose, onSaved }) {
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="text-sm text-slate-500 block mb-1 text-right">תאריך</label>
-            <DateInput value={form.due_date} onChange={v => setForm(f => ({ ...f, due_date: v }))} className={cls} />
+            <PickerDateInput value={form.due_date} onChange={v => setForm(f => ({ ...f, due_date: v }))} className={cls} />
           </div>
           <div>
             <label className="text-sm text-slate-500 block mb-1 text-right">שעה</label>
-            <TimeInput value={form.due_time} onChange={v => setForm(f => ({ ...f, due_time: v }))} className={cls} />
+            <PickerTimeInput value={form.due_time} onChange={v => setForm(f => ({ ...f, due_time: v }))} className={cls} />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
@@ -2229,8 +2255,8 @@ function TaskActionModal({ task, leadId, lead, users, allPhones, allEmails, onCl
           <div className="space-y-2">
             <label className="text-sm text-slate-500 block text-right">תאריך ושעה חדשים</label>
             <div className="flex gap-2">
-              <DateInput value={newDueDate} onChange={setNewDueDate} className={`${cls} flex-1`} autoFocus />
-              <TimeInput value={newDueTime} onChange={setNewDueTime} className={`${cls} w-28`} />
+              <PickerDateInput value={newDueDate} onChange={setNewDueDate} className={`${cls} flex-1`} />
+              <PickerTimeInput value={newDueTime} onChange={setNewDueTime} className={`${cls} w-28`} />
             </div>
             <div className="flex gap-2">
               <button onClick={() => setMode(null)} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl text-base">חזרה</button>
@@ -2248,8 +2274,8 @@ function TaskActionModal({ task, leadId, lead, users, allPhones, allEmails, onCl
             <input value={followTitle} onChange={e => setFollowTitle(e.target.value)}
               className={`${cls} text-right`} autoFocus placeholder="כותרת משימת המשך..." />
             <div className="flex gap-2">
-              <DateInput value={followDueDate} onChange={setFollowDueDate} className={`${cls} flex-1`} />
-              <TimeInput value={followDueTime} onChange={setFollowDueTime} className={`${cls} w-28`} />
+              <PickerDateInput value={followDueDate} onChange={setFollowDueDate} className={`${cls} flex-1`} />
+              <PickerTimeInput value={followDueTime} onChange={setFollowDueTime} className={`${cls} w-28`} />
             </div>
             <div className="flex gap-2">
               <button onClick={() => setMode(null)} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl text-base">חזרה</button>
@@ -2528,16 +2554,16 @@ function ScheduleMeetingModal({ lead, leadId, onClose, onDone }) {
             </div>
             <div>
               <label className="text-sm text-slate-500 block mb-1 text-right">תאריך</label>
-              <DateInput value={date} onChange={setDate} className={cls} />
+              <PickerDateInput value={date} onChange={setDate} className={cls} />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-sm text-slate-500 block mb-1 text-right">שעת התחלה</label>
-                <TimeInput value={startTime} onChange={setStart} className={cls} />
+                <PickerTimeInput value={startTime} onChange={setStart} className={cls} />
               </div>
               <div>
                 <label className="text-sm text-slate-500 block mb-1 text-right">שעת סיום</label>
-                <TimeInput value={endTime} onChange={setEnd} className={cls} />
+                <PickerTimeInput value={endTime} onChange={setEnd} className={cls} />
               </div>
             </div>
             <div>
