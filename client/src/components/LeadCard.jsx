@@ -1,7 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api';
-import DatePicker from 'react-datepicker';
-import 'react-datepicker/dist/react-datepicker.css';
 
 const STAGES = [
   { key: 'new',           label: 'חדש',          active: 'bg-sky-500 text-white border-sky-500',         past: 'bg-sky-100 text-sky-600 border-sky-200',         future: 'bg-white text-slate-400 border-slate-200 hover:border-sky-300 hover:text-sky-500' },
@@ -83,21 +81,15 @@ function parseTimeIL(str) {
   return `${String(h).padStart(2,'0')}:${String(mi).padStart(2,'0')}`;
 }
 function DateInput({ value, onChange, className }) {
-  const selected = value ? new Date(value + 'T00:00:00') : null;
   return (
-    <DatePicker
-      selected={selected}
-      onChange={d => onChange(d ? d.toLocaleDateString('sv') : '')}
-      dateFormat="dd/MM/yyyy"
-      placeholderText="dd/MM/yyyy"
-      className={className}
-    />
+    <input type="text" value={value || ''} onChange={e => onChange(e.target.value)}
+      placeholder="DD/MM/YYYY" className={className} dir="ltr" />
   );
 }
 function TimeInput({ value, onChange, className }) {
   return (
-    <input type="time" value={value || ''} onChange={e => onChange(e.target.value)}
-      className={className} dir="ltr" />
+    <input type="text" value={value || ''} onChange={e => onChange(e.target.value)}
+      placeholder="HH:MM" className={className} dir="ltr" />
   );
 }
 

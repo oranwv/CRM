@@ -1,29 +1,38 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import api from '../api';
 
+function parseDateIL(str) {
+  if (!str || !str.trim()) return null;
+  const m = str.trim().match(/^(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](\d{2,4})$/);
+  if (!m) return null;
+  let [, d, mo, y] = m.map(Number);
+  if (y < 100) y += 2000;
+  if (d < 1 || d > 31 || mo < 1 || mo > 12 || y < 2020) return null;
+  return `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+function parseTimeIL(str) {
+  if (!str || !str.trim()) return null;
+  const s = str.trim();
+  let m = s.match(/^(\d{1,2})[:.](\d{2})$/);
+  if (!m) {
+    const d4 = s.match(/^(\d{3,4})$/);
+    if (d4) m = [null, d4[1].slice(0, -2) || '0', d4[1].slice(-2)];
+  }
+  if (!m) return null;
+  const h = parseInt(m[1], 10), mi = parseInt(m[2], 10);
+  if (h > 23 || mi > 59) return null;
+  return `${String(h).padStart(2,'0')}:${String(mi).padStart(2,'0')}`;
+}
 function DateInput({ value, onChange, className }) {
-  const ref = useRef(null);
-  const display = value ? value.split('-').reverse().join('/') : '';
   return (
-    <div className={`${className} relative flex items-center cursor-pointer`}
-         onClick={() => ref.current?.showPicker?.()}>
-      <span className={`flex-1 select-none ${display ? '' : 'text-slate-400'}`}>{display || 'DD/MM/YYYY'}</span>
-      <span className="text-slate-400 text-xs">📅</span>
-      <input ref={ref} type="date" value={value || ''} onChange={e => onChange(e.target.value)}
-        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer" />
-    </div>
+    <input type="text" value={value || ''} onChange={e => onChange(e.target.value)}
+      placeholder="DD/MM/YYYY" className={className} dir="ltr" />
   );
 }
 function TimeInput({ value, onChange, className, placeholder }) {
-  const ref = useRef(null);
   return (
-    <div className={`${className} relative flex items-center cursor-pointer`}
-         onClick={() => ref.current?.showPicker?.()}>
-      <span className={`flex-1 select-none ${value ? '' : 'text-slate-400'}`}>{value || placeholder || 'HH:MM'}</span>
-      <span className="text-slate-400 text-xs">🕐</span>
-      <input ref={ref} type="time" value={value || ''} onChange={e => onChange(e.target.value)}
-        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer" />
-    </div>
+    <input type="text" value={value || ''} onChange={e => onChange(e.target.value)}
+      placeholder={placeholder || 'HH:MM'} className={className} dir="ltr" />
   );
 }
 
@@ -67,11 +76,20 @@ export default function AddLeadModal({ onClose, onSaved }) {
       if (!payload.guest_count) delete payload.guest_count;
       if (!payload.budget) delete payload.budget;
       if (!payload.assigned_to) delete payload.assigned_to;
-      if (!payload.event_time) delete payload.event_time;
-      if (!payload.event_end_time) delete payload.event_end_time;
       if (payload.event_type === 'אחר' && customEventType.trim()) {
         payload.event_type = customEventType.trim();
       }
+      // Parse free-text date → ISO date column; store raw text in event_date_text
+      const parsedDate = parseDateIL(payload.event_date);
+      payload.event_date_text = payload.event_date || null;
+      payload.event_date = parsedDate || null;
+      // Parse free-text times → HH:MM; drop if unparseable
+      const parsedTime = parseTimeIL(payload.event_time);
+      payload.event_time = parsedTime || null;
+      if (!payload.event_time) delete payload.event_time;
+      const parsedEnd = parseTimeIL(payload.event_end_time);
+      payload.event_end_time = parsedEnd || null;
+      if (!payload.event_end_time) delete payload.event_end_time;
       await api.post('/leads', payload);
       onSaved();
     } catch (err) {
