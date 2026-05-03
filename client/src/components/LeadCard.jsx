@@ -724,7 +724,7 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
   const [emailBody, setEmailBody] = useState(`שלום ${lead.name},\nמצורפת הצעת המחיר שלנו לאירוע שלך.\nנשמח לראותכם, צוות שרביה.`);
   const previewRef = useRef(null);
   const [texts, setTexts] = useState({
-    title:          'הצעת מחיר - אירוע בשרביה',
+    title:          'הצעת מחיר ‏- אירוע בשרביה',
     arrival:        'כניסה לאירוע: דרך רחוב פנחס בן יאיר 3, תל אביב יפו',
     costsHeader:    'עלויות:',
     tableHeaders:   ['שם הפריט', 'תיאור', 'כמות', 'מחיר', 'סה"כ לפני מע"מ'],
