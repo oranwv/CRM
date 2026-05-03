@@ -237,8 +237,8 @@ export default function LeadsPage() {
             <table className="w-full text-xs min-w-[900px]">
               <thead>
                 <tr className="bg-violet-50/60 text-xs font-bold text-slate-500 uppercase tracking-wide border-b border-violet-100">
-                  <th className="px-2 py-3 text-right sticky right-0 z-10 bg-violet-50">#</th>
-                  <th className="px-2 py-3 text-right sticky right-8 z-10 bg-violet-50 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">שם האירוע</th>
+                  <th className="px-2 py-3 text-right sticky right-0 z-10 bg-violet-50 [transform:translateZ(0)]">#</th>
+                  <th className="px-2 py-3 text-right sticky right-8 z-10 bg-violet-50 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] [transform:translateZ(0)]">שם האירוע</th>
                   <th className="px-2 py-3 text-right">סטטוס</th>
                   <th onClick={() => handleSort('last_interaction_at')} className="px-2 py-3 text-right cursor-pointer select-none hover:text-violet-700">פעילות אחרונה<SortIcon col="last_interaction_at" /></th>
                   <th onClick={() => handleSort('received_at')} className="px-2 py-3 text-right cursor-pointer select-none hover:text-violet-700">התקבל ב<SortIcon col="received_at" /></th>
@@ -258,8 +258,8 @@ export default function LeadsPage() {
                     onClick={() => setSelectedId(lead.id)}
                     className="hover:bg-violet-50/40 cursor-pointer transition"
                   >
-                    <td className="px-2 py-3 text-slate-400 font-medium sticky right-0 z-10 bg-white">{idx + 1}</td>
-                    <td className="px-2 py-3 font-semibold text-slate-800 sticky right-8 z-10 bg-white shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                    <td className="px-2 py-3 text-slate-400 font-medium sticky right-0 z-10 bg-white [transform:translateZ(0)]">{idx + 1}</td>
+                    <td className="px-2 py-3 font-semibold text-slate-800 sticky right-8 z-10 bg-white shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] [transform:translateZ(0)]">
                       <div className="flex items-center gap-1.5">
                         {PRIORITY_ICONS[lead.priority] && (
                           <span>{PRIORITY_ICONS[lead.priority]}</span>
