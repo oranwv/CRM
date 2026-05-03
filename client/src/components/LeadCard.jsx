@@ -1041,7 +1041,7 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                     ].map(({ label, key, ltr }) => (
                       <tr key={key}>
                         <td style={{ fontWeight: 'bold', whiteSpace: 'nowrap', paddingLeft: '6pt', verticalAlign: 'top', paddingBottom: '2pt' }}>
-                          {label}:
+                          {'‫' + label + ':‬'}
                         </td>
                         <td style={{ direction: ltr ? 'ltr' : 'rtl', paddingBottom: '2pt', verticalAlign: 'top' }}>
                           <EditableCell value={fields[key]} onChange={v => setFields(f => ({ ...f, [key]: v }))} dir={ltr ? 'ltr' : 'rtl'} />
