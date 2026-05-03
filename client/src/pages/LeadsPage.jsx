@@ -233,7 +233,7 @@ export default function LeadsPage() {
             <p className="text-sm">אין לידים בקטגוריה זו</p>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl shadow-sm border border-violet-100 mt-2 overflow-x-auto [transform:translateZ(0)]">
+          <div className="bg-white rounded-2xl shadow-sm border border-violet-100 mt-2 overflow-x-auto">
             <table className="w-full text-xs min-w-[900px]">
               <thead>
                 <tr className="bg-violet-50/60 text-xs font-bold text-slate-500 uppercase tracking-wide border-b border-violet-100">
