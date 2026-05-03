@@ -682,7 +682,8 @@ function EditableCell({ value, onChange, multiline, dir: cellDir }) {
     return <input autoFocus value={value} onChange={e => onChange(e.target.value)}
       onBlur={commit} onKeyDown={e => e.key === 'Enter' && commit()} style={inputStyle} />;
   }
-  return <span dir={cellDir || 'rtl'} onClick={() => setEditing(true)} style={style}>{value ? value.replace(/ /g, ' ') : ' '}</span>;
+  const _v = value ? value.replace(/ /g, ' ') : ' ';
+  return <span dir={cellDir || 'rtl'} onClick={() => setEditing(true)} style={style}>{cellDir !== 'ltr' && value ? '‫' + _v + '‬' : _v}</span>;
 }
 
 
@@ -724,7 +725,7 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
   const [emailBody, setEmailBody] = useState(`שלום ${lead.name},\nמצורפת הצעת המחיר שלנו לאירוע שלך.\nנשמח לראותכם, צוות שרביה.`);
   const previewRef = useRef(null);
   const [texts, setTexts] = useState({
-    title:          '‫הצעת מחיר – אירוע בשרביה‬',
+    title:          'הצעת מחיר – אירוע בשרביה',
     arrival:        'כניסה לאירוע: דרך רחוב פנחס בן יאיר 3, תל אביב יפו',
     costsHeader:    'עלויות:',
     tableHeaders:   ['שם הפריט', 'תיאור', 'כמות', 'מחיר', 'סה"כ לפני מע"מ'],
@@ -1075,15 +1076,15 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                       </tr>
                     ))}
                     <tr>
-                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold', direction: 'rtl', unicodeBidi: 'embed' }}>{'סה"כ חייב במע"מ:'}</td>
+                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>{'‫סה"כ חייב במע"מ:‬'}</td>
                       <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center', fontWeight: 'bold' }}>{subtotal.toLocaleString()} {'ש"ח'}</td>
                     </tr>
                     <tr>
-                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right', direction: 'rtl', unicodeBidi: 'embed' }}>{'מע"מ‏ (18%)‏:'}</td>
+                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right' }}>{'‫מע"מ (18%):‬'}</td>
                       <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{vat.toLocaleString()} {'ש"ח'}</td>
                     </tr>
                     <tr style={{ fontWeight: 'bold' }}>
-                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right', direction: 'rtl', unicodeBidi: 'embed' }}>{'סה"כ לתשלום:'}</td>
+                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right' }}>{'‫סה"כ לתשלום:‬'}</td>
                       <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{total.toLocaleString()} {'ש"ח'}</td>
                     </tr>
                   </tbody>
@@ -1130,7 +1131,7 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
 
                 {fields.notes && (
                   <p style={{ marginTop: '8pt' }}>
-                    {'הערות: '}<EditableCell value={fields.notes} onChange={v => setFields(f => ({ ...f, notes: v }))} multiline />
+                    {'‫הערות: ‬'}<EditableCell value={fields.notes} onChange={v => setFields(f => ({ ...f, notes: v }))} multiline />
                   </p>
                 )}
 
