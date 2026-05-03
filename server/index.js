@@ -25,17 +25,18 @@ if (process.env.GOOGLE_REFRESH_TOKEN && !process.env.GOOGLE_TOKEN_B64) {
   );
 }
 
-const requireAuth         = require('./middleware/auth');
-const authRoutes          = require('./routes/auth');
-const leadsRoutes         = require('./routes/leads');
-const usersRoutes         = require('./routes/users');
-const whatsappRoutes      = require('./routes/whatsapp');
-const filesRoutes         = require('./routes/files');
-const fileDownloadRoutes  = require('./routes/fileDownload');
-const analyticsRoutes     = require('./routes/analytics');
-const calendarRoutes      = require('./routes/calendar');
-const aiRoutes            = require('./routes/ai');
-const adminRoutes         = require('./routes/admin');
+const requireAuth           = require('./middleware/auth');
+const authRoutes            = require('./routes/auth');
+const leadsRoutes           = require('./routes/leads');
+const usersRoutes           = require('./routes/users');
+const whatsappRoutes        = require('./routes/whatsapp');
+const filesRoutes           = require('./routes/files');
+const fileDownloadRoutes    = require('./routes/fileDownload');
+const analyticsRoutes       = require('./routes/analytics');
+const calendarRoutes        = require('./routes/calendar');
+const aiRoutes              = require('./routes/ai');
+const adminRoutes           = require('./routes/admin');
+const priceOfferRoutes      = require('./routes/priceOffer');
 
 const pool = require('./db/pool');
 
@@ -127,6 +128,7 @@ app.use('/api/tasks',     require('./routes/taskPostpone')); // public postpone 
 
 // Protected
 app.use('/api/files',               requireAuth, fileDownloadRoutes);
+app.use('/api/leads/:id/price-offer', requireAuth, priceOfferRoutes);
 app.use('/api/leads',               requireAuth, leadsRoutes);
 app.use('/api/leads/:leadId/files', requireAuth, filesRoutes);
 app.use('/api/admin',               requireAuth, adminRoutes);
