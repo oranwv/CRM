@@ -149,13 +149,13 @@ router.post('/', async (req, res) => {
     };
 
     const doc = pdfmake.createPdf(docDefinition);
-    const stream = await doc.getStream();
+    const buffer = await doc.getBuffer();
 
+    const safeName = encodeURIComponent(`price-offer-${fields.name || 'offer'}.pdf`);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition',
-      `attachment; filename="price-offer-${fields.name || 'offer'}.pdf"`);
-    stream.pipe(res);
-    stream.end();
+      `attachment; filename="price-offer.pdf"; filename*=UTF-8''${safeName}`);
+    res.send(buffer);
   } catch (err) {
     console.error('[PriceOffer PDF]', err);
     res.status(500).json({ error: 'PDF generation failed' });
