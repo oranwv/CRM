@@ -1005,7 +1005,7 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                   <img src="/logo.jpg" alt="Sharabiya" crossOrigin="anonymous" style={{ height: '80px', objectFit: 'contain', display: 'inline-block' }} />
                 </div>
 
-                <h2 style={{ textAlign: 'center', fontSize: '15pt', fontWeight: 'bold', marginBottom: '12pt', direction: 'rtl', unicodeBidi: 'embed' }}>
+                <h2 style={{ textAlign: 'center', fontSize: '15pt', fontWeight: 'bold', marginBottom: '12pt', direction: 'rtl', unicodeBidi: 'bidi-override' }}>
                   <EditableCell value={texts.title} onChange={v => setTxt('title', v)} />
                 </h2>
 
