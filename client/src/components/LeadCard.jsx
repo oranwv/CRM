@@ -682,7 +682,7 @@ function EditableCell({ value, onChange, multiline, dir: cellDir }) {
     return <input autoFocus value={value} onChange={e => onChange(e.target.value)}
       onBlur={commit} onKeyDown={e => e.key === 'Enter' && commit()} style={inputStyle} />;
   }
-  return <span onClick={() => setEditing(true)} style={style}>{value ? value.replace(/ /g, ' ') : ' '}</span>;
+  return <span dir={cellDir || 'rtl'} onClick={() => setEditing(true)} style={style}>{value ? value.replace(/ /g, ' ') : ' '}</span>;
 }
 
 
@@ -724,7 +724,7 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
   const [emailBody, setEmailBody] = useState(`שלום ${lead.name},\nמצורפת הצעת המחיר שלנו לאירוע שלך.\nנשמח לראותכם, צוות שרביה.`);
   const previewRef = useRef(null);
   const [texts, setTexts] = useState({
-    title:          'הצעת מחיר - אירוע בשרביה',
+    title:          'הצעת מחיר ‏-‏ אירוע בשרביה',
     arrival:        'כניסה לאירוע: דרך רחוב פנחס בן יאיר 3, תל אביב יפו',
     costsHeader:    'עלויות:',
     tableHeaders:   ['שם הפריט', 'תיאור', 'כמות', 'מחיר', 'סה"כ לפני מע"מ'],
@@ -1005,7 +1005,7 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                   <img src="/logo.jpg" alt="Sharabiya" crossOrigin="anonymous" style={{ height: '80px', objectFit: 'contain', display: 'inline-block' }} />
                 </div>
 
-                <h2 style={{ textAlign: 'center', fontSize: '15pt', fontWeight: 'bold', marginBottom: '12pt', direction: 'rtl', unicodeBidi: 'bidi-override' }}>
+                <h2 dir="rtl" style={{ textAlign: 'center', fontSize: '15pt', fontWeight: 'bold', marginBottom: '12pt', direction: 'rtl', unicodeBidi: 'bidi-override' }}>
                   <EditableCell value={texts.title} onChange={v => setTxt('title', v)} />
                 </h2>
 
