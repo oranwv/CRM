@@ -18,6 +18,12 @@ function fmt(n) {
   return Number(n || 0).toLocaleString('he-IL');
 }
 
+// pdfmake splits Hebrew text on regular spaces and reverses word order (RTL bug).
+// Replacing spaces with NBSP prevents splitting so the whole string renders as one RTL run.
+function nbsp(s) {
+  return String(s || '').replace(/ /g, ' ');
+}
+
 router.post('/', async (req, res) => {
   try {
     const { fields, rows, texts } = req.body;
@@ -54,8 +60,8 @@ router.post('/', async (req, res) => {
       table: {
         widths: ['auto', '*'],
         body: headerRows.map(({ label, value, ltr }) => [
-          { text: label + ':', bold: true, alignment: 'right', noWrap: true, margin: [6, 0, 0, 2] },
-          { text: value, alignment: ltr ? 'left' : 'right', margin: [0, 0, 0, 2] },
+          { text: nbsp(label) + ':', bold: true, alignment: 'right', noWrap: true, margin: [6, 0, 0, 2] },
+          { text: ltr ? value : nbsp(value), alignment: ltr ? 'left' : 'right', margin: [0, 0, 0, 2] },
         ]),
       },
       layout: 'noBorders',
@@ -146,6 +152,7 @@ router.post('/', async (req, res) => {
       defaultStyle: { font: 'Alef', fontSize: 10, alignment: 'right' },
       pageSize: 'A4',
       pageMargins: [30, 30, 30, 30],
+      pageDirection: 'rtl',
     };
 
     const doc = pdfmake.createPdf(docDefinition);
