@@ -725,7 +725,7 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
   const [fields, setFields]   = useState({
     name: lead.name || '', email: allEmails[0] || '', phone: lead.phone || '',
     eventDate: lead.event_date_text || '', doorTime: lead.event_time || '',
-    endTime: lead.event_end_time || '', guests: '', chefMenu: '', barMenu: '', notes: '',
+    endTime: lead.event_end_time || '', guests: '', chefMenu: '', barMenu: '', notes: '', extraGuestPrice: '',
   });
   const [rows, setRows] = useState([
     { id: 1, label: 'מחיר אורח', desc: 'כולל שכירות המקום, תפריט קייטרינג, תפריט בר', qty: 0, price: 395 },
@@ -735,6 +735,7 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
     { id: 5, label: 'תאורה והגברה + תפעול לאורך האירוע', desc: '', qty: 1, price: 0 },
   ]);
   const [newRow, setNewRow]     = useState({ label: '', desc: '', qty: 1, price: 0 });
+  const [newInclude, setNewInclude] = useState('');
   const [saving, setSaving]     = useState(false);
   const [sending, setSending]   = useState(false);
   const [showEmailForm, setShowEmailForm] = useState(false);
@@ -769,7 +770,7 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
       'חניות: 40 ש"ח לרכב (יש הסדר חניה עם חניון "חצרות יפו". שעת סגירת החניון ב- 24:00. במידה והאירוע התארך לאחר השעה 24:00, על בעל האירוע לשלם 100 שקלים על כל שעה נוספת לשומר החניון)',
     ],
     minGuestsPrefix: 'הצעת מחיר זו הינה עבור קיום אירוע עם מינימום',
-    minGuestsSuffix: 'אישים',
+    minGuestsSuffix: 'אורחים',
     payment:  'תנאי תשלום: מקדמה 30% והיתרה לתשלום ביום האירוע לפני תחילת האירוע.',
     validity: 'הצעה זו תקפה ל 3 ימים.',
     closing:  'נשמח לראותכם, צוות שרביה',
@@ -785,12 +786,17 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
     setRows(prev => prev.map(r => r.id === 1 ? { ...r, qty: g } : r));
   }, [fields.guests]);
 
-  const addRowStep  = FIELD_STEPS + rows.length;
+  const EXTRA_GUEST_STEP = FIELD_STEPS;
+  const ADD_INCLUDE_STEP = FIELD_STEPS + 1;
+  const ROW_START        = FIELD_STEPS + 2;
+  const addRowStep  = ROW_START + rows.length;
   const previewStep = addRowStep + 1;
-  const isFieldStep  = step < FIELD_STEPS;
-  const isRowStep    = step >= FIELD_STEPS && step < addRowStep;
-  const isAddRowStep = step === addRowStep;
-  const isPreviewStep = step === previewStep;
+  const isFieldStep      = step < FIELD_STEPS;
+  const isExtraGuestStep = step === EXTRA_GUEST_STEP;
+  const isAddIncludeStep = step === ADD_INCLUDE_STEP;
+  const isRowStep        = step >= ROW_START && step < addRowStep;
+  const isAddRowStep     = step === addRowStep;
+  const isPreviewStep    = step === previewStep;
 
   const subtotal = rows.reduce((s, r) => s + r.qty * r.price, 0);
   const vat      = Math.round(subtotal * 0.18);
@@ -800,11 +806,17 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
   const back    = () => { setEditMode(false); setStep(s => Math.max(0, s - 1)); };
 
   function deleteCurrentRow() {
-    const idx = step - FIELD_STEPS;
+    const idx = step - ROW_START;
     const next = rows.filter((_, i) => i !== idx);
     setRows(next);
     setEditMode(false);
-    if (idx >= next.length) setStep(FIELD_STEPS + next.length);
+    if (idx >= next.length) setStep(ROW_START + next.length);
+  }
+
+  function addIncludeItem() {
+    if (!newInclude.trim()) return;
+    setTexts(t => ({ ...t, includes: [...t.includes, newInclude.trim()] }));
+    setNewInclude('');
   }
 
   function addNewRow() {
@@ -922,9 +934,57 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
             );
           })()}
 
+          {/* ── Extra guest cost step ── */}
+          {isExtraGuestStep && (
+            <div className="space-y-5">
+              <p className="text-slate-400 text-sm font-semibold">עלות אורח נוסף (לפני מע"מ)</p>
+              <input
+                autoFocus type="number" value={fields.extraGuestPrice}
+                onChange={e => setFields(f => ({ ...f, extraGuestPrice: e.target.value }))}
+                onKeyDown={e => e.key === 'Enter' && advance()}
+                placeholder="לדוגמה: 400"
+                className="w-full border-2 border-amber-300 rounded-xl px-4 py-3 text-lg focus:outline-none focus:border-amber-500"
+              />
+              <p className="text-xs text-slate-400">אופציונלי — אם לא רלוונטי, השאר ריק</p>
+              <div className="flex gap-2">
+                <button onClick={back} className="border-2 border-slate-200 text-slate-500 font-bold py-2.5 px-4 rounded-xl">חזור</button>
+                <button onClick={advance} className="flex-1 bg-amber-500 text-white font-bold py-2.5 rounded-xl">המשך</button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Add includes step ── */}
+          {isAddIncludeStep && (
+            <div className="space-y-4">
+              <p className="text-slate-400 text-sm font-semibold">הוסף פריט ל"המחיר כולל בתוכו"</p>
+              <div className="text-xs text-slate-400 space-y-0.5 max-h-32 overflow-y-auto">
+                {texts.includes.filter(i => i.trim()).map((item, i) => (
+                  <div key={i}>• {item}</div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  value={newInclude}
+                  onChange={e => setNewInclude(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addIncludeItem()}
+                  placeholder="פריט חדש..."
+                  className="flex-1 border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-amber-400"
+                />
+                <button onClick={addIncludeItem} disabled={!newInclude.trim()}
+                  className="border-2 border-amber-300 text-amber-600 font-bold py-2 px-4 rounded-xl hover:bg-amber-50 disabled:opacity-40">
+                  + הוסף
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={back} className="border-2 border-slate-200 text-slate-500 font-bold py-2.5 px-4 rounded-xl">חזור</button>
+                <button onClick={advance} className="flex-1 bg-amber-500 text-white font-bold py-2.5 rounded-xl">המשך לעלויות</button>
+              </div>
+            </div>
+          )}
+
           {/* ── Row step ── */}
           {isRowStep && (() => {
-            const rowIdx = step - FIELD_STEPS;
+            const rowIdx = step - ROW_START;
             const row = rows[rowIdx];
             if (!row) return null;
             return (
@@ -1106,6 +1166,13 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                   {' '}
                   <EditableCell value={texts.minGuestsSuffix} onChange={v => setTxt('minGuestsSuffix', v)} />
                 </p>
+
+                {/* Extra guest cost */}
+                {fields.extraGuestPrice && Number(fields.extraGuestPrice) > 0 && (
+                  <p style={{ marginTop: '4pt' }}>
+                    {`עלות כל אורח נוסף מעל ${fields.guests || ''} אורחים הינה ${Number(fields.extraGuestPrice).toLocaleString()} ש"ח לפני מע"מ`}
+                  </p>
+                )}
 
                 {/* Included items */}
                 <p style={{ marginTop: '8pt', marginBottom: '2pt', fontWeight: 'bold' }}>

@@ -56,6 +56,10 @@ function buildHtml({ fields, rows, texts }) {
       <td style="border:1px solid #ccc;padding:4px 6px;text-align:center;">${fmt(r.qty * r.price)} ש"ח</td>
     </tr>`).join('');
 
+  const extraGuestHtml = (fields.extraGuestPrice && Number(fields.extraGuestPrice) > 0)
+    ? `<p style="margin-top:4pt;">עלות כל אורח נוסף מעל ${esc(String(fields.guests || ''))} אורחים הינה ${Number(fields.extraGuestPrice).toLocaleString()} ש"ח לפני מע"מ</p>`
+    : '';
+
   const includesHtml = texts.includes.map((item, i) => {
     let text = item;
     if (i === 3 && fields.chefMenu) text += ' ' + fields.chefMenu;
@@ -127,6 +131,8 @@ ${logoB64 ? `<div style="text-align:center;margin-bottom:10pt;"><img src="data:i
 </table>
 
 <p style="margin-top:10pt;">${esc(texts.minGuestsPrefix)} ${esc(fields.guests || '')} ${esc(texts.minGuestsSuffix)}</p>
+
+${extraGuestHtml}
 
 <p style="margin-top:8pt;margin-bottom:2pt;font-weight:bold;">${esc(texts.includesHeader)}</p>
 <div style="line-height:2;">${includesHtml}</div>
