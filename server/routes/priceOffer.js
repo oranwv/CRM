@@ -56,6 +56,15 @@ function buildHtml({ fields, rows, texts }) {
       <td style="border:1px solid #ccc;padding:4px 6px;text-align:center;">${fmt(r.qty * r.price)} ש"ח</td>
     </tr>`).join('');
 
+  const venueDescItemsHtml = (texts.venueDescItems || [])
+    .filter(item => item.trim())
+    .map(item => `<p style="font-size:9pt;margin-bottom:2pt;">${esc(item)}</p>`)
+    .join('');
+  const venueDescHtml = `
+<p style="margin-top:6pt;font-weight:bold;font-size:9pt;">${esc(texts.venueDescHeader || '')}</p>
+<p style="font-size:9pt;margin-bottom:2pt;">${esc(texts.venueDescIntro || '')}</p>
+<div style="font-size:9pt;line-height:1.8;">${venueDescItemsHtml}</div>`;
+
   const extraGuestHtml = (fields.extraGuestPrice && Number(fields.extraGuestPrice) > 0)
     ? `<p style="margin-top:4pt;">עלות כל אורח נוסף מעל ${esc(String(fields.guests || ''))} אורחים הינה ${Number(fields.extraGuestPrice).toLocaleString()} ש"ח לפני מע"מ</p>`
     : '';
@@ -108,6 +117,8 @@ ${logoB64 ? `<div style="text-align:center;margin-bottom:10pt;"><img src="data:i
 </table>
 
 <p style="margin-top:8pt;font-size:9pt;color:#555;">${esc(texts.arrival)}</p>
+
+${venueDescHtml}
 
 <h3 style="margin-top:12pt;margin-bottom:4pt;font-weight:bold;">${esc(texts.costsHeader)}</h3>
 

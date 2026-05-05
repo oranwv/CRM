@@ -746,6 +746,13 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
   const [texts, setTexts] = useState({
     title:          'הצעת מחיר – אירוע בשרביה',
     arrival:        'כניסה לאירוע: דרך רחוב פנחס בן יאיר 3, תל אביב יפו',
+    venueDescHeader: 'מפרט מקום:',
+    venueDescIntro:  'הגלריה שלנו מורכבת מכמה מתחמים',
+    venueDescItems: [
+      'חלל לואי ה-16: חלל מהמם עם קירות אבן חשופים, מעוצב בקפדנות עם ריהוט עתיק באווירה יפואית קסומה, מתאים לכל סוג אירוע.',
+      'חלל לואי ה-17: חלל נוסף באותו ניחוח עיצובי המאובזר במערכות סאונד משודרגות לקיום רחבת ריקודים. גם כן יכול לשמש לכל סוג אירוע.',
+      'חלק חיצוני: החלק החיצוני יושב על המדרחוב הציורי בשוק היווני. האזור מתוחם ופרטי למשתתפי האירוע. מאפשר מקומות ישיבה, ספות מעוצבות וכולל שמשיות, מערכת מוזיקה ואיוורור / גופי חימום להתאמה לעונות החורף והקיץ.',
+    ],
     costsHeader:    'עלויות:',
     tableHeaders:   ['שם הפריט', 'תיאור', 'כמות', 'מחיר', 'סה"כ לפני מע"מ'],
     includesHeader: 'המחיר כולל בתוכו:',
@@ -779,6 +786,7 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
   const setInc = (i, v) => setTexts(t => ({ ...t, includes: t.includes.map((x, j) => j === i ? v : x) }));
   const setExt = (i, v) => setTexts(t => ({ ...t, extras: t.extras.map((x, j) => j === i ? v : x) }));
   const setTh  = (i, v) => setTexts(t => ({ ...t, tableHeaders: t.tableHeaders.map((x, j) => j === i ? v : x) }));
+  const setVenueDesc = (i, v) => setTexts(t => ({ ...t, venueDescItems: t.venueDescItems.map((x, j) => j === i ? v : x) }));
 
   // Sync מחיר אורח qty with guests count
   useEffect(() => {
@@ -1104,6 +1112,24 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                 <p style={{ marginTop: '8pt', fontSize: '9pt', color: '#555' }}>
                   <EditableCell value={texts.arrival} onChange={v => setTxt('arrival', v)} />
                 </p>
+
+                {/* Venue description */}
+                <p style={{ marginTop: '6pt', fontWeight: 'bold', fontSize: '9pt' }}>
+                  <EditableCell value={texts.venueDescHeader} onChange={v => setTxt('venueDescHeader', v)} />
+                </p>
+                <p style={{ fontSize: '9pt', marginBottom: '2pt' }}>
+                  <EditableCell value={texts.venueDescIntro} onChange={v => setTxt('venueDescIntro', v)} />
+                </p>
+                <div style={{ fontSize: '9pt', lineHeight: 1.8 }}>
+                  {texts.venueDescItems.map((item, i) => {
+                    if (!item.trim()) return null;
+                    return (
+                      <div key={i} style={{ direction: 'rtl' }}>
+                        <EditableCell value={item} onChange={v => setVenueDesc(i, v)} multiline />
+                      </div>
+                    );
+                  })}
+                </div>
 
                 <h3 style={{ marginTop: '12pt', marginBottom: '4pt' }}>
                   <EditableCell value={texts.costsHeader} onChange={v => setTxt('costsHeader', v)} />
