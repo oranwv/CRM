@@ -60,10 +60,12 @@ function buildHtml({ fields, rows, texts }) {
     let text = item;
     if (i === 3 && fields.chefMenu) text += ' ' + fields.chefMenu;
     if (i === 4 && fields.barMenu)  text += ' ' + fields.barMenu;
+    if (!text.trim()) return '';
     return `<div>• ${esc(text)}</div>`;
   }).join('');
 
   const extrasHtml = texts.extras
+    .filter(item => item.trim())
     .map(item => `<div>• ${esc(item)}</div>`)
     .join('');
 

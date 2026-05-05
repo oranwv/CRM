@@ -1112,17 +1112,23 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                   <EditableCell value={texts.includesHeader} onChange={v => setTxt('includesHeader', v)} />
                 </p>
                 <div style={{ lineHeight: 2 }}>
-                  {texts.includes.map((item, i) => (
-                    <div key={i} style={{ direction: 'rtl' }}>
-                      {i === 3 ? (
-                        <><EditableCell value={item} onChange={v => setInc(i, v)} />{' '}<EditableCell value={fields.chefMenu} onChange={v => setFields(f => ({ ...f, chefMenu: v }))} /></>
-                      ) : i === 4 ? (
-                        <><EditableCell value={item} onChange={v => setInc(i, v)} />{' '}<EditableCell value={fields.barMenu} onChange={v => setFields(f => ({ ...f, barMenu: v }))} /></>
-                      ) : (
-                        <EditableCell value={item} onChange={v => setInc(i, v)} multiline={i === 10} />
-                      )}
-                    </div>
-                  ))}
+                  {texts.includes.map((item, i) => {
+                    const combined = item.trim()
+                      + (i === 3 && fields.chefMenu ? ' ' + fields.chefMenu : '')
+                      + (i === 4 && fields.barMenu  ? ' ' + fields.barMenu  : '');
+                    if (!combined.trim()) return null;
+                    return (
+                      <div key={i} style={{ direction: 'rtl' }}>
+                        {i === 3 ? (
+                          <><EditableCell value={item} onChange={v => setInc(i, v)} />{' '}<EditableCell value={fields.chefMenu} onChange={v => setFields(f => ({ ...f, chefMenu: v }))} /></>
+                        ) : i === 4 ? (
+                          <><EditableCell value={item} onChange={v => setInc(i, v)} />{' '}<EditableCell value={fields.barMenu} onChange={v => setFields(f => ({ ...f, barMenu: v }))} /></>
+                        ) : (
+                          <EditableCell value={item} onChange={v => setInc(i, v)} multiline={i === 10} />
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* Optional extras */}
@@ -1130,11 +1136,14 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                   <EditableCell value={texts.extrasHeader} onChange={v => setTxt('extrasHeader', v)} />
                 </p>
                 <div style={{ lineHeight: 2 }}>
-                  {texts.extras.map((item, i) => (
-                    <div key={i} style={{ direction: 'rtl' }}>
-                      <EditableCell value={item} onChange={v => setExt(i, v)} multiline />
-                    </div>
-                  ))}
+                  {texts.extras.map((item, i) => {
+                    if (!item.trim()) return null;
+                    return (
+                      <div key={i} style={{ direction: 'rtl' }}>
+                        <EditableCell value={item} onChange={v => setExt(i, v)} multiline />
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {fields.notes && (
