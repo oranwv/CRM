@@ -22,7 +22,7 @@ function fmt(n) {
   return Number(n || 0).toLocaleString('he-IL');
 }
 
-function buildHtml({ fields, rows, texts }) {
+function buildHtml({ fields, rows, texts, offerType }) {
   const subtotal = rows.reduce((s, r) => s + (r.qty * r.price), 0);
   const vat      = Math.round(subtotal * 0.18);
   const total    = subtotal + vat;
@@ -68,6 +68,12 @@ function buildHtml({ fields, rows, texts }) {
   const extraGuestHtml = (fields.extraGuestPrice && Number(fields.extraGuestPrice) > 0)
     ? `<p style="margin-top:4pt;">עלות כל אורח נוסף מעל ${esc(String(fields.guests || ''))} אורחים הינה ${Number(fields.extraGuestPrice).toLocaleString()} ש"ח לפני מע"מ</p>`
     : '';
+
+  const packageCostLinesHtml = (texts.packageCostLines || [])
+    .filter(l => l.trim())
+    .map(l => `<div>${esc(l)}</div>`)
+    .join('');
+  const packageCostHtml = `<div style="font-size:9pt;line-height:2;margin-top:4pt;">${packageCostLinesHtml}</div>`;
 
   const includesHtml = texts.includes.map((item, i) => {
     let text = item;
@@ -122,6 +128,7 @@ ${venueDescHtml}
 
 <h3 style="margin-top:12pt;margin-bottom:4pt;font-weight:bold;">${esc(texts.costsHeader)}</h3>
 
+${offerType === 'package' ? packageCostHtml : `
 <table style="width:100%;border-collapse:collapse;font-size:9pt;">
   <thead><tr>${tableHeadersHtml}</tr></thead>
   <tbody>
@@ -144,6 +151,7 @@ ${venueDescHtml}
 <p style="margin-top:10pt;">${esc(texts.minGuestsPrefix)} ${esc(fields.guests || '')} ${esc(texts.minGuestsSuffix)}</p>
 
 ${extraGuestHtml}
+`}
 
 <p style="margin-top:8pt;margin-bottom:2pt;font-weight:bold;">${esc(texts.includesHeader)}</p>
 <div style="line-height:2;">${includesHtml}</div>
@@ -164,9 +172,9 @@ ${notesHtml}
 router.post('/', async (req, res) => {
   let browser;
   try {
-    const { fields, rows, texts } = req.body;
+    const { fields, rows, texts, offerType } = req.body;
 
-    const html = buildHtml({ fields, rows, texts });
+    const html = buildHtml({ fields, rows, texts, offerType });
 
     browser = await Promise.race([
       puppeteer.launch({

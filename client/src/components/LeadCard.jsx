@@ -720,12 +720,25 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
     { key: 'notes',    label: 'הערות',               type: 'textarea' },
   ];
 
-  const [step, setStep]       = useState(0);
-  const [editMode, setEditMode] = useState(false);
+  const PACKAGE_FIELD_DEFS = [
+    { key: 'name',      label: 'לכבוד',              type: 'text' },
+    { key: 'email',     label: 'מייל',                type: 'email' },
+    { key: 'phone',     label: 'טלפון',               type: 'tel' },
+    { key: 'eventDate', label: 'תאריך האירוע',        type: 'text' },
+    { key: 'doorTime',  label: 'שעת פתיחת דלתות',     type: 'time' },
+    { key: 'endTime',   label: 'שעת סיום האירוע',      type: 'time' },
+    { key: 'notes',     label: 'הערות',               type: 'textarea' },
+  ];
+  const PACKAGE_FIELD_STEPS = PACKAGE_FIELD_DEFS.length; // 7
+
+  const [step, setStep]           = useState(0);
+  const [offerType, setOfferType] = useState(''); // '' | 'regular' | 'package'
+  const [editMode, setEditMode]   = useState(false);
   const [fields, setFields]   = useState({
     name: lead.name || '', email: allEmails[0] || '', phone: lead.phone || '',
     eventDate: lead.event_date_text || '', doorTime: lead.event_time || '',
     endTime: lead.event_end_time || '', guests: '', chefMenu: '', barMenu: '', notes: '', extraGuestPrice: '',
+    packagePrice: '', packageGuests: '', packageExtraGuestPrice: '',
   });
   const [rows, setRows] = useState([
     { id: 1, label: 'מחיר אורח', desc: 'כולל שכירות המקום, תפריט קייטרינג, תפריט בר', qty: 0, price: 395 },
@@ -734,8 +747,9 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
     { id: 4, label: 'מנהל אירוע / קייטרינג שירות', desc: '', qty: 1, price: 900 },
     { id: 5, label: 'תאורה והגברה + תפעול לאורך האירוע', desc: '', qty: 1, price: 0 },
   ]);
-  const [newRow, setNewRow]     = useState({ label: '', desc: '', qty: 1, price: 0 });
+  const [newRow, setNewRow]         = useState({ label: '', desc: '', qty: 1, price: 0 });
   const [newInclude, setNewInclude] = useState('');
+  const [newPkgLine, setNewPkgLine] = useState('');
   const [saving, setSaving]     = useState(false);
   const [sending, setSending]   = useState(false);
   const [showEmailForm, setShowEmailForm] = useState(false);
@@ -776,6 +790,7 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
       'בר קוקטיילים של האלכימאי (לשעתיים בקבלת פנים): 4,500 ש"ח לא כולל מע"מ',
       'חניות: 40 ש"ח לרכב (יש הסדר חניה עם חניון "חצרות יפו". שעת סגירת החניון ב- 24:00. במידה והאירוע התארך לאחר השעה 24:00, על בעל האירוע לשלם 100 שקלים על כל שעה נוספת לשומר החניון)',
     ],
+    packageCostLines: [],
     minGuestsPrefix: 'הצעת מחיר זו הינה עבור קיום אירוע עם מינימום',
     minGuestsSuffix: 'אורחים',
     payment:  'תנאי תשלום: מקדמה 30% והיתרה לתשלום ביום האירוע לפני תחילת האירוע.',
@@ -787,6 +802,7 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
   const setExt = (i, v) => setTexts(t => ({ ...t, extras: t.extras.map((x, j) => j === i ? v : x) }));
   const setTh  = (i, v) => setTexts(t => ({ ...t, tableHeaders: t.tableHeaders.map((x, j) => j === i ? v : x) }));
   const setVenueDesc = (i, v) => setTexts(t => ({ ...t, venueDescItems: t.venueDescItems.map((x, j) => j === i ? v : x) }));
+  const setPkgLine   = (i, v) => setTexts(t => ({ ...t, packageCostLines: t.packageCostLines.map((x, j) => j === i ? v : x) }));
 
   // Sync מחיר אורח qty with guests count
   useEffect(() => {
@@ -794,17 +810,30 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
     setRows(prev => prev.map(r => r.id === 1 ? { ...r, qty: g } : r));
   }, [fields.guests]);
 
+  // Regular offer step constants
   const EXTRA_GUEST_STEP = FIELD_STEPS;
   const ADD_INCLUDE_STEP = FIELD_STEPS + 1;
   const ROW_START        = FIELD_STEPS + 2;
   const addRowStep  = ROW_START + rows.length;
   const previewStep = addRowStep + 1;
-  const isFieldStep      = step < FIELD_STEPS;
-  const isExtraGuestStep = step === EXTRA_GUEST_STEP;
-  const isAddIncludeStep = step === ADD_INCLUDE_STEP;
-  const isRowStep        = step >= ROW_START && step < addRowStep;
-  const isAddRowStep     = step === addRowStep;
-  const isPreviewStep    = step === previewStep;
+
+  // Package offer step constants
+  const PKG_PRICE_STEP       = PACKAGE_FIELD_STEPS;
+  const PKG_GUESTS_STEP      = PACKAGE_FIELD_STEPS + 1;
+  const PKG_EXTRA_STEP       = PACKAGE_FIELD_STEPS + 2;
+  const PKG_ADD_INCLUDE_STEP = PACKAGE_FIELD_STEPS + 3;
+  const PKG_PREVIEW_STEP     = PACKAGE_FIELD_STEPS + 4;
+
+  const isFieldStep          = offerType === 'regular' ? step < FIELD_STEPS : step < PACKAGE_FIELD_STEPS;
+  const isExtraGuestStep     = offerType === 'regular' && step === EXTRA_GUEST_STEP;
+  const isAddIncludeStep     = offerType === 'regular' && step === ADD_INCLUDE_STEP;
+  const isRowStep            = offerType === 'regular' && step >= ROW_START && step < addRowStep;
+  const isAddRowStep         = offerType === 'regular' && step === addRowStep;
+  const isPkgPriceStep       = offerType === 'package' && step === PKG_PRICE_STEP;
+  const isPkgGuestsStep      = offerType === 'package' && step === PKG_GUESTS_STEP;
+  const isPkgExtraStep       = offerType === 'package' && step === PKG_EXTRA_STEP;
+  const isPkgAddIncludeStep  = offerType === 'package' && step === PKG_ADD_INCLUDE_STEP;
+  const isPreviewStep        = offerType === 'regular' ? step === previewStep : step === PKG_PREVIEW_STEP;
 
   const subtotal = rows.reduce((s, r) => s + r.qty * r.price, 0);
   const vat      = Math.round(subtotal * 0.18);
@@ -827,6 +856,22 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
     setNewInclude('');
   }
 
+  function addPkgLine() {
+    if (!newPkgLine.trim()) return;
+    setTexts(t => ({ ...t, packageCostLines: [...t.packageCostLines, newPkgLine.trim()] }));
+    setNewPkgLine('');
+  }
+
+  useEffect(() => {
+    if (!isPreviewStep || offerType !== 'package' || texts.packageCostLines.length > 0) return;
+    const lines = [];
+    if (fields.packageGuests && fields.packagePrice)
+      lines.push(`עלות החבילה עבור ${fields.packageGuests} אורחים - ${Number(fields.packagePrice).toLocaleString()} ש"ח כולל מע"מ`);
+    if (fields.packageGuests && fields.packageExtraGuestPrice)
+      lines.push(`כל אורח נוסף מעל ${fields.packageGuests} אורחים בתוספת של - ${Number(fields.packageExtraGuestPrice).toLocaleString()} ש"ח כולל מע"מ`);
+    if (lines.length) setTexts(t => ({ ...t, packageCostLines: lines }));
+  }, [isPreviewStep]);
+
   function addNewRow() {
     if (!newRow.label.trim()) return;
     const nextId = Math.max(0, ...rows.map(r => r.id)) + 1;
@@ -842,7 +887,7 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
   async function generateBlob() {
     const res = await api.post(
       `/leads/${lead.id}/price-offer`,
-      { fields, rows, texts },
+      { fields, rows, texts, offerType },
       { responseType: 'blob' }
     );
     return res.data;
@@ -889,7 +934,8 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
     } catch { alert('שגיאה בשליחת אימייל'); setSending(false); }
   }
 
-  const progressPct = isPreviewStep ? 100 : Math.round((step / previewStep) * 100);
+  const totalSteps  = offerType === 'regular' ? previewStep : PKG_PREVIEW_STEP;
+  const progressPct = isPreviewStep ? 100 : offerType === '' ? 0 : Math.round((step / totalSteps) * 100);
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4" dir="rtl">
@@ -909,9 +955,24 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-5">
 
+          {/* ── Type selection ── */}
+          {offerType === '' && (
+            <div className="space-y-4">
+              <p className="text-slate-500 text-sm font-semibold text-center">בחר סוג הצעת מחיר</p>
+              <button onClick={() => setOfferType('regular')}
+                className="w-full border-2 border-amber-300 text-amber-700 font-bold py-4 rounded-xl hover:bg-amber-50 text-lg">
+                הצעת מחיר רגילה
+              </button>
+              <button onClick={() => setOfferType('package')}
+                className="w-full border-2 border-amber-300 text-amber-700 font-bold py-4 rounded-xl hover:bg-amber-50 text-lg">
+                הצעת מחיר חבילה
+              </button>
+            </div>
+          )}
+
           {/* ── Field step ── */}
           {isFieldStep && (() => {
-            const def = FIELD_DEFS[step];
+            const def = (offerType === 'package' ? PACKAGE_FIELD_DEFS : FIELD_DEFS)[step];
             const val = fields[def.key];
             const isLtr = def.type === 'email' || def.type === 'tel';
             return (
@@ -986,6 +1047,90 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
               <div className="flex gap-2">
                 <button onClick={back} className="border-2 border-slate-200 text-slate-500 font-bold py-2.5 px-4 rounded-xl">חזור</button>
                 <button onClick={advance} className="flex-1 bg-amber-500 text-white font-bold py-2.5 rounded-xl">המשך לעלויות</button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Package: package price step ── */}
+          {isPkgPriceStep && (
+            <div className="space-y-5">
+              <p className="text-slate-400 text-sm font-semibold">עלות החבילה (כולל מע"מ)</p>
+              <input
+                autoFocus type="number" value={fields.packagePrice}
+                onChange={e => setFields(f => ({ ...f, packagePrice: e.target.value }))}
+                onKeyDown={e => e.key === 'Enter' && advance()}
+                placeholder="לדוגמה: 50000"
+                className="w-full border-2 border-amber-300 rounded-xl px-4 py-3 text-lg focus:outline-none focus:border-amber-500"
+              />
+              <div className="flex gap-2">
+                <button onClick={back} className="border-2 border-slate-200 text-slate-500 font-bold py-2.5 px-4 rounded-xl">חזור</button>
+                <button onClick={advance} className="flex-1 bg-amber-500 text-white font-bold py-2.5 rounded-xl">המשך</button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Package: guests step ── */}
+          {isPkgGuestsStep && (
+            <div className="space-y-5">
+              <p className="text-slate-400 text-sm font-semibold">כמות האורחים בחבילה</p>
+              <input
+                autoFocus type="number" value={fields.packageGuests}
+                onChange={e => setFields(f => ({ ...f, packageGuests: e.target.value }))}
+                onKeyDown={e => e.key === 'Enter' && advance()}
+                placeholder="לדוגמה: 130"
+                className="w-full border-2 border-amber-300 rounded-xl px-4 py-3 text-lg focus:outline-none focus:border-amber-500"
+              />
+              <div className="flex gap-2">
+                <button onClick={back} className="border-2 border-slate-200 text-slate-500 font-bold py-2.5 px-4 rounded-xl">חזור</button>
+                <button onClick={advance} className="flex-1 bg-amber-500 text-white font-bold py-2.5 rounded-xl">המשך</button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Package: extra guest cost step ── */}
+          {isPkgExtraStep && (
+            <div className="space-y-5">
+              <p className="text-slate-400 text-sm font-semibold">עלות אורח נוסף (כולל מע"מ)</p>
+              <input
+                autoFocus type="number" value={fields.packageExtraGuestPrice}
+                onChange={e => setFields(f => ({ ...f, packageExtraGuestPrice: e.target.value }))}
+                onKeyDown={e => e.key === 'Enter' && advance()}
+                placeholder="לדוגמה: 400"
+                className="w-full border-2 border-amber-300 rounded-xl px-4 py-3 text-lg focus:outline-none focus:border-amber-500"
+              />
+              <p className="text-xs text-slate-400">אופציונלי — אם לא רלוונטי, השאר ריק</p>
+              <div className="flex gap-2">
+                <button onClick={back} className="border-2 border-slate-200 text-slate-500 font-bold py-2.5 px-4 rounded-xl">חזור</button>
+                <button onClick={advance} className="flex-1 bg-amber-500 text-white font-bold py-2.5 rounded-xl">המשך</button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Package: add includes step ── */}
+          {isPkgAddIncludeStep && (
+            <div className="space-y-4">
+              <p className="text-slate-400 text-sm font-semibold">הוסף פריט ל"המחיר כולל בתוכו"</p>
+              <div className="text-xs text-slate-400 space-y-0.5 max-h-32 overflow-y-auto">
+                {texts.includes.filter(i => i.trim()).map((item, i) => (
+                  <div key={i}>• {item}</div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  value={newInclude}
+                  onChange={e => setNewInclude(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addIncludeItem()}
+                  placeholder="פריט חדש..."
+                  className="flex-1 border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-amber-400"
+                />
+                <button onClick={addIncludeItem} disabled={!newInclude.trim()}
+                  className="border-2 border-amber-300 text-amber-600 font-bold py-2 px-4 rounded-xl hover:bg-amber-50 disabled:opacity-40">
+                  + הוסף
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={back} className="border-2 border-slate-200 text-slate-500 font-bold py-2.5 px-4 rounded-xl">חזור</button>
+                <button onClick={advance} className="flex-1 bg-amber-500 text-white font-bold py-2.5 rounded-xl">המשך לתצוגה מקדימה</button>
               </div>
             </div>
           )}
@@ -1134,7 +1279,7 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                 <h3 style={{ marginTop: '12pt', marginBottom: '4pt' }}>
                   <EditableCell value={texts.costsHeader} onChange={v => setTxt('costsHeader', v)} />
                 </h3>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt' }}>
+                {offerType === 'regular' && <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt' }}>
                   <thead>
                     <tr style={{ background: '#f5f5f5' }}>
                       {texts.tableHeaders.map((h, i) => (
@@ -1182,22 +1327,48 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                       <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{total.toLocaleString()} {'ש"ח'}</td>
                     </tr>
                   </tbody>
-                </table>
+                </table>}
 
-                {/* Minimum guests */}
-                <p style={{ marginTop: '10pt' }}>
-                  <EditableCell value={texts.minGuestsPrefix} onChange={v => setTxt('minGuestsPrefix', v)} />
-                  {' '}
-                  <EditableCell value={fields.guests} onChange={v => setFields(f => ({ ...f, guests: v }))} />
-                  {' '}
-                  <EditableCell value={texts.minGuestsSuffix} onChange={v => setTxt('minGuestsSuffix', v)} />
-                </p>
+                {/* Regular offer: minimum guests + extra guest cost */}
+                {offerType === 'regular' && (
+                  <>
+                    <p style={{ marginTop: '10pt' }}>
+                      <EditableCell value={texts.minGuestsPrefix} onChange={v => setTxt('minGuestsPrefix', v)} />
+                      {' '}
+                      <EditableCell value={fields.guests} onChange={v => setFields(f => ({ ...f, guests: v }))} />
+                      {' '}
+                      <EditableCell value={texts.minGuestsSuffix} onChange={v => setTxt('minGuestsSuffix', v)} />
+                    </p>
+                    {fields.extraGuestPrice && Number(fields.extraGuestPrice) > 0 && (
+                      <p style={{ marginTop: '4pt' }}>
+                        {`עלות כל אורח נוסף מעל ${fields.guests || ''} אורחים הינה ${Number(fields.extraGuestPrice).toLocaleString()} ש"ח לפני מע"מ`}
+                      </p>
+                    )}
+                  </>
+                )}
 
-                {/* Extra guest cost */}
-                {fields.extraGuestPrice && Number(fields.extraGuestPrice) > 0 && (
-                  <p style={{ marginTop: '4pt' }}>
-                    {`עלות כל אורח נוסף מעל ${fields.guests || ''} אורחים הינה ${Number(fields.extraGuestPrice).toLocaleString()} ש"ח לפני מע"מ`}
-                  </p>
+                {/* Package offer: cost lines */}
+                {offerType === 'package' && (
+                  <div style={{ fontSize: '9pt', lineHeight: 2, marginTop: '4pt' }}>
+                    {texts.packageCostLines.map((line, i) => {
+                      if (!line.trim()) return null;
+                      return (
+                        <div key={i} style={{ direction: 'rtl' }}>
+                          <EditableCell value={line} onChange={v => setPkgLine(i, v)} multiline />
+                        </div>
+                      );
+                    })}
+                    <div style={{ marginTop: '4pt', display: 'flex', gap: '6px' }}>
+                      <input value={newPkgLine} onChange={e => setNewPkgLine(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && addPkgLine()}
+                        placeholder="הוסף שורה..."
+                        style={{ flex: 1, border: '1px solid #ccc', borderRadius: '6px', padding: '2px 6px', fontSize: '9pt' }} />
+                      <button onClick={addPkgLine} disabled={!newPkgLine.trim()}
+                        style={{ border: '1px solid #f59e0b', color: '#b45309', borderRadius: '6px', padding: '2px 8px', fontSize: '9pt', background: 'none', cursor: 'pointer', opacity: newPkgLine.trim() ? 1 : 0.4 }}>
+                        + הוסף
+                      </button>
+                    </div>
+                  </div>
                 )}
 
                 {/* Included items */}
