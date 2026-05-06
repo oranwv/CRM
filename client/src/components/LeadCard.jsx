@@ -2685,16 +2685,16 @@ function MeetingActionModal({ lead, leadId, eventId, meeting, onClose, onUpdated
             </div>
             <div>
               <label className="text-sm text-slate-500 block mb-1">תאריך חדש</label>
-              <DateInput value={date} onChange={setDate} className={cls} />
+              <PickerDateInput value={date} onChange={setDate} className={cls} />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-sm text-slate-500 block mb-1">שעת התחלה</label>
-                <TimeInput value={startTime} onChange={setStartTime} className={cls} />
+                <PickerTimeInput value={startTime} onChange={setStartTime} className={cls} />
               </div>
               <div>
                 <label className="text-sm text-slate-500 block mb-1">שעת סיום</label>
-                <TimeInput value={endTime} onChange={setEndTime} className={cls} />
+                <PickerTimeInput value={endTime} onChange={setEndTime} className={cls} />
               </div>
             </div>
             <div>
