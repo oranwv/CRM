@@ -2021,10 +2021,20 @@ function EditForm({ form, setForm, users, onSave, onCancel }) {
         <div><label className="text-sm text-slate-500">שעת האירוע</label><TimeInput value={form.event_time || ''} onChange={v => set('event_time', v)} className={cls} /></div>
         <div><label className="text-sm text-slate-500">שעת סיום</label><TimeInput value={form.event_end_time || ''} onChange={v => set('event_end_time', v)} className={cls} /></div>
         <div><label className="text-sm text-slate-500">סוג אירוע</label>
-          <select value={form.event_type || ''} onChange={e => set('event_type', e.target.value)} className={cls}>
+          <select
+            value={EVENT_TYPES.includes(form.event_type) || !form.event_type ? (form.event_type || '') : 'אחר'}
+            onChange={e => set('event_type', e.target.value)}
+            className={cls}>
             <option value="">בחר...</option>
             {EVENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-          </select></div>
+          </select>
+          {(form.event_type === 'אחר' || (form.event_type && !EVENT_TYPES.includes(form.event_type))) && (
+            <input
+              value={form.event_type === 'אחר' ? '' : form.event_type}
+              onChange={e => set('event_type', e.target.value || 'אחר')}
+              className={`${cls} mt-1`}
+              placeholder="פרט סוג אירוע..." />
+          )}</div>
         <div><label className="text-sm text-slate-500">מוזמנים</label><input type="text" value={form.guest_count || ''} onChange={e => set('guest_count', e.target.value)} className={cls} /></div>
         <div><label className="text-sm text-slate-500">תקציב</label><input type="text" value={form.budget || ''} onChange={e => set('budget', e.target.value)} className={cls} /></div>
         <div><label className="text-sm text-slate-500">עדיפות</label>
