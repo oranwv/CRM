@@ -763,9 +763,67 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
   const [loadingImport, setLoadingImport] = useState(false);
   const [importNotFound, setImportNotFound] = useState(false);
   const [newRow, setNewRow]           = useState({ label: '', desc: '', qty: 1, price: 0 });
-  const [sending, setSending]         = useState(false);
+  const [sending, setSending]         = useState('');
   const [sent, setSent]               = useState(false);
   const [signingUrl, setSigningUrl]   = useState('');
+  const [sentChannel, setSentChannel] = useState('');
+
+  const [contractTexts, setContractTexts] = useState({
+    title: 'הסכם הזמנת אירוע',
+    whereas1: 'הואיל: והספק הינו המחזיק הבלעדי והמפעיל של מתחם אירועים "שרביה" הנמצא בישוב תל אביב- יפו (להלן: "אולם אירועים");',
+    whereas2: 'והואיל: וברצון המזמין להזמין מאת הספק שירותיו והכל כפי שיפורט בהסכם זה;',
+    therefore: 'לפיכך הוסכם והותנה בין הצדדים:',
+    preamble: 'המבוא להסכם זה וכל הנספחים, בין המצורפים במועד חתימת הסכם זה ובין שיצורפו אליו בעתיד, מהווים חלק בלתי נפרד הימנו.',
+    includesHeader: 'המחיר כולל בתוכו:',
+    includes: [
+      'צוות הקמה', 'צוות תפעול', 'מנהל אירוע וליווי לאורך התהליך',
+      'מלצרים', 'ברמנים + מנהל בר',
+      'תפריט שף', 'תפריט בר',
+      'אבטחה', 'צוות ניקיון',
+      'מקרן להקרנה על הקיר (לא כולל מחשב וכבל HDMI)',
+      "במה והקמת עמדת די ג'י", 'מיקרופון',
+      'מערכת הגברה ותאורה כולל תפעול לאורך כל האירוע',
+      'עיצוב המקום - שולחנות אבירים עם מפות לבנות, כדי נוי דקורטיבים, פינות ישיבה אלטרנטיביות כולל ספות, שולחנות בר גבוהים, שולחנות נמוכים, חביות יין עתיקות',
+    ],
+    paymentHeader: 'תנאי תשלום:',
+    depositLine: 'במעמד חתימת הסכם זה תינתן מקדמה על-סך',
+    depositSuffix: 'לא כולל מע"מ. סה"כ כולל מע"מ',
+    remainderLine: 'ביום האירוע, לפני תחילת האירוע יש לשלם את יתרת הסכום על סך',
+    remainderSuffix: 'כולל מע"מ',
+    checkNote: "לחלופין - ניתן להביא צ'ק ביטחון של הסכום הנ\"ל בתחילת האירוע.",
+    paymentNote: 'חשוב לציין כי ללא הנ"ל מנהל האירוע לא יתחיל ויקיים את האירוע!',
+    cancellationHeader: 'ביטול האירוע:',
+    cancellationItems: [
+      'במקרה של אי אישור לעריכת אירועים של פיקוד העורף/כוח עליון שאינו מאפשר לקיים את האירוע — הסכימו הצדדים על דחיית מועד האירוע למועד אחר עד לתאריך',
+      'במקרה של ביטול תוך פחות מחודשיים ממועד האירוע – יחויב המזמין בדמי ביטול של 50% מהסכום הכולל.',
+      'במקרה של ביטול תוך פחות מחודש ועד שבוע ממועד האירוע – יחויב המזמין בדמי ביטול של 75% מהסכום הכולל.',
+      'במקרה של ביטול תוך פחות משבוע ממועד האירוע – יחויב המזמין בדמי ביטול מלאים.',
+    ],
+    obligationsHeader: 'ההתחייבויות והצהרות הצדדים:',
+    obligations: [
+      'האולם על חלקיו ישמש ללקוח לקיום האירוע. הספק מתחייב לאפשר למזמין עריכת האירוע באולם ובמועד כפי שפורטו לעיל.',
+      'הספק יעמיד את האולם לרשות המזמין כשהוא נקי, ומסודר.',
+      'המזמין מצהיר כי הובאו לידיעתו שעות בהן מתקיימים האירועים והוא מסכים לכך, כי האירוע יתקיים בין שעות הפעילות המפורטות לעיל בלבד.',
+      'המזמין מצהיר כי הינו אחראי הבלעדי למעשיו ו/או למעשי נותני השירות שהוזמנו על ידו, למעט נותני השירות המפורטים ברשימת המומלצים של הספק.',
+      'בנוסף המזמין אחראי על פי דין למעשי אורחיו וכי הוא יפצה את הספק לאחר פסק דין חלוט בגין כל נזק שיגרם ממעשה ו/או ממחדל של כל אחד מהנ"ל.',
+      'מובהר בזאת, כי הספק אינו אחראי על שום ציוד ו/או חפצים אישיים, אשר נשכחו על ידי מי מטעם המזמין במתחם האולם.',
+      'ידוע למזמין כי לא ניתן להשתמש בזיקוקים מכל סוג שהוא בכל שטח האתר, לרבות בחניה וכן לא ניתן להשתמש בקישוטים מתפזרים כדוגמת קונפטי וכדומה.',
+      'עוצמת המוזיקה המתנגנת באירוע לא תעלה על המותר בחוק.',
+      'המזמין יודע, מסכים, מאשר ומבין כי באולם האירועים יש הוראה חד משמעית כי אסור לעשן בתוכו בהתאם לחוק איסור עישון במקומות ציבוריים וכי יש בגן פינות עישון מיועדת לכך.',
+      'באחריות הלקוח לשלם לאקו"ם באתר הבית.',
+    ],
+    legalParagraphs: [
+      'למען הסר ספק, אם לא התייצב המזמין לביצוע התחשבנות כאמור בסעיף זה, יהא רשאי הספק לפעול בכל הדרכים הנתונות לו על פי החוק והדין לשם גביית סכום האירוע.',
+      'המזמין עיין ובדק את מלוא התנאים המצוינים בהסכם זה והוא הסכים לכל סעיפיו. כל שינוי, תוספת או גריעה מהסכם זה, לא יהיה להם כל תוקף או נפקות, אלא אם כן נעשו בכתב ונחתמו ע"י שני הצדדים להסכם זה.',
+      'הצדדים מצהירים במפורש כי אין בהסכם זה כדי ליצור בין הצדדים יחסי סוכנות ו/או שליחות ו/או שותפות מכל מין וסוג שהוא.',
+      'שום ויתור, הנחה, היימנעות מפעולה בזמנה, או מתן ארכה, לא יחשבו כוויתור של צד מהצדדים להסכם זה על זכות מזכויותיו.',
+    ],
+  });
+  const setTxt = (key, val) => setContractTexts(t => ({ ...t, [key]: val }));
+  const setInc = (i, val) => setContractTexts(t => ({ ...t, includes: t.includes.map((v,j) => j===i ? val : v) }));
+  const setCancelItem = (i, val) => setContractTexts(t => ({ ...t, cancellationItems: t.cancellationItems.map((v,j) => j===i ? val : v) }));
+  const setObligation = (i, val) => setContractTexts(t => ({ ...t, obligations: t.obligations.map((v,j) => j===i ? val : v) }));
+  const setLegalPara = (i, val) => setContractTexts(t => ({ ...t, legalParagraphs: t.legalParagraphs.map((v,j) => j===i ? val : v) }));
 
   const setField = (k, v) => setFields(f => ({ ...f, [k]: v }));
 
@@ -815,31 +873,32 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
     }
   }
 
-  async function handleSend() {
-    setSending(true);
+  async function handleSend(channel) {
+    setSending(channel);
     try {
       const calculated = { subtotal, vat, total, depositAmount, depositAmountVat, remainingBalance, cancellationDate };
       const { data } = await api.post(`/leads/${lead.id}/contracts`, {
-        contract_data: { fields, rows, calculated },
+        contract_data: { fields, rows, calculated, texts: contractTexts },
       });
       const url = `${window.location.origin}/sign/${data.token}`;
       setSigningUrl(url);
 
       const msg = `שלום ${fields.clientName},\n\nמצורף קישור לחוזה לחתימה דיגיטלית:\n${url}\n\nבברכה, צוות שרביה`;
-      if (fields.clientEmail) {
+      if (channel === 'email') {
         const fd = new FormData();
         fd.append('to', fields.clientEmail);
         fd.append('subject', `חוזה לחתימה — ${fields.clientName} — שרביה`);
         fd.append('body', msg);
         await api.post(`/leads/${lead.id}/email/send`, fd);
-      } else if (fields.clientPhone) {
+      } else {
         await api.post('/whatsapp/send', { leadId: lead.id, message: msg });
       }
+      setSentChannel(channel);
       setSent(true);
     } catch (err) {
       alert('שגיאה בשליחה: ' + (err.response?.data?.error || err.message));
     } finally {
-      setSending(false);
+      setSending('');
     }
   }
 
@@ -946,51 +1005,161 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
             </div>
           )}
 
-          {/* Preview step */}
+          {/* Preview step — full editable contract document */}
           {isPreviewStep && !sent && (
-            <div className="space-y-4">
-              <p className="font-bold text-slate-700 text-base">סיכום חוזה</p>
+            <div>
+              <p className="text-xs text-slate-400 text-center mb-3">לחץ על כל טקסט לעריכה</p>
+              <div dir="rtl" style={{ fontFamily: 'Arial, sans-serif', fontSize: '10pt', color: '#222', background: '#fff', padding: '10px', lineHeight: 1.8 }}>
 
-              <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-sm space-y-1">
-                <p><span className="font-bold">לכבוד: </span>{fields.clientName}</p>
-                {fields.clientEmail && <p><span className="font-bold">מייל: </span>{fields.clientEmail}</p>}
-                {fields.clientPhone && <p><span className="font-bold">טלפון: </span>{fields.clientPhone}</p>}
-                <p><span className="font-bold">תאריך: </span>{fields.eventDate ? new Date(fields.eventDate + 'T12:00:00').toLocaleDateString('he-IL') : ''}</p>
-                <p><span className="font-bold">שעות: </span>{fields.startTime} — {fields.endTime}</p>
-                <p><span className="font-bold">אורחים: </span>מינימום {fields.guests}{fields.extraGuestPrice ? ` | אורח נוסף: ${fmtNum(fields.extraGuestPrice)} ש"ח` : ''}</p>
-              </div>
+                <div style={{ textAlign: 'center', marginBottom: 8 }}>
+                  <img src="/logo.jpg" alt="" style={{ height: 60, objectFit: 'contain' }} />
+                </div>
 
-              <table className="w-full text-xs border-collapse">
-                <thead>
-                  <tr className="bg-slate-100">
-                    <th className="border border-slate-200 p-1.5 text-right">פריט</th>
-                    <th className="border border-slate-200 p-1.5 text-center">כמות</th>
-                    <th className="border border-slate-200 p-1.5 text-center">מחיר</th>
-                    <th className="border border-slate-200 p-1.5 text-center">סה"כ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map(r => (
-                    <tr key={r.id}>
-                      <td className="border border-slate-200 p-1.5">{r.label}</td>
-                      <td className="border border-slate-200 p-1.5 text-center">{r.qty}</td>
-                      <td className="border border-slate-200 p-1.5 text-center">{fmtNum(r.price)}</td>
-                      <td className="border border-slate-200 p-1.5 text-center">{fmtNum((r.qty||0)*(r.price||0))}</td>
+                <h2 style={{ textAlign: 'center', fontSize: '14pt', fontWeight: 'bold', marginBottom: 8 }}>
+                  <EditableCell value={contractTexts.title} onChange={v => setTxt('title', v)} />
+                </h2>
+
+                <p>שנערך ונחתם ביום ___ לאירוע בתאריך {fields.eventDate ? new Date(fields.eventDate + 'T12:00:00').toLocaleDateString('he-IL') : '___'}</p>
+                <p>‫בין:‬ {fields.clientName || '___'} &nbsp;&nbsp;&nbsp; ‫ת.ז\ח.פ:‬ ___</p>
+                <p style={{ textAlign: 'left' }}>מצד אחד;</p>
+                <p>לבין:</p>
+                <p>שרביה, מספר שותפות 558450383</p>
+                <p>מרח' שמעון הצדיק 18 תל אביב.</p>
+                <p style={{ textAlign: 'left', marginBottom: 8 }}>מצד שני;</p>
+
+                <p><EditableCell value={contractTexts.whereas1} onChange={v => setTxt('whereas1', v)} multiline /></p>
+                <p><EditableCell value={contractTexts.whereas2} onChange={v => setTxt('whereas2', v)} multiline /></p>
+                <p style={{ marginBottom: 8 }}><EditableCell value={contractTexts.therefore} onChange={v => setTxt('therefore', v)} /></p>
+                <p style={{ marginBottom: 10 }}><EditableCell value={contractTexts.preamble} onChange={v => setTxt('preamble', v)} multiline /></p>
+
+                <h3 style={{ fontWeight: 'bold', marginTop: 8 }}>האירוע:</h3>
+                <p>תאריך אירוע: <EditableCell value={fields.eventDate ? new Date(fields.eventDate + 'T12:00:00').toLocaleDateString('he-IL') : ''} onChange={v => setField('eventDate', v)} /></p>
+                <p>אולם אירועים: שרביה ברחוב רבי פנחס בן יאיר 3 תל-אביב יפו</p>
+                <p>שעת התחלה: <EditableCell value={fields.startTime} onChange={v => setField('startTime', v)} /></p>
+                <p>שעת סיום האירוע: <EditableCell value={fields.endTime} onChange={v => setField('endTime', v)} /></p>
+
+                <h3 style={{ fontWeight: 'bold', marginTop: 10, marginBottom: 4 }}>עלויות:</h3>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt' }}>
+                  <thead>
+                    <tr style={{ background: '#f5f5f5' }}>
+                      {['שם הפריט', 'תיאור', 'כמות', 'מחיר', 'סה"כ לפני מע"מ'].map(h => (
+                        <th key={h} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{h}</th>
+                      ))}
+                      <th style={{ border: '1px solid #ccc', padding: '4px 6px', width: 20 }} />
                     </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row, i) => (
+                      <tr key={row.id}>
+                        <td style={{ border: '1px solid #ccc', padding: '4px 6px' }}>
+                          <EditableCell value={row.label} onChange={v => setRows(rs => rs.map(r => r.id === row.id ? { ...r, label: v } : r))} />
+                        </td>
+                        <td style={{ border: '1px solid #ccc', padding: '4px 6px', fontSize: '8pt', color: '#555' }}>
+                          <EditableCell value={row.desc || ''} onChange={v => setRows(rs => rs.map(r => r.id === row.id ? { ...r, desc: v } : r))} />
+                        </td>
+                        <td style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>
+                          <EditableCell value={String(row.qty)} onChange={v => setRows(rs => rs.map(r => r.id === row.id ? { ...r, qty: parseFloat(v) || 0 } : r))} />
+                        </td>
+                        <td style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>
+                          <EditableCell value={String(row.price)} onChange={v => setRows(rs => rs.map(r => r.id === row.id ? { ...r, price: parseFloat(v) || 0 } : r))} />{' ש"ח'}
+                        </td>
+                        <td style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>
+                          {((row.qty || 0) * (row.price || 0)).toLocaleString()}{' ש"ח'}
+                        </td>
+                        <td style={{ border: '1px solid #ccc', padding: '2px', textAlign: 'center' }}>
+                          <button onClick={() => setRows(rs => rs.filter((_, idx) => idx !== i))}
+                            style={{ color: '#ef4444', fontWeight: 'bold', background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px' }}>✕</button>
+                        </td>
+                      </tr>
+                    ))}
+                    <tr>
+                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>‫סה"כ חייב במע"מ:‬</td>
+                      <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center', fontWeight: 'bold' }}>{subtotal.toLocaleString()} ש"ח</td>
+                    </tr>
+                    <tr>
+                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right' }}>‫מע"מ (18%):‬</td>
+                      <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{vat.toLocaleString()} ש"ח</td>
+                    </tr>
+                    <tr style={{ fontWeight: 'bold' }}>
+                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right' }}>‫סה"כ לתשלום:‬</td>
+                      <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{total.toLocaleString()} ש"ח</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <p style={{ marginTop: 8 }}>
+                  הסכם זה עבור קיום אירוע עם מינימום{' '}
+                  <EditableCell value={String(fields.guests || '')} onChange={v => setField('guests', v)} />{' '}אורחים
+                </p>
+                {fields.extraGuestPrice && Number(fields.extraGuestPrice) > 0 && (
+                  <p>כל אורח מעל {fields.guests} אורחים בעלות של {Number(fields.extraGuestPrice).toLocaleString()} ש"ח לא כולל מע"מ</p>
+                )}
+
+                <h3 style={{ fontWeight: 'bold', marginTop: 10, marginBottom: 4 }}>
+                  <EditableCell value={contractTexts.includesHeader} onChange={v => setTxt('includesHeader', v)} />
+                </h3>
+                <ul style={{ paddingRight: 16, lineHeight: 1.8 }}>
+                  {contractTexts.includes.map((item, i) => (
+                    <li key={i}><EditableCell value={item} onChange={v => setInc(i, v)} multiline /></li>
                   ))}
-                </tbody>
-              </table>
+                </ul>
 
-              <div className="rounded-xl bg-violet-50 border border-violet-100 p-3 text-sm space-y-1">
-                <p><span className="font-bold">סה"כ לפני מע"מ: </span>{fmtNum(subtotal)} ש"ח</p>
-                <p><span className="font-bold">מע"מ (18%): </span>{fmtNum(vat)} ש"ח</p>
-                <p><span className="font-bold">סה"כ לתשלום: </span>{fmtNum(total)} ש"ח</p>
-                <p><span className="font-bold">מקדמה ({fields.depositPercent}%): </span>{fmtNum(depositAmount)} ש"ח | כולל מע"מ: {fmtNum(depositAmountVat)} ש"ח</p>
-                <p><span className="font-bold">יתרה לתשלום: </span>{fmtNum(remainingBalance)} ש"ח</p>
-                {cancellationDate && <p><span className="font-bold">תאריך ביטול כוח עליון: </span>{cancellationDate}</p>}
+                <h3 style={{ fontWeight: 'bold', marginTop: 10, marginBottom: 4 }}>
+                  <EditableCell value={contractTexts.paymentHeader} onChange={v => setTxt('paymentHeader', v)} />
+                </h3>
+                <p>
+                  <EditableCell value={contractTexts.depositLine} onChange={v => setTxt('depositLine', v)} multiline />{' '}
+                  <strong>{fmtNum(depositAmount)} ש"ח ({fields.depositPercent}%)</strong>{' '}
+                  <EditableCell value={contractTexts.depositSuffix} onChange={v => setTxt('depositSuffix', v)} />{' '}
+                  <strong>{fmtNum(depositAmountVat)} ש"ח</strong>
+                </p>
+                <p>
+                  <EditableCell value={contractTexts.remainderLine} onChange={v => setTxt('remainderLine', v)} multiline />{' '}
+                  <strong>{fmtNum(remainingBalance)} ש"ח{' '}<EditableCell value={contractTexts.remainderSuffix} onChange={v => setTxt('remainderSuffix', v)} /></strong>
+                </p>
+                <p><EditableCell value={contractTexts.checkNote} onChange={v => setTxt('checkNote', v)} multiline /></p>
+                <p><EditableCell value={contractTexts.paymentNote} onChange={v => setTxt('paymentNote', v)} multiline /></p>
+
+                <h3 style={{ fontWeight: 'bold', marginTop: 10, marginBottom: 4 }}>
+                  <EditableCell value={contractTexts.cancellationHeader} onChange={v => setTxt('cancellationHeader', v)} />
+                </h3>
+                <ul style={{ paddingRight: 16, lineHeight: 1.8 }}>
+                  {contractTexts.cancellationItems.map((item, i) => (
+                    <li key={i}>
+                      <EditableCell value={item} onChange={v => setCancelItem(i, v)} multiline />
+                      {i === 0 && cancellationDate ? <strong> {cancellationDate}</strong> : null}
+                    </li>
+                  ))}
+                </ul>
+
+                <h3 style={{ fontWeight: 'bold', marginTop: 10, marginBottom: 4 }}>
+                  <EditableCell value={contractTexts.obligationsHeader} onChange={v => setTxt('obligationsHeader', v)} />
+                </h3>
+                <ul style={{ paddingRight: 16, lineHeight: 1.8 }}>
+                  {contractTexts.obligations.map((item, i) => (
+                    <li key={i}><EditableCell value={item} onChange={v => setObligation(i, v)} multiline /></li>
+                  ))}
+                </ul>
+
+                {contractTexts.legalParagraphs.map((para, i) => (
+                  <p key={i} style={{ marginTop: 6 }}>
+                    <EditableCell value={para} onChange={v => setLegalPara(i, v)} multiline />
+                  </p>
+                ))}
+
+                <p style={{ marginTop: 12, fontWeight: 'bold' }}>לראיה באו הצדדים על החתום:</p>
+                <p>שם המזמין: ___</p>
+                <table style={{ width: '100%', marginTop: 16 }}>
+                  <tbody><tr>
+                    <td style={{ width: '50%', textAlign: 'center', paddingTop: 8 }}>
+                      <div style={{ borderTop: '1px solid #333', paddingTop: 4 }}>המזמין</div>
+                    </td>
+                    <td style={{ width: '50%', textAlign: 'center', paddingTop: 8 }}>
+                      <div style={{ borderTop: '1px solid #333', paddingTop: 4 }}>הספק</div>
+                    </td>
+                  </tr></tbody>
+                </table>
               </div>
-
-              <p className="text-xs text-slate-400 text-center">הלקוח יראה את נוסח ההסכם המלא בדף החתימה</p>
             </div>
           )}
 
@@ -1000,7 +1169,7 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
               <p className="text-3xl">✅</p>
               <p className="font-bold text-slate-800">החוזה נשלח לחתימה!</p>
               <p className="text-xs text-slate-500">
-                {fields.clientEmail ? `נשלח לאימייל: ${fields.clientEmail}` : fields.clientPhone ? `נשלח ב-WhatsApp ל: ${fields.clientPhone}` : ''}
+                {sentChannel === 'email' ? `נשלח לאימייל: ${fields.clientEmail}` : `נשלח ב-WhatsApp ל: ${fields.clientPhone}`}
               </p>
               <div className="bg-slate-50 rounded-xl p-3 text-xs text-slate-600 break-all">{signingUrl}</div>
               <button onClick={() => { navigator.clipboard.writeText(signingUrl); }}
@@ -1019,14 +1188,17 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
             </button>
           ) : isPreviewStep ? (
             <div className="flex gap-2">
-              <button onClick={handleSend} disabled={sending}
-                className="flex-1 py-2.5 rounded-xl font-black text-sm text-white disabled:opacity-50"
-                style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
-                {sending ? 'שולח...' : 'שלח לחתימה'}
-              </button>
               <button onClick={() => setStep(s => s - 1)}
                 className="px-4 py-2.5 rounded-xl font-bold text-sm border border-slate-200 text-slate-600">
                 חזור
+              </button>
+              <button onClick={() => handleSend('whatsapp')} disabled={!!sending || !fields.clientPhone}
+                className="flex-1 py-2.5 rounded-xl font-black text-sm bg-green-600 text-white disabled:opacity-50">
+                {sending === 'whatsapp' ? 'שולח...' : 'וואטסאפ'}
+              </button>
+              <button onClick={() => handleSend('email')} disabled={!!sending || !fields.clientEmail}
+                className="flex-1 py-2.5 rounded-xl font-black text-sm bg-sky-600 text-white disabled:opacity-50">
+                {sending === 'email' ? 'שולח...' : 'אימייל'}
               </button>
             </div>
           ) : isImportStep ? (
