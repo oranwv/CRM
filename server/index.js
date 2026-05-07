@@ -146,7 +146,6 @@ app.use(cors());
 app.use(express.json());
 
 // Public
-app.use('/api/test-pdf',  require('./routes/testPdf'));
 app.use('/api/auth',      authRoutes);
 app.use('/api/whatsapp',  whatsappRoutes);
 app.use('/api/tasks',     require('./routes/tasks'));       // global task list (auth per-route)
