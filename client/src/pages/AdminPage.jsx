@@ -10,6 +10,8 @@ export default function AdminPage() {
   const [saved,   setSaved]   = useState(false);
   const [saving,  setSaving]  = useState(false);
   const [loading, setLoading] = useState(true);
+  const [staffSig, setStaffSig]         = useState('');
+  const [sigUploading, setSigUploading] = useState(false);
   const [syncing,  setSyncing]  = useState(false);
   const [syncResult, setSyncResult] = useState(null);
   const [waStatus, setWaStatus] = useState(null);
@@ -21,7 +23,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     api.get('/admin/settings')
-      .then(r => { setAiInstructions(r.data.ai_instructions || ''); setLoading(false); })
+      .then(r => { setAiInstructions(r.data.ai_instructions || ''); setStaffSig(r.data.staff_signature || ''); setLoading(false); })
       .catch(() => setLoading(false));
     checkWaStatus();
     loadUsers();
@@ -43,6 +45,33 @@ export default function AdminPage() {
     try { const { data } = await api.post('/calendar/sync-all'); setSyncResult(data); }
     catch (err) { setSyncResult({ error: err.response?.data?.error || err.message }); }
     finally { setSyncing(false); }
+  }
+
+  async function handleSigUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setSigUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('signature', file);
+      const { data } = await api.post('/admin/settings/staff-signature', fd);
+      setStaffSig(data.dataUrl);
+    } catch (err) {
+      alert(err.response?.data?.error || err.message);
+    } finally {
+      setSigUploading(false);
+      e.target.value = '';
+    }
+  }
+
+  async function handleSigDelete() {
+    if (!window.confirm('למחוק את חתימת הספק?')) return;
+    try {
+      await api.delete('/admin/settings/staff-signature');
+      setStaffSig('');
+    } catch (err) {
+      alert(err.response?.data?.error || err.message);
+    }
   }
 
   async function handleSave() {
@@ -146,6 +175,28 @@ export default function AdminPage() {
               </button>
             </>
           )}
+        </div>
+
+        {/* ── Staff signature ── */}
+        <div className="rounded-2xl p-4 bg-white border border-violet-100 shadow-sm">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-lg">✍️</span>
+            <h2 className="font-black text-base text-slate-800">חתימת הספק לחוזה</h2>
+          </div>
+          <p className="text-xs mb-3 text-slate-400">תמונה זו תופיע בצד הספק בחוזה החתום שנשלח ללקוח.</p>
+          {staffSig ? (
+            <div className="flex items-center gap-3 mb-3">
+              <img src={staffSig} alt="חתימת הספק" className="h-16 object-contain border border-slate-200 rounded-xl p-1 bg-white" />
+              <button onClick={handleSigDelete} className="text-xs text-red-500 hover:underline">מחק חתימה</button>
+            </div>
+          ) : (
+            <p className="text-xs text-slate-400 mb-3">לא הועלתה חתימה</p>
+          )}
+          <label className={`block w-full py-2.5 rounded-xl font-black text-sm text-white text-center cursor-pointer ${sigUploading ? 'opacity-50 pointer-events-none' : ''}`}
+            style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+            {sigUploading ? 'מעלה...' : staffSig ? 'החלף חתימה' : 'העלה חתימה'}
+            <input type="file" accept="image/*" className="hidden" onChange={handleSigUpload} disabled={sigUploading} />
+          </label>
         </div>
 
         {/* ── WhatsApp status ── */}

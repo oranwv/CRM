@@ -1,0 +1,366 @@
+const path      = require('path');
+const fs        = require('fs');
+const crypto    = require('crypto');
+const puppeteer = require('puppeteer-core');
+const axios     = require('axios');
+const pool      = require('../db/pool');
+const { uploadBuffer } = require('../services/storageService');
+const { sendEmail }    = require('../services/gmailService');
+
+const alefRegB64  = fs.readFileSync(path.join(__dirname, '../fonts/Alef-Regular.ttf')).toString('base64');
+const alefBoldB64 = fs.readFileSync(path.join(__dirname, '../fonts/Alef-Bold.ttf')).toString('base64');
+const logoPath    = path.join(__dirname, '../../client/public/logo.jpg');
+const logoB64     = fs.existsSync(logoPath) ? fs.readFileSync(logoPath).toString('base64') : '';
+
+function esc(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function fmt(n) { return Number(n || 0).toLocaleString('he-IL'); }
+
+function buildContractHtml({ contractData, signingData, staffSignature }) {
+  const { fields, rows, calculated } = contractData;
+  const {
+    clientName, eventDate, startTime, endTime,
+    guests, extraGuestPrice, chefMenu, barMenu, depositPercent,
+  } = fields;
+  const { subtotal, vat, total, depositAmount, depositAmountVat, remainingBalance, cancellationDate } = calculated;
+
+  const signed = !!signingData;
+  const signerName      = signed ? esc(signingData.signerName)     : '<span style="display:inline-block;min-width:140px;border-bottom:1px solid #333;">&nbsp;</span>';
+  const signerIdNumber  = signed ? esc(signingData.signerIdNumber) : '<span style="display:inline-block;min-width:120px;border-bottom:1px solid #333;">&nbsp;</span>';
+  const signingDate     = signed ? esc(signingData.signingDate)    : '<span style="display:inline-block;min-width:100px;border-bottom:1px solid #333;">&nbsp;</span>';
+  const signerNameFooter = signed ? esc(signingData.signerName)    : '<span style="display:inline-block;min-width:140px;border-bottom:1px solid #333;">&nbsp;</span>';
+
+  const eventDateDisplay = eventDate
+    ? new Date(eventDate + 'T12:00:00').toLocaleDateString('he-IL')
+    : '';
+
+  const dataRowsHtml = (rows || []).map(r => `
+    <tr>
+      <td style="border:1px solid #ccc;padding:4px 6px;">${esc(r.label)}</td>
+      <td style="border:1px solid #ccc;padding:4px 6px;font-size:8pt;color:#555;">${esc(r.desc || '')}</td>
+      <td style="border:1px solid #ccc;padding:4px 6px;text-align:center;">${esc(String(r.qty ?? ''))}</td>
+      <td style="border:1px solid #ccc;padding:4px 6px;text-align:center;">${fmt(r.price)} &#x202B;&#x202C;&#x05E9;"&#x05D7;</td>
+      <td style="border:1px solid #ccc;padding:4px 6px;text-align:center;">${fmt((r.qty ?? 0) * (r.price ?? 0))} &#x202B;&#x202C;&#x05E9;"&#x05D7;</td>
+    </tr>`).join('');
+
+  const customerSigHtml = signed && signingData.signatureImage
+    ? `<img src="${signingData.signatureImage}" style="max-height:70px;max-width:180px;display:block;margin:0 auto;" />`
+    : '<div style="height:70px;"></div>';
+
+  const staffSigHtml = staffSignature
+    ? `<img src="${staffSignature}" style="max-height:70px;max-width:180px;display:block;margin:0 auto;" />`
+    : '<div style="height:70px;"></div>';
+
+  const shkalHtml = '&#x05E9;"&#x05D7;';
+
+  return `<!DOCTYPE html>
+<html dir="rtl">
+<head>
+<meta charset="UTF-8">
+<style>
+@font-face { font-family:'Alef'; src:url('data:font/truetype;base64,${alefRegB64}') format('truetype'); font-weight:normal; }
+@font-face { font-family:'Alef'; src:url('data:font/truetype;base64,${alefBoldB64}') format('truetype'); font-weight:bold; }
+@page { size:A4; margin:15mm 20mm; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:'Alef',Arial,sans-serif; font-size:10pt; color:#222; direction:rtl; line-height:1.8; }
+p { margin-bottom:4pt; }
+h2 { text-align:center; font-size:14pt; margin-bottom:10pt; }
+h3 { font-size:11pt; font-weight:bold; margin-top:10pt; margin-bottom:4pt; }
+table { border-collapse:collapse; width:100%; }
+th,td { font-size:9pt; }
+ul { padding-right:16pt; }
+li { margin-bottom:2pt; }
+</style>
+</head>
+<body>
+
+${logoB64 ? `<div style="text-align:center;margin-bottom:10pt;"><img src="data:image/jpeg;base64,${logoB64}" style="height:70px;object-fit:contain;" /></div>` : ''}
+
+<h2>&#x05D4;&#x05E1;&#x05DB;&#x05DD; &#x05D4;&#x05D6;&#x05DE;&#x05E0;&#x05EA; &#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2;</h2>
+
+<p>&#x05E9;&#x05E0;&#x05E2;&#x05E8;&#x05DA; &#x05D5;&#x05E0;&#x05D7;&#x05EA;&#x05DD; &#x05D1;&#x05D9;&#x05D5;&#x05DD; ${signingDate} &#x05DC;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2; &#x05D1;&#x05EA;&#x05D0;&#x05E8;&#x05D9;&#x05DA; ${esc(eventDateDisplay)}</p>
+
+<p>&#x202B;&#x05D1;&#x05D9;&#x05DF;:&#x202C; ${signerName}&nbsp;&nbsp;&nbsp;&#x202B;&#x05EA;&#x05D6;\&#x05D7;&#x05E4;:&#x202C; ${signerIdNumber}</p>
+<p>(&#x05D1;&#x05D9;&#x05D7;&#x05D3; &#x05D5;&#x05DC;&#x05D7;&#x05D5;&#x05D3; &#x05DC;&#x05D4;&#x05DC;&#x05DF;: "&#x05D4;&#x05DE;&#x05D6;&#x05DE;&#x05D9;&#x05DF;")</p>
+<p style="text-align:left;">&#x05DE;&#x05E6;&#x05D3; &#x05D0;&#x05D7;&#x05D3;;</p>
+<p>&#x05DC;&#x05D1;&#x05D9;&#x05DF;:</p>
+<p>&#x05E9;&#x05E8;&#x05D1;&#x05D9;&#x05D4;, &#x05DE;&#x05E1;&#x05E4;&#x05E8; &#x05E9;&#x05D5;&#x05EA;&#x05E4;&#x05D5;&#x05EA; 558450383</p>
+<p>&#x05DE;&#x05E8;&#x05D7;' &#x05E9;&#x05DE;&#x05E2;&#x05D5;&#x05DF; &#x05D4;&#x05E6;&#x05D3;&#x05D9;&#x05E7; 18 &#x05EA;&#x05DC; &#x05D0;&#x05D1;&#x05D9;&#x05D1;.</p>
+<p>(&#x05DC;&#x05D4;&#x05DC;&#x05DF;: "&#x05D4;&#x05E1;&#x05E4;&#x05E7;")</p>
+<p style="text-align:left;margin-bottom:10pt;">&#x05DE;&#x05E6;&#x05D3; &#x05E9;&#x05E0;&#x05D9;;</p>
+
+<p><strong>&#x05D4;&#x05D5;&#x05D0;&#x05D9;&#x05DC;:</strong> &#x05D4;&#x05E1;&#x05E4;&#x05E7; &#x05D4;&#x05D9;&#x05E0;&#x05D5; &#x05D4;&#x05DE;&#x05D7;&#x05D6;&#x05D9;&#x05E7; &#x05D4;&#x05D1;&#x05DC;&#x05E2;&#x05D3;&#x05D9; &#x05D5;&#x05D4;&#x05DE;&#x05E4;&#x05E2;&#x05D9;&#x05DC; &#x05E9;&#x05DC; &#x05DE;&#x05EA;&#x05D7;&#x05DD; &#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2;&#x05D9;&#x05DD; "&#x05E9;&#x05E8;&#x05D1;&#x05D9;&#x05D9;&#x05D4;" &#x05D4;&#x05E0;&#x05DE;&#x05E6;&#x05D0; &#x05D1;&#x05D9;&#x05E9;&#x05D5;&#x05D1; &#x05EA;&#x05DC; &#x05D0;&#x05D1;&#x05D9;&#x05D1;- &#x05D9;&#x05E4;&#x05D5; (&#x05DC;&#x05D4;&#x05DC;&#x05DF;: "&#x05D0;&#x05D5;&#x05DC;&#x05DD; &#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2;&#x05D9;&#x05DD;");</p>
+<p><strong>&#x05D5;&#x05D4;&#x05D5;&#x05D0;&#x05D9;&#x05DC;:</strong> &#x05D5;&#x05D1;&#x05E8;&#x05E6;&#x05D5;&#x05DF; &#x05D4;&#x05DE;&#x05D6;&#x05DE;&#x05D9;&#x05DF; &#x05DC;&#x05D4;&#x05D6;&#x05DE;&#x05D9;&#x05DF; &#x05DE;&#x05D0;&#x05EA; &#x05D4;&#x05E1;&#x05E4;&#x05E7; &#x05E9;&#x05D9;&#x05E8;&#x05D5;&#x05EA;&#x05D9;&#x05D5; &#x05D5;&#x05D4;&#x05DB;&#x05DC; &#x05DB;&#x05E4;&#x05D9; &#x05E9;&#x05D9;&#x05E4;&#x05D5;&#x05E8;&#x05D8; &#x05D1;&#x05D4;&#x05E1;&#x05DB;&#x05DD; &#x05D6;&#x05D4;;</p>
+<p style="margin-bottom:8pt;">&#x05DC;&#x05E4;&#x05D9;&#x05DB;&#x05DA; &#x05D4;&#x05D5;&#x05E1;&#x05DB;&#x05DD; &#x05D5;&#x05D4;&#x05D5;&#x05EA;&#x05E0;&#x05D4; &#x05D1;&#x05D9;&#x05DF; &#x05D4;&#x05E6;&#x05D3;&#x05D3;&#x05D9;&#x05DD;:</p>
+<p style="margin-bottom:10pt;">&#x05D4;&#x05DE;&#x05D1;&#x05D5;&#x05D0; &#x05DC;&#x05D4;&#x05E1;&#x05DB;&#x05DD; &#x05D6;&#x05D4; &#x05D5;&#x05DB;&#x05DC; &#x05D4;&#x05E0;&#x05E1;&#x05E4;&#x05D7;&#x05D9;&#x05DD;, &#x05D1;&#x05D9;&#x05DF; &#x05D4;&#x05DE;&#x05E6;&#x05D5;&#x05E8;&#x05E4;&#x05D9;&#x05DD; &#x05D1;&#x05DE;&#x05D5;&#x05E2;&#x05D3; &#x05D7;&#x05EA;&#x05D9;&#x05DE;&#x05EA; &#x05D4;&#x05E1;&#x05DB;&#x05DD; &#x05D6;&#x05D4; &#x05D5;&#x05D1;&#x05D9;&#x05DF; &#x05E9;&#x05D9;&#x05E6;&#x05D5;&#x05E8;&#x05E4;&#x05D5; &#x05D0;&#x05DC;&#x05D9;&#x05D5; &#x05D1;&#x05E2;&#x05EA;&#x05D9;&#x05D3;, &#x05DE;&#x05D4;&#x05D5;&#x05D5;&#x05D9;&#x05DD; &#x05D7;&#x05DC;&#x05E7; &#x05D1;&#x05DC;&#x05EA;&#x05D9; &#x05E0;&#x05E4;&#x05E8;&#x05D3; &#x05D4;&#x05D9;&#x05DE;&#x05E0;&#x05D5;.</p>
+
+<h3>&#x05D4;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2;:</h3>
+<p>&#x05EA;&#x05D0;&#x05E8;&#x05D9;&#x05DA; &#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2;: ${esc(eventDateDisplay)}</p>
+<p>&#x05D0;&#x05D5;&#x05DC;&#x05DD; &#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2;&#x05D9;&#x05DD;: &#x05E9;&#x05E8;&#x05D1;&#x05D9;&#x05D9;&#x05D4; &#x05D1;&#x05E8;&#x05D7;&#x05D5;&#x05D1; &#x05E8;&#x05D1;&#x05D9; &#x05E4;&#x05E0;&#x05D7;&#x05E1; &#x05D1;&#x05DF; &#x05D9;&#x05D0;&#x05D9;&#x05E8; 3 &#x05EA;&#x05DC; -&#x05D0;&#x05D1;&#x05D9;&#x05D1; &#x05D9;&#x05E4;&#x05D5;</p>
+<p>&#x05E9;&#x05E2;&#x05EA; &#x05D4;&#x05EA;&#x05D7;&#x05DC;&#x05D4;: ${esc(startTime)}</p>
+<p>&#x05E9;&#x05E2;&#x05EA; &#x05E1;&#x05D9;&#x05D5;&#x05DD; &#x05D4;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2;: ${esc(endTime)}</p>
+
+<h3>&#x05E2;&#x05DC;&#x05D5;&#x05D9;&#x05D5;&#x05EA;:</h3>
+<table style="margin-bottom:6pt;">
+  <thead>
+    <tr>
+      <th style="border:1px solid #ccc;padding:4px 6px;background:#f5f5f5;">&#x05E9;&#x05DD; &#x05D4;&#x05E4;&#x05E8;&#x05D9;&#x05D8;</th>
+      <th style="border:1px solid #ccc;padding:4px 6px;background:#f5f5f5;">&#x05EA;&#x05D9;&#x05D0;&#x05D5;&#x05E8;</th>
+      <th style="border:1px solid #ccc;padding:4px 6px;background:#f5f5f5;text-align:center;">&#x05DB;&#x05DE;&#x05D5;&#x05EA;</th>
+      <th style="border:1px solid #ccc;padding:4px 6px;background:#f5f5f5;text-align:center;">&#x05DE;&#x05D7;&#x05D9;&#x05E8;</th>
+      <th style="border:1px solid #ccc;padding:4px 6px;background:#f5f5f5;text-align:center;">&#x202B;&#x05E1;&#x05D4;"&#x05DB; &#x05DC;&#x05E4;&#x05E0;&#x05D9; &#x05DE;&#x05E2;"&#x05DE;&#x202C;</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${dataRowsHtml}
+    <tr>
+      <td colspan="4" style="border:1px solid #ccc;padding:4px 6px;text-align:left;font-weight:bold;">&#x202B;&#x05E1;&#x05D4;"&#x05DB; &#x05D7;&#x05D9;&#x05D9;&#x05D1; &#x05D1;&#x05DE;&#x05E2;"&#x05DE;:&#x202C;</td>
+      <td style="border:1px solid #ccc;padding:4px 6px;text-align:center;font-weight:bold;">${fmt(subtotal)} ${shkalHtml}</td>
+    </tr>
+    <tr>
+      <td colspan="4" style="border:1px solid #ccc;padding:4px 6px;text-align:left;">&#x202B;&#x05DE;&#x05E2;"&#x05DE; (18%):&#x202C;</td>
+      <td style="border:1px solid #ccc;padding:4px 6px;text-align:center;">${fmt(vat)} ${shkalHtml}</td>
+    </tr>
+    <tr style="font-weight:bold;">
+      <td colspan="4" style="border:1px solid #ccc;padding:4px 6px;text-align:left;">&#x202B;&#x05E1;&#x05D4;"&#x05DB; &#x05DC;&#x05EA;&#x05E9;&#x05DC;&#x05D5;&#x05DD;:&#x202C;</td>
+      <td style="border:1px solid #ccc;padding:4px 6px;text-align:center;">${fmt(total)} ${shkalHtml}</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>&#x05D4;&#x05E1;&#x05DB;&#x05DD; &#x05D6;&#x05D4; &#x05E2;&#x05D1;&#x05D5;&#x05E8; &#x05E7;&#x05D9;&#x05D5;&#x05DD; &#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2; &#x05E2;&#x05DD; &#x05DE;&#x05D9;&#x05E0;&#x05D9;&#x05DE;&#x05D5;&#x05DD; ${esc(String(guests || ''))} &#x05D0;&#x05D5;&#x05E8;&#x05D7;&#x05D9;&#x05DD;</p>
+${extraGuestPrice && Number(extraGuestPrice) > 0
+  ? `<p>&#x05DB;&#x05DC; &#x05D0;&#x05D5;&#x05E8;&#x05D7; &#x05DE;&#x05E2;&#x05DC; ${esc(String(guests || ''))} &#x05D0;&#x05D5;&#x05E8;&#x05D7;&#x05D9;&#x05DD; &#x05D1;&#x05E2;&#x05DC;&#x05D5;&#x05EA; &#x05E9;&#x05DC; ${Number(extraGuestPrice).toLocaleString()} &#x05E9;"&#x05D7; &#x05DC;&#x05D0; &#x05DB;&#x05D5;&#x05DC;&#x05DC; &#x05DE;&#x05E2;"&#x05DE;</p>`
+  : ''}
+
+<h3>&#x05D4;&#x05DE;&#x05D7;&#x05D9;&#x05E8; &#x05DB;&#x05D5;&#x05DC;&#x05DC; &#x05D1;&#x05EA;&#x05D5;&#x05DB;&#x05D5;:</h3>
+<ul>
+  <li>&#x05E6;&#x05D5;&#x05D5;&#x05EA; &#x05D4;&#x05E7;&#x05DE;&#x05D4;</li>
+  <li>&#x05E6;&#x05D5;&#x05D5;&#x05EA; &#x05EA;&#x05E4;&#x05E2;&#x05D5;&#x05DC;</li>
+  <li>&#x05DE;&#x05E0;&#x05D4;&#x05DC; &#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2; &#x05D5;&#x05DC;&#x05D9;&#x05D5;&#x05D5;&#x05D9; &#x05DC;&#x05D0;&#x05D5;&#x05E8;&#x05DA; &#x05D4;&#x05EA;&#x05D4;&#x05DC;&#x05D9;&#x05DA;</li>
+  <li>&#x05DE;&#x05DC;&#x05E6;&#x05E8;&#x05D9;&#x05DD;</li>
+  <li>&#x05D1;&#x05E8;&#x05DE;&#x05E0;&#x05D9;&#x05DD; + &#x05DE;&#x05E0;&#x05D4;&#x05DC; &#x05D1;&#x05E8;</li>
+  <li>&#x05EA;&#x05E4;&#x05E8;&#x05D9;&#x05D8; &#x05E9;&#x05E3; ${esc(chefMenu || '')}</li>
+  <li>&#x05EA;&#x05E4;&#x05E8;&#x05D9;&#x05D8; &#x05D1;&#x05E8; ${esc(barMenu || '')}</li>
+  <li>&#x05D0;&#x05D1;&#x05D8;&#x05D7;&#x05D4;</li>
+  <li>&#x05E6;&#x05D5;&#x05D5;&#x05EA; &#x05E0;&#x05D9;&#x05E7;&#x05D9;&#x05D5;&#x05DF;</li>
+  <li>&#x05DE;&#x05E7;&#x05E8;&#x05DF; &#x05DC;&#x05D4;&#x05E7;&#x05E8;&#x05E0;&#x05D4; &#x05E2;&#x05DC; &#x05D4;&#x05E7;&#x05D9;&#x05E8; (&#x05DC;&#x05D0; &#x05DB;&#x05D5;&#x05DC;&#x05DC; &#x05DE;&#x05D7;&#x05E9;&#x05D1; &#x05D5;&#x05DB;&#x05D1;&#x05DC; HDMI)</li>
+  <li>&#x05D1;&#x05DE;&#x05D4; &#x05D5;&#x05D4;&#x05E7;&#x05DE;&#x05EA; &#x05E2;&#x05DE;&#x05D3;&#x05EA; &#x05D3;&#x05D9; &#x05D2;'&#x05D9;</li>
+  <li>&#x05DE;&#x05D9;&#x05E7;&#x05E8;&#x05D5;&#x05E4;&#x05D5;&#x05DF;</li>
+  <li>&#x05DE;&#x05E2;&#x05E8;&#x05DB;&#x05EA; &#x05D4;&#x05D2;&#x05D1;&#x05E8;&#x05D4; &#x05D5;&#x05EA;&#x05D0;&#x05D5;&#x05E8;&#x05D4; &#x05DB;&#x05D5;&#x05DC;&#x05DC; &#x05EA;&#x05E4;&#x05E2;&#x05D5;&#x05DC; &#x05DC;&#x05D0;&#x05D5;&#x05E8;&#x05DA; &#x05DB;&#x05DC; &#x05D4;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2;</li>
+  <li>&#x05E2;&#x05D9;&#x05E6;&#x05D5;&#x05D1; &#x05D4;&#x05DE;&#x05E7;&#x05D5;&#x05DD; - &#x05E9;&#x05D5;&#x05DC;&#x05D7;&#x05E0;&#x05D5;&#x05EA; &#x05D0;&#x05D1;&#x05D9;&#x05E8;&#x05D9;&#x05DD; &#x05E2;&#x05DD; &#x05DE;&#x05E4;&#x05D5;&#x05EA; &#x05DC;&#x05D1;&#x05E0;&#x05D5;&#x05EA;, &#x05DB;&#x05D3;&#x05D9; &#x05E0;&#x05D5;&#x05D9; &#x05D3;&#x05E7;&#x05D5;&#x05E8;&#x05D8;&#x05D9;&#x05D1;&#x05D9;&#x05DD;, &#x05E4;&#x05D9;&#x05E0;&#x05D5;&#x05EA; &#x05D9;&#x05E9;&#x05D9;&#x05D1;&#x05D4; &#x05D0;&#x05DC;&#x05D8;&#x05E8;&#x05E0;&#x05D8;&#x05D9;&#x05D1;&#x05D5;&#x05EA; &#x05DB;&#x05D5;&#x05DC;&#x05DC; &#x05E1;&#x05E4;&#x05D5;&#x05EA;, &#x05E9;&#x05D5;&#x05DC;&#x05D7;&#x05E0;&#x05D5;&#x05EA; &#x05D1;&#x05E8; &#x05D2;&#x05D1;&#x05D5;&#x05D4;&#x05D9;&#x05DD;, &#x05E9;&#x05D5;&#x05DC;&#x05D7;&#x05E0;&#x05D5;&#x05EA; &#x05E0;&#x05DE;&#x05D5;&#x05DB;&#x05D9;&#x05DD;, &#x05D7;&#x05D1;&#x05D9;&#x05D5;&#x05EA; &#x05D9;&#x05D9;&#x05DF; &#x05E2;&#x05EA;&#x05D9;&#x05E7;&#x05D5;&#x05EA;</li>
+</ul>
+
+<h3>&#x05EA;&#x05E0;&#x05D0;&#x05D9; &#x05EA;&#x05E9;&#x05DC;&#x05D5;&#x05DD;:</h3>
+<p>&#x05D1;&#x05DE;&#x05E2;&#x05DE;&#x05D3; &#x05D7;&#x05EA;&#x05D9;&#x05DE;&#x05EA; &#x05D4;&#x05E1;&#x05DB;&#x05DD; &#x05D6;&#x05D4; &#x05EA;&#x05D9;&#x05E0;&#x05EA;&#x05DF; &#x05DE;&#x05E7;&#x05D3;&#x05DE;&#x05D4; &#x05E2;&#x05DC;-&#x05E1;&#x05DA; <strong>${fmt(depositAmount)} ${shkalHtml} (${esc(String(depositPercent))}%)</strong> &#x05DC;&#x05D0; &#x05DB;&#x05D5;&#x05DC;&#x05DC; &#x05DE;&#x05E2;"&#x05DE;. &#x05E1;&#x05D4;"&#x05DB; <strong>${fmt(depositAmountVat)} ${shkalHtml}</strong> &#x05DB;&#x05D5;&#x05DC;&#x05DC; &#x05DE;&#x05E2;"&#x05DE;</p>
+<p>&#x05D1;&#x05D9;&#x05D5;&#x05DD; &#x05D4;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2;, &#x05DC;&#x05E4;&#x05E0;&#x05D9; &#x05EA;&#x05D7;&#x05D9;&#x05DC;&#x05EA; &#x05D4;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2; &#x05D9;&#x05E9; &#x05DC;&#x05E9;&#x05DC;&#x05DD; &#x05D0;&#x05EA; &#x05D9;&#x05EA;&#x05E8;&#x05EA; &#x05D4;&#x05E1;&#x05DB;&#x05D5;&#x05DD; &#x05E2;&#x05DC; &#x05E1;&#x05DA; <strong>${fmt(remainingBalance)} ${shkalHtml} &#x05DB;&#x05D5;&#x05DC;&#x05DC; &#x05DE;&#x05E2;"&#x05DE;</strong>.</p>
+<p>&#x05DC;&#x05D7;&#x05DC;&#x05D5;&#x05E4;&#x05D9;&#x05DF; - &#x05E0;&#x05D9;&#x05EA;&#x05DF; &#x05DC;&#x05D4;&#x05D1;&#x05D9;&#x05D0; &#x05E6;'&#x05E7; &#x05D1;&#x05D9;&#x05D8;&#x05D7;&#x05D5;&#x05DF; &#x05E9;&#x05DC; &#x05D4;&#x05E1;&#x05DB;&#x05D5;&#x05DD; &#x05D4;&#x05E0;"&#x05DC; &#x05D1;&#x05EA;&#x05D7;&#x05D9;&#x05DC;&#x05EA; &#x05D4;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2;.</p>
+<p>&#x05D7;&#x05E9;&#x05D5;&#x05D1; &#x05DC;&#x05E6;&#x05D9;&#x05D9;&#x05DF; &#x05DB;&#x05D9; &#x05DC;&#x05DC;&#x05D0; &#x05D4;&#x05E0;"&#x05DC; &#x05DE;&#x05E0;&#x05D4;&#x05DC; &#x05D4;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2; &#x05DC;&#x05D0; &#x05D9;&#x05EA;&#x05D7;&#x05D9;&#x05DC; &#x05D5;&#x05D9;&#x05E7;&#x05D9;&#x05D9;&#x05DD; &#x05D0;&#x05EA; &#x05D4;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2;!</p>
+
+<h3>&#x05D1;&#x05D9;&#x05D8;&#x05D5;&#x05DC; &#x05D4;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2;:</h3>
+<ul>
+  <li>&#x05D1;&#x05DE;&#x05E7;&#x05E8;&#x05D4; &#x05E9;&#x05DC; &#x05D0;&#x05D9; &#x05D0;&#x05D9;&#x05E9;&#x05D5;&#x05E8; &#x05DC;&#x05E2;&#x05E8;&#x05D9;&#x05DB;&#x05EA; &#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2;&#x05D9;&#x05DD; &#x05E9;&#x05DC; &#x05E4;&#x05D9;&#x05E7;&#x05D5;&#x05D3; &#x05D4;&#x05E2;&#x05D5;&#x05E8;&#x05E3;/&#x05DB;&#x05D5;&#x05D7; &#x05E2;&#x05DC;&#x05D9;&#x05D5;&#x05DF; &#x05E9;&#x05D0;&#x05D9;&#x05E0;&#x05D5; &#x05DE;&#x05D0;&#x05E4;&#x05E9;&#x05E8; &#x05DC;&#x05E7;&#x05D9;&#x05D9;&#x05DD; &#x05D0;&#x05EA; &#x05D4;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2; &#x2014; &#x05D4;&#x05E1;&#x05DB;&#x05D9;&#x05DE;&#x05D5; &#x05D4;&#x05E6;&#x05D3;&#x05D3;&#x05D9;&#x05DD; &#x05E2;&#x05DC; &#x05D3;&#x05D7;&#x05D9;&#x05D9;&#x05EA; &#x05DE;&#x05D5;&#x05E2;&#x05D3; &#x05D4;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2; &#x05DC;&#x05DE;&#x05D5;&#x05E2;&#x05D3; &#x05D0;&#x05D7;&#x05E8; &#x05E2;&#x05D3; &#x05DC;&#x05EA;&#x05D0;&#x05E8;&#x05D9;&#x05DA; <strong>${esc(cancellationDate)}</strong></li>
+  <li>&#x05D1;&#x05DE;&#x05E7;&#x05E8;&#x05D4; &#x05E9;&#x05DC; &#x05D1;&#x05D9;&#x05D8;&#x05D5;&#x05DC; &#x05EA;&#x05D5;&#x05DA; &#x05E4;&#x05D7;&#x05D5;&#x05EA; &#x05DE;&#x05D7;&#x05D5;&#x05D3;&#x05E9;&#x05D9;&#x05D9;&#x05DD; &#x05DE;&#x05DE;&#x05D5;&#x05E2;&#x05D3; &#x05D4;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2; &#x2013; &#x05D9;&#x05D7;&#x05D5;&#x05D9;&#x05D9;&#x05D1; &#x05D4;&#x05DE;&#x05D6;&#x05DE;&#x05D9;&#x05DF; &#x05D1;&#x05D3;&#x05DE;&#x05D9; &#x05D1;&#x05D9;&#x05D8;&#x05D5;&#x05DC; &#x05E9;&#x05DC; 50% &#x05DE;&#x05D4;&#x05E1;&#x05DB;&#x05D5;&#x05DD; &#x05D4;&#x05DB;&#x05D5;&#x05DC;&#x05DC;.</li>
+  <li>&#x05D1;&#x05DE;&#x05E7;&#x05E8;&#x05D4; &#x05E9;&#x05DC; &#x05D1;&#x05D9;&#x05D8;&#x05D5;&#x05DC; &#x05EA;&#x05D5;&#x05DA; &#x05E4;&#x05D7;&#x05D5;&#x05EA; &#x05DE;&#x05D7;&#x05D5;&#x05D3;&#x05E9; &#x05D5;&#x05E2;&#x05D3; &#x05E9;&#x05D1;&#x05D5;&#x05E2; &#x05DE;&#x05DE;&#x05D5;&#x05E2;&#x05D3; &#x05D4;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2; &#x2013; &#x05D9;&#x05D7;&#x05D5;&#x05D9;&#x05D9;&#x05D1; &#x05D4;&#x05DE;&#x05D6;&#x05DE;&#x05D9;&#x05DF; &#x05D1;&#x05D3;&#x05DE;&#x05D9; &#x05D1;&#x05D9;&#x05D8;&#x05D5;&#x05DC; &#x05E9;&#x05DC; 75% &#x05DE;&#x05D4;&#x05E1;&#x05DB;&#x05D5;&#x05DD; &#x05D4;&#x05DB;&#x05D5;&#x05DC;&#x05DC;.</li>
+  <li>&#x05D1;&#x05DE;&#x05E7;&#x05E8;&#x05D4; &#x05E9;&#x05DC; &#x05D1;&#x05D9;&#x05D8;&#x05D5;&#x05DC; &#x05EA;&#x05D5;&#x05DA; &#x05E4;&#x05D7;&#x05D5;&#x05EA; &#x05DE;&#x05E9;&#x05D1;&#x05D5;&#x05E2; &#x05DE;&#x05DE;&#x05D5;&#x05E2;&#x05D3; &#x05D4;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2; &#x2013; &#x05D9;&#x05D7;&#x05D5;&#x05D9;&#x05D9;&#x05D1; &#x05D4;&#x05DE;&#x05D6;&#x05DE;&#x05D9;&#x05DF; &#x05D1;&#x05D3;&#x05DE;&#x05D9; &#x05D1;&#x05D9;&#x05D8;&#x05D5;&#x05DC; &#x05DE;&#x05DC;&#x05D0;&#x05D9;&#x05DD;.</li>
+</ul>
+
+<h3>&#x05D4;&#x05EA;&#x05D7;&#x05D9;&#x05D9;&#x05D1;&#x05D5;&#x05D9;&#x05D5;&#x05EA; &#x05D5;&#x05D4;&#x05E6;&#x05D4;&#x05E8;&#x05D5;&#x05EA; &#x05D4;&#x05E6;&#x05D3;&#x05D3;&#x05D9;&#x05DD;:</h3>
+<ul>
+  <li>&#x05D4;&#x05D0;&#x05D5;&#x05DC;&#x05DD; &#x05E2;&#x05DC; &#x05D7;&#x05DC;&#x05E7;&#x05D9;&#x05D5; &#x05D9;&#x05E9;&#x05DE;&#x05E9; &#x05DC;&#x05DC;&#x05E7;&#x05D5;&#x05D7; &#x05DC;&#x05E7;&#x05D9;&#x05D5;&#x05DD; &#x05D4;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2;. &#x05D4;&#x05E1;&#x05E4;&#x05E7; &#x05DE;&#x05EA;&#x05D7;&#x05D9;&#x05D9;&#x05D1; &#x05DC;&#x05D0;&#x05E4;&#x05E9;&#x05E8; &#x05DC;&#x05DE;&#x05D6;&#x05DE;&#x05D9;&#x05DF; &#x05E2;&#x05E8;&#x05D9;&#x05DB;&#x05EA; &#x05D4;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2; &#x05D1;&#x05D0;&#x05D5;&#x05DC;&#x05DD; &#x05D5;&#x05D1;&#x05DE;&#x05D5;&#x05E2;&#x05D3; &#x05DB;&#x05E4;&#x05D9; &#x05E9;&#x05E4;&#x05D5;&#x05E8;&#x05D8;&#x05D5; &#x05DC;&#x05E2;&#x05D9;&#x05DC;.</li>
+  <li>&#x05D4;&#x05E1;&#x05E4;&#x05E7; &#x05D9;&#x05E2;&#x05DE;&#x05D9;&#x05D3; &#x05D0;&#x05EA; &#x05D4;&#x05D0;&#x05D5;&#x05DC;&#x05DD; &#x05DC;&#x05E8;&#x05E9;&#x05D5;&#x05EA; &#x05D4;&#x05DE;&#x05D6;&#x05DE;&#x05D9;&#x05DF; &#x05DB;&#x05E9;&#x05D4;&#x05D5;&#x05D0; &#x05E0;&#x05E7;&#x05D9;, &#x05D5;&#x05DE;&#x05E1;&#x05D5;&#x05D3;&#x05E8;.</li>
+  <li>&#x05D4;&#x05DE;&#x05D6;&#x05DE;&#x05D9;&#x05DF; &#x05DE;&#x05E6;&#x05D4;&#x05D9;&#x05E8; &#x05DB;&#x05D9; &#x05D4;&#x05D5;&#x05D1;&#x05D0;&#x05D5; &#x05DC;&#x05D9;&#x05D3;&#x05D9;&#x05E2;&#x05EA;&#x05D5; &#x05E9;&#x05E2;&#x05D5;&#x05EA; &#x05D1;&#x05D4;&#x05DF; &#x05DE;&#x05EA;&#x05E7;&#x05D9;&#x05D9;&#x05DE;&#x05D9;&#x05DD; &#x05D4;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2;&#x05D9;&#x05DD; &#x05D5;&#x05D4;&#x05D5;&#x05D0; &#x05DE;&#x05E1;&#x05DB;&#x05D9;&#x05DD; &#x05DC;&#x05DB;&#x05DA;, &#x05DB;&#x05D9; &#x05D4;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2; &#x05D9;&#x05EA;&#x05E7;&#x05D9;&#x05D9;&#x05DD; &#x05D1;&#x05D9;&#x05DF; &#x05E9;&#x05E2;&#x05D5;&#x05EA; &#x05D4;&#x05E4;&#x05E2;&#x05D9;&#x05DC;&#x05D5;&#x05EA; &#x05D4;&#x05DE;&#x05E4;&#x05D5;&#x05E8;&#x05D8;&#x05D5;&#x05EA; &#x05DC;&#x05E2;&#x05D9;&#x05DC; &#x05D1;&#x05DC;&#x05D1;&#x05D3;.</li>
+  <li>&#x05D4;&#x05DE;&#x05D6;&#x05DE;&#x05D9;&#x05DF; &#x05DE;&#x05E6;&#x05D4;&#x05D9;&#x05E8; &#x05DB;&#x05D9; &#x05D4;&#x05D9;&#x05E0;&#x05D5; &#x05D0;&#x05D7;&#x05E8;&#x05D0;&#x05D9; &#x05D4;&#x05D1;&#x05DC;&#x05E2;&#x05D3;&#x05D9; &#x05DC;&#x05DE;&#x05E2;&#x05E9;&#x05D9;&#x05D5; &#x05D5;/&#x05D0;&#x05D5; &#x05DC;&#x05DE;&#x05E2;&#x05E9;&#x05D9; &#x05E0;&#x05D5;&#x05EA;&#x05E0;&#x05D9; &#x05D4;&#x05E9;&#x05D9;&#x05E8;&#x05D5;&#x05EA; &#x05E9;&#x05D4;&#x05D5;&#x05D6;&#x05DE;&#x05E0;&#x05D5; &#x05E2;&#x05DC; &#x05D9;&#x05D3;&#x05D5;, &#x05DC;&#x05DE;&#x05E2;&#x05D8; &#x05E0;&#x05D5;&#x05EA;&#x05E0;&#x05D9; &#x05D4;&#x05E9;&#x05D9;&#x05E8;&#x05D5;&#x05EA; &#x05D4;&#x05DE;&#x05E4;&#x05D5;&#x05E8;&#x05D8;&#x05D9;&#x05DD; &#x05D1;&#x05E8;&#x05E9;&#x05D9;&#x05DE;&#x05EA; &#x05D4;&#x05DE;&#x05D5;&#x05DE;&#x05DC;&#x05E6;&#x05D9;&#x05DD; &#x05E9;&#x05DC; &#x05D4;&#x05E1;&#x05E4;&#x05E7;.</li>
+  <li>&#x05D1;&#x05E0;&#x05D5;&#x05E1;&#x05E3; &#x05D4;&#x05DE;&#x05D6;&#x05DE;&#x05D9;&#x05DF; &#x05D0;&#x05D7;&#x05E8;&#x05D0;&#x05D9; &#x05E2;&#x05DC; &#x05E4;&#x05D9; &#x05D3;&#x05D9;&#x05DF; &#x05DC;&#x05DE;&#x05E2;&#x05E9;&#x05D9; &#x05D0;&#x05D5;&#x05E8;&#x05D7;&#x05D9;&#x05D5; &#x05D5;&#x05DB;&#x05D9; &#x05D4;&#x05D5;&#x05D0; &#x05D9;&#x05E4;&#x05E6;&#x05D4; &#x05D0;&#x05EA; &#x05D4;&#x05E1;&#x05E4;&#x05E7; &#x05DC;&#x05D0;&#x05D7;&#x05E8; &#x05E4;&#x05E1;&#x05E7; &#x05D3;&#x05D9;&#x05DF; &#x05D7;&#x05DC;&#x05D5;&#x05D8; &#x05D1;&#x05D2;&#x05D9;&#x05DF; &#x05DB;&#x05DC; &#x05E0;&#x05D6;&#x05E7; &#x05E9;&#x05D9;&#x05D2;&#x05E8;&#x05DD; &#x05DE;&#x05DE;&#x05E2;&#x05E9;&#x05D4; &#x05D5;/&#x05D0;&#x05D5; &#x05DE;&#x05DE;&#x05D7;&#x05D3;&#x05DC; &#x05E9;&#x05DC; &#x05DB;&#x05DC; &#x05D0;&#x05D7;&#x05D3; &#x05DE;&#x05D4;&#x05E0;"&#x05DC;.</li>
+  <li>&#x05DE;&#x05D5;&#x05D1;&#x05D4;&#x05E8; &#x05D1;&#x05D6;&#x05D0;&#x05EA;, &#x05DB;&#x05D9; &#x05D4;&#x05E1;&#x05E4;&#x05E7; &#x05D0;&#x05D9;&#x05E0;&#x05D5; &#x05D0;&#x05D7;&#x05E8;&#x05D0;&#x05D9; &#x05E2;&#x05DC; &#x05E9;&#x05D5;&#x05DD; &#x05E6;&#x05D9;&#x05D5;&#x05D3; &#x05D5;/&#x05D0;&#x05D5; &#x05D7;&#x05E4;&#x05E6;&#x05D9;&#x05DD; &#x05D0;&#x05D9;&#x05E9;&#x05D9;&#x05D9;&#x05DD;, &#x05D0;&#x05E9;&#x05E8; &#x05E0;&#x05E9;&#x05DB;&#x05D7;&#x05D5; &#x05E2;&#x05DC; &#x05D9;&#x05D3;&#x05D9; &#x05DE;&#x05D9; &#x05DE;&#x05D8;&#x05E2;&#x05DD; &#x05D4;&#x05DE;&#x05D6;&#x05DE;&#x05D9;&#x05DF; &#x05D1;&#x05DE;&#x05EA;&#x05D7;&#x05DD; &#x05D4;&#x05D0;&#x05D5;&#x05DC;&#x05DD;.</li>
+  <li>&#x05D9;&#x05D3;&#x05D5;&#x05E2; &#x05DC;&#x05DE;&#x05D6;&#x05DE;&#x05D9;&#x05DF; &#x05DB;&#x05D9; &#x05DC;&#x05D0; &#x05E0;&#x05D9;&#x05EA;&#x05DF; &#x05DC;&#x05D4;&#x05E9;&#x05EA;&#x05DE;&#x05E9; &#x05D1;&#x05D6;&#x05D9;&#x05E7;&#x05D5;&#x05E7;&#x05D9;&#x05DD; &#x05DE;&#x05DB;&#x05DC; &#x05E1;&#x05D5;&#x05D2; &#x05E9;&#x05D4;&#x05D5;&#x05D0; &#x05D1;&#x05DB;&#x05DC; &#x05E9;&#x05D8;&#x05D7; &#x05D4;&#x05D0;&#x05EA;&#x05E8;, &#x05DC;&#x05E8;&#x05D1;&#x05D5;&#x05EA; &#x05D1;&#x05D7;&#x05E0;&#x05D9;&#x05D9;&#x05D4; &#x05D5;&#x05DB;&#x05DF; &#x05DC;&#x05D0; &#x05E0;&#x05D9;&#x05EA;&#x05DF; &#x05DC;&#x05D4;&#x05E9;&#x05EA;&#x05DE;&#x05E9; &#x05D1;&#x05E7;&#x05D9;&#x05E9;&#x05D5;&#x05D8;&#x05D9;&#x05DD; &#x05DE;&#x05EA;&#x05E4;&#x05D6;&#x05E8;&#x05D9;&#x05DD; &#x05DB;&#x05D3;&#x05D5;&#x05D2;&#x05DE;&#x05EA; &#x05E7;&#x05D5;&#x05E0;&#x05E4;&#x05D8;&#x05D9; &#x05D5;&#x05DB;&#x05D3;&#x05D5;&#x05DE;&#x05D4;.</li>
+  <li>&#x05E2;&#x05D5;&#x05E6;&#x05DE;&#x05EA; &#x05D4;&#x05DE;&#x05D5;&#x05D6;&#x05D9;&#x05E7;&#x05D4; &#x05D4;&#x05DE;&#x05EA;&#x05E0;&#x05D2;&#x05E0;&#x05EA; &#x05D1;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2; &#x05DC;&#x05D0; &#x05EA;&#x05E2;&#x05DC;&#x05D4; &#x05E2;&#x05DC; &#x05D4;&#x05DE;&#x05D5;&#x05EA;&#x05E8; &#x05D1;&#x05D7;&#x05D5;&#x05E7;.</li>
+  <li>&#x05D4;&#x05DE;&#x05D6;&#x05DE;&#x05D9;&#x05DF; &#x05D9;&#x05D5;&#x05D3;&#x05E2;, &#x05DE;&#x05E1;&#x05DB;&#x05D9;&#x05DD;, &#x05DE;&#x05D0;&#x05E9;&#x05E8; &#x05D5;&#x05DE;&#x05D1;&#x05D9;&#x05DF; &#x05DB;&#x05D9; &#x05D1;&#x05D0;&#x05D5;&#x05DC;&#x05DD; &#x05D4;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2;&#x05D9;&#x05DD; &#x05D9;&#x05E9; &#x05D4;&#x05D5;&#x05E8;&#x05D0;&#x05D4; &#x05D7;&#x05D3; &#x05DE;&#x05E9;&#x05DE;&#x05E2;&#x05D9;&#x05EA; &#x05DB;&#x05D9; &#x05D0;&#x05E1;&#x05D5;&#x05E8; &#x05DC;&#x05E2;&#x05E9;&#x05DF; &#x05D1;&#x05EA;&#x05D5;&#x05DB;&#x05D5; &#x05D1;&#x05D4;&#x05EA;&#x05D0;&#x05DD; &#x05DC;&#x05D7;&#x05D5;&#x05E7; &#x05D0;&#x05D9;&#x05E1;&#x05D5;&#x05E8; &#x05E2;&#x05D9;&#x05E9;&#x05D5;&#x05DF; &#x05D1;&#x05DE;&#x05E7;&#x05D5;&#x05DE;&#x05D5;&#x05EA; &#x05E6;&#x05D9;&#x05D1;&#x05D5;&#x05E8;&#x05D9;&#x05D9;&#x05DD; &#x05D5;&#x05DB;&#x05D9; &#x05D9;&#x05E9; &#x05D1;&#x05D2;&#x05DF; &#x05E4;&#x05D9;&#x05E0;&#x05D5;&#x05EA; &#x05E2;&#x05D9;&#x05E9;&#x05D5;&#x05DF; &#x05DE;&#x05D9;&#x05D5;&#x05E2;&#x05D3;&#x05EA; &#x05DC;&#x05DB;&#x05DA;.</li>
+  <li>&#x05D1;&#x05D0;&#x05D7;&#x05E8;&#x05D9;&#x05D5;&#x05EA; &#x05D4;&#x05DC;&#x05E7;&#x05D5;&#x05D7; &#x05DC;&#x05E9;&#x05DC;&#x05DD; &#x05DC;&#x05D0;&#x05E7;&#x05D5;"&#x05DD; &#x05D1;&#x05D0;&#x05EA;&#x05E8; &#x05D4;&#x05D1;&#x05D9;&#x05EA;.</li>
+</ul>
+
+<p style="margin-top:8pt;">&#x05DC;&#x05DE;&#x05E2;&#x05DF; &#x05D4;&#x05E1;&#x05E8; &#x05E1;&#x05E4;&#x05E7;, &#x05D0;&#x05DD; &#x05DC;&#x05D0; &#x05D4;&#x05EA;&#x05D9;&#x05D9;&#x05E6;&#x05D1; &#x05D4;&#x05DE;&#x05D6;&#x05DE;&#x05D9;&#x05DF; &#x05DC;&#x05D1;&#x05D9;&#x05E6;&#x05D5;&#x05E2; &#x05D4;&#x05EA;&#x05D7;&#x05E9;&#x05D1;&#x05E0;&#x05D5;&#x05EA; &#x05DB;&#x05D0;&#x05DE;&#x05D5;&#x05E8; &#x05D1;&#x05E1;&#x05E2;&#x05D9;&#x05E3; &#x05D6;&#x05D4;, &#x05D9;&#x05D4;&#x05D0; &#x05E8;&#x05E9;&#x05D0;&#x05D9; &#x05D4;&#x05E1;&#x05E4;&#x05E7; &#x05DC;&#x05E4;&#x05E2;&#x05D5;&#x05DC; &#x05D1;&#x05DB;&#x05DC; &#x05D4;&#x05D3;&#x05E8;&#x05DB;&#x05D9;&#x05DD; &#x05D4;&#x05E0;&#x05D9;&#x05EA;&#x05E0;&#x05D9;&#x05DD; &#x05DC;&#x05D5; &#x05E2;&#x05DC; &#x05E4;&#x05D9; &#x05D4;&#x05D7;&#x05D5;&#x05E7; &#x05D5;&#x05D4;&#x05D3;&#x05D9;&#x05DF; &#x05DC;&#x05E9;&#x05DD; &#x05D2;&#x05D1;&#x05D9;&#x05D9;&#x05EA; &#x05E1;&#x05DB;&#x05D5;&#x05DD; &#x05D4;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2;.</p>
+<p>&#x05D4;&#x05DE;&#x05D6;&#x05DE;&#x05D9;&#x05DF; &#x05E2;&#x05D9;&#x05DF; &#x05D5;&#x05D1;&#x05D3;&#x05E7; &#x05D0;&#x05EA; &#x05DE;&#x05DC;&#x05D5;&#x05D0; &#x05D4;&#x05EA;&#x05E0;&#x05D0;&#x05D9;&#x05DD; &#x05D4;&#x05DE;&#x05E6;&#x05D5;&#x05D9;&#x05D9;&#x05E0;&#x05D9;&#x05DD; &#x05D1;&#x05D4;&#x05E1;&#x05DB;&#x05DD; &#x05D6;&#x05D4; &#x05D5;&#x05D4;&#x05D5;&#x05D0; &#x05D4;&#x05E1;&#x05DB;&#x05D9;&#x05DD; &#x05DC;&#x05DB;&#x05DC; &#x05E1;&#x05E2;&#x05D9;&#x05E4;&#x05D9;&#x05D5;. &#x05DB;&#x05DC; &#x05E9;&#x05D9;&#x05E0;&#x05D5;&#x05D9;, &#x05EA;&#x05D5;&#x05E1;&#x05E4;&#x05EA; &#x05D0;&#x05D5; &#x05D2;&#x05E8;&#x05D9;&#x05E2;&#x05D4; &#x05DE;&#x05D4;&#x05E1;&#x05DB;&#x05DD; &#x05D6;&#x05D4;, &#x05DC;&#x05D0; &#x05D9;&#x05D4;&#x05D9;&#x05D4; &#x05DC;&#x05D4;&#x05DD; &#x05DB;&#x05DC; &#x05EA;&#x05D5;&#x05E7;&#x05E3; &#x05D0;&#x05D5; &#x05E0;&#x05E4;&#x05E7;&#x05D5;&#x05EA;, &#x05D0;&#x05DC;&#x05D0; &#x05D0;&#x05DD; &#x05DB;&#x05DF; &#x05E0;&#x05E2;&#x05E9;&#x05D5; &#x05D1;&#x05DB;&#x05EA;&#x05D1; &#x05D5;&#x05E0;&#x05D7;&#x05EA;&#x05DE;&#x05D5; &#x05E2;"&#x05D9; &#x05E9;&#x05E0;&#x05D9; &#x05D4;&#x05E6;&#x05D3;&#x05D3;&#x05D9;&#x05DD; &#x05DC;&#x05D4;&#x05E1;&#x05DB;&#x05DD; &#x05D6;&#x05D4;.</p>
+<p>&#x05D4;&#x05E6;&#x05D3;&#x05D3;&#x05D9;&#x05DD; &#x05DE;&#x05E6;&#x05D4;&#x05D9;&#x05E8;&#x05D9;&#x05DD; &#x05D1;&#x05DE;&#x05E4;&#x05D5;&#x05E8;&#x05E9; &#x05DB;&#x05D9; &#x05D0;&#x05D9;&#x05DF; &#x05D1;&#x05D4;&#x05E1;&#x05DB;&#x05DD; &#x05D6;&#x05D4; &#x05DB;&#x05D3;&#x05D9; &#x05DC;&#x05D9;&#x05E6;&#x05D5;&#x05E8; &#x05D1;&#x05D9;&#x05DF; &#x05D4;&#x05E6;&#x05D3;&#x05D3;&#x05D9;&#x05DD; &#x05D9;&#x05D7;&#x05E1;&#x05D9; &#x05E1;&#x05D5;&#x05DB;&#x05E0;&#x05D5;&#x05EA; &#x05D5;/&#x05D0;&#x05D5; &#x05E9;&#x05DC;&#x05D9;&#x05D7;&#x05D5;&#x05EA; &#x05D5;/&#x05D0;&#x05D5; &#x05E9;&#x05D5;&#x05EA;&#x05E4;&#x05D5;&#x05EA; &#x05DE;&#x05DB;&#x05DC; &#x05DE;&#x05D9;&#x05DF; &#x05D5;&#x05E1;&#x05D5;&#x05D2; &#x05E9;&#x05D4;&#x05D5;&#x05D0;.</p>
+<p>&#x05E9;&#x05D5;&#x05DD; &#x05D5;&#x05D9;&#x05EA;&#x05D5;&#x05E8;, &#x05D4;&#x05E0;&#x05D7;&#x05D4;, &#x05D4;&#x05D9;&#x05DE;&#x05E0;&#x05E2;&#x05D5;&#x05EA; &#x05DE;&#x05E4;&#x05E2;&#x05D5;&#x05DC;&#x05D4; &#x05D1;&#x05DE;&#x05D5;&#x05E2;&#x05D3;&#x05D4;, &#x05D0;&#x05D5; &#x05DE;&#x05EA;&#x05DF; &#x05D0;&#x05E8;&#x05DB;&#x05D4;, &#x05DC;&#x05D0; &#x05D9;&#x05D7;&#x05E9;&#x05D1;&#x05D5; &#x05DB;&#x05D5;&#x05D5;&#x05D9;&#x05EA;&#x05D5;&#x05E8; &#x05E9;&#x05DC; &#x05E6;&#x05D3; &#x05DE;&#x05D4;&#x05E6;&#x05D3;&#x05D3;&#x05D9;&#x05DD; &#x05DC;&#x05D4;&#x05E1;&#x05DB;&#x05DD; &#x05D6;&#x05D4; &#x05E2;&#x05DC; &#x05D6;&#x05DB;&#x05D5;&#x05EA; &#x05DE;&#x05D6;&#x05DB;&#x05D5;&#x05D9;&#x05D5;&#x05EA;&#x05D9;&#x05D5;.</p>
+
+<p style="margin-top:12pt;font-weight:bold;">&#x05DC;&#x05E8;&#x05D0;&#x05D9;&#x05D4; &#x05D1;&#x05D0;&#x05D5; &#x05D4;&#x05E6;&#x05D3;&#x05D3;&#x05D9;&#x05DD; &#x05E2;&#x05DC; &#x05D4;&#x05D7;&#x05EA;&#x05D5;&#x05DD;:</p>
+<p>&#x202B;&#x05E9;&#x05DD; &#x05D4;&#x05DE;&#x05D6;&#x05DE;&#x05D9;&#x05DF;:&#x202C; ${signerNameFooter}</p>
+
+<table style="width:100%;margin-top:20pt;">
+  <tr>
+    <td style="width:50%;text-align:center;vertical-align:bottom;padding:8pt;">
+      ${customerSigHtml}
+      <div style="border-top:1px solid #333;padding-top:4pt;margin-top:4pt;">&#x05D4;&#x05DE;&#x05D6;&#x05DE;&#x05D9;&#x05DF;</div>
+    </td>
+    <td style="width:50%;text-align:center;vertical-align:bottom;padding:8pt;">
+      ${staffSigHtml}
+      <div style="border-top:1px solid #333;padding-top:4pt;margin-top:4pt;">&#x05D4;&#x05E1;&#x05E4;&#x05E7;</div>
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>`;
+}
+
+// ── Lead-scoped router (protected, mergeParams gets :id) ──────────────────────
+const contractLeadRouter = require('express').Router({ mergeParams: true });
+
+contractLeadRouter.post('/', async (req, res) => {
+  try {
+    const { contract_data } = req.body;
+    if (!contract_data) return res.status(400).json({ error: 'contract_data required' });
+
+    const token = crypto.randomUUID();
+    const { rows } = await pool.query(
+      `INSERT INTO contracts (lead_id, token, contract_data, created_by)
+       VALUES ($1,$2,$3,$4) RETURNING id, token`,
+      [req.params.id, token, JSON.stringify(contract_data), req.user.id]
+    );
+
+    await pool.query(
+      `INSERT INTO lead_interactions (lead_id, type, direction, body, created_by)
+       VALUES ($1,'note','outbound','חוזה נשלח לחתימה',$2)`,
+      [req.params.id, req.user.id]
+    );
+
+    res.json({ id: rows[0].id, token: rows[0].token });
+  } catch (err) {
+    console.error('[Contracts] create error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Public router (no auth) ───────────────────────────────────────────────────
+const contractPublicRouter = require('express').Router();
+
+contractPublicRouter.get('/:token', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT c.*, l.name as lead_name, l.phone as lead_phone, l.email as lead_email
+       FROM contracts c JOIN leads l ON l.id = c.lead_id
+       WHERE c.token=$1`,
+      [req.params.token]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'חוזה לא נמצא' });
+    const c = rows[0];
+    if (c.status === 'signed') return res.status(410).json({ error: 'החוזה כבר נחתם', signed: true });
+    res.json({ contract_data: c.contract_data, lead_name: c.lead_name, status: c.status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+contractPublicRouter.post('/:token/sign', async (req, res) => {
+  let browser;
+  try {
+    const { signerName, signerIdNumber, signingDate, signatureImage } = req.body;
+    if (!signerName || !signerIdNumber || !signingDate || !signatureImage) {
+      return res.status(400).json({ error: 'כל שדות החתימה נדרשים' });
+    }
+
+    const { rows } = await pool.query(
+      `SELECT c.*, l.phone as lead_phone, l.email as lead_email
+       FROM contracts c JOIN leads l ON l.id = c.lead_id
+       WHERE c.token=$1 AND c.status='pending'`,
+      [req.params.token]
+    );
+    if (!rows[0]) return res.status(410).json({ error: 'החוזה כבר נחתם או שהקישור אינו תקף' });
+    const contract = rows[0];
+
+    const settingsRes = await pool.query(`SELECT value FROM settings WHERE key='staff_signature'`);
+    const staffSignature = settingsRes.rows[0]?.value || '';
+
+    const html = buildContractHtml({
+      contractData: contract.contract_data,
+      signingData: { signerName, signerIdNumber, signingDate, signatureImage },
+      staffSignature,
+    });
+
+    browser = await Promise.race([
+      puppeteer.launch({
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser',
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+        headless: true,
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('PDF timeout')), 30000)),
+    ]);
+    const page = await browser.newPage();
+    page.setDefaultTimeout(25000);
+    await page.setContent(html, { waitUntil: 'load' });
+    const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true, margin: { top: 0, bottom: 0, left: 0, right: 0 } });
+    await browser.close();
+    browser = null;
+
+    const filename = `חוזה-חתום-${signerName}.pdf`;
+    const { url: signedPdfUrl, storedName } = await uploadBuffer(pdfBuffer, filename, 'application/pdf');
+
+    await pool.query(
+      `INSERT INTO files (lead_id, filename, url, stored_name, file_type) VALUES ($1,$2,$3,$4,$5)`,
+      [contract.lead_id, filename, signedPdfUrl, storedName, 'application/pdf']
+    );
+
+    await pool.query(
+      `UPDATE contracts SET status='signed', signed_at=NOW(), signer_name=$1, signer_id_number=$2,
+       signature_image=$3, signed_pdf_url=$4 WHERE id=$5`,
+      [signerName, signerIdNumber, signatureImage, signedPdfUrl, contract.id]
+    );
+
+    await pool.query(
+      `INSERT INTO lead_interactions (lead_id, type, direction, body, created_by)
+       VALUES ($1,'note','inbound',$2,NULL)`,
+      [contract.lead_id, `החוזה נחתם על ידי ${signerName} (ת.ז: ${signerIdNumber})`]
+    );
+
+    // Send to Sharabiya
+    try {
+      await sendEmail({
+        to: 'sharabiyajaffa@gmail.com',
+        subject: `חוזה חתום — ${signerName}`,
+        body: `החוזה נחתם על ידי ${signerName} (ת.ז: ${signerIdNumber}) בתאריך ${signingDate}.`,
+        attachmentBuffer: pdfBuffer,
+        attachmentName: filename,
+        attachmentMime: 'application/pdf',
+      });
+    } catch (e) { console.error('[Contracts] sharabiya email failed:', e.message); }
+
+    // Send to customer
+    const clientEmail = contract.contract_data?.fields?.clientEmail || contract.lead_email;
+    if (clientEmail) {
+      try {
+        await sendEmail({
+          to: clientEmail,
+          subject: 'החוזה החתום שלך — שרביה',
+          body: `שלום ${signerName},\n\nתודה על החתימה! החוזה החתום מצורף.\n\nבברכה, צוות שרביה`,
+          attachmentBuffer: pdfBuffer,
+          attachmentName: filename,
+          attachmentMime: 'application/pdf',
+        });
+      } catch (e) { console.error('[Contracts] client email failed:', e.message); }
+    } else if (contract.lead_phone) {
+      try {
+        const { GREEN_API_URL, GREEN_API_INSTANCE, GREEN_API_TOKEN } = process.env;
+        if (GREEN_API_URL && GREEN_API_INSTANCE && GREEN_API_TOKEN) {
+          const phone = contract.lead_phone.replace(/\D/g, '').replace(/^0/, '972');
+          await axios.post(
+            `${GREEN_API_URL}/waInstance${GREEN_API_INSTANCE}/sendFileByUrl/${GREEN_API_TOKEN}`,
+            { chatId: `${phone}@c.us`, urlFile: signedPdfUrl, fileName: filename, caption: 'החוזה החתום שלך מצורף.' },
+            { timeout: 15000 }
+          );
+        }
+      } catch (e) { console.error('[Contracts] WhatsApp send failed:', e.message); }
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Contracts] sign error:', err.message);
+    if (!res.headersSent) res.status(500).json({ error: 'שגיאה בחתימה על החוזה' });
+  } finally {
+    if (browser) await browser.close().catch(() => {});
+  }
+});
+
+module.exports = { contractLeadRouter, contractPublicRouter };

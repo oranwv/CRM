@@ -2,6 +2,9 @@ const router = require('express').Router();
 const pool   = require('../db/pool');
 const axios  = require('axios');
 const bcrypt = require('bcryptjs');
+const multer = require('multer');
+
+const sigUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
 
 function adminOnly(req, res, next) {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'אין הרשאה' });
@@ -114,6 +117,32 @@ router.delete('/users/:id', adminOnly, async (req, res) => {
   try {
     await pool.query('DELETE FROM users WHERE id=$1', [req.params.id]);
     res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/settings/staff-signature  — upload signature image
+router.post('/settings/staff-signature', adminOnly, sigUpload.single('signature'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'לא נשלח קובץ' });
+  const dataUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+  try {
+    await pool.query(
+      `INSERT INTO settings (key, value, updated_at) VALUES ('staff_signature',$1,NOW())
+       ON CONFLICT (key) DO UPDATE SET value=$1, updated_at=NOW()`,
+      [dataUrl]
+    );
+    res.json({ success: true, dataUrl });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/admin/settings/staff-signature
+router.delete('/settings/staff-signature', adminOnly, async (req, res) => {
+  try {
+    await pool.query(`UPDATE settings SET value='', updated_at=NOW() WHERE key='staff_signature'`);
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

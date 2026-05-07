@@ -52,4 +52,18 @@ async function getSignedUrl(storedName, expiresIn = 60) {
   return data.signedUrl;
 }
 
-module.exports = { uploadFile, deleteFile, getSignedUrl };
+async function uploadBuffer(buffer, filename, mimetype) {
+  const ext = path.extname(filename);
+  const unique = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
+  const storedName = `${unique}${ext}`;
+  const supabase = getClient();
+  const { error } = await supabase.storage.from(BUCKET).upload(storedName, buffer, {
+    contentType: mimetype || 'application/octet-stream',
+    upsert: false,
+  });
+  if (error) throw error;
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(storedName);
+  return { url: data.publicUrl, storedName };
+}
+
+module.exports = { uploadFile, uploadBuffer, deleteFile, getSignedUrl };

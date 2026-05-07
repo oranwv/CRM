@@ -84,6 +84,30 @@ CREATE TABLE IF NOT EXISTS calendar_events (
   created_by INT REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS price_offers (
+  id SERIAL PRIMARY KEY,
+  lead_id INT REFERENCES leads(id) ON DELETE CASCADE,
+  fields JSONB NOT NULL,
+  rows JSONB NOT NULL,
+  offer_type TEXT NOT NULL DEFAULT 'regular',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS contracts (
+  id SERIAL PRIMARY KEY,
+  lead_id INT REFERENCES leads(id) ON DELETE CASCADE,
+  token TEXT NOT NULL UNIQUE,
+  contract_data JSONB NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  created_by INT REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  signed_at TIMESTAMPTZ,
+  signer_name TEXT,
+  signer_id_number TEXT,
+  signature_image TEXT,
+  signed_pdf_url TEXT
+);
 `;
 
 (async () => {

@@ -8,6 +8,7 @@ import TasksPage     from './pages/TasksPage';
 import PostponePage    from './pages/PostponePage';
 import TaskActionPage  from './pages/TaskActionPage';
 import AdminPage       from './pages/AdminPage';
+import SignaturePage   from './pages/SignaturePage';
 import api from './api';
 
 function PrivateRoute({ children }) {
@@ -129,6 +130,7 @@ export default function App() {
         } />
         <Route path="/postpone/:taskId"    element={<PostponePage />} />
         <Route path="/task-action/:taskId" element={<TaskActionPage />} />
+        <Route path="/sign/:token"         element={<SignaturePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

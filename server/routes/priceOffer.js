@@ -1,6 +1,7 @@
 const path = require('path');
 const fs   = require('fs');
 const puppeteer = require('puppeteer-core');
+const pool = require('../db/pool');
 
 const router = require('express').Router({ mergeParams: true });
 
@@ -169,12 +170,30 @@ ${notesHtml}
 </html>`;
 }
 
+router.get('/latest', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM price_offers WHERE lead_id=$1 ORDER BY created_at DESC LIMIT 1`,
+      [req.params.id]
+    );
+    res.json(rows[0] || null);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/', async (req, res) => {
   let browser;
   try {
     const { fields, rows, texts, offerType } = req.body;
 
     const html = buildHtml({ fields, rows, texts, offerType });
+
+    // Save offer data for later import into contracts (non-blocking — never break PDF generation)
+    pool.query(
+      `INSERT INTO price_offers (lead_id, fields, rows, offer_type) VALUES ($1,$2,$3,$4)`,
+      [req.params.id, JSON.stringify(fields), JSON.stringify(rows), offerType || 'regular']
+    ).catch(err => console.error('[PriceOffer] Failed to save offer history:', err.message));
 
     browser = await Promise.race([
       puppeteer.launch({

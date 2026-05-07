@@ -159,6 +159,7 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
   const [nameDraft, setNameDraft]         = useState('');
   const [showMeetingModal, setShowMeetingModal] = useState(false);
   const [showPriceOffer, setShowPriceOffer]     = useState(false);
+  const [showContract, setShowContract]         = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -339,6 +340,7 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
                     {lead.meeting_event_id && <SendReminderButton eventId={lead.meeting_event_id} />}
                     <button onClick={() => setShowAddTask(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition">+ משימה</button>
                     <button onClick={() => setShowPriceOffer(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition">הצעת מחיר</button>
+                    <button onClick={() => setShowContract(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-700 text-white hover:bg-violet-800 transition">חוזה</button>
                     <button
                       onClick={async () => {
                         const newPriority = lead.priority === 'hot' ? 'normal' : 'hot';
@@ -465,6 +467,15 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
           allEmails={allEmails}
           onClose={() => setShowPriceOffer(false)}
           onSaved={() => { setShowPriceOffer(false); load(); }}
+        />
+      )}
+
+      {showContract && (
+        <ContractModal
+          lead={lead}
+          allEmails={allEmails}
+          onClose={() => setShowContract(false)}
+          onSaved={() => { setShowContract(false); load(); }}
         />
       )}
 
@@ -704,6 +715,345 @@ function EditableCell({ value, onChange, multiline, dir: cellDir }) {
   return <span dir={cellDir || 'rtl'} onClick={() => setEditing(true)} style={style}>{cellDir !== 'ltr' && value ? '‫' + _v + '‬' : _v}</span>;
 }
 
+
+function ContractModal({ lead, allEmails, onClose, onSaved }) {
+  const fmtNum = n => Number(n || 0).toLocaleString('he-IL');
+
+  const FIELD_DEFS = [
+    { key: 'clientName',      label: 'לכבוד',                     type: 'text'   },
+    { key: 'clientEmail',     label: 'מייל',                       type: 'email'  },
+    { key: 'clientPhone',     label: 'טלפון',                      type: 'tel'    },
+    { key: 'eventDate',       label: 'תאריך האירוע',               type: 'date'   },
+    { key: 'startTime',       label: 'שעת כניסה',                  type: 'time'   },
+    { key: 'endTime',         label: 'שעת סיום האירוע',            type: 'time'   },
+    { key: 'guests',          label: 'מינימום אורחים',             type: 'number' },
+    { key: 'extraGuestPrice', label: 'מחיר לאורח נוסף (אופציונלי)', type: 'number' },
+    { key: 'chefMenu',        label: 'תפריט שף',                   type: 'text'   },
+    { key: 'barMenu',         label: 'תפריט בר',                   type: 'text'   },
+    { key: 'depositPercent',  label: 'אחוז מקדמה (%)',             type: 'number' },
+  ];
+  const FIELD_STEPS = FIELD_DEFS.length; // 11
+  const IMPORT_STEP = 11;
+  const ROW_START   = 12;
+
+  const DEFAULT_ROWS = [
+    { id: 1, label: 'מחיר אורח',                             desc: 'כולל שכירות המקום, תפריט קייטרינג, תפריט בר', qty: 0, price: 395 },
+    { id: 2, label: 'שירות מלצרים',                          desc: '',        qty: 1, price: 500 },
+    { id: 3, label: 'שירות ברמנים',                          desc: '',        qty: 1, price: 550 },
+    { id: 4, label: 'מנהל אירוע / קייטרינג שירות',           desc: 'שירות',   qty: 1, price: 900 },
+    { id: 5, label: 'תאורה והגברה + תפעול לאורך האירוע',     desc: '',        qty: 1, price: 0   },
+  ];
+
+  const [step, setStep]               = useState(0);
+  const [fields, setFields]           = useState({
+    clientName:      lead.name  || '',
+    clientEmail:     allEmails[0] || '',
+    clientPhone:     lead.phone || '',
+    eventDate:       lead.event_date ? lead.event_date.slice(0, 10) : '',
+    startTime:       lead.event_time || '',
+    endTime:         lead.event_end_time || '',
+    guests:          lead.guest_count || '',
+    extraGuestPrice: '',
+    chefMenu:        '',
+    barMenu:         '',
+    depositPercent:  '30',
+  });
+  const [rows, setRows]               = useState(DEFAULT_ROWS);
+  const [rowsImported, setRowsImported] = useState(false);
+  const [loadingImport, setLoadingImport] = useState(false);
+  const [importNotFound, setImportNotFound] = useState(false);
+  const [newRow, setNewRow]           = useState({ label: '', desc: '', qty: 1, price: 0 });
+  const [sending, setSending]         = useState(false);
+  const [sent, setSent]               = useState(false);
+  const [signingUrl, setSigningUrl]   = useState('');
+
+  const setField = (k, v) => setFields(f => ({ ...f, [k]: v }));
+
+  // Step calculations
+  const addRowStep  = ROW_START + rows.length;
+  const previewStep = rowsImported ? ROW_START : addRowStep + 1;
+
+  const isFieldStep   = step < FIELD_STEPS;
+  const isImportStep  = step === IMPORT_STEP;
+  const isRowStep     = !rowsImported && step >= ROW_START && step < addRowStep;
+  const isAddRowStep  = !rowsImported && step === addRowStep;
+  const isPreviewStep = step === previewStep;
+
+  const currentDef = isFieldStep ? FIELD_DEFS[step] : null;
+  const currentRow = isRowStep   ? rows[step - ROW_START] : null;
+  const totalSteps = previewStep;
+  const progressPct = Math.min(100, Math.round((step / (totalSteps || 1)) * 100));
+
+  // Calculated values
+  const subtotal         = rows.reduce((s, r) => s + (r.qty || 0) * (r.price || 0), 0);
+  const vat              = Math.round(subtotal * 0.18);
+  const total            = subtotal + vat;
+  const depositPct       = Number(fields.depositPercent) || 0;
+  const depositAmount    = Math.round(total * depositPct / 100);
+  const depositAmountVat = Math.round(depositAmount * 1.18);
+  const remainingBalance = total - depositAmount;
+  const cancellationDate = fields.eventDate
+    ? (() => { const d = new Date(fields.eventDate + 'T12:00:00'); d.setMonth(d.getMonth() + 6); return d.toLocaleDateString('he-IL'); })()
+    : '';
+
+  async function handleImportYes() {
+    setLoadingImport(true);
+    setImportNotFound(false);
+    try {
+      const { data } = await api.get(`/leads/${lead.id}/price-offer/latest`);
+      if (data && data.rows && data.rows.length > 0) {
+        setRows(data.rows);
+        setRowsImported(true);
+        setStep(ROW_START); // jump to preview (previewStep = ROW_START when rowsImported)
+      } else {
+        setImportNotFound(true);
+      }
+    } catch {
+      setImportNotFound(true);
+    } finally {
+      setLoadingImport(false);
+    }
+  }
+
+  async function handleSend() {
+    setSending(true);
+    try {
+      const calculated = { subtotal, vat, total, depositAmount, depositAmountVat, remainingBalance, cancellationDate };
+      const { data } = await api.post(`/leads/${lead.id}/contracts`, {
+        contract_data: { fields, rows, calculated },
+      });
+      const url = `${window.location.origin}/sign/${data.token}`;
+      setSigningUrl(url);
+
+      const msg = `שלום ${fields.clientName},\n\nמצורף קישור לחוזה לחתימה דיגיטלית:\n${url}\n\nבברכה, צוות שרביה`;
+      if (fields.clientEmail) {
+        const fd = new FormData();
+        fd.append('to', fields.clientEmail);
+        fd.append('subject', `חוזה לחתימה — ${fields.clientName} — שרביה`);
+        fd.append('body', msg);
+        await api.post(`/leads/${lead.id}/email/send`, fd);
+      } else if (fields.clientPhone) {
+        await api.post('/whatsapp/send', { leadId: lead.id, message: msg });
+      }
+      setSent(true);
+    } catch (err) {
+      alert('שגיאה בשליחה: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  const cls = 'w-full rounded-xl px-3 py-3 text-sm border border-violet-200 focus:border-violet-400 focus:outline-none text-slate-700 bg-white';
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4" dir="rtl">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
+
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">✕</button>
+          <h2 className="font-bold text-lg text-slate-800">חוזה לחתימה</h2>
+        </div>
+
+        <div className="h-1 bg-slate-100 shrink-0">
+          <div className="h-1 bg-violet-500 transition-all duration-300" style={{ width: `${progressPct}%` }} />
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5">
+
+          {/* Field steps */}
+          {isFieldStep && currentDef && (
+            <div className="space-y-4">
+              <p className="text-base font-bold text-slate-700">{currentDef.label}</p>
+              {currentDef.type === 'date' ? (
+                <PickerDateInput value={fields[currentDef.key]} onChange={v => setField(currentDef.key, v)} className={cls} />
+              ) : currentDef.type === 'time' ? (
+                <PickerTimeInput value={fields[currentDef.key]} onChange={v => setField(currentDef.key, v)} className={cls} />
+              ) : (
+                <input
+                  type={currentDef.type}
+                  value={fields[currentDef.key]}
+                  onChange={e => setField(currentDef.key, e.target.value)}
+                  className={cls}
+                  autoFocus
+                  onKeyDown={e => e.key === 'Enter' && setStep(s => s + 1)}
+                />
+              )}
+            </div>
+          )}
+
+          {/* Import step */}
+          {isImportStep && (
+            <div className="space-y-4">
+              <p className="font-bold text-slate-700">תמחור</p>
+              <p className="text-sm text-slate-500">לייבא פרטי תמחור מהצעת המחיר האחרונה של הליד זה?</p>
+              {importNotFound && (
+                <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg">לא נמצאה הצעת מחיר — יש להזין את השורות ידנית.</p>
+              )}
+              <div className="flex gap-3">
+                <button onClick={handleImportYes} disabled={loadingImport}
+                  className="flex-1 py-2.5 rounded-xl font-bold text-sm text-white disabled:opacity-50"
+                  style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+                  {loadingImport ? 'טוען...' : 'כן, ייבא'}
+                </button>
+                <button onClick={() => setStep(ROW_START)}
+                  className="flex-1 py-2.5 rounded-xl font-bold text-sm border border-slate-200 text-slate-600">
+                  לא, הזן ידנית
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Row step */}
+          {isRowStep && currentRow && (
+            <div className="space-y-3">
+              <p className="font-bold text-slate-700">{currentRow.label}</p>
+              {currentRow.desc && <p className="text-xs text-slate-400">{currentRow.desc}</p>}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 mb-1 block">כמות</label>
+                  <input type="number" min="0" value={currentRow.qty}
+                    onChange={e => setRows(rs => rs.map(r => r.id === currentRow.id ? { ...r, qty: Number(e.target.value) } : r))}
+                    className={cls} autoFocus
+                    onKeyDown={e => e.key === 'Enter' && setStep(s => s + 1)} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 mb-1 block">מחיר ליחידה (ש"ח)</label>
+                  <input type="number" min="0" value={currentRow.price}
+                    onChange={e => setRows(rs => rs.map(r => r.id === currentRow.id ? { ...r, price: Number(e.target.value) } : r))}
+                    className={cls}
+                    onKeyDown={e => e.key === 'Enter' && setStep(s => s + 1)} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Add row step */}
+          {isAddRowStep && (
+            <div className="space-y-3">
+              <p className="font-bold text-slate-700">הוסף שורת תמחור (אופציונלי)</p>
+              <input placeholder="שם פריט" value={newRow.label} onChange={e => setNewRow(r => ({ ...r, label: e.target.value }))} className={cls} />
+              <input placeholder="תיאור (אופציונלי)" value={newRow.desc} onChange={e => setNewRow(r => ({ ...r, desc: e.target.value }))} className={cls} />
+              <div className="grid grid-cols-2 gap-3">
+                <input type="number" placeholder="כמות" min="0" value={newRow.qty} onChange={e => setNewRow(r => ({ ...r, qty: Number(e.target.value) }))} className={cls} />
+                <input type="number" placeholder="מחיר" min="0" value={newRow.price} onChange={e => setNewRow(r => ({ ...r, price: Number(e.target.value) }))} className={cls} />
+              </div>
+              {newRow.label.trim() && (
+                <button onClick={() => {
+                  setRows(rs => [...rs, { ...newRow, id: Date.now() }]);
+                  setNewRow({ label: '', desc: '', qty: 1, price: 0 });
+                }} className="text-sm font-bold text-violet-600 underline">+ הוסף שורה</button>
+              )}
+            </div>
+          )}
+
+          {/* Preview step */}
+          {isPreviewStep && !sent && (
+            <div className="space-y-4">
+              <p className="font-bold text-slate-700 text-base">סיכום חוזה</p>
+
+              <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-sm space-y-1">
+                <p><span className="font-bold">לכבוד: </span>{fields.clientName}</p>
+                {fields.clientEmail && <p><span className="font-bold">מייל: </span>{fields.clientEmail}</p>}
+                {fields.clientPhone && <p><span className="font-bold">טלפון: </span>{fields.clientPhone}</p>}
+                <p><span className="font-bold">תאריך: </span>{fields.eventDate ? new Date(fields.eventDate + 'T12:00:00').toLocaleDateString('he-IL') : ''}</p>
+                <p><span className="font-bold">שעות: </span>{fields.startTime} — {fields.endTime}</p>
+                <p><span className="font-bold">אורחים: </span>מינימום {fields.guests}{fields.extraGuestPrice ? ` | אורח נוסף: ${fmtNum(fields.extraGuestPrice)} ש"ח` : ''}</p>
+              </div>
+
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-100">
+                    <th className="border border-slate-200 p-1.5 text-right">פריט</th>
+                    <th className="border border-slate-200 p-1.5 text-center">כמות</th>
+                    <th className="border border-slate-200 p-1.5 text-center">מחיר</th>
+                    <th className="border border-slate-200 p-1.5 text-center">סה"כ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(r => (
+                    <tr key={r.id}>
+                      <td className="border border-slate-200 p-1.5">{r.label}</td>
+                      <td className="border border-slate-200 p-1.5 text-center">{r.qty}</td>
+                      <td className="border border-slate-200 p-1.5 text-center">{fmtNum(r.price)}</td>
+                      <td className="border border-slate-200 p-1.5 text-center">{fmtNum((r.qty||0)*(r.price||0))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div className="rounded-xl bg-violet-50 border border-violet-100 p-3 text-sm space-y-1">
+                <p><span className="font-bold">סה"כ לפני מע"מ: </span>{fmtNum(subtotal)} ש"ח</p>
+                <p><span className="font-bold">מע"מ (18%): </span>{fmtNum(vat)} ש"ח</p>
+                <p><span className="font-bold">סה"כ לתשלום: </span>{fmtNum(total)} ש"ח</p>
+                <p><span className="font-bold">מקדמה ({fields.depositPercent}%): </span>{fmtNum(depositAmount)} ש"ח | כולל מע"מ: {fmtNum(depositAmountVat)} ש"ח</p>
+                <p><span className="font-bold">יתרה לתשלום: </span>{fmtNum(remainingBalance)} ש"ח</p>
+                {cancellationDate && <p><span className="font-bold">תאריך ביטול כוח עליון: </span>{cancellationDate}</p>}
+              </div>
+
+              <p className="text-xs text-slate-400 text-center">הלקוח יראה את נוסח ההסכם המלא בדף החתימה</p>
+            </div>
+          )}
+
+          {/* Sent state */}
+          {isPreviewStep && sent && (
+            <div className="space-y-4 text-center">
+              <p className="text-3xl">✅</p>
+              <p className="font-bold text-slate-800">החוזה נשלח לחתימה!</p>
+              <p className="text-xs text-slate-500">
+                {fields.clientEmail ? `נשלח לאימייל: ${fields.clientEmail}` : fields.clientPhone ? `נשלח ב-WhatsApp ל: ${fields.clientPhone}` : ''}
+              </p>
+              <div className="bg-slate-50 rounded-xl p-3 text-xs text-slate-600 break-all">{signingUrl}</div>
+              <button onClick={() => { navigator.clipboard.writeText(signingUrl); }}
+                className="text-sm font-bold text-violet-600 underline">העתק קישור</button>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-slate-100 p-4 shrink-0">
+          {sent ? (
+            <button onClick={() => { onSaved(); onClose(); }}
+              className="w-full py-2.5 rounded-xl font-black text-sm text-white"
+              style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+              סגור
+            </button>
+          ) : isPreviewStep ? (
+            <div className="flex gap-2">
+              <button onClick={handleSend} disabled={sending}
+                className="flex-1 py-2.5 rounded-xl font-black text-sm text-white disabled:opacity-50"
+                style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+                {sending ? 'שולח...' : 'שלח לחתימה'}
+              </button>
+              <button onClick={() => setStep(s => s - 1)}
+                className="px-4 py-2.5 rounded-xl font-bold text-sm border border-slate-200 text-slate-600">
+                חזור
+              </button>
+            </div>
+          ) : isImportStep ? (
+            <button onClick={() => setStep(s => s - 1)}
+              className="w-full py-2.5 rounded-xl font-bold text-sm border border-slate-200 text-slate-600">
+              חזור
+            </button>
+          ) : (
+            <div className="flex gap-2">
+              <button onClick={() => setStep(s => s + 1)}
+                className="flex-1 py-2.5 rounded-xl font-black text-sm text-white"
+                style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+                {isAddRowStep ? 'המשך ללא הוספה' : 'הבא'}
+              </button>
+              {step > 0 && (
+                <button onClick={() => setStep(s => s - 1)}
+                  className="px-4 py-2.5 rounded-xl font-bold text-sm border border-slate-200 text-slate-600">
+                  חזור
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
   const FIELD_STEPS = 10;

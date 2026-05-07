@@ -37,6 +37,7 @@ const calendarRoutes        = require('./routes/calendar');
 const aiRoutes              = require('./routes/ai');
 const adminRoutes           = require('./routes/admin');
 const priceOfferRoutes      = require('./routes/priceOffer');
+const { contractLeadRouter, contractPublicRouter } = require('./routes/contracts');
 
 const pool = require('./db/pool');
 
@@ -114,6 +115,30 @@ pool.query(`
   ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) ON DELETE SET NULL;
   ALTER TABLE leads ADD COLUMN IF NOT EXISTS event_name VARCHAR(255);
   UPDATE leads SET event_name = name WHERE event_name IS NULL;
+  CREATE TABLE IF NOT EXISTS price_offers (
+    id SERIAL PRIMARY KEY,
+    lead_id INT REFERENCES leads(id) ON DELETE CASCADE,
+    fields JSONB NOT NULL,
+    rows JSONB NOT NULL,
+    offer_type TEXT NOT NULL DEFAULT 'regular',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS contracts (
+    id SERIAL PRIMARY KEY,
+    lead_id INT REFERENCES leads(id) ON DELETE CASCADE,
+    token TEXT NOT NULL UNIQUE,
+    contract_data JSONB NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_by INT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    signed_at TIMESTAMPTZ,
+    signer_name TEXT,
+    signer_id_number TEXT,
+    signature_image TEXT,
+    signed_pdf_url TEXT
+  );
+  INSERT INTO settings (key, value) VALUES ('staff_signature', '')
+    ON CONFLICT (key) DO NOTHING;
 `).catch(err => console.error('[DB] Table check error:', err.message));
 
 const app = express();
@@ -121,6 +146,7 @@ app.use(cors());
 app.use(express.json());
 
 // Public
+app.use('/api/test-pdf',  require('./routes/testPdf'));
 app.use('/api/auth',      authRoutes);
 app.use('/api/whatsapp',  whatsappRoutes);
 app.use('/api/tasks',     require('./routes/tasks'));       // global task list (auth per-route)
@@ -129,6 +155,8 @@ app.use('/api/tasks',     require('./routes/taskPostpone')); // public postpone 
 // Protected
 app.use('/api/files',               requireAuth, fileDownloadRoutes);
 app.use('/api/leads/:id/price-offer', requireAuth, priceOfferRoutes);
+app.use('/api/leads/:id/contracts',   requireAuth, contractLeadRouter);
+app.use('/api/contracts',             contractPublicRouter);
 app.use('/api/leads',               requireAuth, leadsRoutes);
 app.use('/api/leads/:leadId/files', requireAuth, filesRoutes);
 app.use('/api/admin',               requireAuth, adminRoutes);
