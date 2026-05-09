@@ -6,7 +6,7 @@ const API = import.meta.env.VITE_API_URL || '/api';
 function fmt(n) { return Number(n || 0).toLocaleString('he-IL'); }
 
 function ContractDisplay({ data }) {
-  const { fields, rows, calculated } = data;
+  const { fields, rows, calculated, texts } = data;
   const isPackage = (data.offerType || 'regular') === 'package';
   const { clientName, eventDate, startTime, endTime, guests, extraGuestPrice, chefMenu, barMenu, depositPercent,
           packageGuests, packageTotal, packageExtraGuestPrice } = fields;
@@ -103,20 +103,15 @@ function ContractDisplay({ data }) {
       <div>
         <p className="font-bold">המחיר כולל בתוכו:</p>
         <ul className="list-disc pr-5 space-y-0.5">
-          <li>צוות הקמה</li>
-          <li>צוות תפעול</li>
-          <li>מנהל אירוע וליווי לאורך התהליך</li>
-          <li>מלצרים</li>
-          <li>ברמנים + מנהל בר</li>
-          <li>תפריט שף {chefMenu}</li>
-          <li>תפריט בר {barMenu}</li>
-          <li>אבטחה</li>
-          <li>צוות ניקיון</li>
-          <li>מקרן להקרנה על הקיר (לא כולל מחשב וכבל HDMI)</li>
-          <li>במה והקמת עמדת די ג'יי</li>
-          <li>מיקרופון</li>
-          <li>מערכת הגברה ותאורה כולל תפעול לאורך כל האירוע</li>
-          <li>עיצוב המקום - שולחנות אבירים עם מפות לבנות, כדי נוי דקורטיבים, פינות ישיבה אלטרנטיביות כולל ספות, שולחנות בר גבוהים, שולחנות נמוכים, חביות יין עתיקות</li>
+          {(texts?.includes || []).map((item, i) => {
+            const chefIdx = isPackage ? 5 : 3;
+            const barIdx  = isPackage ? 6 : 4;
+            let text = item;
+            if (i === chefIdx && chefMenu) text += ' ' + chefMenu;
+            if (i === barIdx  && barMenu)  text += ' ' + barMenu;
+            if (!text.trim()) return null;
+            return <li key={i}>{text}</li>;
+          })}
         </ul>
       </div>
 
