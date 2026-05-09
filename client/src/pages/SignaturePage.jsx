@@ -10,6 +10,14 @@ function ContractDisplay({ data }) {
   const { clientName, eventDate, startTime, endTime, guests, extraGuestPrice, chefMenu, barMenu, depositPercent } = fields;
   const { subtotal, vat, total, depositAmount, depositAmountVat, remainingBalance, cancellationDate } = calculated;
 
+  const tableWrapRef = useRef(null);
+  const [scrollHint, setScrollHint] = useState(false);
+
+  useEffect(() => {
+    const el = tableWrapRef.current;
+    if (el && el.scrollWidth > el.clientWidth) setScrollHint(true);
+  }, []);
+
   const eventDateDisplay = eventDate
     ? new Date(eventDate + 'T12:00:00').toLocaleDateString('he-IL')
     : '';
@@ -38,7 +46,8 @@ function ContractDisplay({ data }) {
 
       <div>
         <p className="font-bold">עלויות:</p>
-        <div className="overflow-x-auto">
+        <div className="relative">
+          <div ref={tableWrapRef} className="overflow-x-auto" onScroll={() => setScrollHint(false)}>
           <table className="w-full border-collapse text-xs">
             <thead>
               <tr className="bg-slate-100">
@@ -64,6 +73,13 @@ function ContractDisplay({ data }) {
               <tr><td colSpan={4} className="border border-slate-300 p-1.5 font-bold text-left">סה"כ לתשלום:</td><td className="border border-slate-300 p-1.5 text-center font-bold">{fmt(total)} ש"ח</td></tr>
             </tbody>
           </table>
+          </div>
+          {scrollHint && (
+            <div className="absolute top-0 left-0 bottom-0 w-10 bg-gradient-to-r from-white to-transparent pointer-events-none rounded-l" />
+          )}
+          {scrollHint && (
+            <p className="text-xs text-slate-400 mt-1 text-left">← גלול לצפייה בטבלה</p>
+          )}
         </div>
         <p className="mt-2">הסכם זה עבור קיום אירוע עם מינימום {guests} אורחים</p>
         {extraGuestPrice && Number(extraGuestPrice) > 0 && (
