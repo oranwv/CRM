@@ -31,9 +31,10 @@ function buildContractHtml({ contractData, signingData, staffSignature }) {
 
   const signed = !!signingData;
   const ul = (text, extra = 40) => `<span style="display:inline-block;border-bottom:1px solid #333;padding-left:${extra}px;">${esc(text)}</span>`;
-  const signerName      = signed ? ul(signingData.signerName, 40)     : '<span style="display:inline-block;min-width:140px;border-bottom:1px solid #333;">&nbsp;</span>';
-  const signerIdNumber  = signed ? ul(signingData.signerIdNumber, 30) : '<span style="display:inline-block;min-width:120px;border-bottom:1px solid #333;">&nbsp;</span>';
-  const signingDate     = signed ? ul(signingData.signingDate, 30)    : '<span style="display:inline-block;min-width:100px;border-bottom:1px solid #333;">&nbsp;</span>';
+  const fmtDate = (d) => d && d.includes('-') ? d.split('-').reverse().join('.') : (d || '');
+  const signerName      = signed ? ul(signingData.signerName, 40)                  : '<span style="display:inline-block;min-width:140px;border-bottom:1px solid #333;">&nbsp;</span>';
+  const signerIdNumber  = signed ? ul(signingData.signerIdNumber, 30)              : '<span style="display:inline-block;min-width:120px;border-bottom:1px solid #333;">&nbsp;</span>';
+  const signingDate     = signed ? ul(fmtDate(signingData.signingDate), 30)        : '<span style="display:inline-block;min-width:100px;border-bottom:1px solid #333;">&nbsp;</span>';
   const signerNameFooter = signed ? ul(signingData.signerName, 40)    : '<span style="display:inline-block;min-width:140px;border-bottom:1px solid #333;">&nbsp;</span>';
 
   const eventDateDisplay = eventDate
@@ -86,7 +87,7 @@ ${logoB64 ? `<div style="text-align:center;margin-bottom:10pt;"><img src="data:i
 
 <p>&#x05E9;&#x05E0;&#x05E2;&#x05E8;&#x05DA; &#x05D5;&#x05E0;&#x05D7;&#x05EA;&#x05DD; &#x05D1;&#x05D9;&#x05D5;&#x05DD; ${signingDate} &#x05DC;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2; &#x05D1;&#x05EA;&#x05D0;&#x05E8;&#x05D9;&#x05DA; ${esc(eventDateDisplay)}</p>
 
-<p>&#x202B;&#x05D1;&#x05D9;&#x05DF;:&#x202C; ${signerName}&nbsp;&nbsp;&nbsp;&#x202B;&#x05EA;&#x05D6;\&#x05D7;&#x05E4;:&#x202C; ${signerIdNumber}</p>
+<p>&#x202B;&#x05D1;&#x05D9;&#x05DF;:&#x202C; ${signerName}&nbsp;&nbsp;&nbsp;&#x202B;&#x05EA;.&#x05D6;/&#x05D7;.&#x05E4;:&#x202C; ${signerIdNumber}</p>
 <p>(&#x05D1;&#x05D9;&#x05D7;&#x05D3; &#x05D5;&#x05DC;&#x05D7;&#x05D5;&#x05D3; &#x05DC;&#x05D4;&#x05DC;&#x05DF;: "&#x05D4;&#x05DE;&#x05D6;&#x05DE;&#x05D9;&#x05DF;")</p>
 <p style="text-align:left;">&#x05DE;&#x05E6;&#x05D3; &#x05D0;&#x05D7;&#x05D3;;</p>
 <p>&#x05DC;&#x05D1;&#x05D9;&#x05DF;:</p>
