@@ -747,6 +747,8 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
     { key: 'packageGuests',          label: 'מינימום אורחים בחבילה',          type: 'number' },
     { key: 'packageTotal',           label: 'מחיר החבילה כולל מע"מ (₪)',      type: 'number' },
     { key: 'packageExtraGuestPrice', label: 'מחיר אורח נוסף כולל מע"מ (₪)',  type: 'number' },
+    { key: 'chefMenu',               label: 'תפריט שף',                       type: 'text'   },
+    { key: 'barMenu',                label: 'תפריט בר',                       type: 'text'   },
     { key: 'depositPercent',         label: 'אחוז מקדמה (%)',                 type: 'number' },
   ];
 
@@ -897,6 +899,8 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
           packageGuests:          f.packageGuests          != null ? String(f.packageGuests)          : '',
           packageTotal:           f.packagePrice           != null ? String(f.packagePrice)           : '',
           packageExtraGuestPrice: f.packageExtraGuestPrice != null ? String(f.packageExtraGuestPrice) : '',
+          chefMenu:               f.chefMenu               || '',
+          barMenu:                f.barMenu                || '',
         }));
       } else {
         setFields(prev => ({
@@ -1460,8 +1464,10 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
   const PKG_PRICE_STEP       = PACKAGE_FIELD_STEPS;
   const PKG_GUESTS_STEP      = PACKAGE_FIELD_STEPS + 1;
   const PKG_EXTRA_STEP       = PACKAGE_FIELD_STEPS + 2;
-  const PKG_ADD_INCLUDE_STEP = PACKAGE_FIELD_STEPS + 3;
-  const PKG_PREVIEW_STEP     = PACKAGE_FIELD_STEPS + 4;
+  const PKG_CHEF_STEP        = PACKAGE_FIELD_STEPS + 3;
+  const PKG_BAR_STEP         = PACKAGE_FIELD_STEPS + 4;
+  const PKG_ADD_INCLUDE_STEP = PACKAGE_FIELD_STEPS + 5;
+  const PKG_PREVIEW_STEP     = PACKAGE_FIELD_STEPS + 6;
 
   const isFieldStep          = offerType === 'regular' ? step < FIELD_STEPS : step < PACKAGE_FIELD_STEPS;
   const isExtraGuestStep     = offerType === 'regular' && step === EXTRA_GUEST_STEP;
@@ -1471,6 +1477,8 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
   const isPkgPriceStep       = offerType === 'package' && step === PKG_PRICE_STEP;
   const isPkgGuestsStep      = offerType === 'package' && step === PKG_GUESTS_STEP;
   const isPkgExtraStep       = offerType === 'package' && step === PKG_EXTRA_STEP;
+  const isPkgChefStep        = offerType === 'package' && step === PKG_CHEF_STEP;
+  const isPkgBarStep         = offerType === 'package' && step === PKG_BAR_STEP;
   const isPkgAddIncludeStep  = offerType === 'package' && step === PKG_ADD_INCLUDE_STEP;
   const isPreviewStep        = offerType === 'regular' ? step === previewStep : step === PKG_PREVIEW_STEP;
 
@@ -1735,6 +1743,44 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                 onChange={e => setFields(f => ({ ...f, packageExtraGuestPrice: e.target.value }))}
                 onKeyDown={e => e.key === 'Enter' && advance()}
                 placeholder="לדוגמה: 400"
+                className="w-full border-2 border-amber-300 rounded-xl px-4 py-3 text-lg focus:outline-none focus:border-amber-500"
+              />
+              <p className="text-xs text-slate-400">אופציונלי — אם לא רלוונטי, השאר ריק</p>
+              <div className="flex gap-2">
+                <button onClick={back} className="border-2 border-slate-200 text-slate-500 font-bold py-2.5 px-4 rounded-xl">חזור</button>
+                <button onClick={advance} className="flex-1 bg-amber-500 text-white font-bold py-2.5 rounded-xl">המשך</button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Package: chef menu step ── */}
+          {isPkgChefStep && (
+            <div className="space-y-5">
+              <p className="text-slate-400 text-sm font-semibold">תפריט שף</p>
+              <input
+                autoFocus type="text" value={fields.chefMenu}
+                onChange={e => setFields(f => ({ ...f, chefMenu: e.target.value }))}
+                onKeyDown={e => e.key === 'Enter' && advance()}
+                placeholder="לדוגמה: תפריט ים תיכוני"
+                className="w-full border-2 border-amber-300 rounded-xl px-4 py-3 text-lg focus:outline-none focus:border-amber-500"
+              />
+              <p className="text-xs text-slate-400">אופציונלי — אם לא רלוונטי, השאר ריק</p>
+              <div className="flex gap-2">
+                <button onClick={back} className="border-2 border-slate-200 text-slate-500 font-bold py-2.5 px-4 rounded-xl">חזור</button>
+                <button onClick={advance} className="flex-1 bg-amber-500 text-white font-bold py-2.5 rounded-xl">המשך</button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Package: bar menu step ── */}
+          {isPkgBarStep && (
+            <div className="space-y-5">
+              <p className="text-slate-400 text-sm font-semibold">תפריט בר</p>
+              <input
+                autoFocus type="text" value={fields.barMenu}
+                onChange={e => setFields(f => ({ ...f, barMenu: e.target.value }))}
+                onKeyDown={e => e.key === 'Enter' && advance()}
+                placeholder="לדוגמה: פתוח עם אלכוהול"
                 className="w-full border-2 border-amber-300 rounded-xl px-4 py-3 text-lg focus:outline-none focus:border-amber-500"
               />
               <p className="text-xs text-slate-400">אופציונלי — אם לא רלוונטי, השאר ריק</p>
@@ -2015,23 +2061,27 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                   <EditableCell value={texts.includesHeader} onChange={v => setTxt('includesHeader', v)} />
                 </p>
                 <div style={{ lineHeight: 2 }}>
-                  {texts.includes.map((item, i) => {
-                    const combined = item.trim()
-                      + (i === 3 && fields.chefMenu ? ' ' + fields.chefMenu : '')
-                      + (i === 4 && fields.barMenu  ? ' ' + fields.barMenu  : '');
-                    if (!combined.trim()) return null;
-                    return (
-                      <div key={i} style={{ direction: 'rtl' }}>
-                        {i === 3 ? (
-                          <><EditableCell value={item} onChange={v => setInc(i, v)} />{' '}<EditableCell value={fields.chefMenu} onChange={v => setFields(f => ({ ...f, chefMenu: v }))} /></>
-                        ) : i === 4 ? (
-                          <><EditableCell value={item} onChange={v => setInc(i, v)} />{' '}<EditableCell value={fields.barMenu} onChange={v => setFields(f => ({ ...f, barMenu: v }))} /></>
-                        ) : (
-                          <EditableCell value={item} onChange={v => setInc(i, v)} multiline={i === 10} />
-                        )}
-                      </div>
-                    );
-                  })}
+                  {(() => {
+                    const chefIdx = isPackage ? 5 : 3;
+                    const barIdx  = isPackage ? 6 : 4;
+                    return texts.includes.map((item, i) => {
+                      const combined = item.trim()
+                        + (i === chefIdx && fields.chefMenu ? ' ' + fields.chefMenu : '')
+                        + (i === barIdx  && fields.barMenu  ? ' ' + fields.barMenu  : '');
+                      if (!combined.trim()) return null;
+                      return (
+                        <div key={i} style={{ direction: 'rtl' }}>
+                          {i === chefIdx ? (
+                            <><EditableCell value={item} onChange={v => setInc(i, v)} />{' '}<EditableCell value={fields.chefMenu} onChange={v => setFields(f => ({ ...f, chefMenu: v }))} /></>
+                          ) : i === barIdx ? (
+                            <><EditableCell value={item} onChange={v => setInc(i, v)} />{' '}<EditableCell value={fields.barMenu} onChange={v => setFields(f => ({ ...f, barMenu: v }))} /></>
+                          ) : (
+                            <EditableCell value={item} onChange={v => setInc(i, v)} multiline={i === 10} />
+                          )}
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
 
                 {/* Optional extras */}

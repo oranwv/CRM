@@ -151,7 +151,15 @@ ${extraGuestPrice && Number(extraGuestPrice) > 0
 
 <h3>${t('includesHeader')}</h3>
 <ul>
-  ${tArr('includes').map(item => `<li>${esc(item)}</li>`).join('\n  ')}
+  ${tArr('includes').map((item, i) => {
+    const chefIdx = isPackage ? 5 : 3;
+    const barIdx  = isPackage ? 6 : 4;
+    let text = item;
+    if (i === chefIdx && fields.chefMenu) text += ' ' + fields.chefMenu;
+    if (i === barIdx  && fields.barMenu)  text += ' ' + fields.barMenu;
+    if (!text.trim()) return '';
+    return `<li>${esc(text)}</li>`;
+  }).join('\n  ')}
 </ul>
 
 <h3>${t('paymentHeader')}</h3>
