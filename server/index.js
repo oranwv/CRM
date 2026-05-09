@@ -142,6 +142,9 @@ pool.query(`
     ON CONFLICT (key) DO NOTHING;
 `).catch(err => console.error('[DB] Table check error:', err.message));
 
+pool.query(`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS orderer_name TEXT`)
+  .catch(err => console.error('[DB] orderer_name migration error:', err.message));
+
 const app = express();
 app.use(cors());
 app.use(express.json());
