@@ -30,10 +30,11 @@ function buildContractHtml({ contractData, signingData, staffSignature }) {
   const { subtotal, vat, total, depositAmount, depositAmountVat, remainingBalance, cancellationDate } = calculated;
 
   const signed = !!signingData;
-  const signerName      = signed ? esc(signingData.signerName)     : '<span style="display:inline-block;min-width:140px;border-bottom:1px solid #333;">&nbsp;</span>';
-  const signerIdNumber  = signed ? esc(signingData.signerIdNumber) : '<span style="display:inline-block;min-width:120px;border-bottom:1px solid #333;">&nbsp;</span>';
-  const signingDate     = signed ? esc(signingData.signingDate)    : '<span style="display:inline-block;min-width:100px;border-bottom:1px solid #333;">&nbsp;</span>';
-  const signerNameFooter = signed ? esc(signingData.signerName)    : '<span style="display:inline-block;min-width:140px;border-bottom:1px solid #333;">&nbsp;</span>';
+  const ul = (text, extra = 40) => `<span style="display:inline-block;border-bottom:1px solid #333;padding-left:${extra}px;">${esc(text)}</span>`;
+  const signerName      = signed ? ul(signingData.signerName, 40)     : '<span style="display:inline-block;min-width:140px;border-bottom:1px solid #333;">&nbsp;</span>';
+  const signerIdNumber  = signed ? ul(signingData.signerIdNumber, 30) : '<span style="display:inline-block;min-width:120px;border-bottom:1px solid #333;">&nbsp;</span>';
+  const signingDate     = signed ? ul(signingData.signingDate, 30)    : '<span style="display:inline-block;min-width:100px;border-bottom:1px solid #333;">&nbsp;</span>';
+  const signerNameFooter = signed ? ul(signingData.signerName, 40)    : '<span style="display:inline-block;min-width:140px;border-bottom:1px solid #333;">&nbsp;</span>';
 
   const eventDateDisplay = eventDate
     ? new Date(eventDate + 'T12:00:00').toLocaleDateString('he-IL')
