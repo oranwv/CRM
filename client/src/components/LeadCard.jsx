@@ -2062,8 +2062,8 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                 </p>
                 <div style={{ lineHeight: 2 }}>
                   {(() => {
-                    const chefIdx = isPackage ? 5 : 3;
-                    const barIdx  = isPackage ? 6 : 4;
+                    const chefIdx = offerType === 'package' ? 5 : 3;
+                    const barIdx  = offerType === 'package' ? 6 : 4;
                     return texts.includes.map((item, i) => {
                       const combined = item.trim()
                         + (i === chefIdx && fields.chefMenu ? ' ' + fields.chefMenu : '')
