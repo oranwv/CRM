@@ -280,7 +280,7 @@ contractPublicRouter.post('/:token/sign', async (req, res) => {
 
     await pool.query(
       `INSERT INTO files (lead_id, filename, url, stored_name, file_type) VALUES ($1,$2,$3,$4,$5)`,
-      [contract.lead_id, filename, signedPdfUrl, storedName, 'application/pdf']
+      [contract.lead_id, filename, signedPdfUrl, storedName, 'contract']
     );
 
     await pool.query(

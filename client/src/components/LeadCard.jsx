@@ -429,7 +429,7 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
 
             {/* Files */}
             <Section title={`קבצים${files.length ? ` (${files.length})` : ''}`}>
-              <FilesSection leadId={leadId} files={files} onChanged={load} />
+              <FilesSection leadId={leadId} files={files} onChanged={load} isAdmin={currentUser.role === 'admin'} />
             </Section>
 
             {/* Interactions */}
@@ -608,7 +608,7 @@ async function openFile(fileId) {
 }
 
 /* ── FILES SECTION ── */
-function FilesSection({ leadId, files, onChanged }) {
+function FilesSection({ leadId, files, onChanged, isAdmin }) {
   const inputRef = useRef();
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging]   = useState(false);
@@ -655,10 +655,12 @@ function FilesSection({ leadId, files, onChanged }) {
               </button>
               <p className="text-sm text-slate-400">{f.uploaded_by_name || ''} · {formatFull(f.created_at)}</p>
             </div>
-            <button onClick={() => deleteFile(f.id)}
-              className="shrink-0 text-slate-400 hover:text-red-500 transition text-sm font-medium px-2 py-1 rounded-lg hover:bg-red-50 border border-transparent hover:border-red-200">
-              🗑️
-            </button>
+            {(isAdmin || f.file_type !== 'contract') && (
+              <button onClick={() => deleteFile(f.id)}
+                className="shrink-0 text-slate-400 hover:text-red-500 transition text-sm font-medium px-2 py-1 rounded-lg hover:bg-red-50 border border-transparent hover:border-red-200">
+                🗑️
+              </button>
+            )}
           </div>
         ))
       )}

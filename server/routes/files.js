@@ -61,6 +61,14 @@ router.get('/:fileId/url', async (req, res) => {
 // DELETE /api/leads/:leadId/files/:fileId
 router.delete('/:fileId', async (req, res) => {
   try {
+    const { rows: check } = await pool.query(
+      'SELECT file_type FROM files WHERE id = $1 AND lead_id = $2',
+      [req.params.fileId, req.params.leadId]
+    );
+    if (!check.length) return res.status(404).json({ error: 'Not found' });
+    if (check[0].file_type === 'contract' && req.user?.role !== 'admin') {
+      return res.status(403).json({ error: 'Only admins can delete signed contracts' });
+    }
     const { rows } = await pool.query(
       'DELETE FROM files WHERE id = $1 AND lead_id = $2 RETURNING *',
       [req.params.fileId, req.params.leadId]
