@@ -137,6 +137,7 @@ pool.query(`
     signature_image TEXT,
     signed_pdf_url TEXT
   );
+  ALTER TABLE price_offers ADD COLUMN IF NOT EXISTS includes JSONB DEFAULT '[]'::jsonb;
   INSERT INTO settings (key, value) VALUES ('staff_signature', '')
     ON CONFLICT (key) DO NOTHING;
 `).catch(err => console.error('[DB] Table check error:', err.message));

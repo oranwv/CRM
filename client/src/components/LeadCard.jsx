@@ -733,7 +733,6 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
     { key: 'depositPercent',  label: 'אחוז מקדמה (%)',             type: 'number' },
   ];
   const FIELD_STEPS = FIELD_DEFS.length; // 11
-  const IMPORT_STEP = 11;
   const ROW_START   = 12;
 
   const DEFAULT_ROWS = [
@@ -759,7 +758,6 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
     depositPercent:  '30',
   });
   const [rows, setRows]               = useState(DEFAULT_ROWS);
-  const [rowsImported, setRowsImported] = useState(false);
   const [loadingImport, setLoadingImport] = useState(false);
   const [importNotFound, setImportNotFound] = useState(false);
   const [newRow, setNewRow]           = useState({ label: '', desc: '', qty: 1, price: 0 });
@@ -829,15 +827,15 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
 
   // Step calculations
   const addRowStep  = ROW_START + rows.length;
-  const previewStep = rowsImported ? ROW_START : addRowStep + 1;
+  const previewStep = addRowStep + 1;
 
-  const isFieldStep   = step < FIELD_STEPS;
-  const isImportStep  = step === IMPORT_STEP;
-  const isRowStep     = !rowsImported && step >= ROW_START && step < addRowStep;
-  const isAddRowStep  = !rowsImported && step === addRowStep;
+  const isImportStep  = step === 0;
+  const isFieldStep   = step >= 1 && step <= FIELD_STEPS;
+  const isRowStep     = step >= ROW_START && step < addRowStep;
+  const isAddRowStep  = step === addRowStep;
   const isPreviewStep = step === previewStep;
 
-  const currentDef = isFieldStep ? FIELD_DEFS[step] : null;
+  const currentDef = isFieldStep ? FIELD_DEFS[step - 1] : null;
   const currentRow = isRowStep   ? rows[step - ROW_START] : null;
   const totalSteps = previewStep;
   const progressPct = Math.min(100, Math.round((step / (totalSteps || 1)) * 100));
@@ -859,13 +857,24 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
     setImportNotFound(false);
     try {
       const { data } = await api.get(`/leads/${lead.id}/price-offer/latest`);
-      if (data && data.rows && data.rows.length > 0) {
-        setRows(data.rows);
-        setRowsImported(true);
-        setStep(ROW_START); // jump to preview (previewStep = ROW_START when rowsImported)
-      } else {
-        setImportNotFound(true);
-      }
+      if (!data) { setImportNotFound(true); return; }
+      const f = data.fields || {};
+      setFields(prev => ({
+        ...prev,
+        clientName:      f.name            || '',
+        clientEmail:     f.email           || '',
+        clientPhone:     f.phone           || '',
+        eventDate:       f.eventDate       || '',
+        startTime:       f.doorTime        || '',
+        endTime:         f.endTime         || '',
+        guests:          f.guests          != null ? String(f.guests)          : '',
+        extraGuestPrice: f.extraGuestPrice != null ? String(f.extraGuestPrice) : '',
+        chefMenu:        f.chefMenu        || '',
+        barMenu:         f.barMenu         || '',
+      }));
+      if (data.rows?.length)     setRows(data.rows);
+      if (data.includes?.length) setContractTexts(t => ({ ...t, includes: data.includes }));
+      setStep(1);
     } catch {
       setImportNotFound(true);
     } finally {
@@ -940,25 +949,37 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
             </div>
           )}
 
-          {/* Import step */}
+          {/* Import step (step 0) */}
           {isImportStep && (
-            <div className="space-y-4">
-              <p className="font-bold text-slate-700">תמחור</p>
-              <p className="text-sm text-slate-500">לייבא פרטי תמחור מהצעת המחיר האחרונה של הליד זה?</p>
-              {importNotFound && (
-                <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg">לא נמצאה הצעת מחיר — יש להזין את השורות ידנית.</p>
+            <div className="flex flex-col items-center gap-4 py-6">
+              {loadingImport ? (
+                <p className="text-slate-500 text-sm">טוען הצעת מחיר...</p>
+              ) : importNotFound ? (
+                <div className="text-center">
+                  <p className="text-slate-500 text-sm mb-4">לא נמצאה הצעת מחיר עבור ליד זה</p>
+                  <button onClick={() => setStep(1)}
+                    className="px-6 py-2.5 rounded-xl font-bold text-sm text-white"
+                    style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+                    המשך
+                  </button>
+                </div>
+              ) : (
+                <div className="text-center">
+                  <p className="font-bold text-slate-700 mb-1">לייבא פרטים מהצעת המחיר האחרונה?</p>
+                  <p className="text-xs text-slate-400 mb-5">שם לקוח, תאריך, שעות, אורחים, עלויות ורשימת הכולל ימולאו אוטומטית</p>
+                  <div className="flex gap-3 justify-center">
+                    <button onClick={handleImportYes}
+                      className="px-6 py-2.5 rounded-xl font-bold text-sm text-white"
+                      style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+                      כן, ייבא
+                    </button>
+                    <button onClick={() => setStep(1)}
+                      className="px-6 py-2.5 rounded-xl font-bold text-sm border border-slate-200 text-slate-600">
+                      לא
+                    </button>
+                  </div>
+                </div>
               )}
-              <div className="flex gap-3">
-                <button onClick={handleImportYes} disabled={loadingImport}
-                  className="flex-1 py-2.5 rounded-xl font-bold text-sm text-white disabled:opacity-50"
-                  style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
-                  {loadingImport ? 'טוען...' : 'כן, ייבא'}
-                </button>
-                <button onClick={() => setStep(ROW_START)}
-                  className="flex-1 py-2.5 rounded-xl font-bold text-sm border border-slate-200 text-slate-600">
-                  לא, הזן ידנית
-                </button>
-              </div>
             </div>
           )}
 
@@ -1179,7 +1200,7 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
         </div>
 
         {/* Footer */}
-        <div className="border-t border-slate-100 p-4 shrink-0">
+        {!isImportStep && <div className="border-t border-slate-100 p-4 shrink-0">
           {sent ? (
             <button onClick={() => { onSaved(); onClose(); }}
               className="w-full py-2.5 rounded-xl font-black text-sm text-white"
@@ -1201,11 +1222,6 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
                 {sending === 'email' ? 'שולח...' : 'אימייל'}
               </button>
             </div>
-          ) : isImportStep ? (
-            <button onClick={() => setStep(s => s - 1)}
-              className="w-full py-2.5 rounded-xl font-bold text-sm border border-slate-200 text-slate-600">
-              חזור
-            </button>
           ) : (
             <div className="flex gap-2">
               <button onClick={() => setStep(s => s + 1)}
@@ -1221,7 +1237,7 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
               )}
             </div>
           )}
-        </div>
+        </div>}
       </div>
     </div>
   );
