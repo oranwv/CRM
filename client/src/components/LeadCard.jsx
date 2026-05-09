@@ -854,13 +854,14 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
 
   const addRowStep        = ROW_START + rows.length;
   const PKG_INCLUDES_STEP = ACTIVE_FIELD_STEPS + 1;
-  const previewStep       = isPackage ? ACTIVE_FIELD_STEPS + 2 : addRowStep + 1;
+  const previewStep         = isPackage ? ACTIVE_FIELD_STEPS + 2 : addRowStep + 2;
 
-  const isImportStep      = contractType !== null && step === 0;
-  const isFieldStep       = contractType !== null && step >= 1 && step <= ACTIVE_FIELD_STEPS;
-  const isRowStep         = !isPackage && step >= ROW_START && step < addRowStep;
-  const isAddRowStep      = !isPackage && step === addRowStep;
-  const isPkgIncludesStep = isPackage && step === PKG_INCLUDES_STEP;
+  const isImportStep        = contractType !== null && step === 0;
+  const isFieldStep         = contractType !== null && step >= 1 && step <= ACTIVE_FIELD_STEPS;
+  const isRowStep           = !isPackage && step >= ROW_START && step < addRowStep;
+  const isAddRowStep        = !isPackage && step === addRowStep;
+  const isRegIncludesStep   = !isPackage && step === addRowStep + 1;
+  const isPkgIncludesStep   = isPackage && step === PKG_INCLUDES_STEP;
   const isPreviewStep     = contractType !== null && step === previewStep;
 
   const currentDef = isFieldStep ? ACTIVE_FIELD_DEFS[step - 1] : null;
@@ -1085,6 +1086,37 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
                   setNewRow({ label: '', desc: '', qty: 1, price: 0 });
                 }} className="text-sm font-bold text-violet-600 underline">+ הוסף שורה</button>
               )}
+            </div>
+          )}
+
+          {/* Regular contract: includes editing step */}
+          {isRegIncludesStep && (
+            <div className="space-y-3">
+              <p className="font-bold text-slate-700">המחיר כולל בתוכו:</p>
+              <ul className="space-y-1.5">
+                {contractTexts.includes.map((item, i) => (
+                  <li key={i} className="flex items-center justify-between gap-2 text-sm bg-slate-50 rounded-lg px-3 py-1.5">
+                    <span className="flex-1">{item}</span>
+                    <button type="button" onClick={() => setContractTexts(t => ({
+                      ...t, includes: t.includes.filter((_, j) => j !== i)
+                    }))} className="text-red-400 hover:text-red-600 text-xs font-bold">הסר</button>
+                  </li>
+                ))}
+              </ul>
+              <div className="flex gap-2 pt-1">
+                <input
+                  value={newInclude}
+                  onChange={e => setNewInclude(e.target.value)}
+                  placeholder="הוסף פריט (למשל: די ג'יי)"
+                  className={cls}
+                  onKeyDown={e => { if (e.key === 'Enter' && newInclude.trim()) { setContractTexts(t => ({ ...t, includes: [...t.includes, newInclude.trim()] })); setNewInclude(''); } }}
+                />
+                <button type="button" onClick={() => {
+                  if (!newInclude.trim()) return;
+                  setContractTexts(t => ({ ...t, includes: [...t.includes, newInclude.trim()] }));
+                  setNewInclude('');
+                }} className="px-4 py-2 rounded-xl bg-violet-100 text-violet-700 text-sm font-bold whitespace-nowrap">הוסף</button>
+              </div>
             </div>
           )}
 
@@ -1332,7 +1364,7 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
               <button onClick={() => setStep(s => s + 1)}
                 className="flex-1 py-2.5 rounded-xl font-black text-sm text-white"
                 style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
-                {isAddRowStep ? 'המשך ללא הוספה' : 'הבא'}
+                {isAddRowStep ? 'המשך ללא הוספה' : isRegIncludesStep ? 'המשך לתצוגה מקדימה' : 'הבא'}
               </button>
               {step > 0 && (
                 <button onClick={() => setStep(s => s - 1)}
@@ -1672,12 +1704,19 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
           {/* ── Add includes step ── */}
           {isAddIncludeStep && (
             <div className="space-y-4">
-              <p className="text-slate-400 text-sm font-semibold">הוסף פריט ל"המחיר כולל בתוכו"</p>
-              <div className="text-xs text-slate-400 space-y-0.5 max-h-32 overflow-y-auto">
-                {texts.includes.filter(i => i.trim()).map((item, i) => (
-                  <div key={i}>• {item}</div>
-                ))}
-              </div>
+              <p className="text-slate-400 text-sm font-semibold">המחיר כולל בתוכו:</p>
+              <ul className="space-y-1.5 max-h-48 overflow-y-auto">
+                {texts.includes.map((item, i) => {
+                  if (!item.trim()) return null;
+                  return (
+                    <li key={i} className="flex items-center justify-between gap-2 text-sm bg-slate-50 rounded-lg px-3 py-1.5">
+                      <span className="flex-1">{item}</span>
+                      <button type="button" onClick={() => setTexts(t => ({ ...t, includes: t.includes.filter((_, j) => j !== i) }))}
+                        className="text-red-400 hover:text-red-600 text-xs font-bold">הסר</button>
+                    </li>
+                  );
+                })}
+              </ul>
               <div className="flex gap-2">
                 <input
                   value={newInclude}
@@ -1794,12 +1833,19 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
           {/* ── Package: add includes step ── */}
           {isPkgAddIncludeStep && (
             <div className="space-y-4">
-              <p className="text-slate-400 text-sm font-semibold">הוסף פריט ל"המחיר כולל בתוכו"</p>
-              <div className="text-xs text-slate-400 space-y-0.5 max-h-32 overflow-y-auto">
-                {texts.includes.filter(i => i.trim()).map((item, i) => (
-                  <div key={i}>• {item}</div>
-                ))}
-              </div>
+              <p className="text-slate-400 text-sm font-semibold">המחיר כולל בתוכו:</p>
+              <ul className="space-y-1.5 max-h-48 overflow-y-auto">
+                {texts.includes.map((item, i) => {
+                  if (!item.trim()) return null;
+                  return (
+                    <li key={i} className="flex items-center justify-between gap-2 text-sm bg-slate-50 rounded-lg px-3 py-1.5">
+                      <span className="flex-1">{item}</span>
+                      <button type="button" onClick={() => setTexts(t => ({ ...t, includes: t.includes.filter((_, j) => j !== i) }))}
+                        className="text-red-400 hover:text-red-600 text-xs font-bold">הסר</button>
+                    </li>
+                  );
+                })}
+              </ul>
               <div className="flex gap-2">
                 <input
                   value={newInclude}
