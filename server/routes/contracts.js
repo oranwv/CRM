@@ -21,11 +21,13 @@ function fmt(n) { return Number(n || 0).toLocaleString('he-IL'); }
 function buildContractHtml({ contractData, signingData, staffSignature }) {
   const { fields, rows, calculated } = contractData;
   const texts = contractData.texts || {};
+  const isPackage = (contractData.offerType || 'regular') === 'package';
   const t = (key) => esc(texts[key] || '');
   const tArr = (key) => Array.isArray(texts[key]) ? texts[key] : [];
   const {
     clientName, eventDate, startTime, endTime,
     guests, extraGuestPrice, chefMenu, barMenu, depositPercent,
+    packageGuests, packageTotal, packageExtraGuestPrice,
   } = fields;
   const { subtotal, vat, total, depositAmount, depositAmountVat, remainingBalance, cancellationDate } = calculated;
 
@@ -108,6 +110,12 @@ ${logoB64 ? `<div style="text-align:center;margin-bottom:10pt;"><img src="data:i
 <p>&#x05E9;&#x05E2;&#x05EA; &#x05E1;&#x05D9;&#x05D5;&#x05DD; &#x05D4;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2;: ${esc(endTime)}</p>
 
 <h3>&#x05E2;&#x05DC;&#x05D5;&#x05D9;&#x05D5;&#x05EA;:</h3>
+${isPackage ? `
+<p>&#x05E2;&#x05DC;&#x05D5;&#x05EA; &#x05D4;&#x05D7;&#x05D1;&#x05D9;&#x05DC;&#x05D4; &#x05E2;&#x05D1;&#x05D5;&#x05E8; ${esc(String(packageGuests || ''))} &#x05D0;&#x05D5;&#x05E8;&#x05D7;&#x05D9;&#x05DD; - ${fmt(packageTotal)} ${shkalHtml} &#x05DB;&#x05D5;&#x05DC;&#x05DC; &#x05DE;&#x05E2;"&#x05DE;</p>
+${packageExtraGuestPrice && Number(packageExtraGuestPrice) > 0
+  ? `<p>&#x05DB;&#x05DC; &#x05D0;&#x05D5;&#x05E8;&#x05D7; &#x05E0;&#x05D5;&#x05E1;&#x05E3; &#x05DE;&#x05E2;&#x05DC; ${esc(String(packageGuests || ''))} &#x05D0;&#x05D5;&#x05E8;&#x05D7;&#x05D9;&#x05DD; &#x05D1;&#x05EA;&#x05D5;&#x05E1;&#x05E4;&#x05EA; &#x05E9;&#x05DC; ${fmt(packageExtraGuestPrice)} ${shkalHtml} &#x05DB;&#x05D5;&#x05DC;&#x05DC; &#x05DE;&#x05E2;"&#x05DE;</p>`
+  : ''}
+` : `
 <table style="margin-bottom:6pt;">
   <thead>
     <tr>
@@ -139,6 +147,7 @@ ${logoB64 ? `<div style="text-align:center;margin-bottom:10pt;"><img src="data:i
 ${extraGuestPrice && Number(extraGuestPrice) > 0
   ? `<p>&#x05DB;&#x05DC; &#x05D0;&#x05D5;&#x05E8;&#x05D7; &#x05DE;&#x05E2;&#x05DC; ${esc(String(guests || ''))} &#x05D0;&#x05D5;&#x05E8;&#x05D7;&#x05D9;&#x05DD; &#x05D1;&#x05E2;&#x05DC;&#x05D5;&#x05EA; &#x05E9;&#x05DC; ${Number(extraGuestPrice).toLocaleString()} &#x05E9;"&#x05D7; &#x05DC;&#x05D0; &#x05DB;&#x05D5;&#x05DC;&#x05DC; &#x05DE;&#x05E2;"&#x05DE;</p>`
   : ''}
+`}
 
 <h3>${t('includesHeader')}</h3>
 <ul>

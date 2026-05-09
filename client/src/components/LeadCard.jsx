@@ -737,6 +737,19 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
   const FIELD_STEPS = FIELD_DEFS.length; // 11
   const ROW_START   = 12;
 
+  const PKG_FIELD_DEFS = [
+    { key: 'clientName',             label: 'לכבוד',                          type: 'text'   },
+    { key: 'clientEmail',            label: 'מייל',                           type: 'email'  },
+    { key: 'clientPhone',            label: 'טלפון',                          type: 'tel'    },
+    { key: 'eventDate',              label: 'תאריך האירוע',                   type: 'date'   },
+    { key: 'startTime',              label: 'שעת כניסה',                      type: 'time'   },
+    { key: 'endTime',                label: 'שעת סיום האירוע',                type: 'time'   },
+    { key: 'packageGuests',          label: 'מינימום אורחים בחבילה',          type: 'number' },
+    { key: 'packageTotal',           label: 'מחיר החבילה כולל מע"מ (₪)',      type: 'number' },
+    { key: 'packageExtraGuestPrice', label: 'מחיר אורח נוסף כולל מע"מ (₪)',  type: 'number' },
+    { key: 'depositPercent',         label: 'אחוז מקדמה (%)',                 type: 'number' },
+  ];
+
   const DEFAULT_ROWS = [
     { id: 1, label: 'מחיר אורח',                             desc: 'כולל שכירות המקום, תפריט קייטרינג, תפריט בר', qty: 0, price: 395 },
     { id: 2, label: 'שירות מלצרים',                          desc: '',        qty: 1, price: 500 },
@@ -753,12 +766,17 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
     eventDate:       lead.event_date ? lead.event_date.slice(0, 10) : '',
     startTime:       lead.event_time || '',
     endTime:         lead.event_end_time || '',
-    guests:          lead.guest_count || '',
-    extraGuestPrice: '',
-    chefMenu:        '',
-    barMenu:         '',
-    depositPercent:  '30',
+    guests:                 lead.guest_count || '',
+    extraGuestPrice:        '',
+    chefMenu:               '',
+    barMenu:                '',
+    depositPercent:         '30',
+    packageGuests:          '',
+    packageTotal:           '',
+    packageExtraGuestPrice: '',
   });
+  const [contractType, setContractType] = useState(null); // null | 'regular' | 'package'
+  const [newInclude, setNewInclude]   = useState('');
   const [rows, setRows]               = useState(DEFAULT_ROWS);
   const [loadingImport, setLoadingImport] = useState(false);
   const [importNotFound, setImportNotFound] = useState(false);
@@ -828,24 +846,31 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
   const setField = (k, v) => setFields(f => ({ ...f, [k]: v }));
 
   // Step calculations
-  const addRowStep  = ROW_START + rows.length;
-  const previewStep = addRowStep + 1;
+  const isPackage          = contractType === 'package';
+  const ACTIVE_FIELD_DEFS  = isPackage ? PKG_FIELD_DEFS : FIELD_DEFS;
+  const ACTIVE_FIELD_STEPS = ACTIVE_FIELD_DEFS.length;
 
-  const isImportStep  = step === 0;
-  const isFieldStep   = step >= 1 && step <= FIELD_STEPS;
-  const isRowStep     = step >= ROW_START && step < addRowStep;
-  const isAddRowStep  = step === addRowStep;
-  const isPreviewStep = step === previewStep;
+  const addRowStep        = ROW_START + rows.length;
+  const PKG_INCLUDES_STEP = ACTIVE_FIELD_STEPS + 1;
+  const previewStep       = isPackage ? ACTIVE_FIELD_STEPS + 2 : addRowStep + 1;
 
-  const currentDef = isFieldStep ? FIELD_DEFS[step - 1] : null;
+  const isImportStep      = contractType !== null && step === 0;
+  const isFieldStep       = contractType !== null && step >= 1 && step <= ACTIVE_FIELD_STEPS;
+  const isRowStep         = !isPackage && step >= ROW_START && step < addRowStep;
+  const isAddRowStep      = !isPackage && step === addRowStep;
+  const isPkgIncludesStep = isPackage && step === PKG_INCLUDES_STEP;
+  const isPreviewStep     = contractType !== null && step === previewStep;
+
+  const currentDef = isFieldStep ? ACTIVE_FIELD_DEFS[step - 1] : null;
   const currentRow = isRowStep   ? rows[step - ROW_START] : null;
   const totalSteps = previewStep;
   const progressPct = Math.min(100, Math.round((step / (totalSteps || 1)) * 100));
 
   // Calculated values
-  const subtotal         = rows.reduce((s, r) => s + (r.qty || 0) * (r.price || 0), 0);
-  const vat              = Math.round(subtotal * 0.18);
-  const total            = subtotal + vat;
+  const pkgTotal         = Number(fields.packageTotal) || 0;
+  const subtotal         = isPackage ? Math.round(pkgTotal / 1.18) : rows.reduce((s, r) => s + (r.qty || 0) * (r.price || 0), 0);
+  const vat              = isPackage ? pkgTotal - subtotal : Math.round(subtotal * 0.18);
+  const total            = isPackage ? pkgTotal : subtotal + vat;
   const depositPct       = Number(fields.depositPercent) || 0;
   const depositAmount    = Math.round(total * depositPct / 100);
   const depositAmountVat = Math.round(depositAmount * 1.18);
@@ -861,19 +886,33 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
       const { data } = await api.get(`/leads/${lead.id}/price-offer/latest`);
       if (!data) { setImportNotFound(true); return; }
       const f = data.fields || {};
-      setFields(prev => ({
-        ...prev,
-        clientName:      f.name            || '',
-        clientEmail:     f.email           || '',
-        clientPhone:     f.phone           || '',
-        startTime:       f.doorTime        || '',
-        endTime:         f.endTime         || '',
-        guests:          f.guests          != null ? String(f.guests)          : '',
-        extraGuestPrice: f.extraGuestPrice != null ? String(f.extraGuestPrice) : '',
-        chefMenu:        f.chefMenu        || '',
-        barMenu:         f.barMenu         || '',
-      }));
-      if (data.rows?.length)     setRows(data.rows);
+      if (isPackage) {
+        setFields(prev => ({
+          ...prev,
+          clientName:             f.name                    || '',
+          clientEmail:            f.email                   || '',
+          clientPhone:            f.phone                   || '',
+          startTime:              f.doorTime                || '',
+          endTime:                f.endTime                 || '',
+          packageGuests:          f.packageGuests          != null ? String(f.packageGuests)          : '',
+          packageTotal:           f.packagePrice           != null ? String(f.packagePrice)           : '',
+          packageExtraGuestPrice: f.packageExtraGuestPrice != null ? String(f.packageExtraGuestPrice) : '',
+        }));
+      } else {
+        setFields(prev => ({
+          ...prev,
+          clientName:      f.name            || '',
+          clientEmail:     f.email           || '',
+          clientPhone:     f.phone           || '',
+          startTime:       f.doorTime        || '',
+          endTime:         f.endTime         || '',
+          guests:          f.guests          != null ? String(f.guests)          : '',
+          extraGuestPrice: f.extraGuestPrice != null ? String(f.extraGuestPrice) : '',
+          chefMenu:        f.chefMenu        || '',
+          barMenu:         f.barMenu         || '',
+        }));
+        if (data.rows?.length) setRows(data.rows);
+      }
       if (data.includes?.length) setContractTexts(t => ({ ...t, includes: data.includes }));
       setStep(1);
     } catch {
@@ -888,7 +927,7 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
     try {
       const calculated = { subtotal, vat, total, depositAmount, depositAmountVat, remainingBalance, cancellationDate };
       const { data } = await api.post(`/leads/${lead.id}/contracts`, {
-        contract_data: { fields, rows, calculated, texts: contractTexts },
+        contract_data: { fields, rows, calculated, texts: contractTexts, offerType: contractType },
       });
       const url = `${window.location.origin}/sign/${data.token}`;
       setSigningUrl(url);
@@ -923,11 +962,29 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
           <h2 className="font-bold text-lg text-slate-800">חוזה לחתימה</h2>
         </div>
 
-        <div className="h-1 bg-slate-100 shrink-0">
-          <div className="h-1 bg-violet-500 transition-all duration-300" style={{ width: `${progressPct}%` }} />
-        </div>
+        {contractType !== null && (
+          <div className="h-1 bg-slate-100 shrink-0">
+            <div className="h-1 bg-violet-500 transition-all duration-300" style={{ width: `${progressPct}%` }} />
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto p-5">
+
+          {/* Type selection */}
+          {contractType === null && (
+            <div className="flex flex-col items-center gap-4 py-8">
+              <p className="font-bold text-slate-700 text-base">בחר סוג חוזה</p>
+              <button onClick={() => setContractType('regular')}
+                className="w-full max-w-xs py-4 rounded-2xl font-black text-sm text-white"
+                style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+                חוזה רגיל
+              </button>
+              <button onClick={() => setContractType('package')}
+                className="w-full max-w-xs py-4 rounded-2xl font-black text-sm border-2 border-violet-400 text-violet-700 bg-white">
+                חוזה חבילה
+              </button>
+            </div>
+          )}
 
           {/* Field steps */}
           {isFieldStep && currentDef && (
@@ -1027,6 +1084,37 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
             </div>
           )}
 
+          {/* Package includes editing step */}
+          {isPkgIncludesStep && (
+            <div className="space-y-3">
+              <p className="font-bold text-slate-700">המחיר כולל בתוכו:</p>
+              <ul className="space-y-1.5">
+                {contractTexts.includes.map((item, i) => (
+                  <li key={i} className="flex items-center justify-between gap-2 text-sm bg-slate-50 rounded-lg px-3 py-1.5">
+                    <span className="flex-1">{item}</span>
+                    <button type="button" onClick={() => setContractTexts(t => ({
+                      ...t, includes: t.includes.filter((_, j) => j !== i)
+                    }))} className="text-red-400 hover:text-red-600 text-xs font-bold">הסר</button>
+                  </li>
+                ))}
+              </ul>
+              <div className="flex gap-2 pt-1">
+                <input
+                  value={newInclude}
+                  onChange={e => setNewInclude(e.target.value)}
+                  placeholder="הוסף פריט (למשל: די ג'יי)"
+                  className={cls}
+                  onKeyDown={e => { if (e.key === 'Enter' && newInclude.trim()) { setContractTexts(t => ({ ...t, includes: [...t.includes, newInclude.trim()] })); setNewInclude(''); } }}
+                />
+                <button type="button" onClick={() => {
+                  if (!newInclude.trim()) return;
+                  setContractTexts(t => ({ ...t, includes: [...t.includes, newInclude.trim()] }));
+                  setNewInclude('');
+                }} className="px-4 py-2 rounded-xl bg-violet-100 text-violet-700 text-sm font-bold whitespace-nowrap">הוסף</button>
+              </div>
+            </div>
+          )}
+
           {/* Preview step — full editable contract document */}
           {isPreviewStep && !sent && (
             <div>
@@ -1061,6 +1149,16 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
                 <p>שעת סיום האירוע: <EditableCell value={fields.endTime} onChange={v => setField('endTime', v)} /></p>
 
                 <h3 style={{ fontWeight: 'bold', marginTop: 10, marginBottom: 4 }}>עלויות:</h3>
+
+                {isPackage ? (
+                  <div style={{ marginBottom: 8 }}>
+                    <p>עלות החבילה עבור <EditableCell value={String(fields.packageGuests || '')} onChange={v => setField('packageGuests', v)} /> אורחים - <EditableCell value={String(fields.packageTotal || '')} onChange={v => setField('packageTotal', v)} /> ש"ח כולל מע"מ</p>
+                    {Number(fields.packageExtraGuestPrice) > 0 && (
+                      <p>כל אורח נוסף מעל {fields.packageGuests} אורחים בתוספת של <EditableCell value={String(fields.packageExtraGuestPrice || '')} onChange={v => setField('packageExtraGuestPrice', v)} /> ש"ח כולל מע"מ</p>
+                    )}
+                  </div>
+                ) : (
+                  <>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt' }}>
                   <thead>
                     <tr style={{ background: '#f5f5f5' }}>
@@ -1115,6 +1213,8 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
                 </p>
                 {fields.extraGuestPrice && Number(fields.extraGuestPrice) > 0 && (
                   <p>כל אורח מעל {fields.guests} אורחים בעלות של {Number(fields.extraGuestPrice).toLocaleString()} ש"ח לא כולל מע"מ</p>
+                )}
+                  </>
                 )}
 
                 <h3 style={{ fontWeight: 'bold', marginTop: 10, marginBottom: 4 }}>
@@ -1201,7 +1301,7 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
         </div>
 
         {/* Footer */}
-        {!isImportStep && <div className="border-t border-slate-100 p-4 shrink-0">
+        {contractType !== null && !isImportStep && <div className="border-t border-slate-100 p-4 shrink-0">
           {sent ? (
             <button onClick={() => { onSaved(); onClose(); }}
               className="w-full py-2.5 rounded-xl font-black text-sm text-white"
