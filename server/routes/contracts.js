@@ -339,7 +339,7 @@ contractPublicRouter.post('/:token/sign', async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error('[Contracts] sign error:', err.message);
-    if (!res.headersSent) res.status(500).json({ error: 'שגיאה בחתימה על החוזה' });
+    if (!res.headersSent) res.status(500).json({ error: err.message || 'שגיאה בחתימה על החוזה' });
   } finally {
     if (browser) await browser.close().catch(() => {});
   }
