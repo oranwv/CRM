@@ -864,7 +864,6 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
         clientName:      f.name            || '',
         clientEmail:     f.email           || '',
         clientPhone:     f.phone           || '',
-        eventDate:       f.eventDate       || '',
         startTime:       f.doorTime        || '',
         endTime:         f.endTime         || '',
         guests:          f.guests          != null ? String(f.guests)          : '',
