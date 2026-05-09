@@ -32,10 +32,10 @@ function buildContractHtml({ contractData, signingData, staffSignature }) {
   const signed = !!signingData;
   const ul = (text, extra = 40) => `<span style="display:inline-block;border-bottom:1px solid #333;padding-left:${extra}px;">${esc(text)}</span>`;
   const fmtDate = (d) => d && d.includes('-') ? d.split('-').reverse().join('.') : (d || '');
-  const signerName      = signed ? ul(signingData.signerName, 40)                  : '<span style="display:inline-block;min-width:140px;border-bottom:1px solid #333;">&nbsp;</span>';
-  const signerIdNumber  = signed ? ul(signingData.signerIdNumber, 30)              : '<span style="display:inline-block;min-width:120px;border-bottom:1px solid #333;">&nbsp;</span>';
-  const signingDate     = signed ? ul(fmtDate(signingData.signingDate), 30)        : '<span style="display:inline-block;min-width:100px;border-bottom:1px solid #333;">&nbsp;</span>';
-  const signerNameFooter = signed ? ul(signingData.signerName, 40)    : '<span style="display:inline-block;min-width:140px;border-bottom:1px solid #333;">&nbsp;</span>';
+  const ordererName    = signed ? ul(signingData.ordererName, 40)                 : '<span style="display:inline-block;min-width:140px;border-bottom:1px solid #333;">&nbsp;</span>';
+  const signerName     = signed ? ul(signingData.signerName, 40)                  : '<span style="display:inline-block;min-width:140px;border-bottom:1px solid #333;">&nbsp;</span>';
+  const signerIdNumber = signed ? ul(signingData.signerIdNumber, 30)              : '<span style="display:inline-block;min-width:120px;border-bottom:1px solid #333;">&nbsp;</span>';
+  const signingDate    = signed ? ul(fmtDate(signingData.signingDate), 30)        : '<span style="display:inline-block;min-width:100px;border-bottom:1px solid #333;">&nbsp;</span>';
 
   const eventDateDisplay = eventDate
     ? new Date(eventDate + 'T12:00:00').toLocaleDateString('he-IL')
@@ -87,7 +87,7 @@ ${logoB64 ? `<div style="text-align:center;margin-bottom:10pt;"><img src="data:i
 
 <p>&#x05E9;&#x05E0;&#x05E2;&#x05E8;&#x05DA; &#x05D5;&#x05E0;&#x05D7;&#x05EA;&#x05DD; &#x05D1;&#x05D9;&#x05D5;&#x05DD; ${signingDate} &#x05DC;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2; &#x05D1;&#x05EA;&#x05D0;&#x05E8;&#x05D9;&#x05DA; ${esc(eventDateDisplay)}</p>
 
-<p>&#x202B;&#x05D1;&#x05D9;&#x05DF;:&#x202C; ${signerName}&nbsp;&nbsp;&nbsp;&#x202B;&#x05EA;.&#x05D6;/&#x05D7;.&#x05E4;:&#x202C; ${signerIdNumber}</p>
+<p>&#x202B;&#x05D1;&#x05D9;&#x05DF;:&#x202C; ${ordererName}&nbsp;&nbsp;&nbsp;&#x202B;&#x05EA;.&#x05D6;/&#x05D7;.&#x05E4;:&#x202C; ${signerIdNumber}</p>
 <p>(&#x05D1;&#x05D9;&#x05D7;&#x05D3; &#x05D5;&#x05DC;&#x05D7;&#x05D5;&#x05D3; &#x05DC;&#x05D4;&#x05DC;&#x05DF;: "&#x05D4;&#x05DE;&#x05D6;&#x05DE;&#x05D9;&#x05DF;")</p>
 <p style="text-align:left;">&#x05DE;&#x05E6;&#x05D3; &#x05D0;&#x05D7;&#x05D3;;</p>
 <p>&#x05DC;&#x05D1;&#x05D9;&#x05DF;:</p>
@@ -168,7 +168,8 @@ ${extraGuestPrice && Number(extraGuestPrice) > 0
 ${tArr('legalParagraphs').map((p, i) => `<p style="${i === 0 ? 'margin-top:8pt;' : ''}">${esc(p)}</p>`).join('\n')}
 
 <p style="margin-top:12pt;font-weight:bold;">&#x05DC;&#x05E8;&#x05D0;&#x05D9;&#x05D4; &#x05D1;&#x05D0;&#x05D5; &#x05D4;&#x05E6;&#x05D3;&#x05D3;&#x05D9;&#x05DD; &#x05E2;&#x05DC; &#x05D4;&#x05D7;&#x05EA;&#x05D5;&#x05DD;:</p>
-<p>&#x202B;&#x05E9;&#x05DD; &#x05D4;&#x05DE;&#x05D6;&#x05DE;&#x05D9;&#x05DF;:&#x202C; ${signerNameFooter}</p>
+<p>&#x202B;&#x05E9;&#x05DD; &#x05D4;&#x05DE;&#x05D6;&#x05DE;&#x05D9;&#x05DF;:&#x202C; ${ordererName}</p>
+<p>&#x202B;&#x05E9;&#x05DD; &#x05D4;&#x05D7;&#x05D5;&#x05EA;&#x05DD;:&#x202C; ${signerName}</p>
 
 <table style="width:100%;margin-top:20pt;">
   <tr>
@@ -238,8 +239,8 @@ contractPublicRouter.get('/:token', async (req, res) => {
 contractPublicRouter.post('/:token/sign', async (req, res) => {
   let browser;
   try {
-    const { signerName, signerIdNumber, signingDate, signatureImage } = req.body;
-    if (!signerName || !signerIdNumber || !signingDate || !signatureImage) {
+    const { ordererName, signerName, signerIdNumber, signingDate, signatureImage } = req.body;
+    if (!ordererName || !signerName || !signerIdNumber || !signingDate || !signatureImage) {
       return res.status(400).json({ error: 'כל שדות החתימה נדרשים' });
     }
 
@@ -257,7 +258,7 @@ contractPublicRouter.post('/:token/sign', async (req, res) => {
 
     const html = buildContractHtml({
       contractData: contract.contract_data,
-      signingData: { signerName, signerIdNumber, signingDate, signatureImage },
+      signingData: { ordererName, signerName, signerIdNumber, signingDate, signatureImage },
       staffSignature,
     });
 
@@ -276,7 +277,7 @@ contractPublicRouter.post('/:token/sign', async (req, res) => {
     await browser.close();
     browser = null;
 
-    const filename = `חוזה-חתום-${signerName}.pdf`;
+    const filename = `חוזה-חתום-${ordererName}.pdf`;
     const { url: signedPdfUrl, storedName } = await uploadBuffer(pdfBuffer, filename, 'application/pdf');
 
     await pool.query(
@@ -286,22 +287,22 @@ contractPublicRouter.post('/:token/sign', async (req, res) => {
 
     await pool.query(
       `UPDATE contracts SET status='signed', signed_at=NOW(), signer_name=$1, signer_id_number=$2,
-       signature_image=$3, signed_pdf_url=$4 WHERE id=$5`,
-      [signerName, signerIdNumber, signatureImage, signedPdfUrl, contract.id]
+       signature_image=$3, signed_pdf_url=$4, orderer_name=$5 WHERE id=$6`,
+      [signerName, signerIdNumber, signatureImage, signedPdfUrl, ordererName, contract.id]
     );
 
     await pool.query(
       `INSERT INTO lead_interactions (lead_id, type, direction, body, created_by)
        VALUES ($1,'note','inbound',$2,NULL)`,
-      [contract.lead_id, `החוזה נחתם על ידי ${signerName} (ת.ז: ${signerIdNumber})`]
+      [contract.lead_id, `החוזה נחתם על ידי ${ordererName} — חותם: ${signerName} (ת.ז: ${signerIdNumber})`]
     );
 
     // Send to Sharabiya
     try {
       await sendEmail({
         to: 'sharabiyajaffa@gmail.com',
-        subject: `חוזה חתום — ${signerName}`,
-        body: `החוזה נחתם על ידי ${signerName} (ת.ז: ${signerIdNumber}) בתאריך ${signingDate}.`,
+        subject: `חוזה חתום — ${ordererName}`,
+        body: `החוזה נחתם.\nמזמין: ${ordererName}\nחותם: ${signerName} (ת.ז: ${signerIdNumber})\nתאריך: ${signingDate}.`,
         attachmentBuffer: pdfBuffer,
         attachmentName: filename,
         attachmentMime: 'application/pdf',
@@ -315,7 +316,7 @@ contractPublicRouter.post('/:token/sign', async (req, res) => {
         await sendEmail({
           to: clientEmail,
           subject: 'החוזה החתום שלך — שרביה',
-          body: `שלום ${signerName},\n\nתודה על החתימה! החוזה החתום מצורף.\n\nבברכה, צוות שרביה`,
+          body: `שלום ${ordererName},\n\nתודה על החתימה! החוזה החתום מצורף.\n\nבברכה, צוות שרביה`,
           attachmentBuffer: pdfBuffer,
           attachmentName: filename,
           attachmentMime: 'application/pdf',

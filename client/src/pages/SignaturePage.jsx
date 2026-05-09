@@ -219,6 +219,7 @@ export default function SignaturePage() {
   const [error, setError]             = useState('');
   const [contractData, setContractData] = useState(null);
   const [showForm, setShowForm]       = useState(false);
+  const [ordererName, setOrdererName] = useState('');
   const [signerName, setSignerName]   = useState('');
   const [signerIdNumber, setSignerIdNumber] = useState('');
   const [signingDate, setSigningDate] = useState('');
@@ -239,7 +240,8 @@ export default function SignaturePage() {
 
   async function handleSign(e) {
     e.preventDefault();
-    if (!signerName.trim())     return alert('יש להזין שם מלא');
+    if (!ordererName.trim())    return alert('יש להזין שם מזמין');
+    if (!signerName.trim())     return alert('יש להזין שם חותם');
     if (!signerIdNumber.trim()) return alert('יש להזין מספר ת.ז / ח.פ');
     if (!signingDate)           return alert('יש להזין תאריך חתימה');
     if (!signatureImage)        return alert('יש לחתום בתיבת החתימה');
@@ -249,7 +251,7 @@ export default function SignaturePage() {
       const res = await fetch(`${API}/contracts/${token}/sign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ signerName, signerIdNumber, signingDate, signatureImage }),
+        body: JSON.stringify({ ordererName, signerName, signerIdNumber, signingDate, signatureImage }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'שגיאה');
@@ -324,9 +326,17 @@ export default function SignaturePage() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1">שם מלא</label>
+              <label className="block text-sm font-bold text-slate-700 mb-1">שם המזמין / שם החברה</label>
+              <input type="text" value={ordererName} onChange={e => setOrdererName(e.target.value)}
+                placeholder="שם הלקוח או שם החברה המזמינה"
+                className="w-full rounded-xl px-3 py-2 text-sm border border-slate-200 focus:border-violet-400 focus:outline-none"
+                required />
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-1">שם החותם</label>
               <input type="text" value={signerName} onChange={e => setSignerName(e.target.value)}
-                placeholder="שם פרטי ושם משפחה"
+                placeholder="שם הנציג המורשה לחתימה"
                 className="w-full rounded-xl px-3 py-2 text-sm border border-slate-200 focus:border-violet-400 focus:outline-none"
                 required />
             </div>
