@@ -8,7 +8,7 @@ const TOKEN_PATH       = path.join(__dirname, '../google_token.json');
 
 function getAuth() {
   const creds = JSON.parse(fs.readFileSync(CREDENTIALS_PATH));
-  const { client_id, client_secret } = creds.installed;
+  const { client_id, client_secret } = creds.installed || creds.web;
   const oauth2 = new google.auth.OAuth2(client_id, client_secret, 'http://localhost:3333/callback');
   oauth2.setCredentials(JSON.parse(fs.readFileSync(TOKEN_PATH)));
   return oauth2;
