@@ -40,8 +40,9 @@ router.get('/files/:fileId/meta', async (req, res) => {
   }
 });
 
-// GET /api/drive/debug — diagnostic endpoint
-router.get('/debug', async (req, res) => {
+module.exports = router;
+
+async function debugHandler(req, res) {
   const out = {};
 
   try {
@@ -79,6 +80,6 @@ router.get('/debug', async (req, res) => {
   }
 
   res.json(out);
-});
+}
 
-module.exports = router;
+module.exports.debugHandler = debugHandler;

@@ -39,6 +39,7 @@ const adminRoutes           = require('./routes/admin');
 const priceOfferRoutes      = require('./routes/priceOffer');
 const { contractLeadRouter, contractPublicRouter } = require('./routes/contracts');
 const driveRoutes               = require('./routes/drive');
+const { debugHandler: driveDebugHandler } = require('./routes/drive');
 
 const pool = require('./db/pool');
 
@@ -164,6 +165,7 @@ app.use('/api/contracts',             contractPublicRouter);
 app.use('/api/leads',               requireAuth, leadsRoutes);
 app.use('/api/leads/:leadId/files', requireAuth, filesRoutes);
 app.use('/api/admin',               requireAuth, adminRoutes);
+app.get('/api/drive/debug',         driveDebugHandler);
 app.use('/api/drive',               requireAuth, driveRoutes);
 app.use('/api/users',               requireAuth, usersRoutes);
 app.use('/api/analytics',           requireAuth, analyticsRoutes);
