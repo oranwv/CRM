@@ -112,12 +112,29 @@ export default function DriveFilePicker({ onSelect, onClose }) {
             {previewLoading
               ? <p className="text-xs text-slate-400 animate-pulse">טוען תצוגה מקדימה...</p>
               : previewUrl && (
-                  <iframe
-                    src={previewUrl}
-                    className="w-full h-full border-0"
-                    style={{ minHeight: '50vh' }}
-                    title={previewFile.name}
-                  />
+                  previewFile.mimeType?.startsWith('image/')
+                    ? <img src={previewUrl} alt={previewFile.name} className="max-w-full max-h-full object-contain p-2" />
+                    : (
+                      <object
+                        data={previewUrl}
+                        type={previewFile.mimeType}
+                        className="w-full border-0"
+                        style={{ minHeight: '50vh' }}
+                      >
+                        <div className="flex flex-col items-center justify-center gap-3 py-8 px-4 text-center">
+                          <span className="text-4xl">📄</span>
+                          <p className="text-sm text-slate-500">{previewFile.name}</p>
+                          <a
+                            href={previewUrl}
+                            download={previewFile.name}
+                            className="px-4 py-2.5 rounded-xl text-sm font-bold text-white"
+                            style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}
+                          >
+                            פתח / הורד קובץ
+                          </a>
+                        </div>
+                      </object>
+                    )
                 )
             }
           </div>
