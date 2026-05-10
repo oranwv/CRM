@@ -15,16 +15,23 @@ router.get('/folders', async (req, res) => {
   }
 });
 
-// GET /api/drive/folders/:folderId/files — list cached files from DB
+// GET /api/drive/folders/:folderId/files — list cached files from DB with signed URLs
 router.get('/folders/:folderId/files', async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT drive_file_id AS id, name, mime_type AS "mimeType", size,
-              drive_modified_time AS "modifiedTime", public_url AS "previewUrl"
+              drive_modified_time AS "modifiedTime", stored_name AS "storedName"
        FROM drive_cached_files WHERE folder_id = $1 ORDER BY name`,
       [req.params.folderId]
     );
-    res.json(rows);
+    const { getSignedUrl } = require('../services/storageService');
+    const files = await Promise.all(rows.map(async f => {
+      let previewUrl = null;
+      try { previewUrl = await getSignedUrl(f.storedName, 3600); } catch {}
+      const { storedName, ...rest } = f;
+      return { ...rest, previewUrl };
+    }));
+    res.json(files);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -82,27 +82,12 @@ export default function DriveFilePicker({ onSelect, onClose }) {
           <div className="flex-1 flex items-center justify-center min-h-0">
             {previewFile.mimeType?.startsWith('image/')
               ? <img src={previewFile.previewUrl} alt={previewFile.name} className="max-w-full max-h-full object-contain p-2" />
-              : (
-                <object
+              : <object
                   data={previewFile.previewUrl}
                   type={previewFile.mimeType}
                   className="w-full border-0"
                   style={{ minHeight: '50vh' }}
-                >
-                  <div className="flex flex-col items-center justify-center gap-3 py-8 px-4 text-center">
-                    <span className="text-4xl">📄</span>
-                    <p className="text-sm text-slate-500">{previewFile.name}</p>
-                    <a
-                      href={previewFile.previewUrl}
-                      download={previewFile.name}
-                      className="px-4 py-2.5 rounded-xl text-sm font-bold text-white"
-                      style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}
-                    >
-                      פתח / הורד קובץ
-                    </a>
-                  </div>
-                </object>
-              )
+                />
             }
           </div>
         )}
