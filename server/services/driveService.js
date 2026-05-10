@@ -38,4 +38,72 @@ async function downloadFile(fileId) {
   return { buffer: Buffer.concat(chunks), mimeType, name };
 }
 
-module.exports = { listFilesInFolder, getFileMeta, downloadFile };
+async function syncDriveFolders() {
+  const pool = require('../db/pool');
+  const { uploadBuffer } = require('./storageService');
+
+  // Ensure table exists
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS drive_cached_files (
+      id SERIAL PRIMARY KEY,
+      folder_id TEXT NOT NULL,
+      folder_name TEXT,
+      drive_file_id TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      mime_type TEXT,
+      size BIGINT,
+      drive_modified_time TEXT,
+      stored_name TEXT,
+      public_url TEXT,
+      synced_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  const { rows } = await pool.query(`SELECT value FROM settings WHERE key = 'drive_folders'`);
+  const folders = rows[0]?.value ? JSON.parse(rows[0].value) : [];
+  if (!folders.length) return;
+
+  for (const folder of folders) {
+    try {
+      const driveFiles = await listFilesInFolder(folder.id);
+      const driveIds = driveFiles.map(f => f.id);
+
+      for (const f of driveFiles) {
+        const { rows: existing } = await pool.query(
+          'SELECT drive_modified_time FROM drive_cached_files WHERE drive_file_id = $1',
+          [f.id]
+        );
+        if (existing[0]?.drive_modified_time === f.modifiedTime) continue;
+
+        const { buffer, mimeType } = await downloadFile(f.id);
+        const { url, storedName } = await uploadBuffer(buffer, f.name, mimeType);
+
+        await pool.query(`
+          INSERT INTO drive_cached_files
+            (folder_id, folder_name, drive_file_id, name, mime_type, size, drive_modified_time, stored_name, public_url, synced_at)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
+          ON CONFLICT (drive_file_id) DO UPDATE SET
+            name = EXCLUDED.name, mime_type = EXCLUDED.mime_type, size = EXCLUDED.size,
+            drive_modified_time = EXCLUDED.drive_modified_time,
+            stored_name = EXCLUDED.stored_name, public_url = EXCLUDED.public_url, synced_at = NOW()
+        `, [folder.id, folder.name, f.id, f.name, mimeType, f.size || null, f.modifiedTime, storedName, url]);
+
+        console.log(`[Drive sync] Cached: ${f.name}`);
+      }
+
+      // Remove DB entries for files deleted from Drive
+      if (driveIds.length > 0) {
+        await pool.query(
+          `DELETE FROM drive_cached_files WHERE folder_id = $1 AND drive_file_id <> ALL($2::text[])`,
+          [folder.id, driveIds]
+        );
+      } else {
+        await pool.query('DELETE FROM drive_cached_files WHERE folder_id = $1', [folder.id]);
+      }
+    } catch (err) {
+      console.error(`[Drive sync] folder ${folder.id} error:`, err.message);
+    }
+  }
+}
+
+module.exports = { listFilesInFolder, getFileMeta, downloadFile, syncDriveFolders };

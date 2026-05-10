@@ -15,16 +15,18 @@ router.get('/folders', async (req, res) => {
   }
 });
 
-// GET /api/drive/folders/:folderId/files — list files in a folder
+// GET /api/drive/folders/:folderId/files — list cached files from DB
 router.get('/folders/:folderId/files', async (req, res) => {
-  const tokenPath = path.join(__dirname, '../google_token.json');
-  if (!fs.existsSync(tokenPath)) return res.status(503).json({ error: 'Google Drive not authorized' });
   try {
-    const files = await listFilesInFolder(req.params.folderId);
-    res.json(files);
+    const { rows } = await pool.query(
+      `SELECT drive_file_id AS id, name, mime_type AS "mimeType", size,
+              drive_modified_time AS "modifiedTime", public_url AS "previewUrl"
+       FROM drive_cached_files WHERE folder_id = $1 ORDER BY name`,
+      [req.params.folderId]
+    );
+    res.json(rows);
   } catch (err) {
-    console.error('[Drive] list error:', JSON.stringify(err.response?.data || err.message));
-    res.status(500).json({ error: err.message, detail: err.response?.data });
+    res.status(500).json({ error: err.message });
   }
 });
 

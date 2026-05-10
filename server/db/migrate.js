@@ -108,6 +108,20 @@ CREATE TABLE IF NOT EXISTS contracts (
   signature_image TEXT,
   signed_pdf_url TEXT
 );
+
+CREATE TABLE IF NOT EXISTS drive_cached_files (
+  id SERIAL PRIMARY KEY,
+  folder_id TEXT NOT NULL,
+  folder_name TEXT,
+  drive_file_id TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  mime_type TEXT,
+  size BIGINT,
+  drive_modified_time TEXT,
+  stored_name TEXT,
+  public_url TEXT,
+  synced_at TIMESTAMPTZ DEFAULT NOW()
+);
 `;
 
 (async () => {

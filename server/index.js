@@ -201,6 +201,12 @@ function startCronJobs() {
     pollGmail(); // run immediately on start
     setInterval(pollGmail, 10 * 60 * 1000);
     console.log('[Cron] Gmail polling started');
+
+    // Sync Drive folders every 5 minutes
+    const { syncDriveFolders } = require('./services/driveService');
+    syncDriveFolders().catch(err => console.error('[Drive sync] initial run error:', err.message));
+    setInterval(() => syncDriveFolders().catch(e => console.error('[Drive sync]', e.message)), 5 * 60 * 1000);
+    console.log('[Cron] Drive folder sync started');
   } else {
     console.log('[Cron] Gmail skipped — no google_token.json');
   }
