@@ -1,17 +1,5 @@
 const { google } = require('googleapis');
-const fs = require('fs');
-const path = require('path');
-
-const CREDENTIALS_PATH = path.join(__dirname, '../credentials.json');
-const TOKEN_PATH = path.join(__dirname, '../google_token.json');
-
-function getAuth() {
-  const creds = JSON.parse(fs.readFileSync(CREDENTIALS_PATH));
-  const { client_id, client_secret } = creds.installed || creds.web;
-  const oauth2 = new google.auth.OAuth2(client_id, client_secret, 'http://localhost:3333/callback');
-  oauth2.setCredentials(JSON.parse(fs.readFileSync(TOKEN_PATH)));
-  return oauth2;
-}
+const { getAuth } = require('./gmailService');
 
 async function listFilesInFolder(folderId) {
   const auth = getAuth();

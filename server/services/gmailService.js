@@ -8,7 +8,7 @@ const TOKEN_PATH       = path.join(__dirname, '../google_token.json');
 
 function getAuth() {
   const creds = JSON.parse(fs.readFileSync(CREDENTIALS_PATH));
-  const { client_id, client_secret } = creds.installed || creds.web;
+  const { client_id, client_secret } = creds.installed || creds.web || creds;
   const oauth2 = new google.auth.OAuth2(client_id, client_secret, 'http://localhost:3333/callback');
   oauth2.setCredentials(JSON.parse(fs.readFileSync(TOKEN_PATH)));
   return oauth2;
@@ -298,4 +298,4 @@ async function sendEmail({ to, subject, body, attachments, attachmentBuffer, att
   await gmail.users.messages.send({ userId: 'me', requestBody: { raw } });
 }
 
-module.exports = { pollGmail, sendEmail };
+module.exports = { pollGmail, sendEmail, getAuth };
