@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const pool = require('../db/pool');
-const { listFilesInFolder, getFileMeta } = require('../services/driveService');
+const { listFilesInFolder, getFileMeta, downloadFile } = require('../services/driveService');
 const fs = require('fs');
 const path = require('path');
 
@@ -35,6 +35,18 @@ router.get('/files/:fileId/meta', async (req, res) => {
   try {
     const meta = await getFileMeta(req.params.fileId);
     res.json(meta);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/drive/files/:fileId/content — stream file through server (no browser Google auth needed)
+router.get('/files/:fileId/content', async (req, res) => {
+  try {
+    const { buffer, mimeType, name } = await downloadFile(req.params.fileId);
+    res.set('Content-Type', mimeType);
+    res.set('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(name)}`);
+    res.send(buffer);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

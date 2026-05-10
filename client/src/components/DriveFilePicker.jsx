@@ -9,6 +9,8 @@ export default function DriveFilePicker({ onSelect, onClose }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [previewFile, setPreviewFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -18,11 +20,16 @@ export default function DriveFilePicker({ onSelect, onClose }) {
       .finally(() => setLoading(false));
   }, []);
 
+  // Revoke blob URL when preview closes or component unmounts
+  useEffect(() => {
+    return () => { if (previewUrl) URL.revokeObjectURL(previewUrl); };
+  }, [previewUrl]);
+
   async function openFolder(folder) {
     setActiveFolder(folder);
     setFiles([]);
     setError('');
-    setPreviewFile(null);
+    closePreview();
     setLoading(true);
     try {
       const { data } = await api.get(`/drive/folders/${folder.id}/files`);
@@ -31,6 +38,28 @@ export default function DriveFilePicker({ onSelect, onClose }) {
       setError(err.response?.data?.error || err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  function closePreview() {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewFile(null);
+    setPreviewUrl(null);
+    setPreviewLoading(false);
+  }
+
+  async function openPreview(file) {
+    closePreview();
+    setPreviewFile(file);
+    setPreviewLoading(true);
+    try {
+      const res = await api.get(`/drive/files/${file.id}/content`, { responseType: 'blob' });
+      setPreviewUrl(URL.createObjectURL(res.data));
+    } catch (err) {
+      setError(err.response?.data?.error || err.message);
+      setPreviewFile(null);
+    } finally {
+      setPreviewLoading(false);
     }
   }
 
@@ -58,7 +87,7 @@ export default function DriveFilePicker({ onSelect, onClose }) {
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
           {previewFile ? (
-            <button onClick={() => setPreviewFile(null)} className="text-slate-500 hover:text-violet-600 text-sm font-bold">
+            <button onClick={closePreview} className="text-slate-500 hover:text-violet-600 text-sm font-bold">
               &rarr; חזרה
             </button>
           ) : activeFolder ? (
@@ -79,15 +108,22 @@ export default function DriveFilePicker({ onSelect, onClose }) {
 
         {/* Preview panel */}
         {previewFile && (
-          <iframe
-            src={`https://drive.google.com/file/d/${previewFile.id}/preview`}
-            className="flex-1 w-full border-0 min-h-0"
-            title={previewFile.name}
-            allow="autoplay"
-          />
+          <div className="flex-1 flex items-center justify-center min-h-0">
+            {previewLoading
+              ? <p className="text-xs text-slate-400 animate-pulse">טוען תצוגה מקדימה...</p>
+              : previewUrl && (
+                  <iframe
+                    src={previewUrl}
+                    className="w-full h-full border-0"
+                    style={{ minHeight: '50vh' }}
+                    title={previewFile.name}
+                  />
+                )
+            }
+          </div>
         )}
 
-        {/* Body */}
+        {/* Body — folder/file list */}
         {!previewFile && (
           <div className="flex-1 overflow-y-auto px-4 py-3 min-h-0">
             {loading && <p className="text-xs text-slate-400 text-center py-6 animate-pulse">טוען...</p>}
@@ -120,7 +156,7 @@ export default function DriveFilePicker({ onSelect, onClose }) {
                       {selected[f.id] ? '✓' : ''}
                     </button>
                     <button
-                      onClick={() => setPreviewFile(f)}
+                      onClick={() => openPreview(f)}
                       className="text-sm text-slate-700 truncate flex-1 text-right hover:text-violet-600 hover:underline">
                       {f.name}
                     </button>
