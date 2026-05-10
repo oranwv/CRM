@@ -346,42 +346,57 @@ router.patch('/:id/tasks/:taskId/reschedule', async (req, res) => {
 });
 
 // POST /api/leads/:id/email/send
-router.post('/:id/email/send', emailUpload.single('file'), async (req, res) => {
-  const { to, subject, body } = req.body;
+router.post('/:id/email/send', emailUpload.array('files', 10), async (req, res) => {
+  const { to, subject, body, driveFileIds } = req.body;
   if (!to || !body) return res.status(400).json({ error: 'to and body are required' });
   try {
     const { sendEmail } = require('../services/gmailService');
-    let attachmentBuffer, attachmentName, attachmentMime;
-    let fileMarker = '';
-    if (req.file) {
-      attachmentBuffer = fs.readFileSync(req.file.path);
-      attachmentName   = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
-      attachmentMime   = req.file.mimetype;
-      const { storedName } = await uploadFile(req.file.path, attachmentName, req.file.mimetype);
-      fs.unlinkSync(req.file.path);
+    const { downloadFile } = require('../services/driveService');
+
+    const attachments = [];
+    const fileMarkers = [];
+
+    // local uploaded files
+    for (const f of (req.files || [])) {
+      const name = Buffer.from(f.originalname, 'latin1').toString('utf8');
+      const buffer = fs.readFileSync(f.path);
+      const mime = f.mimetype;
+      const { storedName } = await uploadFile(f.path, name, mime);
+      fs.unlinkSync(f.path);
       const { rows: fileRows } = await pool.query(
         `INSERT INTO files (lead_id, filename, url, stored_name, file_type, uploaded_by)
          VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-        [req.params.id, attachmentName, '', storedName, attachmentMime, req.user.id]
+        [req.params.id, name, '', storedName, mime, req.user.id]
       );
-      fileMarker = `\n[[FILE:${fileRows[0].id}|${attachmentName}]]`;
+      attachments.push({ buffer, name, mime });
+      fileMarkers.push(`[[FILE:${fileRows[0].id}|${name}]]`);
     }
-    await sendEmail({ to, subject: subject || '(ללא נושא)', body, attachmentBuffer, attachmentName, attachmentMime });
-    const interactionBody = `נשלח ל: ${to} | נושא: ${subject || ''}\n${body}${fileMarker}`;
+
+    // drive files
+    const driveIds = driveFileIds ? JSON.parse(driveFileIds) : [];
+    for (const fileId of driveIds) {
+      const { buffer, name, mimeType } = await downloadFile(fileId);
+      attachments.push({ buffer, name, mime: mimeType });
+      fileMarkers.push(`[Drive: ${name}]`);
+    }
+
+    await sendEmail({ to, subject: subject || '(ללא נושא)', body, attachments });
+
+    const markerStr = fileMarkers.length ? '\n' + fileMarkers.join('\n') : '';
+    const interactionBody = `נשלח ל: ${to} | נושא: ${subject || ''}\n${body}${markerStr}`;
     await pool.query(
       `INSERT INTO lead_interactions (lead_id, type, direction, body, created_by)
        VALUES ($1, 'email', 'outbound', $2, $3)`,
       [req.params.id, interactionBody, req.user.id]
     );
     await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [req.params.id]);
-    // Auto-advance new → contacted on first outbound email
     await pool.query(
       `UPDATE leads SET stage = 'contacted', updated_at = NOW() WHERE id = $1 AND stage = 'new'`,
       [req.params.id]
     );
     res.json({ success: true });
   } catch (err) {
-    if (req.file) try { fs.unlinkSync(req.file.path); } catch {}
+    for (const f of (req.files || [])) try { fs.unlinkSync(f.path); } catch {}
     res.status(500).json({ error: err.message });
   }
 });

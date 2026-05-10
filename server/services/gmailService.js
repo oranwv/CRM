@@ -243,20 +243,20 @@ async function pollGmail() {
 
 // ── SEND EMAIL ────────────────────────────────────────────────────────────────
 
-function buildRawEmail({ to, subject, body, attachmentBuffer, attachmentName, attachmentMime }) {
+function buildRawEmail({ to, subject, body, attachments }) {
   const boundary = `boundary_${Date.now()}`;
-  const hasAttachment = attachmentBuffer && attachmentName;
+  const hasAttachments = attachments && attachments.length > 0;
 
   const headers = [
     `To: ${to}`,
     `Subject: =?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`,
     'MIME-Version: 1.0',
-    hasAttachment
+    hasAttachments
       ? `Content-Type: multipart/mixed; boundary="${boundary}"`
       : 'Content-Type: text/plain; charset=utf-8',
   ].join('\r\n');
 
-  if (!hasAttachment) {
+  if (!hasAttachments) {
     const raw = `${headers}\r\n\r\n${body}`;
     return Buffer.from(raw).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
@@ -268,28 +268,33 @@ function buildRawEmail({ to, subject, body, attachmentBuffer, attachmentName, at
     body,
   ].join('\r\n');
 
-  const attachPart = [
+  const attachParts = attachments.map(({ buffer, name, mime }) => [
     `--${boundary}`,
-    `Content-Type: ${attachmentMime || 'application/octet-stream'}`,
-    `Content-Disposition: attachment; filename*=UTF-8''${encodeURIComponent(attachmentName)}`,
+    `Content-Type: ${mime || 'application/octet-stream'}`,
+    `Content-Disposition: attachment; filename*=UTF-8''${encodeURIComponent(name)}`,
     'Content-Transfer-Encoding: base64',
     '',
-    attachmentBuffer.toString('base64'),
-    `--${boundary}--`,
-  ].join('\r\n');
+    buffer.toString('base64'),
+  ].join('\r\n'));
 
-  const raw = `${headers}\r\n\r\n${textPart}\r\n${attachPart}`;
+  const raw = `${headers}\r\n\r\n${textPart}\r\n${attachParts.join('\r\n')}\r\n--${boundary}--`;
   return Buffer.from(raw).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-async function sendEmail({ to, subject, body, attachmentBuffer, attachmentName, attachmentMime }) {
+async function sendEmail({ to, subject, body, attachments, attachmentBuffer, attachmentName, attachmentMime }) {
   const tokenPath = path.join(__dirname, '../google_token.json');
   if (!fs.existsSync(tokenPath)) throw new Error('Gmail not configured');
+
+  // backwards compat: single attachment fields → attachments array
+  let allAttachments = attachments || [];
+  if (!allAttachments.length && attachmentBuffer && attachmentName) {
+    allAttachments = [{ buffer: attachmentBuffer, name: attachmentName, mime: attachmentMime }];
+  }
 
   const auth = getAuth();
   const gmail = google.gmail({ version: 'v1', auth });
 
-  const raw = buildRawEmail({ to, subject, body, attachmentBuffer, attachmentName, attachmentMime });
+  const raw = buildRawEmail({ to, subject, body, attachments: allAttachments });
   await gmail.users.messages.send({ userId: 'me', requestBody: { raw } });
 }
 

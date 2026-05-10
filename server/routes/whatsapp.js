@@ -184,8 +184,9 @@ router.post('/send', requireAuth, async (req, res) => {
 });
 
 // POST /api/whatsapp/send-file — send message + file (authenticated)
+// Accepts either a multipart `file` upload OR a `driveFileId` body param (Drive file)
 router.post('/send-file', requireAuth, upload.single('file'), async (req, res) => {
-  const { leadId, message = '', phone: phoneOverride } = req.body;
+  const { leadId, message = '', phone: phoneOverride, driveFileId } = req.body;
   try {
     const { rows } = await pool.query('SELECT phone FROM leads WHERE id = $1', [leadId]);
     if (!rows.length) return res.status(404).json({ error: 'Lead not found' });
@@ -195,23 +196,37 @@ router.post('/send-file', requireAuth, upload.single('file'), async (req, res) =
 
     let fileUrl = null;
     let fileName = null;
+    let fileMime = 'application/octet-stream';
+    let tmpPath = null;
+
+    if (driveFileId && !req.file) {
+      // Download from Drive to a temp file
+      const { downloadFile } = require('../services/driveService');
+      const { buffer, mimeType, name } = await downloadFile(driveFileId);
+      fileName = name;
+      fileMime = mimeType;
+      tmpPath = path.join(os.tmpdir(), `drive_wa_${Date.now()}_${name}`);
+      fs.writeFileSync(tmpPath, buffer);
+      req.file = { path: tmpPath, originalname: name, mimetype: mimeType };
+    }
 
     if (req.file) {
-      // multer reads filename bytes as latin1; re-encode to utf-8
-      fileName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+      // multer reads filename bytes as latin1; re-encode to utf-8 (skip for Drive files which already have correct name)
+      fileName = fileName || Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+      fileMime = fileMime !== 'application/octet-stream' ? fileMime : (req.file.mimetype || 'application/octet-stream');
 
       // Step 1: upload file to Green API storage → get public URL
       const uploadFd = new FormData();
       uploadFd.append('file', fs.createReadStream(req.file.path), {
         filename: fileName,
-        contentType: req.file.mimetype || 'application/octet-stream',
+        contentType: fileMime,
       });
       const uploadUrl = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/uploadFile/${process.env.GREEN_API_TOKEN}`;
       const uploadRes = await axios.post(uploadUrl, uploadFd, { headers: uploadFd.getHeaders() });
       const urlFile = uploadRes.data.urlFile;
 
       // Step 2: save to Supabase storage before deleting temp
-      const { storedName } = await uploadFile(req.file.path, fileName, req.file.mimetype || 'application/octet-stream');
+      const { storedName } = await uploadFile(req.file.path, fileName, fileMime);
 
       // Step 3: send via URL
       const sendUrl = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/sendFileByUrl/${process.env.GREEN_API_TOKEN}`;
@@ -228,9 +243,9 @@ router.post('/send-file', requireAuth, upload.single('file'), async (req, res) =
       const { rows: fileRows } = await pool.query(
         `INSERT INTO files (lead_id, filename, url, stored_name, file_type, uploaded_by)
          VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-        [leadId, fileName, '', storedName, req.file.mimetype || 'application/octet-stream', req.user.id]
+        [leadId, fileName, '', storedName, fileMime, req.user.id]
       );
-      fileUrl = fileRows[0].id; // reuse variable to carry the file ID
+      fileUrl = fileRows[0].id;
     } else if (message.trim()) {
       const url = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/sendMessage/${process.env.GREEN_API_TOKEN}`;
       await waitForWaSlot();
@@ -261,5 +276,6 @@ router.post('/send-file', requireAuth, upload.single('file'), async (req, res) =
     res.status(500).json({ error: 'Failed to send file' });
   }
 });
+
 
 module.exports = router;

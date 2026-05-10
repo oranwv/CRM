@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api';
+import DriveFilePicker from './DriveFilePicker';
 
 const STAGES = [
   { key: 'new',           label: 'חדש',          active: 'bg-sky-500 text-white border-sky-500',         past: 'bg-sky-100 text-sky-600 border-sky-200',         future: 'bg-white text-slate-400 border-slate-200 hover:border-sky-300 hover:text-sky-500' },
@@ -787,6 +788,10 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
   const [sent, setSent]               = useState(false);
   const [signingUrl, setSigningUrl]   = useState('');
   const [sentChannel, setSentChannel] = useState('');
+  const [contractExtraFiles, setContractExtraFiles] = useState([]);
+  const [contractSendStep, setContractSendStep] = useState(null); // null | 'wa' | 'email'
+  const [contractDrivePicker, setContractDrivePicker] = useState(false);
+  const contractFileRef = useRef(null);
 
   const [contractTexts, setContractTexts] = useState({
     title: 'הסכם הזמנת אירוע',
@@ -929,6 +934,7 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
 
   async function handleSend(channel) {
     setSending(channel);
+    setContractSendStep(null);
     try {
       const calculated = { subtotal, vat, total, depositAmount, depositAmountVat, remainingBalance, cancellationDate };
       const { data } = await api.post(`/leads/${lead.id}/contracts`, {
@@ -943,9 +949,25 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
         fd.append('to', fields.clientEmail);
         fd.append('subject', `חוזה לחתימה — ${fields.clientName} — שרביה`);
         fd.append('body', msg);
+        const driveIds = [];
+        for (const att of contractExtraFiles) {
+          if (att.type === 'local') fd.append('files', att.file);
+          else driveIds.push(att.fileId);
+        }
+        if (driveIds.length) fd.append('driveFileIds', JSON.stringify(driveIds));
         await api.post(`/leads/${lead.id}/email/send`, fd);
       } else {
         await api.post('/whatsapp/send', { leadId: lead.id, message: msg });
+        for (let i = 0; i < contractExtraFiles.length; i++) {
+          await new Promise(r => setTimeout(r, 2000));
+          const att = contractExtraFiles[i];
+          const fd = new FormData();
+          fd.append('leadId', lead.id);
+          fd.append('message', '');
+          if (att.type === 'local') fd.append('file', att.file);
+          else fd.append('driveFileId', att.fileId);
+          await api.post('/whatsapp/send-file', fd);
+        }
       }
       setSentChannel(channel);
       setSent(true);
@@ -1344,17 +1366,49 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
               style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
               סגור
             </button>
+          ) : contractSendStep ? (
+            <div className="space-y-2">
+              <p className="text-sm font-bold text-slate-700">קבצים נוספים (אופציונלי)</p>
+              <input ref={contractFileRef} type="file" className="hidden" onChange={e => { const f = e.target.files[0]; if (f) { setContractExtraFiles(a => [...a, { type: 'local', file: f }]); e.target.value = ''; } }} />
+              <div className="flex gap-2">
+                <button onClick={() => contractFileRef.current.click()}
+                  className="flex-1 border-2 border-dashed rounded-xl py-2 text-xs font-semibold text-center transition border-slate-200 text-slate-400 hover:border-violet-300 hover:text-violet-600">
+                  + מהמחשב
+                </button>
+                <button onClick={() => setContractDrivePicker(true)}
+                  className="flex-1 border-2 border-dashed rounded-xl py-2 text-xs font-semibold text-center transition border-slate-200 text-slate-400 hover:border-violet-300 hover:text-violet-600">
+                  מ-Google Drive
+                </button>
+              </div>
+              {contractExtraFiles.length > 0 && (
+                <div className="space-y-1">
+                  {contractExtraFiles.map((att, i) => (
+                    <div key={i} className="flex items-center justify-between bg-violet-50 border border-violet-200 rounded-lg px-2.5 py-1.5 text-xs">
+                      <span className="truncate text-violet-800">📎 {att.type === 'local' ? att.file.name : att.name}</span>
+                      <button onClick={() => setContractExtraFiles(a => a.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 mr-1 shrink-0">&times;</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button onClick={() => { setContractSendStep(null); setContractExtraFiles([]); }} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl text-sm">ביטול</button>
+                <button onClick={() => handleSend(contractSendStep)} disabled={!!sending}
+                  className={`flex-1 py-2.5 rounded-xl font-black text-sm text-white disabled:opacity-50 ${contractSendStep === 'whatsapp' ? 'bg-green-600' : 'bg-sky-600'}`}>
+                  {sending ? 'שולח...' : 'שלח'}
+                </button>
+              </div>
+            </div>
           ) : isPreviewStep ? (
             <div className="flex gap-2">
               <button onClick={() => setStep(s => s - 1)}
                 className="px-4 py-2.5 rounded-xl font-bold text-sm border border-slate-200 text-slate-600">
                 חזור
               </button>
-              <button onClick={() => handleSend('whatsapp')} disabled={!!sending || !fields.clientPhone}
+              <button onClick={() => { setContractExtraFiles([]); setContractSendStep('whatsapp'); }} disabled={!!sending || !fields.clientPhone}
                 className="flex-1 py-2.5 rounded-xl font-black text-sm bg-green-600 text-white disabled:opacity-50">
                 {sending === 'whatsapp' ? 'שולח...' : 'וואטסאפ'}
               </button>
-              <button onClick={() => handleSend('email')} disabled={!!sending || !fields.clientEmail}
+              <button onClick={() => { setContractExtraFiles([]); setContractSendStep('email'); }} disabled={!!sending || !fields.clientEmail}
                 className="flex-1 py-2.5 rounded-xl font-black text-sm bg-sky-600 text-white disabled:opacity-50">
                 {sending === 'email' ? 'שולח...' : 'אימייל'}
               </button>
@@ -1376,6 +1430,12 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
           )}
         </div>}
       </div>
+      {contractDrivePicker && (
+        <DriveFilePicker
+          onSelect={files => setContractExtraFiles(a => [...a, ...files])}
+          onClose={() => setContractDrivePicker(false)}
+        />
+      )}
     </div>
   );
 }
@@ -1431,6 +1491,10 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
   const [emailTo, setEmailTo]     = useState(allEmails[0] || '');
   const [emailSubject, setEmailSubject] = useState(`הצעת מחיר - ${lead.name} - שרביה`);
   const [emailBody, setEmailBody] = useState(`שלום ${lead.name},\nמצורפת הצעת המחיר שלנו לאירוע שלך.\nנשמח לראותכם, צוות שרביה.`);
+  const [offerExtraFiles, setOfferExtraFiles] = useState([]);
+  const [showWaExtraFiles, setShowWaExtraFiles] = useState(false);
+  const [offerDrivePicker, setOfferDrivePicker] = useState(null); // 'wa' | 'email' | null
+  const offerFileRef = useRef(null);
   const previewRef = useRef(null);
   const [texts, setTexts] = useState({
     title:          'הצעת מחיר – אירוע בשרביה',
@@ -1585,6 +1649,7 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
 
   async function handleSendWA() {
     setSending(true);
+    setShowWaExtraFiles(false);
     try {
       const blob = await generateBlob();
       const fd1 = new FormData();
@@ -1592,6 +1657,17 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
       fd1.append('file', blob, `הצעת מחיר - ${fields.name}.pdf`);
       fd1.append('message', 'הצעת המחיר שלנו עבור האירוע שלך');
       await api.post('/whatsapp/send-file', fd1);
+      // send extra files with 2-second delay each
+      for (let i = 0; i < offerExtraFiles.length; i++) {
+        await new Promise(r => setTimeout(r, 2000));
+        const att = offerExtraFiles[i];
+        const fd = new FormData();
+        fd.append('leadId', lead.id);
+        fd.append('message', '');
+        if (att.type === 'local') fd.append('file', att.file);
+        else fd.append('driveFileId', att.fileId);
+        await api.post('/whatsapp/send-file', fd);
+      }
       const fd2 = new FormData();
       fd2.append('file', blob, `הצעת מחיר - ${fields.name}.pdf`);
       await api.post(`/leads/${lead.id}/files`, fd2);
@@ -1607,7 +1683,13 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
       fd.append('to', emailTo);
       fd.append('subject', emailSubject);
       fd.append('body', emailBody);
-      fd.append('file', blob, `הצעת מחיר - ${fields.name}.pdf`);
+      fd.append('files', blob, `הצעת מחיר - ${fields.name}.pdf`);
+      const driveIds = [];
+      for (const att of offerExtraFiles) {
+        if (att.type === 'local') fd.append('files', att.file);
+        else driveIds.push(att.fileId);
+      }
+      if (driveIds.length) fd.append('driveFileIds', JSON.stringify(driveIds));
       await api.post(`/leads/${lead.id}/email/send`, fd);
       onSaved(); onClose();
     } catch { alert('שגיאה בשליחת אימייל'); setSending(false); }
@@ -2168,7 +2250,37 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
         {/* Footer — only on preview step */}
         {isPreviewStep && (
           <div className="border-t border-slate-100 p-4 space-y-2 shrink-0">
-            {showEmailForm ? (
+            {showWaExtraFiles ? (
+              <div className="space-y-2">
+                <p className="text-sm font-bold text-slate-700">קבצים נוספים לשליחה בוואטסאפ (אופציונלי)</p>
+                <input ref={offerFileRef} type="file" className="hidden" onChange={e => { const f = e.target.files[0]; if (f) { setOfferExtraFiles(a => [...a, { type: 'local', file: f }]); e.target.value = ''; } }} />
+                <div className="flex gap-2">
+                  <button onClick={() => offerFileRef.current.click()}
+                    className="flex-1 border-2 border-dashed rounded-xl py-2 text-sm font-semibold text-center transition border-slate-200 text-slate-400 hover:border-green-300 hover:text-green-600">
+                    + מהמחשב
+                  </button>
+                  <button onClick={() => setOfferDrivePicker('wa')}
+                    className="flex-1 border-2 border-dashed rounded-xl py-2 text-sm font-semibold text-center transition border-slate-200 text-slate-400 hover:border-green-300 hover:text-green-600">
+                    מ-Google Drive
+                  </button>
+                </div>
+                {offerExtraFiles.length > 0 && (
+                  <div className="space-y-1">
+                    {offerExtraFiles.map((att, i) => (
+                      <div key={i} className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-2.5 py-1.5 text-xs">
+                        <span className="truncate text-green-800">📎 {att.type === 'local' ? att.file.name : att.name}</span>
+                        <button onClick={() => setOfferExtraFiles(a => a.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 mr-1 shrink-0">&times;</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <button onClick={() => { setShowWaExtraFiles(false); setOfferExtraFiles([]); }} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl">ביטול</button>
+                  <button onClick={handleSendWA} disabled={sending}
+                    className="flex-1 bg-green-600 text-white font-bold py-2 rounded-xl disabled:opacity-50">{sending ? '...' : 'שלח'}</button>
+                </div>
+              </div>
+            ) : showEmailForm ? (
               <div className="space-y-2">
                 <input value={emailTo} onChange={e => setEmailTo(e.target.value)}
                   className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400" placeholder="אימייל נמען" dir="ltr" />
@@ -2176,8 +2288,30 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                   className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400" placeholder="נושא" />
                 <textarea value={emailBody} onChange={e => setEmailBody(e.target.value)} rows={3}
                   className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400 resize-none" placeholder="גוף ההודעה" />
+                <p className="text-xs font-bold text-slate-600">קבצים נוספים (אופציונלי)</p>
+                <input ref={offerFileRef} type="file" className="hidden" onChange={e => { const f = e.target.files[0]; if (f) { setOfferExtraFiles(a => [...a, { type: 'local', file: f }]); e.target.value = ''; } }} />
                 <div className="flex gap-2">
-                  <button onClick={() => setShowEmailForm(false)} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl">ביטול</button>
+                  <button onClick={() => offerFileRef.current.click()}
+                    className="flex-1 border-2 border-dashed rounded-xl py-2 text-xs font-semibold text-center transition border-slate-200 text-slate-400 hover:border-sky-300 hover:text-sky-600">
+                    + מהמחשב
+                  </button>
+                  <button onClick={() => setOfferDrivePicker('email')}
+                    className="flex-1 border-2 border-dashed rounded-xl py-2 text-xs font-semibold text-center transition border-slate-200 text-slate-400 hover:border-sky-300 hover:text-sky-600">
+                    מ-Google Drive
+                  </button>
+                </div>
+                {offerExtraFiles.length > 0 && (
+                  <div className="space-y-1">
+                    {offerExtraFiles.map((att, i) => (
+                      <div key={i} className="flex items-center justify-between bg-sky-50 border border-sky-200 rounded-lg px-2.5 py-1.5 text-xs">
+                        <span className="truncate text-sky-800">📎 {att.type === 'local' ? att.file.name : att.name}</span>
+                        <button onClick={() => setOfferExtraFiles(a => a.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 mr-1 shrink-0">&times;</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <button onClick={() => { setShowEmailForm(false); setOfferExtraFiles([]); }} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl">ביטול</button>
                   <button onClick={handleSendEmail} disabled={sending || !emailTo.trim()}
                     className="flex-1 bg-sky-600 text-white font-bold py-2 rounded-xl disabled:opacity-50">{sending ? '...' : 'שלח'}</button>
                 </div>
@@ -2187,13 +2321,19 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                 <button onClick={back} className="border-2 border-slate-200 text-slate-500 font-bold py-2 px-4 rounded-xl">חזור</button>
                 <button onClick={handleSave} disabled={saving}
                   className="flex-1 bg-amber-500 text-white font-bold py-2 rounded-xl disabled:opacity-50">{saving ? '...' : 'שמור כ-PDF'}</button>
-                <button onClick={handleSendWA} disabled={sending || !lead.phone}
+                <button onClick={() => { setOfferExtraFiles([]); setShowWaExtraFiles(true); }} disabled={sending || !lead.phone}
                   className="flex-1 bg-green-600 text-white font-bold py-2 rounded-xl disabled:opacity-50">{sending ? '...' : 'שלח בוואטסאפ'}</button>
-                <button onClick={() => setShowEmailForm(true)} disabled={sending}
+                <button onClick={() => { setOfferExtraFiles([]); setShowEmailForm(true); }} disabled={sending}
                   className="flex-1 bg-sky-600 text-white font-bold py-2 rounded-xl disabled:opacity-50">שלח באימייל</button>
               </div>
             )}
           </div>
+        )}
+        {offerDrivePicker && (
+          <DriveFilePicker
+            onSelect={files => setOfferExtraFiles(a => [...a, ...files])}
+            onClose={() => setOfferDrivePicker(null)}
+          />
         )}
       </div>
     </div>
@@ -2207,7 +2347,8 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, onAdded
   const [adding, setAdding]     = useState(null); // 'call'|'meeting'|'note'|'wa_send'|'email_send'
   const [body, setBody]         = useState('');
   const [dir, setDir]           = useState('outbound');
-  const [file, setFile]         = useState(null);
+  const [attachments, setAttachments] = useState([]); // [{ type:'local', file } | { type:'drive', fileId, name, mimeType }]
+  const [drivePickerFor, setDrivePickerFor] = useState(null); // 'wa' | 'email' | null
   const [waPhone, setWaPhone]   = useState(phone || '');
   const [emailTo, setEmailTo]   = useState('');
   const [subject, setSubject]   = useState('');
@@ -2267,7 +2408,7 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, onAdded
 
   function openAdding(type) {
     setAdding(adding === type ? null : type);
-    setBody(''); setFile(null); setDir('outbound');
+    setBody(''); setAttachments([]); setDir('outbound');
     setWaPhone(allPhones[0] || '');
     setEmailTo(allEmails[0] || ''); setSubject('');
   }
@@ -2282,20 +2423,32 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, onAdded
   }
 
   async function sendWA() {
-    if (!body.trim() && !file) return;
+    if (!body.trim() && !attachments.length) return;
     setSaving(true);
     try {
-      if (file) {
-        const fd = new FormData();
-        fd.append('leadId', leadId);
-        fd.append('message', body);
-        fd.append('file', file);
-        if (waPhone) fd.append('phone', waPhone);
-        await api.post('/whatsapp/send-file', fd);
-      } else {
+      if (!attachments.length) {
         await api.post('/whatsapp/send', { leadId, message: body, phone: waPhone || undefined });
+      } else {
+        // send text first (if any), then each file with 2-second gaps
+        if (body.trim()) {
+          await api.post('/whatsapp/send', { leadId, message: body, phone: waPhone || undefined });
+        }
+        for (let i = 0; i < attachments.length; i++) {
+          if (i > 0) await new Promise(r => setTimeout(r, 2000));
+          const att = attachments[i];
+          const fd = new FormData();
+          fd.append('leadId', leadId);
+          fd.append('message', '');
+          if (waPhone) fd.append('phone', waPhone);
+          if (att.type === 'local') {
+            fd.append('file', att.file);
+          } else {
+            fd.append('driveFileId', att.fileId);
+          }
+          await api.post('/whatsapp/send-file', fd);
+        }
       }
-      setBody(''); setFile(null); setAdding(null);
+      setBody(''); setAttachments([]); setAdding(null);
       await onAdded();
     } catch { alert('שגיאה בשליחת הוואטסאפ'); }
     setSaving(false);
@@ -2309,9 +2462,14 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, onAdded
       fd.append('to', emailTo);
       fd.append('subject', subject || '(ללא נושא)');
       fd.append('body', body);
-      if (file) fd.append('file', file);
+      const driveIds = [];
+      for (const att of attachments) {
+        if (att.type === 'local') fd.append('files', att.file);
+        else driveIds.push(att.fileId);
+      }
+      if (driveIds.length) fd.append('driveFileIds', JSON.stringify(driveIds));
       await api.post(`/leads/${leadId}/email/send`, fd);
-      setBody(''); setFile(null); setAdding(null);
+      setBody(''); setAttachments([]); setAdding(null);
       await onAdded();
     } catch (err) { alert(err.response?.data?.error || 'שגיאה בשליחת המייל'); }
     setSaving(false);
@@ -2319,6 +2477,7 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, onAdded
 
   return (
     <div className="space-y-3">
+      <input ref={fileRef} type="file" className="hidden" onChange={e => { const f = e.target.files[0]; if (f) { setAttachments(a => [...a, { type: 'local', file: f }]); e.target.value = ''; } }} />
       {/* Quick-log buttons */}
       <div className="flex flex-wrap gap-1.5">
         {LOG_TYPES.map(btn => (
@@ -2385,22 +2544,36 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, onAdded
             className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-green-400 resize-none"
             rows={3} placeholder="הודעה..." />
           <AiButtons onAction={aiAction} aiLoading={aiLoading} hasBody={!!body.trim()} />
-          <input ref={fileRef} type="file" className="hidden" onChange={e => setFile(e.target.files[0] || null)} />
-          <div
-            onDragOver={e => { e.preventDefault(); setDraggingWA(true); }}
-            onDragEnter={e => { e.preventDefault(); setDraggingWA(true); }}
-            onDragLeave={() => setDraggingWA(false)}
-            onDrop={e => { e.preventDefault(); setDraggingWA(false); const f = e.dataTransfer.files[0]; if (f) setFile(f); }}
-            onClick={() => fileRef.current.click()}
-            className={`w-full border-2 border-dashed rounded-xl py-2 text-sm font-semibold text-center cursor-pointer transition ${
-              draggingWA ? 'border-green-400 bg-green-50 text-green-600' : file ? 'border-green-300 text-green-700 bg-green-50' : 'border-slate-200 text-slate-400 hover:border-green-300 hover:text-green-600'
-            }`}>
-            {draggingWA ? 'שחרר להוספה' : file ? `📎 ${file.name}` : '+ צרף קובץ או גרור לכאן'}
+          <div className="flex gap-2">
+            <div
+              onDragOver={e => { e.preventDefault(); setDraggingWA(true); }}
+              onDragEnter={e => { e.preventDefault(); setDraggingWA(true); }}
+              onDragLeave={() => setDraggingWA(false)}
+              onDrop={e => { e.preventDefault(); setDraggingWA(false); Array.from(e.dataTransfer.files).forEach(f => setAttachments(a => [...a, { type: 'local', file: f }])); }}
+              onClick={() => fileRef.current.click()}
+              className={`flex-1 border-2 border-dashed rounded-xl py-2 text-sm font-semibold text-center cursor-pointer transition ${
+                draggingWA ? 'border-green-400 bg-green-50 text-green-600' : 'border-slate-200 text-slate-400 hover:border-green-300 hover:text-green-600'
+              }`}>
+              {draggingWA ? 'שחרר להוספה' : '+ מהמחשב'}
+            </div>
+            <button onClick={() => setDrivePickerFor('wa')}
+              className="flex-1 border-2 border-dashed rounded-xl py-2 text-sm font-semibold text-center transition border-slate-200 text-slate-400 hover:border-green-300 hover:text-green-600">
+              מ-Google Drive
+            </button>
           </div>
-          {file && <button onClick={() => setFile(null)} className="text-sm text-red-400 hover:underline">הסר קובץ</button>}
+          {attachments.length > 0 && (
+            <div className="space-y-1">
+              {attachments.map((att, i) => (
+                <div key={i} className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-2.5 py-1.5 text-xs">
+                  <span className="truncate text-green-800">📎 {att.type === 'local' ? att.file.name : att.name}</span>
+                  <button onClick={() => setAttachments(a => a.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 mr-1 shrink-0">&times;</button>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex gap-2">
             <button onClick={() => setAdding(null)} className="flex-1 border-2 border-slate-200 text-slate-500 text-base font-bold py-1.5 rounded-xl">ביטול</button>
-            <button onClick={() => setConfirmWA(true)} disabled={saving || (!body.trim() && !file) || !waPhone}
+            <button onClick={() => setConfirmWA(true)} disabled={saving || (!body.trim() && !attachments.length) || !waPhone}
               className="flex-1 bg-green-600 text-white text-base font-bold py-1.5 rounded-xl disabled:opacity-50">
               {saving ? '...' : 'שלח'}
             </button>
@@ -2441,19 +2614,33 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, onAdded
             className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-sky-400 resize-none"
             rows={4} placeholder="תוכן ההודעה..." />
           <AiButtons onAction={aiAction} aiLoading={aiLoading} hasBody={!!body.trim()} />
-          <input ref={fileRef} type="file" className="hidden" onChange={e => setFile(e.target.files[0] || null)} />
-          <div
-            onDragOver={e => { e.preventDefault(); setDraggingEmail(true); }}
-            onDragEnter={e => { e.preventDefault(); setDraggingEmail(true); }}
-            onDragLeave={() => setDraggingEmail(false)}
-            onDrop={e => { e.preventDefault(); setDraggingEmail(false); const f = e.dataTransfer.files[0]; if (f) setFile(f); }}
-            onClick={() => fileRef.current.click()}
-            className={`w-full border-2 border-dashed rounded-xl py-2 text-sm font-semibold text-center cursor-pointer transition ${
-              draggingEmail ? 'border-sky-400 bg-sky-50 text-sky-600' : file ? 'border-sky-300 text-sky-700 bg-sky-50' : 'border-slate-200 text-slate-400 hover:border-sky-300 hover:text-sky-600'
-            }`}>
-            {draggingEmail ? 'שחרר להוספה' : file ? `📎 ${file.name}` : '+ צרף קובץ או גרור לכאן'}
+          <div className="flex gap-2">
+            <div
+              onDragOver={e => { e.preventDefault(); setDraggingEmail(true); }}
+              onDragEnter={e => { e.preventDefault(); setDraggingEmail(true); }}
+              onDragLeave={() => setDraggingEmail(false)}
+              onDrop={e => { e.preventDefault(); setDraggingEmail(false); Array.from(e.dataTransfer.files).forEach(f => setAttachments(a => [...a, { type: 'local', file: f }])); }}
+              onClick={() => fileRef.current.click()}
+              className={`flex-1 border-2 border-dashed rounded-xl py-2 text-sm font-semibold text-center cursor-pointer transition ${
+                draggingEmail ? 'border-sky-400 bg-sky-50 text-sky-600' : 'border-slate-200 text-slate-400 hover:border-sky-300 hover:text-sky-600'
+              }`}>
+              {draggingEmail ? 'שחרר להוספה' : '+ מהמחשב'}
+            </div>
+            <button onClick={() => setDrivePickerFor('email')}
+              className="flex-1 border-2 border-dashed rounded-xl py-2 text-sm font-semibold text-center transition border-slate-200 text-slate-400 hover:border-sky-300 hover:text-sky-600">
+              מ-Google Drive
+            </button>
           </div>
-          {file && <button onClick={() => setFile(null)} className="text-sm text-red-400 hover:underline">הסר קובץ</button>}
+          {attachments.length > 0 && (
+            <div className="space-y-1">
+              {attachments.map((att, i) => (
+                <div key={i} className="flex items-center justify-between bg-sky-50 border border-sky-200 rounded-lg px-2.5 py-1.5 text-xs">
+                  <span className="truncate text-sky-800">📎 {att.type === 'local' ? att.file.name : att.name}</span>
+                  <button onClick={() => setAttachments(a => a.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 mr-1 shrink-0">&times;</button>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex gap-2">
             <button onClick={() => setAdding(null)} className="flex-1 border-2 border-slate-200 text-slate-500 text-base font-bold py-1.5 rounded-xl">ביטול</button>
             <button onClick={sendEmail} disabled={saving || !emailTo.trim() || !body.trim()}
@@ -2462,6 +2649,14 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, onAdded
             </button>
           </div>
         </div>
+      )}
+
+      {/* Drive file picker */}
+      {drivePickerFor && (
+        <DriveFilePicker
+          onSelect={files => setAttachments(a => [...a, ...files])}
+          onClose={() => setDrivePickerFor(null)}
+        />
       )}
 
       {/* Feed */}
