@@ -82,11 +82,11 @@ export default function DriveFilePicker({ onSelect, onClose }) {
           <div className="flex-1 flex items-center justify-center min-h-0">
             {previewFile.mimeType?.startsWith('image/')
               ? <img src={previewFile.previewUrl} alt={previewFile.name} className="max-w-full max-h-full object-contain p-2" />
-              : <object
-                  data={previewFile.previewUrl}
-                  type={previewFile.mimeType}
-                  className="w-full border-0"
+              : <iframe
+                  src={`https://docs.google.com/viewer?url=${encodeURIComponent(previewFile.previewUrl)}&embedded=true`}
+                  className="w-full border-0 flex-1"
                   style={{ minHeight: '50vh' }}
+                  title={previewFile.name}
                 />
             }
           </div>
