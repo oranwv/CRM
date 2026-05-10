@@ -112,7 +112,7 @@ export default function LeadsPage() {
   const loadLeads = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     try {
-      const { data } = await api.get('/leads', { params: { tab, search: search || undefined } });
+      const { data } = await api.get('/leads', { params: { tab: search ? undefined : tab, search: search || undefined } });
       setLeads(data);
       setApiError(false);
     } catch (err) {
@@ -188,26 +188,28 @@ export default function LeadsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="px-4 pt-4 pb-2">
-        <div className="flex gap-1 bg-violet-100/70 rounded-xl p-1">
-          {TABS.map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className={`flex-1 py-2 rounded-lg text-sm font-bold transition ${
-                tab === t.key
-                  ? 'bg-white text-slate-800 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}>
-              {t.label}
-            </button>
-          ))}
+      {!search && (
+        <div className="px-4 pt-4 pb-2">
+          <div className="flex gap-1 bg-violet-100/70 rounded-xl p-1">
+            {TABS.map(t => (
+              <button key={t.key} onClick={() => setTab(t.key)}
+                className={`flex-1 py-2 rounded-lg text-sm font-bold transition ${
+                  tab === t.key
+                    ? 'bg-white text-slate-800 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}>
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Search */}
-      <div className="px-4 pb-3">
+      <div className={`px-4 pb-3 ${!search ? '' : 'pt-4'}`}>
         <input
           type="text"
-          placeholder="חיפוש לפי שם, טלפון או אימייל..."
+          placeholder="חיפוש לפי שם, טלפון, אימייל או תאריך אירוע (DD.MM.YYYY)..."
           value={search}
           onChange={e => setSearch(e.target.value)}
           className="w-full border border-violet-200 bg-violet-50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 transition"

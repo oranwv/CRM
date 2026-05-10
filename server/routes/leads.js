@@ -24,11 +24,11 @@ const STAGE_TABS = {
   lost: ['lost'],
 };
 
-// GET /api/leads?tab=new|in_process|closed|lost
+// GET /api/leads?tab=new|in_process|closed|lost  (tab omitted = search all stages)
 router.get('/', async (req, res) => {
-  const { tab = 'new', search } = req.query;
-  const stages = STAGE_TABS[tab] || STAGE_TABS.new;
-  const placeholders = stages.map((_, i) => `$${i + 1}`).join(',');
+  const { tab, search } = req.query;
+  const stages = tab ? (STAGE_TABS[tab] || STAGE_TABS.new) : null;
+
   let query = `
     SELECT l.*, u.display_name AS assigned_name,
            (SELECT COUNT(*) FROM tasks t WHERE t.lead_id = l.id AND t.completed_at IS NULL) AS open_tasks,
@@ -48,29 +48,46 @@ router.get('/', async (req, res) => {
            (SELECT COUNT(*) FROM lead_interactions WHERE lead_id = l.id AND direction='inbound' AND is_read=false) AS unread_count
     FROM leads l
     LEFT JOIN users u ON u.id = l.assigned_to
-    WHERE l.stage IN (${placeholders})
   `;
-  const params = [...stages];
-  if (search) {
-    params.push(`%${search}%`);
-    const likeIdx = params.length;
-    const normalizedSearch = normalizePhone(search);
-    let phoneNormCondition = '';
-    if (normalizedSearch) {
-      params.push(`%${normalizedSearch}%`);
-      const normIdx = params.length;
-      phoneNormCondition = ` OR (
-        CASE
-          WHEN REGEXP_REPLACE(l.phone,'[^0-9]','','g') LIKE '972%'
-            THEN REGEXP_REPLACE(l.phone,'[^0-9]','','g')
-          WHEN REGEXP_REPLACE(l.phone,'[^0-9]','','g') LIKE '0%'
-            THEN '972' || SUBSTRING(REGEXP_REPLACE(l.phone,'[^0-9]','','g'), 2)
-          ELSE REGEXP_REPLACE(l.phone,'[^0-9]','','g')
-        END LIKE $${normIdx}
-      )`;
-    }
-    query += ` AND (l.name ILIKE $${likeIdx} OR l.phone ILIKE $${likeIdx} OR l.email ILIKE $${likeIdx}${phoneNormCondition})`;
+
+  const conditions = [];
+  const params = [];
+
+  if (stages) {
+    const placeholders = stages.map((_, i) => `$${i + 1}`).join(',');
+    conditions.push(`l.stage IN (${placeholders})`);
+    params.push(...stages);
   }
+
+  if (search) {
+    const dateMatch = search.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+    if (dateMatch) {
+      const isoDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
+      params.push(isoDate);
+      conditions.push(`l.event_date = $${params.length}`);
+    } else {
+      params.push(`%${search}%`);
+      const likeIdx = params.length;
+      const normalizedSearch = normalizePhone(search);
+      let phoneNormCondition = '';
+      if (normalizedSearch) {
+        params.push(`%${normalizedSearch}%`);
+        const normIdx = params.length;
+        phoneNormCondition = ` OR (
+          CASE
+            WHEN REGEXP_REPLACE(l.phone,'[^0-9]','','g') LIKE '972%'
+              THEN REGEXP_REPLACE(l.phone,'[^0-9]','','g')
+            WHEN REGEXP_REPLACE(l.phone,'[^0-9]','','g') LIKE '0%'
+              THEN '972' || SUBSTRING(REGEXP_REPLACE(l.phone,'[^0-9]','','g'), 2)
+            ELSE REGEXP_REPLACE(l.phone,'[^0-9]','','g')
+          END LIKE $${normIdx}
+        )`;
+      }
+      conditions.push(`(l.name ILIKE $${likeIdx} OR l.phone ILIKE $${likeIdx} OR l.email ILIKE $${likeIdx}${phoneNormCondition})`);
+    }
+  }
+
+  if (conditions.length) query += ' WHERE ' + conditions.join(' AND ');
   query += ' ORDER BY received_at DESC';
   try {
     const { rows } = await pool.query(query, params);
