@@ -20,10 +20,18 @@ export default function AdminPage() {
   const [editingUser, setEditingUser] = useState(null); // null=closed, emptyUser=new, {id,...}=edit
   const [userSaving, setUserSaving] = useState(false);
   const [userError, setUserError] = useState('');
+  const [driveFolders, setDriveFolders] = useState([]);
+  const [driveNewFolder, setDriveNewFolder] = useState({ id: '', name: '' });
+  const [driveSaving, setDriveSaving] = useState(false);
 
   useEffect(() => {
     api.get('/admin/settings')
-      .then(r => { setAiInstructions(r.data.ai_instructions || ''); setStaffSig(r.data.staff_signature || ''); setLoading(false); })
+      .then(r => {
+        setAiInstructions(r.data.ai_instructions || '');
+        setStaffSig(r.data.staff_signature || '');
+        setDriveFolders(r.data.drive_folders ? JSON.parse(r.data.drive_folders) : []);
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
     checkWaStatus();
     loadUsers();
@@ -101,6 +109,27 @@ export default function AdminPage() {
     if (!window.confirm('למחוק את המשתמש?')) return;
     try { await api.delete(`/admin/users/${id}`); await loadUsers(); }
     catch (err) { alert(err.response?.data?.error || err.message); }
+  }
+
+  async function handleDriveFolderAdd() {
+    if (!driveNewFolder.id.trim() || !driveNewFolder.name.trim()) return;
+    const updated = [...driveFolders, { id: driveNewFolder.id.trim(), name: driveNewFolder.name.trim() }];
+    setDriveFolders(updated);
+    setDriveNewFolder({ id: '', name: '' });
+    await saveDriveFolders(updated);
+  }
+
+  async function handleDriveFolderRemove(idx) {
+    const updated = driveFolders.filter((_, i) => i !== idx);
+    setDriveFolders(updated);
+    await saveDriveFolders(updated);
+  }
+
+  async function saveDriveFolders(folders) {
+    setDriveSaving(true);
+    try { await api.put('/admin/settings/drive_folders', { value: JSON.stringify(folders) }); }
+    catch (err) { alert(err.response?.data?.error || err.message); }
+    finally { setDriveSaving(false); }
   }
 
   const inputCls = 'w-full rounded-xl px-3 py-2 text-sm border border-violet-200 focus:border-violet-400 focus:outline-none text-slate-700';
@@ -251,6 +280,52 @@ export default function AdminPage() {
           {syncResult?.error && (
             <p className="mt-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{syncResult.error}</p>
           )}
+        </div>
+
+        {/* ── Google Drive folders ── */}
+        <div className="rounded-2xl p-4 bg-white border border-violet-100 shadow-sm">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-lg">📂</span>
+            <h2 className="font-black text-base text-slate-800">Google Drive — תיקיות</h2>
+          </div>
+          <p className="text-xs mb-3 text-slate-400">הגדר תיקיות Google Drive שמהן ניתן לצרף קבצים בשליחת הודעות ומסמכים. העתק את ה-ID של התיקיה מה-URL של Google Drive.</p>
+
+          <div className="space-y-2 mb-3">
+            {driveFolders.map((f, i) => (
+              <div key={i} className="flex items-center justify-between rounded-xl border border-violet-50 bg-violet-50/40 px-3 py-2 gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-slate-800 truncate">{f.name}</p>
+                  <p className="text-xs text-slate-400 truncate font-mono">{f.id}</p>
+                </div>
+                <button onClick={() => handleDriveFolderRemove(i)} className="shrink-0 text-slate-400 hover:text-red-500 text-sm">🗑</button>
+              </div>
+            ))}
+            {driveFolders.length === 0 && <p className="text-xs text-slate-400 text-center py-2">אין תיקיות מוגדרות</p>}
+          </div>
+
+          <div className="flex gap-2">
+            <input
+              className="flex-1 rounded-xl px-3 py-2 text-sm border border-violet-200 focus:border-violet-400 focus:outline-none text-slate-700"
+              placeholder="שם התיקיה"
+              value={driveNewFolder.name}
+              onChange={e => setDriveNewFolder(f => ({ ...f, name: e.target.value }))}
+              onKeyDown={e => e.key === 'Enter' && handleDriveFolderAdd()}
+            />
+            <input
+              className="flex-1 rounded-xl px-3 py-2 text-sm border border-violet-200 focus:border-violet-400 focus:outline-none text-slate-700 font-mono"
+              placeholder="Folder ID"
+              value={driveNewFolder.id}
+              onChange={e => setDriveNewFolder(f => ({ ...f, id: e.target.value }))}
+              onKeyDown={e => e.key === 'Enter' && handleDriveFolderAdd()}
+            />
+            <button
+              onClick={handleDriveFolderAdd}
+              disabled={driveSaving || !driveNewFolder.id.trim() || !driveNewFolder.name.trim()}
+              className="shrink-0 px-4 py-2 rounded-xl font-black text-sm text-white disabled:opacity-40"
+              style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}
+            >+</button>
+          </div>
+          {driveSaving && <p className="text-xs text-slate-400 mt-2 text-center">שומר...</p>}
         </div>
 
       </div>
