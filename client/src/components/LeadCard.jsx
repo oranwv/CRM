@@ -2477,7 +2477,7 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, onAdded
 
   return (
     <div className="space-y-3">
-      <input ref={fileRef} type="file" className="hidden" onChange={e => { const f = e.target.files[0]; if (f) { setAttachments(a => [...a, { type: 'local', file: f }]); e.target.value = ''; } }} />
+      <input ref={fileRef} type="file" multiple className="hidden" onChange={e => { Array.from(e.target.files).forEach(f => setAttachments(a => [...a, { type: 'local', file: f }])); e.target.value = ''; }} />
       {/* Quick-log buttons */}
       <div className="flex flex-wrap gap-1.5">
         {LOG_TYPES.map(btn => (
@@ -2554,7 +2554,7 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, onAdded
               className={`flex-1 border-2 border-dashed rounded-xl py-2 text-sm font-semibold text-center cursor-pointer transition ${
                 draggingWA ? 'border-green-400 bg-green-50 text-green-600' : 'border-slate-200 text-slate-400 hover:border-green-300 hover:text-green-600'
               }`}>
-              {draggingWA ? 'שחרר להוספה' : '+ מהמחשב'}
+              {draggingWA ? 'שחרר להוספה' : '+ מהמחשב / גרור לכאן'}
             </div>
             <button onClick={() => setDrivePickerFor('wa')}
               className="flex-1 border-2 border-dashed rounded-xl py-2 text-sm font-semibold text-center transition border-slate-200 text-slate-400 hover:border-green-300 hover:text-green-600">
@@ -2624,7 +2624,7 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, onAdded
               className={`flex-1 border-2 border-dashed rounded-xl py-2 text-sm font-semibold text-center cursor-pointer transition ${
                 draggingEmail ? 'border-sky-400 bg-sky-50 text-sky-600' : 'border-slate-200 text-slate-400 hover:border-sky-300 hover:text-sky-600'
               }`}>
-              {draggingEmail ? 'שחרר להוספה' : '+ מהמחשב'}
+              {draggingEmail ? 'שחרר להוספה' : '+ מהמחשב / גרור לכאן'}
             </div>
             <button onClick={() => setDrivePickerFor('email')}
               className="flex-1 border-2 border-dashed rounded-xl py-2 text-sm font-semibold text-center transition border-slate-200 text-slate-400 hover:border-sky-300 hover:text-sky-600">
