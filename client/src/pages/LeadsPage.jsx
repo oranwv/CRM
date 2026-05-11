@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../api';
 import LeadCard from '../components/LeadCard';
@@ -94,12 +94,14 @@ export default function LeadsPage() {
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState(false);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedId, setSelectedId] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [sortCol, setSortCol] = useState('received_at');
   const [sortDir, setSortDir] = useState('desc');
   const user = JSON.parse(localStorage.getItem('crm_user') || '{}');
   const [searchParams, setSearchParams] = useSearchParams();
+  const abortRef = useRef(null);
 
   useEffect(() => {
     const leadParam = searchParams.get('lead');
@@ -109,18 +111,29 @@ export default function LeadsPage() {
     }
   }, []);
 
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
   const loadLeads = useCallback(async ({ silent = false } = {}) => {
+    if (abortRef.current) abortRef.current.abort();
+    abortRef.current = new AbortController();
     if (!silent) setLoading(true);
     try {
-      const { data } = await api.get('/leads', { params: { tab: search ? undefined : tab, search: search || undefined } });
+      const { data } = await api.get('/leads', {
+        params: { tab: debouncedSearch ? undefined : tab, search: debouncedSearch || undefined },
+        signal: abortRef.current.signal,
+      });
       setLeads(data);
       setApiError(false);
     } catch (err) {
+      if (err.code === 'ERR_CANCELED') return;
       console.error('Failed to load leads:', err);
       setApiError(true);
     }
     if (!silent) setLoading(false);
-  }, [tab, search]);
+  }, [tab, debouncedSearch]);
 
   useEffect(() => {
     loadLeads();
@@ -188,7 +201,7 @@ export default function LeadsPage() {
       </div>
 
       {/* Tabs */}
-      {!search && (
+      {!debouncedSearch && (
         <div className="px-4 pt-4 pb-2">
           <div className="flex gap-1 bg-violet-100/70 rounded-xl p-1">
             {TABS.map(t => (
@@ -206,7 +219,7 @@ export default function LeadsPage() {
       )}
 
       {/* Search */}
-      <div className={`px-4 pb-3 ${!search ? '' : 'pt-4'}`}>
+      <div className={`px-4 pb-3 ${!debouncedSearch ? '' : 'pt-4'}`}>
         <input
           type="text"
           placeholder="חיפוש לפי שם, טלפון, אימייל או תאריך אירוע (DD.MM.YYYY)..."
