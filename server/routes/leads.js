@@ -69,8 +69,9 @@ router.get('/', async (req, res) => {
       params.push(`%${search}%`);
       const likeIdx = params.length;
       const normalizedSearch = normalizePhone(search);
+      const digitCount = search.replace(/\D/g, '').length;
       let phoneNormCondition = '';
-      if (normalizedSearch) {
+      if (normalizedSearch && digitCount >= 5) {
         params.push(`%${normalizedSearch}%`);
         const normIdx = params.length;
         phoneNormCondition = ` OR (
