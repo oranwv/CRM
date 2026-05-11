@@ -220,4 +220,29 @@ async function updateMeetingTime(googleEventId, start, end) {
   });
 }
 
-module.exports = { syncLeadToCalendar, markEventDate, getLeadCalendarStatus, createMeeting, sendMeetingInvite, getMeetingRsvpStatus, patchEventDescription, deleteMeeting, updateMeetingTime };
+const CALENDAR_ID = 'sharabiyajaffa@gmail.com';
+
+async function listCalendarAcl() {
+  const auth = getAuth();
+  const calendar = google.calendar({ version: 'v3', auth });
+  const { data } = await calendar.acl.list({ calendarId: CALENDAR_ID });
+  return data.items || [];
+}
+
+async function addCalendarViewer(email) {
+  const auth = getAuth();
+  const calendar = google.calendar({ version: 'v3', auth });
+  const { data } = await calendar.acl.insert({
+    calendarId: CALENDAR_ID,
+    requestBody: { role: 'reader', scope: { type: 'user', value: email } },
+  });
+  return data;
+}
+
+async function removeCalendarAcl(ruleId) {
+  const auth = getAuth();
+  const calendar = google.calendar({ version: 'v3', auth });
+  await calendar.acl.delete({ calendarId: CALENDAR_ID, ruleId });
+}
+
+module.exports = { syncLeadToCalendar, markEventDate, getLeadCalendarStatus, createMeeting, sendMeetingInvite, getMeetingRsvpStatus, patchEventDescription, deleteMeeting, updateMeetingTime, listCalendarAcl, addCalendarViewer, removeCalendarAcl };

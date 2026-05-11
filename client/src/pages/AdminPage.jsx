@@ -23,6 +23,11 @@ export default function AdminPage() {
   const [driveFolders, setDriveFolders] = useState([]);
   const [driveNewFolder, setDriveNewFolder] = useState({ id: '', name: '' });
   const [driveSaving, setDriveSaving] = useState(false);
+  const [calAcl, setCalAcl] = useState([]);
+  const [calAclLoading, setCalAclLoading] = useState(false);
+  const [calAclNewEmail, setCalAclNewEmail] = useState('');
+  const [calAclAdding, setCalAclAdding] = useState(false);
+  const [calAclError, setCalAclError] = useState('');
 
   useEffect(() => {
     api.get('/admin/settings')
@@ -35,6 +40,7 @@ export default function AdminPage() {
       .catch(() => setLoading(false));
     checkWaStatus();
     loadUsers();
+    loadCalAcl();
   }, []);
 
   async function loadUsers() {
@@ -123,6 +129,37 @@ export default function AdminPage() {
     const updated = driveFolders.filter((_, i) => i !== idx);
     setDriveFolders(updated);
     await saveDriveFolders(updated);
+  }
+
+  async function loadCalAcl() {
+    setCalAclLoading(true);
+    try { const { data } = await api.get('/calendar/acl'); setCalAcl(data); }
+    catch {}
+    finally { setCalAclLoading(false); }
+  }
+
+  async function handleCalAclAdd() {
+    const email = calAclNewEmail.trim();
+    if (!email) return;
+    setCalAclAdding(true); setCalAclError('');
+    try {
+      const { data } = await api.post('/calendar/acl', { email });
+      setCalAcl(prev => [...prev, data]);
+      setCalAclNewEmail('');
+    } catch (err) {
+      setCalAclError(err.response?.data?.error || err.message);
+    } finally {
+      setCalAclAdding(false);
+    }
+  }
+
+  async function handleCalAclRemove(ruleId) {
+    try {
+      await api.delete(`/calendar/acl/${encodeURIComponent(ruleId)}`);
+      setCalAcl(prev => prev.filter(r => r.id !== ruleId));
+    } catch (err) {
+      alert(err.response?.data?.error || err.message);
+    }
   }
 
   async function saveDriveFolders(folders) {
@@ -280,6 +317,51 @@ export default function AdminPage() {
           {syncResult?.error && (
             <p className="mt-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{syncResult.error}</p>
           )}
+        </div>
+
+        {/* ── Calendar Access ── */}
+        <div className="rounded-2xl p-4 bg-white border border-violet-100 shadow-sm">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-lg">🔐</span>
+            <h2 className="font-black text-base text-slate-800">גישה ליומן Google</h2>
+          </div>
+          <p className="text-xs mb-3 text-slate-400">הוסף כתובת Gmail של משתמש כדי שיוכל לראות את היומן באפליקציה. ניתן להסיר גישה בכל עת.</p>
+
+          <div className="space-y-2 mb-3">
+            {calAclLoading && <p className="text-xs text-slate-400 text-center py-2 animate-pulse">טוען...</p>}
+            {!calAclLoading && calAcl.filter(r => r.scope?.type === 'user').map(r => (
+              <div key={r.id} className="flex items-center justify-between rounded-xl border border-violet-50 bg-violet-50/40 px-3 py-2 gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-slate-800 truncate">{r.scope.value}</p>
+                  <p className="text-xs text-slate-400">{r.role === 'owner' ? 'בעלים' : r.role === 'writer' ? 'עריכה' : 'צפייה'}</p>
+                </div>
+                {r.role !== 'owner' && (
+                  <button onClick={() => handleCalAclRemove(r.id)} className="shrink-0 text-slate-400 hover:text-red-500 text-sm">🗑</button>
+                )}
+              </div>
+            ))}
+            {!calAclLoading && calAcl.filter(r => r.scope?.type === 'user').length === 0 && (
+              <p className="text-xs text-slate-400 text-center py-2">אין משתמשים עם גישה</p>
+            )}
+          </div>
+
+          <div className="flex gap-2">
+            <input
+              className="flex-1 rounded-xl px-3 py-2 text-sm border border-violet-200 focus:border-violet-400 focus:outline-none text-slate-700"
+              placeholder="כתובת Gmail"
+              value={calAclNewEmail}
+              onChange={e => { setCalAclNewEmail(e.target.value); setCalAclError(''); }}
+              onKeyDown={e => e.key === 'Enter' && handleCalAclAdd()}
+              dir="ltr"
+            />
+            <button
+              onClick={handleCalAclAdd}
+              disabled={calAclAdding || !calAclNewEmail.trim()}
+              className="shrink-0 px-4 py-2 rounded-xl font-black text-sm text-white disabled:opacity-40"
+              style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}
+            >{calAclAdding ? '...' : 'הוסף'}</button>
+          </div>
+          {calAclError && <p className="text-xs text-red-600 mt-2">{calAclError}</p>}
         </div>
 
         {/* ── Google Drive folders ── */}

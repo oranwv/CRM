@@ -2,7 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const crypto  = require('crypto');
 const axios   = require('axios');
-const { markEventDate, getLeadCalendarStatus, syncLeadToCalendar, createMeeting, sendMeetingInvite, getMeetingRsvpStatus, patchEventDescription, deleteMeeting, updateMeetingTime } = require('../services/calendarService');
+const { markEventDate, getLeadCalendarStatus, syncLeadToCalendar, createMeeting, sendMeetingInvite, getMeetingRsvpStatus, patchEventDescription, deleteMeeting, updateMeetingTime, listCalendarAcl, addCalendarViewer, removeCalendarAcl } = require('../services/calendarService');
 const pool = require('../db/pool');
 
 // GET /api/calendar/leads — all leads with event dates (for calendar view)
@@ -350,6 +350,44 @@ router.post('/sync-all', async (req, res) => {
     res.json({ synced, failed, errors });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin-only ACL endpoints for managing calendar viewer access
+function calendarAdmin(req, res, next) {
+  if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  next();
+}
+
+// GET /api/calendar/acl — list who has access to the calendar
+router.get('/acl', calendarAdmin, async (req, res) => {
+  try {
+    const items = await listCalendarAcl();
+    res.json(items);
+  } catch (err) {
+    res.status(503).json({ error: err.message });
+  }
+});
+
+// POST /api/calendar/acl — add a viewer by email
+router.post('/acl', calendarAdmin, async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'email required' });
+  try {
+    const rule = await addCalendarViewer(email);
+    res.json(rule);
+  } catch (err) {
+    res.status(503).json({ error: err.message });
+  }
+});
+
+// DELETE /api/calendar/acl/:ruleId — remove access
+router.delete('/acl/:ruleId', calendarAdmin, async (req, res) => {
+  try {
+    await removeCalendarAcl(decodeURIComponent(req.params.ruleId));
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(503).json({ error: err.message });
   }
 });
 
