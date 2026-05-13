@@ -348,6 +348,15 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
                     {lead.meeting_event_id && <SendReminderButton eventId={lead.meeting_event_id} />}
                     <button onClick={() => setShowAddTask(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition">+ משימה</button>
                     <button onClick={() => setShowPriceOffer(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition">הצעת מחיר</button>
+                    {mode === 'הפקה' && (lead.stage === 'deposit' || lead.stage === 'production') && (
+                      <button
+                        onClick={() => !savingStage && changeStage('completed')}
+                        disabled={savingStage}
+                        className="text-sm font-bold px-2.5 py-1 rounded-xl bg-slate-700 text-white hover:bg-slate-800 transition"
+                      >
+                        אירוע הסתיים והתקבל תשלום
+                      </button>
+                    )}
                     <button onClick={() => setShowContract(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-700 text-white hover:bg-violet-800 transition">חוזה</button>
                   </div>
                 </div>
@@ -359,18 +368,7 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
                 </span>
               )}
               {mode === 'הפקה' && (lead.stage === 'deposit' || lead.stage === 'production' || lead.stage === 'completed') ? (
-                <>
-                  <ProductionChecklist leadId={leadId} />
-                  {(lead.stage === 'deposit' || lead.stage === 'production') && (
-                    <button
-                      onClick={() => !savingStage && changeStage('completed')}
-                      disabled={savingStage}
-                      className="mt-2 w-full text-sm px-3 py-2 rounded-xl font-bold transition border bg-slate-700 text-white border-slate-700 hover:bg-slate-800"
-                    >
-                      אירוע הסתיים והתקבל תשלום
-                    </button>
-                  )}
-                </>
+                <ProductionChecklist leadId={leadId} />
               ) : (
                 <div className="flex flex-wrap gap-1.5">
                   {STAGES.map((s, i) => (
