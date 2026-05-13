@@ -15,6 +15,7 @@ const STAGES = [
   { key: 'contract_sent',     label: 'חוזה נשלח',          active: 'bg-indigo-500 text-white border-indigo-500',    past: 'bg-indigo-100 text-indigo-600 border-indigo-200',   future: 'bg-white text-slate-400 border-slate-200 hover:border-indigo-300 hover:text-indigo-500' },
   { key: 'deposit',           label: 'התקבלה מקדמה',       active: 'bg-emerald-500 text-white border-emerald-500',  past: 'bg-emerald-100 text-emerald-600 border-emerald-200', future: 'bg-white text-slate-400 border-slate-200 hover:border-amber-300 hover:text-emerald-500' },
   { key: 'production',        label: 'הפקה',               active: 'bg-teal-500 text-white border-teal-500',        past: 'bg-teal-100 text-teal-600 border-teal-200',         future: 'bg-white text-slate-400 border-slate-200 hover:border-teal-300 hover:text-teal-500' },
+  { key: 'completed',         label: 'אירוע הסתיים ונסגר תשלום', active: 'bg-slate-700 text-white border-slate-700', past: 'bg-slate-100 text-slate-600 border-slate-200',      future: 'bg-white text-slate-400 border-slate-200 hover:border-slate-400 hover:text-slate-600' },
 ];
 
 const LOST_REASONS = [
@@ -371,7 +372,7 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
                   {lead.lost_reason_text && <span className="font-normal"> · {lead.lost_reason_text}</span>}
                 </span>
               )}
-              {mode === 'הפקה' && (lead.stage === 'deposit' || lead.stage === 'production') ? (
+              {mode === 'הפקה' && (lead.stage === 'deposit' || lead.stage === 'production' || lead.stage === 'completed') ? (
                 <ProductionChecklist leadId={leadId} />
               ) : (
                 <div className="flex flex-wrap gap-1.5">
@@ -407,7 +408,7 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
             <CalendarSection lead={lead} leadId={leadId} editForm={editForm} calStatus={calStatus} onUpdated={load} />
 
             {/* Event brief button — visible on closed leads */}
-            {(lead.stage === 'deposit' || lead.stage === 'production') && (
+            {(lead.stage === 'deposit' || lead.stage === 'production' || lead.stage === 'completed') && (
               <button
                 onClick={() => setShowBrief(true)}
                 className="w-full py-2.5 rounded-2xl font-bold text-sm border-2 border-violet-300 text-violet-700 hover:bg-violet-50 transition"
@@ -443,8 +444,8 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
               )}
             </Section>
 
-            {/* Production module — only for deposit/production stage */}
-            {(lead.stage === 'deposit' || lead.stage === 'production') && (
+            {/* Production module — only for deposit/production/completed stage */}
+            {(lead.stage === 'deposit' || lead.stage === 'production' || lead.stage === 'completed') && (
               <ProductionSection leadId={leadId} lead={lead} onUpdated={load} />
             )}
 

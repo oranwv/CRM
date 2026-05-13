@@ -16,10 +16,18 @@ router.get('/users', requireAuth, async (req, res) => {
 
 // GET /api/tasks/overdue-count — badge count for nav
 router.get('/overdue-count', requireAuth, async (req, res) => {
+  const { mode } = req.query;
+  let stageFilter = '';
+  if (mode === 'הפקה')    stageFilter = `AND l.stage IN ('deposit','production','completed')`;
+  if (mode === 'מכירות') stageFilter = `AND l.stage NOT IN ('deposit','production','completed')`;
+
   try {
     const { rows } = await pool.query(
-      `SELECT COUNT(*)::int AS count FROM tasks
-       WHERE completed_at IS NULL AND due_at IS NOT NULL AND due_at < NOW()`
+      `SELECT COUNT(*)::int AS count
+       FROM tasks t
+       JOIN leads l ON l.id = t.lead_id
+       WHERE t.completed_at IS NULL AND t.due_at IS NOT NULL AND t.due_at < NOW()
+       ${stageFilter}`
     );
     res.json({ count: rows[0].count });
   } catch (err) {
@@ -53,9 +61,9 @@ router.get('/', requireAuth, async (req, res) => {
   }
 
   if (mode === 'הפקה') {
-    conditions.push(`l.stage IN ('deposit','production')`);
+    conditions.push(`l.stage IN ('deposit','production','completed')`);
   } else if (mode === 'מכירות') {
-    conditions.push(`l.stage NOT IN ('deposit','production')`);
+    conditions.push(`l.stage NOT IN ('deposit','production','completed')`);
   }
 
   const where = conditions.join(' AND ');

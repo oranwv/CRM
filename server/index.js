@@ -176,7 +176,7 @@ pool.query(`
   ALTER TABLE leads ADD CONSTRAINT leads_stage_check
     CHECK (stage IN ('new','contacted','meeting_scheduled','meeting',
                      'offer_sent','negotiation','contract_sent',
-                     'deposit','production','lost'));
+                     'deposit','production','completed','lost'));
 `).catch(err => console.error('[DB] stage constraint migration error:', err.message));
 
 pool.query(`
