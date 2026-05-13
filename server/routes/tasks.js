@@ -29,7 +29,7 @@ router.get('/overdue-count', requireAuth, async (req, res) => {
 
 // GET /api/tasks — global tasks list across all leads
 router.get('/', requireAuth, async (req, res) => {
-  const { assigned_to, status, search } = req.query;
+  const { assigned_to, status, search, mode } = req.query;
 
   const conditions = ['1=1'];
   const params = [];
@@ -50,6 +50,12 @@ router.get('/', requireAuth, async (req, res) => {
   if (search?.trim()) {
     params.push(`%${search.trim()}%`);
     conditions.push(`(t.title ILIKE $${params.length} OR l.name ILIKE $${params.length})`);
+  }
+
+  if (mode === 'הפקה') {
+    conditions.push(`l.stage IN ('deposit','production')`);
+  } else if (mode === 'מכירות') {
+    conditions.push(`l.stage NOT IN ('deposit','production')`);
   }
 
   const where = conditions.join(' AND ');

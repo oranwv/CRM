@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import api from '../api';
 import LeadCard from '../components/LeadCard';
+import { useAppMode } from '../context/AppModeContext';
 
 function TaskEditModal({ task, users, onSaved, onClose }) {
   const [title, setTitle]           = useState(task.title);
@@ -213,6 +214,7 @@ function TaskRow({ task, onAction, onOpenLead, onEdit, onDelete }) {
 
 export default function TasksPage() {
   const me = getMe();
+  const { mode } = useAppMode();
 
   // List state
   const [tasks, setTasks]                     = useState([]);
@@ -261,12 +263,13 @@ export default function TasksPage() {
       const uid = myOnly ? me.id : assignedTo;
       if (uid) params.set('assigned_to', uid);
       if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
+      if (mode) params.set('mode', mode);
       const { data } = await api.get(`/tasks?${params}`);
       setTasks(data);
     } catch { /* silent */ } finally {
       setLoading(false);
     }
-  }, [status, assignedTo, myOnly, debouncedSearch, me.id]);
+  }, [status, assignedTo, myOnly, debouncedSearch, me.id, mode]);
 
   useEffect(() => { loadTasks(); }, [loadTasks]);
 

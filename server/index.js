@@ -40,6 +40,8 @@ const priceOfferRoutes      = require('./routes/priceOffer');
 const { contractLeadRouter, contractPublicRouter } = require('./routes/contracts');
 const driveRoutes               = require('./routes/drive');
 const { debugHandler: driveDebugHandler } = require('./routes/drive');
+const productionChecklistRoutes = require('./routes/productionChecklist');
+const eventBriefRoutes          = require('./routes/eventBrief');
 
 const pool = require('./db/pool');
 
@@ -148,6 +150,28 @@ pool.query(`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS orderer_name TEXT`)
   .catch(err => console.error('[DB] orderer_name migration error:', err.message));
 
 pool.query(`
+  CREATE TABLE IF NOT EXISTS production_checklist (
+    id SERIAL PRIMARY KEY,
+    lead_id INT REFERENCES leads(id) ON DELETE CASCADE,
+    item_key VARCHAR(100) NOT NULL,
+    checked_at TIMESTAMPTZ,
+    checked_by INT REFERENCES users(id) ON DELETE SET NULL,
+    UNIQUE(lead_id, item_key)
+  );
+  CREATE TABLE IF NOT EXISTS event_briefs (
+    id SERIAL PRIMARY KEY,
+    lead_id INT REFERENCES leads(id) ON DELETE CASCADE,
+    data JSONB NOT NULL DEFAULT '{}',
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_by INT REFERENCES users(id) ON DELETE SET NULL,
+    UNIQUE(lead_id)
+  );
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS remaining_balance_override NUMERIC;
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS remaining_balance_override_by INT REFERENCES users(id);
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS remaining_balance_override_at TIMESTAMPTZ;
+`).catch(err => console.error('[DB] production tables migration error:', err.message));
+
+pool.query(`
   ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_stage_check;
   ALTER TABLE leads ADD CONSTRAINT leads_stage_check
     CHECK (stage IN ('new','contacted','meeting_scheduled','meeting',
@@ -188,6 +212,8 @@ app.use('/api/files',               requireAuth, fileDownloadRoutes);
 app.use('/api/leads/:id/price-offer', requireAuth, priceOfferRoutes);
 app.use('/api/leads/:id/contracts',   requireAuth, contractLeadRouter);
 app.use('/api/contracts',             contractPublicRouter);
+app.use('/api/leads/:id/production-checklist', requireAuth, productionChecklistRoutes);
+app.use('/api/leads/:id/event-brief',          requireAuth, eventBriefRoutes);
 app.use('/api/leads',               requireAuth, leadsRoutes);
 app.use('/api/leads/:leadId/files', requireAuth, filesRoutes);
 app.use('/api/admin',               requireAuth, adminRoutes);

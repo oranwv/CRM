@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api';
 import DriveFilePicker from './DriveFilePicker';
+import { useAppMode } from '../context/AppModeContext';
+import ProductionChecklist from './ProductionChecklist';
+import EventBriefModal from './EventBriefModal';
 
 const STAGES = [
   { key: 'new',               label: 'חדש',                 active: 'bg-sky-500 text-white border-sky-500',          past: 'bg-sky-100 text-sky-600 border-sky-200',            future: 'bg-white text-slate-400 border-slate-200 hover:border-sky-300 hover:text-sky-500' },
@@ -162,6 +165,8 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
   const [showMeetingModal, setShowMeetingModal] = useState(false);
   const [showPriceOffer, setShowPriceOffer]     = useState(false);
   const [showContract, setShowContract]         = useState(false);
+  const [showBrief, setShowBrief]               = useState(false);
+  const { mode } = useAppMode();
 
   const load = useCallback(async () => {
     try {
@@ -366,23 +371,27 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
                   {lead.lost_reason_text && <span className="font-normal"> · {lead.lost_reason_text}</span>}
                 </span>
               )}
-              <div className="flex flex-wrap gap-1.5">
-                {STAGES.map((s, i) => (
-                  <button key={s.key} onClick={() => !savingStage && changeStage(s.key)}
-                    disabled={savingStage}
-                    className={`text-sm px-3 py-1.5 rounded-full font-bold transition border ${
-                      i === stageIndex ? s.active : i < stageIndex ? s.past : s.future
-                    }`}>
-                    {i < stageIndex && '✓ '}{s.label}
-                  </button>
-                ))}
-                {!isLost && (
-                  <button onClick={() => setShowLostModal(true)} disabled={savingStage}
-                    className="text-sm px-3 py-1.5 rounded-full font-bold bg-white text-slate-400 border border-slate-200 hover:border-red-300 hover:text-red-500 transition">
-                    לא סגרו
-                  </button>
-                )}
-              </div>
+              {mode === 'הפקה' && (lead.stage === 'deposit' || lead.stage === 'production') ? (
+                <ProductionChecklist leadId={leadId} />
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {STAGES.map((s, i) => (
+                    <button key={s.key} onClick={() => !savingStage && changeStage(s.key)}
+                      disabled={savingStage}
+                      className={`text-sm px-3 py-1.5 rounded-full font-bold transition border ${
+                        i === stageIndex ? s.active : i < stageIndex ? s.past : s.future
+                      }`}>
+                      {i < stageIndex && '✓ '}{s.label}
+                    </button>
+                  ))}
+                  {!isLost && (
+                    <button onClick={() => setShowLostModal(true)} disabled={savingStage}
+                      className="text-sm px-3 py-1.5 rounded-full font-bold bg-white text-slate-400 border border-slate-200 hover:border-red-300 hover:text-red-500 transition">
+                      לא סגרו
+                    </button>
+                  )}
+                </div>
+              )}
               {lead.meeting_rsvp_status && lead.meeting_rsvp_status !== 'needsAction' && (
                 <div className="mt-2 flex justify-end">
                   {{
@@ -397,8 +406,18 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
             {/* Calendar */}
             <CalendarSection lead={lead} leadId={leadId} editForm={editForm} calStatus={calStatus} onUpdated={load} />
 
+            {/* Event brief button — visible on closed leads */}
+            {(lead.stage === 'deposit' || lead.stage === 'production') && (
+              <button
+                onClick={() => setShowBrief(true)}
+                className="w-full py-2.5 rounded-2xl font-bold text-sm border-2 border-violet-300 text-violet-700 hover:bg-violet-50 transition"
+              >
+                בריף אירוע
+              </button>
+            )}
+
             {/* Details */}
-            <Section title="פרטי ליד"
+            <Section title="פרטי לקוח"
               action={!editing && <button onClick={() => setEditing(true)} className="text-sm text-violet-600 hover:underline font-semibold">✏️ עריכה</button>}>
               {editing ? (
                 <EditForm form={editForm} setForm={setEditForm} users={users} onSave={saveEdit} onCancel={() => setEditing(false)} />
@@ -482,6 +501,10 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
       )}
 
       {showLostModal && <LostModal onClose={() => setShowLostModal(false)} onConfirm={markLost} />}
+
+      {showBrief && (
+        <EventBriefModal leadId={leadId} onClose={() => setShowBrief(false)} />
+      )}
 
       {showAddTask && (
         <AddTaskModal
@@ -2995,7 +3018,25 @@ function ProductionSection({ leadId, lead, onUpdated }) {
     deposit_confirmed: lead.deposit_confirmed || false,
     production_notes:  lead.production_notes  || '',
   });
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving]           = useState(false);
+  const [balanceEdit, setBalanceEdit] = useState(false);
+  const [balanceDraft, setBalanceDraft] = useState('');
+  const [savingBalance, setSavingBalance] = useState(false);
+  const [balanceData, setBalanceData] = useState({
+    override: lead.remaining_balance_override,
+    override_name: lead.remaining_balance_override_name,
+    override_at: lead.remaining_balance_override_at,
+  });
+  const [autoBalance, setAutoBalance] = useState(null);
+
+  useEffect(() => {
+    api.get(`/leads/${leadId}/event-brief`)
+      .then(r => {
+        const v = r.data?.auto?.remaining_balance;
+        if (v != null && v !== '') setAutoBalance(v);
+      })
+      .catch(() => {});
+  }, [leadId]);
 
   async function save() {
     setSaving(true);
@@ -3006,10 +3047,25 @@ function ProductionSection({ leadId, lead, onUpdated }) {
     setSaving(false);
   }
 
+  async function saveBalance() {
+    setSavingBalance(true);
+    try {
+      const { data } = await api.patch(`/leads/${leadId}/remaining-balance`, { amount: balanceDraft });
+      const user = JSON.parse(localStorage.getItem('crm_user') || '{}');
+      setBalanceData({ override: data.remaining_balance_override, override_name: user.display_name, override_at: data.remaining_balance_override_at });
+      setBalanceEdit(false);
+    } catch { alert('שגיאה בשמירה'); }
+    setSavingBalance(false);
+  }
+
   const cls = 'w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-violet-400 transition bg-white';
 
+  const displayBalance = balanceData.override != null ? balanceData.override : autoBalance;
+  const isManual = balanceData.override != null;
+  const isAuto   = !isManual && autoBalance != null;
+
   return (
-    <Section title="🎉 הפקה">
+    <Section title="תשלומים">
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-2">
           <div>
@@ -3029,11 +3085,47 @@ function ProductionSection({ leadId, lead, onUpdated }) {
             onChange={e => setForm(f => ({ ...f, deposit_confirmed: e.target.checked }))}
             className="w-4 h-4 accent-violet-600" />
         </label>
+
+        {/* יתרה לתשלום */}
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-sm text-slate-500 font-semibold">יתרה לתשלום (₪)</label>
+            <button onClick={() => { setBalanceDraft(displayBalance ?? ''); setBalanceEdit(e => !e); }}
+              className="text-xs text-violet-600 font-bold hover:underline">
+              {balanceEdit ? 'ביטול' : 'ערוך'}
+            </button>
+          </div>
+          {balanceEdit ? (
+            <div className="flex gap-2">
+              <input type="number" value={balanceDraft} onChange={e => setBalanceDraft(e.target.value)}
+                className="flex-1 border-2 border-violet-300 rounded-xl px-3 py-1.5 text-base focus:outline-none focus:border-violet-500" />
+              <button onClick={saveBalance} disabled={savingBalance}
+                className="px-3 py-1.5 rounded-xl bg-violet-600 text-white text-sm font-bold disabled:opacity-50">
+                {savingBalance ? '...' : 'שמור'}
+              </button>
+            </div>
+          ) : (
+            <>
+              <p className="text-lg font-black text-slate-800">
+                {displayBalance != null ? `₪${Number(displayBalance).toLocaleString('he-IL')}` : '—'}
+              </p>
+              {isManual && (
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  הוכנס ידנית ע"י {balanceData.override_name || 'משתמש'}
+                </p>
+              )}
+              {isAuto && (
+                <p className="text-[11px] text-slate-400 mt-0.5">מולא אוטומטית מהחוזה</p>
+              )}
+            </>
+          )}
+        </div>
+
         <div>
-          <label className="text-sm text-slate-500 block mb-1">הערות הפקה</label>
+          <label className="text-sm text-slate-500 block mb-1">הערות</label>
           <textarea value={form.production_notes}
             onChange={e => setForm(f => ({ ...f, production_notes: e.target.value }))}
-            className={`${cls} resize-none`} rows={3} placeholder="פרטי הפקה, ספקים, הערות..." />
+            className={`${cls} resize-none`} rows={3} placeholder="הערות..." />
         </div>
         <button onClick={save} disabled={saving}
           className="w-full bg-violet-600 text-white font-bold py-2 rounded-xl text-base disabled:opacity-50">

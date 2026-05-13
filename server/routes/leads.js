@@ -103,10 +103,12 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT l.*, u.display_name AS assigned_name, c.display_name AS created_by_name
+      `SELECT l.*, u.display_name AS assigned_name, c.display_name AS created_by_name,
+              ob.display_name AS remaining_balance_override_name
        FROM leads l
-       LEFT JOIN users u ON u.id = l.assigned_to
-       LEFT JOIN users c ON c.id = l.created_by
+       LEFT JOIN users u  ON u.id  = l.assigned_to
+       LEFT JOIN users c  ON c.id  = l.created_by
+       LEFT JOIN users ob ON ob.id = l.remaining_balance_override_by
        WHERE l.id = $1`,
       [req.params.id]
     );
@@ -191,6 +193,27 @@ router.patch('/:id', async (req, res) => {
     }
 
     res.json(lead);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/leads/:id/remaining-balance — override remaining balance
+router.patch('/:id/remaining-balance', async (req, res) => {
+  const { amount } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE leads
+       SET remaining_balance_override = $1,
+           remaining_balance_override_by = $2,
+           remaining_balance_override_at = NOW(),
+           updated_at = NOW()
+       WHERE id = $3
+       RETURNING id, remaining_balance_override, remaining_balance_override_at`,
+      [amount, req.user.id, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
