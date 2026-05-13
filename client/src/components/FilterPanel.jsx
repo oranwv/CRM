@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 const STAGE_LABELS = {
   new: 'חדש', contacted: 'בוצעה שיחה ראשונית',
   meeting_scheduled: 'נקבעה פגישה', meeting: 'בוצעה פגישה',
@@ -13,25 +15,29 @@ const DATE_OPTIONS = [
   { value: '180', label: '6 חודשים' },
 ];
 
-export default function FilterPanel({ users, stageOptions, filter, onChange, onClear }) {
-  const hasAny = filter.persons.length > 0 || filter.stages.length > 0 || filter.dateRange !== null;
+const EMPTY_FILTER = { persons: [], stages: [], dateRange: null };
+
+export default function FilterPanel({ users, stageOptions, filter, onApply }) {
+  const [pending, setPending] = useState(filter);
+
+  const hasAny = pending.persons.length > 0 || pending.stages.length > 0 || pending.dateRange !== null;
 
   function togglePerson(name) {
-    const persons = filter.persons.includes(name)
-      ? filter.persons.filter(p => p !== name)
-      : [...filter.persons, name];
-    onChange({ ...filter, persons });
+    const persons = pending.persons.includes(name)
+      ? pending.persons.filter(p => p !== name)
+      : [...pending.persons, name];
+    setPending({ ...pending, persons });
   }
 
   function toggleStage(key) {
-    const stages = filter.stages.includes(key)
-      ? filter.stages.filter(s => s !== key)
-      : [...filter.stages, key];
-    onChange({ ...filter, stages });
+    const stages = pending.stages.includes(key)
+      ? pending.stages.filter(s => s !== key)
+      : [...pending.stages, key];
+    setPending({ ...pending, stages });
   }
 
   function toggleDate(val) {
-    onChange({ ...filter, dateRange: filter.dateRange === val ? null : val });
+    setPending({ ...pending, dateRange: pending.dateRange === val ? null : val });
   }
 
   return (
@@ -44,7 +50,7 @@ export default function FilterPanel({ users, stageOptions, filter, onChange, onC
         <span className="font-bold text-slate-700 text-sm">סינון</span>
         {hasAny && (
           <button
-            onClick={onClear}
+            onClick={() => onApply(EMPTY_FILTER)}
             className="text-xs text-rose-500 hover:text-rose-700 font-semibold transition"
           >
             נקה הכל
@@ -58,7 +64,7 @@ export default function FilterPanel({ users, stageOptions, filter, onChange, onC
           <p className="text-xs font-bold text-slate-400 mb-2">אחראי</p>
           <div className="flex flex-wrap gap-2">
             {users.map(u => {
-              const active = filter.persons.includes(u.display_name);
+              const active = pending.persons.includes(u.display_name);
               return (
                 <button
                   key={u.id}
@@ -83,7 +89,7 @@ export default function FilterPanel({ users, stageOptions, filter, onChange, onC
           <p className="text-xs font-bold text-slate-400 mb-2">סטטוס</p>
           <div className="flex flex-wrap gap-2">
             {stageOptions.map(key => {
-              const active = filter.stages.includes(key);
+              const active = pending.stages.includes(key);
               return (
                 <button
                   key={key}
@@ -111,7 +117,7 @@ export default function FilterPanel({ users, stageOptions, filter, onChange, onC
               key={opt.value}
               onClick={() => toggleDate(opt.value)}
               className={`text-xs px-3 py-1.5 rounded-full font-semibold border transition ${
-                filter.dateRange === opt.value
+                pending.dateRange === opt.value
                   ? 'bg-violet-600 text-white border-violet-600'
                   : 'bg-white text-slate-600 border-slate-200 hover:border-violet-300 hover:text-violet-600'
               }`}
@@ -120,6 +126,16 @@ export default function FilterPanel({ users, stageOptions, filter, onChange, onC
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Apply button */}
+      <div className="pt-1">
+        <button
+          onClick={() => onApply(pending)}
+          className="w-full py-2 rounded-xl bg-violet-600 text-white text-sm font-bold hover:bg-violet-700 transition"
+        >
+          סנן
+        </button>
       </div>
     </div>
   );

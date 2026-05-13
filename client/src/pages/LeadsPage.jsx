@@ -357,8 +357,7 @@ export default function LeadsPage() {
               users={users}
               stageOptions={stageOptions}
               filter={currentFilter}
-              onChange={setCurrentFilter}
-              onClear={() => setCurrentFilter(EMPTY_FILTER)}
+              onApply={(f) => { setCurrentFilter(f); setFilterOpen(false); }}
             />
           )}
         </div>
