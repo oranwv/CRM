@@ -1,6 +1,14 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../api';
 import LeadCard from '../components/LeadCard';
+
+const TABS = [
+  { key: 'in_production', label: 'בהפקה' },
+  { key: 'event_done',    label: 'אירועים שהסתיימו' },
+];
+
+const STAGE_LABEL = { deposit: 'התקבלה מקדמה', production: 'בהפקה', completed: 'אירוע הסתיים' };
+const STAGE_CLS   = { deposit: 'bg-emerald-100 text-emerald-700', production: 'bg-teal-100 text-teal-700', completed: 'bg-slate-100 text-slate-600' };
 
 function formatEventDate(lead) {
   if (lead.event_date_text) return lead.event_date_text;
@@ -8,9 +16,6 @@ function formatEventDate(lead) {
   const d = new Date(lead.event_date);
   return d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
-
-const STAGE_LABEL = { deposit: 'התקבלה מקדמה', production: 'בהפקה', completed: 'אירוע הסתיים' };
-const STAGE_CLS   = { deposit: 'bg-emerald-100 text-emerald-700', production: 'bg-teal-100 text-teal-700', completed: 'bg-slate-100 text-slate-600' };
 
 function EventCard({ lead, onClick }) {
   const dateStr = formatEventDate(lead);
@@ -63,14 +68,13 @@ function matchesSearch(lead, q) {
 }
 
 export default function EventsPage() {
-  const [inProd, setInProd]       = useState([]);
-  const [done,   setDone]         = useState([]);
+  const [tab, setTab]             = useState('in_production');
+  const [leads, setLeads]         = useState([]);
   const [loading, setLoading]     = useState(true);
   const [openLeadId, setOpenLeadId] = useState(null);
   const [search, setSearch]       = useState('');
-  const [doneExpanded, setDoneExpanded] = useState(false);
-  const debounceRef = useRef(null);
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const debounceRef = useRef(null);
 
   useEffect(() => {
     clearTimeout(debounceRef.current);
@@ -78,31 +82,37 @@ export default function EventsPage() {
     return () => clearTimeout(debounceRef.current);
   }, [search]);
 
-  const load = useCallback(async () => {
+  useEffect(() => {
     setLoading(true);
-    try {
-      const [r1, r2] = await Promise.all([
-        api.get('/leads', { params: { tab: 'in_production' } }),
-        api.get('/leads', { params: { tab: 'event_done' } }),
-      ]);
-      setInProd(sortByDate(r1.data));
-      setDone(sortByDate(r2.data));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    api.get('/leads', { params: { tab } })
+      .then(r => setLeads(sortByDate(r.data)))
+      .catch(() => setLeads([]))
+      .finally(() => setLoading(false));
+  }, [tab]);
 
-  useEffect(() => { load(); }, [load]);
-
-  const filteredInProd = inProd.filter(l => matchesSearch(l, debouncedSearch));
-  const filteredDone   = done.filter(l => matchesSearch(l, debouncedSearch));
+  const filteredLeads = leads.filter(l => matchesSearch(l, debouncedSearch));
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-violet-50 to-indigo-50" dir="rtl">
       <div className="sticky top-11 z-20 bg-white/90 backdrop-blur border-b border-violet-100 px-4 pt-4 pb-3">
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-xl font-black text-slate-800">אירועים</h1>
-          <span className="text-xs text-slate-400">{inProd.length + done.length} סה"כ</span>
+          <span className="text-xs text-slate-400">{leads.length} אירועים</span>
+        </div>
+        <div className="flex gap-1 p-1 rounded-xl bg-violet-100/70 mb-2">
+          {TABS.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${
+                tab === t.key
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
         <input
           type="text"
@@ -113,60 +123,26 @@ export default function EventsPage() {
         />
       </div>
 
-      <div className="px-4 py-4">
+      <div className="px-4 py-4 space-y-3">
         {loading && (
           <div className="flex justify-center py-12">
             <div className="w-8 h-8 border-4 border-violet-300 border-t-violet-600 rounded-full animate-spin" />
           </div>
         )}
 
-        {!loading && (
-          <>
-            {/* בהפקה section */}
-            <div className="mb-6">
-              <p className="text-xs font-black text-violet-600 uppercase tracking-wider mb-2">
-                בהפקה ({filteredInProd.length})
-              </p>
-              {filteredInProd.length === 0 ? (
-                <p className="text-center py-6 text-slate-400 text-sm">אין אירועים בהפקה</p>
-              ) : (
-                <div className="space-y-3">
-                  {filteredInProd.map(lead => (
-                    <EventCard key={lead.id} lead={lead} onClick={() => setOpenLeadId(lead.id)} />
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* אירוע הסתיים section */}
-            <div>
-              <button
-                onClick={() => setDoneExpanded(v => !v)}
-                className="w-full flex items-center justify-between text-xs font-black text-slate-500 uppercase tracking-wider mb-2"
-              >
-                <span>אירוע הסתיים ({filteredDone.length})</span>
-                <span className="text-slate-400">{doneExpanded ? '▲' : '▼'}</span>
-              </button>
-              {doneExpanded && (
-                filteredDone.length === 0 ? (
-                  <p className="text-center py-6 text-slate-400 text-sm">אין אירועים שהסתיימו</p>
-                ) : (
-                  <div className="space-y-3">
-                    {filteredDone.map(lead => (
-                      <EventCard key={lead.id} lead={lead} onClick={() => setOpenLeadId(lead.id)} />
-                    ))}
-                  </div>
-                )
-              )}
-            </div>
-          </>
+        {!loading && filteredLeads.length === 0 && (
+          <div className="text-center py-16 text-slate-400 text-sm">אין אירועים</div>
         )}
+
+        {!loading && filteredLeads.map(lead => (
+          <EventCard key={lead.id} lead={lead} onClick={() => setOpenLeadId(lead.id)} />
+        ))}
       </div>
 
       {openLeadId && (
         <LeadCard
           leadId={openLeadId}
-          onClose={() => { setOpenLeadId(null); load(); }}
+          onClose={() => { setOpenLeadId(null); api.get('/leads', { params: { tab } }).then(r => setLeads(sortByDate(r.data))); }}
         />
       )}
     </div>
