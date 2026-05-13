@@ -147,6 +147,24 @@ pool.query(`
 pool.query(`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS orderer_name TEXT`)
   .catch(err => console.error('[DB] orderer_name migration error:', err.message));
 
+pool.query(`
+  CREATE TABLE IF NOT EXISTS google_calendar_cache (
+    google_event_id TEXT PRIMARY KEY,
+    title TEXT,
+    description TEXT,
+    start_time TIMESTAMPTZ,
+    end_time TIMESTAMPTZ,
+    all_day BOOLEAN DEFAULT FALSE,
+    color_id TEXT,
+    html_link TEXT,
+    fetched_at TIMESTAMPTZ DEFAULT NOW()
+  )
+`).catch(err => console.error('[DB] google_calendar_cache migration error:', err.message));
+
+const { pollGoogleCalendar } = require('./services/calendarPollService');
+pollGoogleCalendar();
+setInterval(pollGoogleCalendar, 5 * 60 * 1000);
+
 const app = express();
 app.use(cors());
 app.use(express.json());

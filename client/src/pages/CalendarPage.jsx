@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../api';
 import LeadCard from '../components/LeadCard';
+import AppCalendar from '../components/AppCalendar';
 
 const IL = { timeZone: 'Asia/Jerusalem' };
 
@@ -16,42 +17,30 @@ const STAGE_LABELS = {
 };
 
 export default function CalendarPage() {
-  const [leads, setLeads]       = useState([]);
+  const [leads, setLeads]           = useState([]);
   const [openLeadId, setOpenLeadId] = useState(null);
 
   useEffect(() => {
     api.get('/calendar/leads').then(r => setLeads(r.data)).catch(() => {});
   }, []);
 
-  const today = new Date().toISOString().split('T')[0];
+  const today    = new Date().toISOString().split('T')[0];
   const upcoming = leads
     .filter(l => l.event_date && l.event_date.split('T')[0] >= today)
     .sort((a, b) => a.event_date.localeCompare(b.event_date));
-
   const past = leads
     .filter(l => l.event_date && l.event_date.split('T')[0] < today)
     .sort((a, b) => b.event_date.localeCompare(a.event_date));
 
-  const src =
-    'https://calendar.google.com/calendar/embed' +
-    '?src=sharabiyajaffa%40gmail.com' +
-    '&ctz=Asia%2FJerusalem' +
-    '&hl=he' +
-    '&showTitle=0&showNav=1&showDate=1&showPrint=0&showTabs=1&showCalendars=1';
-
   return (
-    <div className="min-h-screen">
-      {/* Google Calendar iframe */}
-      <div style={{ height: '60vh' }}>
-        <iframe src={src} style={{ border: 0, width: '100%', height: '100%' }}
-          frameBorder="0" scrolling="no" title="Google Calendar" />
-      </div>
+    <div className="min-h-screen p-4 space-y-4">
+      <AppCalendar onOpenLead={setOpenLeadId} />
 
       {/* CRM leads panel */}
-      <div className="p-4 space-y-4">
+      <div className="space-y-4">
         <div className="flex items-center gap-2 justify-end">
           <p className="text-xs text-slate-400">לחץ על ליד לפתיחת כרטיס</p>
-          <span className="text-xs font-bold text-violet-700 bg-violet-100 px-2 py-1 rounded-lg">📋 לידים ביומן</span>
+          <span className="text-xs font-bold text-violet-700 bg-violet-100 px-2 py-1 rounded-lg">לידים ביומן</span>
         </div>
         <LeadList title="אירועים קרובים" leads={upcoming} onOpen={setOpenLeadId} />
         {past.length > 0 && <LeadList title="אירועים שעברו" leads={past} onOpen={setOpenLeadId} muted />}
@@ -81,9 +70,9 @@ function LeadList({ title, leads, onOpen, muted }) {
             <div className="shrink-0 text-right">
               <p className="text-sm font-bold text-violet-700">{formatDate(lead.event_date)}</p>
               {lead.calendar_type === 'confirmed'
-                ? <span className="text-xs text-emerald-600">✅ סגור</span>
+                ? <span className="text-xs text-emerald-600">סגור</span>
                 : lead.calendar_type === 'option'
-                ? <span className="text-xs text-yellow-600">🟡 אופציה</span>
+                ? <span className="text-xs text-yellow-600">אופציה</span>
                 : <span className="text-xs text-slate-400">לא מסומן</span>}
             </div>
             <div className="flex-1 min-w-0 text-right">

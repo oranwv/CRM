@@ -391,4 +391,24 @@ router.delete('/acl/:ruleId', calendarAdmin, async (req, res) => {
   }
 });
 
+// GET /api/calendar/google-events?year=YYYY&month=M
+router.get('/google-events', async (req, res) => {
+  try {
+    const year  = parseInt(req.query.year)  || new Date().getFullYear();
+    const month = parseInt(req.query.month) || new Date().getMonth() + 1;
+    // Include ~1 week buffer on each side to cover grid padding cells
+    const rangeStart = new Date(year, month - 2, 24);
+    const rangeEnd   = new Date(year, month, 8);
+    const { rows } = await pool.query(`
+      SELECT google_event_id, title, description, start_time, end_time, all_day, color_id, html_link
+      FROM google_calendar_cache
+      WHERE start_time >= $1 AND start_time < $2
+      ORDER BY start_time ASC
+    `, [rangeStart.toISOString(), rangeEnd.toISOString()]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
