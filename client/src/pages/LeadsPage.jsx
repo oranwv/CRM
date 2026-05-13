@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import api from '../api';
 import LeadCard from '../components/LeadCard';
 import AddLeadModal from '../components/AddLeadModal';
+import FilterPanel from '../components/FilterPanel';
 
 const TABS = [
   { key: 'new',        label: 'חדשים' },
@@ -10,6 +11,13 @@ const TABS = [
   { key: 'closed',     label: 'סגרו עסקה' },
   { key: 'lost',       label: 'לא סגרו' },
 ];
+
+// Stage options available in each filter context
+const FILTER_STAGES = {
+  active: ['new','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent'],
+  closed: ['deposit','production'],
+  lost:   ['lost'],
+};
 
 const SOURCE_LABELS = {
   website_popup: 'אתר (פופאפ)', website_form: 'אתר (טופס)',
@@ -19,15 +27,16 @@ const SOURCE_LABELS = {
 };
 
 const STAGE_STYLES = {
-  new:           { label: 'חדש',          cls: 'bg-sky-100 text-sky-700 border border-sky-200' },
-  contacted:     { label: 'יצירת קשר',    cls: 'bg-amber-100 text-amber-700 border border-amber-200' },
-  meeting:       { label: 'פגישה',         cls: 'bg-violet-100 text-violet-700 border border-violet-200' },
-  offer_sent:    { label: 'הצעת מחיר',    cls: 'bg-blue-100 text-blue-700 border border-blue-200' },
-  negotiation:   { label: 'מו"מ',          cls: 'bg-orange-100 text-orange-700 border border-orange-200' },
-  contract_sent: { label: 'חוזה נשלח',    cls: 'bg-indigo-100 text-indigo-700 border border-indigo-200' },
-  deposit:       { label: 'מקדמה',         cls: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
-  production:    { label: 'הפקה',          cls: 'bg-teal-100 text-teal-700 border border-teal-200' },
-  lost:          { label: 'לא סגרו',       cls: 'bg-red-100 text-red-600 border border-red-200' },
+  new:               { label: 'חדש',                 cls: 'bg-sky-100 text-sky-700 border border-sky-200' },
+  contacted:         { label: 'בוצעה שיחה ראשונית', cls: 'bg-amber-100 text-amber-700 border border-amber-200' },
+  meeting_scheduled: { label: 'נקבעה פגישה',        cls: 'bg-fuchsia-100 text-fuchsia-700 border border-fuchsia-200' },
+  meeting:           { label: 'בוצעה פגישה',         cls: 'bg-violet-100 text-violet-700 border border-violet-200' },
+  offer_sent:        { label: 'נשלחה הצעת מחיר',    cls: 'bg-blue-100 text-blue-700 border border-blue-200' },
+  negotiation:       { label: 'מו"מ',                cls: 'bg-orange-100 text-orange-700 border border-orange-200' },
+  contract_sent:     { label: 'חוזה נשלח',           cls: 'bg-indigo-100 text-indigo-700 border border-indigo-200' },
+  deposit:           { label: 'התקבלה מקדמה',        cls: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
+  production:        { label: 'הפקה',                cls: 'bg-teal-100 text-teal-700 border border-teal-200' },
+  lost:              { label: 'לא סגרו',             cls: 'bg-red-100 text-red-600 border border-red-200' },
 };
 
 const PRIORITY_ICONS = { normal: '', hot: '🔥', urgent: '⚡' };
@@ -44,16 +53,33 @@ const SOURCE_COLORS = {
   manual:        'bg-slate-100 text-slate-600',
 };
 
-const AVATAR_GRADIENTS = [
-  'from-sky-400 to-blue-500',
-  'from-amber-400 to-orange-500',
-  'from-rose-400 to-pink-500',
-  'from-emerald-400 to-teal-500',
-  'from-violet-400 to-purple-500',
-  'from-indigo-400 to-blue-600',
-];
-
 const IL = { timeZone: 'Asia/Jerusalem' };
+
+const EMPTY_FILTER = { persons: [], stages: [], dateRange: null };
+
+function hasFilter(f) {
+  return f.persons.length > 0 || f.stages.length > 0 || f.dateRange !== null;
+}
+
+function filterCount(f) {
+  return f.persons.length + f.stages.length + (f.dateRange ? 1 : 0);
+}
+
+function applyFilter(leads, filter) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  return leads.filter(l => {
+    if (filter.persons.length > 0 && !filter.persons.includes(l.assigned_name)) return false;
+    if (filter.stages.length  > 0 && !filter.stages.includes(l.stage))          return false;
+    if (filter.dateRange) {
+      const days = { '30': 30, '60': 60, '90': 90, '180': 180 }[filter.dateRange];
+      if (!l.event_date) return false;
+      const ev = new Date(l.event_date); ev.setHours(0, 0, 0, 0);
+      const limit = new Date(today); limit.setDate(limit.getDate() + days);
+      if (ev < today || ev > limit) return false;
+    }
+    return true;
+  });
+}
 
 function formatDate(d) {
   if (!d) return '—';
@@ -80,28 +106,43 @@ function DateTimeCell({ value }) {
   );
 }
 
-function waLink(phone) {
-  if (!phone) return null;
-  const digits = phone.replace(/\D/g, '');
-  if (!digits) return null;
-  const international = digits.startsWith('972') ? digits : '972' + digits.replace(/^0/, '');
-  return `https://wa.me/${international}`;
-}
-
 export default function LeadsPage() {
-  const [tab, setTab] = useState('new');
-  const [leads, setLeads] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [tab, setTab]           = useState('new');
+  const [leads, setLeads]       = useState([]);
+  const [loading, setLoading]   = useState(true);
   const [apiError, setApiError] = useState(false);
-  const [search, setSearch] = useState('');
+  const [search, setSearch]         = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedId, setSelectedId] = useState(null);
-  const [showAdd, setShowAdd] = useState(false);
-  const [sortCol, setSortCol] = useState('received_at');
-  const [sortDir, setSortDir] = useState('desc');
+  const [showAdd, setShowAdd]       = useState(false);
+  const [sortCol, setSortCol]   = useState('received_at');
+  const [sortDir, setSortDir]   = useState('desc');
+  const [users, setUsers]       = useState([]);
+
+  // Three independent filter states — one per section
+  const [activeFilter, setActiveFilter] = useState(EMPTY_FILTER);
+  const [closedFilter, setClosedFilter] = useState(EMPTY_FILTER);
+  const [lostFilter,   setLostFilter]   = useState(EMPTY_FILTER);
+  const [filterOpen, setFilterOpen]     = useState(false);
+
+  const filterAreaRef = useRef(null);
+  const abortRef      = useRef(null);
   const user = JSON.parse(localStorage.getItem('crm_user') || '{}');
   const [searchParams, setSearchParams] = useSearchParams();
-  const abortRef = useRef(null);
+
+  // Current filter object based on active tab
+  const isActiveSection = tab === 'new' || tab === 'in_process';
+  const currentFilter   = isActiveSection ? activeFilter : tab === 'closed' ? closedFilter : lostFilter;
+  const setCurrentFilter = isActiveSection ? setActiveFilter : tab === 'closed' ? setClosedFilter : setLostFilter;
+  const currentFilterCount = filterCount(currentFilter);
+
+  // Stage options shown in the filter panel for the current section
+  const stageOptions = isActiveSection ? FILTER_STAGES.active
+    : tab === 'closed' ? FILTER_STAGES.closed
+    : FILTER_STAGES.lost;
+
+  // Whether we need to fetch the combined 'active' set (both new + in_process)
+  const inActiveFilterMode = isActiveSection && hasFilter(activeFilter) && !debouncedSearch;
 
   useEffect(() => {
     const leadParam = searchParams.get('lead');
@@ -110,6 +151,23 @@ export default function LeadsPage() {
       setSearchParams({}, { replace: true });
     }
   }, []);
+
+  // Fetch users for the filter panel
+  useEffect(() => {
+    api.get('/users').then(r => setUsers(r.data)).catch(() => {});
+  }, []);
+
+  // Close filter panel on outside click
+  useEffect(() => {
+    if (!filterOpen) return;
+    function handleClick(e) {
+      if (filterAreaRef.current && !filterAreaRef.current.contains(e.target)) {
+        setFilterOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [filterOpen]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
@@ -121,8 +179,13 @@ export default function LeadsPage() {
     abortRef.current = new AbortController();
     if (!silent) setLoading(true);
     try {
+      // When activeFilter is set on new/in_process: fetch the combined 'active' group
+      const fetchTab = debouncedSearch
+        ? undefined
+        : inActiveFilterMode ? 'active' : tab;
+
       const { data } = await api.get('/leads', {
-        params: { tab: debouncedSearch ? undefined : tab, search: debouncedSearch || undefined },
+        params: { tab: fetchTab, search: debouncedSearch || undefined },
         signal: abortRef.current.signal,
       });
       setLeads(data);
@@ -133,7 +196,7 @@ export default function LeadsPage() {
       setApiError(true);
     }
     if (!silent) setLoading(false);
-  }, [tab, debouncedSearch]);
+  }, [tab, debouncedSearch, inActiveFilterMode]);
 
   useEffect(() => {
     loadLeads();
@@ -142,16 +205,19 @@ export default function LeadsPage() {
   }, [loadLeads]);
 
   function handleSort(col) {
-    if (sortCol === col) {
-      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortCol(col);
-      setSortDir('desc');
-    }
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('desc'); }
   }
 
+  // Apply current section's filter client-side
+  const filteredLeads = useMemo(() => {
+    if (debouncedSearch) return leads; // search mode: no extra filter
+    const f = isActiveSection ? activeFilter : tab === 'closed' ? closedFilter : lostFilter;
+    return hasFilter(f) ? applyFilter(leads, f) : leads;
+  }, [leads, tab, activeFilter, closedFilter, lostFilter, debouncedSearch]);
+
   const sortedLeads = useMemo(() => {
-    return [...leads].sort((a, b) => {
+    return [...filteredLeads].sort((a, b) => {
       const pa = PRIORITY_ORDER[a.priority] ?? 2;
       const pb = PRIORITY_ORDER[b.priority] ?? 2;
       if (pa !== pb) return pa - pb;
@@ -163,7 +229,7 @@ export default function LeadsPage() {
       const cmp = av < bv ? -1 : av > bv ? 1 : 0;
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [leads, sortCol, sortDir]);
+  }, [filteredLeads, sortCol, sortDir]);
 
   function SortIcon({ col }) {
     if (sortCol !== col) return <span className="opacity-30 ml-0.5">↕</span>;
@@ -175,6 +241,9 @@ export default function LeadsPage() {
     localStorage.removeItem('crm_user');
     window.location.href = '/login';
   }
+
+  // Hide the tab switcher when active filter is set (show combined view instead)
+  const showTabs = !debouncedSearch && !inActiveFilterMode;
 
   return (
     <div className="min-h-screen pb-16">
@@ -201,7 +270,7 @@ export default function LeadsPage() {
       </div>
 
       {/* Tabs */}
-      {!debouncedSearch && (
+      {showTabs && (
         <div className="px-4 pt-4 pb-2">
           <div className="flex gap-1 bg-violet-100/70 rounded-xl p-1">
             {TABS.map(t => (
@@ -218,8 +287,16 @@ export default function LeadsPage() {
         </div>
       )}
 
+      {/* Active filter mode: show section label instead of tabs */}
+      {inActiveFilterMode && (
+        <div className="px-4 pt-4 pb-2 flex items-center gap-2" dir="rtl">
+          <span className="text-sm font-bold text-violet-700">חדשים + בתהליך</span>
+          <span className="text-xs text-slate-400">· כל הלידים הפעילים</span>
+        </div>
+      )}
+
       {/* Search */}
-      <div className={`px-4 pb-3 ${!debouncedSearch ? '' : 'pt-4'}`}>
+      <div className={`px-4 pb-2 ${!debouncedSearch && !inActiveFilterMode ? '' : 'pt-4'}`}>
         <input
           type="text"
           placeholder="חיפוש לפי שם, טלפון, אימייל או תאריך אירוע (DD.MM.YYYY)..."
@@ -228,6 +305,64 @@ export default function LeadsPage() {
           className="w-full border border-violet-200 bg-violet-50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 transition"
         />
       </div>
+
+      {/* Filter button + panel */}
+      {!debouncedSearch && (
+        <div className="px-4 pb-3 relative" ref={filterAreaRef} dir="rtl">
+          <button
+            onClick={() => setFilterOpen(o => !o)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-semibold border transition ${
+              currentFilterCount > 0
+                ? 'bg-violet-600 text-white border-violet-600'
+                : 'bg-white text-slate-600 border-slate-200 hover:border-violet-300 hover:text-violet-600'
+            }`}
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M1 3h14v1.5L10 9v5l-4-2V9L1 4.5V3z"/>
+            </svg>
+            סינון
+            {currentFilterCount > 0 && (
+              <span className="bg-white text-violet-700 font-black text-xs w-5 h-5 rounded-full flex items-center justify-center">
+                {currentFilterCount}
+              </span>
+            )}
+          </button>
+
+          {/* Active filter chips */}
+          {currentFilterCount > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {currentFilter.persons.map(p => (
+                <span key={p} className="flex items-center gap-1 bg-violet-100 text-violet-700 text-xs px-2 py-1 rounded-full font-semibold">
+                  {p}
+                  <button onClick={() => setCurrentFilter(f => ({ ...f, persons: f.persons.filter(x => x !== p) }))} className="hover:text-violet-900">✕</button>
+                </span>
+              ))}
+              {currentFilter.stages.map(s => (
+                <span key={s} className="flex items-center gap-1 bg-violet-100 text-violet-700 text-xs px-2 py-1 rounded-full font-semibold">
+                  {STAGE_STYLES[s]?.label || s}
+                  <button onClick={() => setCurrentFilter(f => ({ ...f, stages: f.stages.filter(x => x !== s) }))} className="hover:text-violet-900">✕</button>
+                </span>
+              ))}
+              {currentFilter.dateRange && (
+                <span className="flex items-center gap-1 bg-violet-100 text-violet-700 text-xs px-2 py-1 rounded-full font-semibold">
+                  {({ '30':'30 יום','60':'60 יום','90':'90 יום','180':'6 חודשים' })[currentFilter.dateRange]}
+                  <button onClick={() => setCurrentFilter(f => ({ ...f, dateRange: null }))} className="hover:text-violet-900">✕</button>
+                </span>
+              )}
+            </div>
+          )}
+
+          {filterOpen && (
+            <FilterPanel
+              users={users}
+              stageOptions={stageOptions}
+              filter={currentFilter}
+              onChange={setCurrentFilter}
+              onClear={() => setCurrentFilter(EMPTY_FILTER)}
+            />
+          )}
+        </div>
+      )}
 
       {/* Table */}
       <div className="px-2 pb-6" dir="rtl">
@@ -242,10 +377,10 @@ export default function LeadsPage() {
             <p className="text-sm font-bold">שגיאה בטעינת לידים</p>
             <p className="text-xs mt-1 text-stone-400">בדוק שהשרת פועל ופתח DevTools (F12) לפרטים</p>
           </div>
-        ) : leads.length === 0 ? (
+        ) : sortedLeads.length === 0 ? (
           <div className="text-center py-16 text-stone-400">
-            <p className="text-3xl mb-2">📭</p>
-            <p className="text-sm">אין לידים בקטגוריה זו</p>
+            <p className="text-3xl mb-2">{currentFilterCount > 0 ? '🔍' : '📭'}</p>
+            <p className="text-sm">{currentFilterCount > 0 ? 'אין לידים התואמים את הסינון' : 'אין לידים בקטגוריה זו'}</p>
           </div>
         ) : (
           <div className="bg-white rounded-2xl shadow-sm border border-violet-100 mt-2 overflow-x-auto">
@@ -276,9 +411,7 @@ export default function LeadsPage() {
                     <td className="px-2 py-3 text-slate-400 font-medium">{idx + 1}</td>
                     <td className="px-2 py-3 font-semibold text-slate-800">
                       <div className="flex items-center gap-1.5">
-                        {PRIORITY_ICONS[lead.priority] && (
-                          <span>{PRIORITY_ICONS[lead.priority]}</span>
-                        )}
+                        {PRIORITY_ICONS[lead.priority] && <span>{PRIORITY_ICONS[lead.priority]}</span>}
                         {lead.avatar_url && (
                           <img src={lead.avatar_url} className="w-7 h-7 rounded-full object-cover shrink-0" onError={e => e.target.style.display='none'} />
                         )}
@@ -326,8 +459,7 @@ export default function LeadsPage() {
                           {lead.overdue_tasks}
                         </span>
                       ) : lead.open_tasks > 0 ? (
-                        <span className="inline-flex items-center gap-1 bg-red-100 text-red-600 font-bold px-2 py-0.5 rounded-full">
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse inline-block" />
+                        <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-600 font-bold px-2 py-0.5 rounded-full">
                           {lead.open_tasks}
                         </span>
                       ) : '—'}

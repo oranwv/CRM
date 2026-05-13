@@ -18,10 +18,11 @@ function syncCalendar(leadId, type = 'option', userId = null) {
 }
 
 const STAGE_TABS = {
-  new: ['new'],
+  new:        ['new'],
   in_process: ['contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent'],
-  closed: ['deposit','production'],
-  lost: ['lost'],
+  active:     ['new','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent'],
+  closed:     ['deposit','production'],
+  lost:       ['lost'],
 };
 
 // GET /api/leads?tab=new|in_process|closed|lost  (tab omitted = search all stages)
