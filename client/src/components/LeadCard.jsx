@@ -10,12 +10,12 @@ const STAGES = [
   { key: 'contacted',         label: 'בוצעה שיחה ראשונית', active: 'bg-amber-500 text-white border-amber-500',      past: 'bg-amber-100 text-amber-600 border-amber-200',      future: 'bg-white text-slate-400 border-slate-200 hover:border-amber-300 hover:text-amber-500' },
   { key: 'meeting_scheduled', label: 'נקבעה פגישה',        active: 'bg-fuchsia-500 text-white border-fuchsia-500',  past: 'bg-fuchsia-100 text-fuchsia-600 border-fuchsia-200', future: 'bg-white text-slate-400 border-slate-200 hover:border-fuchsia-300 hover:text-fuchsia-500' },
   { key: 'meeting',           label: 'בוצעה פגישה',        active: 'bg-violet-500 text-white border-violet-500',    past: 'bg-violet-100 text-violet-600 border-violet-200',   future: 'bg-white text-slate-400 border-slate-200 hover:border-violet-300 hover:text-violet-500' },
-  { key: 'offer_sent',        label: 'נשלחה הצעת מחיר',   active: 'bg-blue-500 text-white border-blue-500',        past: 'bg-blue-100 text-blue-600 border-blue-200',         future: 'bg-white text-slate-400 border-slate-200 hover:border-blue-300 hover:text-blue-500' },
+  { key: 'offer_sent',        label: 'שלח הצעת מחיר',      active: 'bg-blue-500 text-white border-blue-500',        past: 'bg-blue-100 text-blue-600 border-blue-200',         future: 'bg-white text-slate-400 border-slate-200 hover:border-blue-300 hover:text-blue-500' },
   { key: 'negotiation',       label: 'מו"מ',               active: 'bg-orange-500 text-white border-orange-500',    past: 'bg-orange-100 text-orange-600 border-orange-200',   future: 'bg-white text-slate-400 border-slate-200 hover:border-orange-300 hover:text-orange-500' },
-  { key: 'contract_sent',     label: 'חוזה נשלח',          active: 'bg-indigo-500 text-white border-indigo-500',    past: 'bg-indigo-100 text-indigo-600 border-indigo-200',   future: 'bg-white text-slate-400 border-slate-200 hover:border-indigo-300 hover:text-indigo-500' },
+  { key: 'contract_sent',     label: 'שלח חוזה',            active: 'bg-indigo-500 text-white border-indigo-500',    past: 'bg-indigo-100 text-indigo-600 border-indigo-200',   future: 'bg-white text-slate-400 border-slate-200 hover:border-indigo-300 hover:text-indigo-500' },
   { key: 'deposit',           label: 'התקבלה מקדמה',       active: 'bg-emerald-500 text-white border-emerald-500',  past: 'bg-emerald-100 text-emerald-600 border-emerald-200', future: 'bg-white text-slate-400 border-slate-200 hover:border-amber-300 hover:text-emerald-500' },
   { key: 'production',        label: 'הפקה',               active: 'bg-teal-500 text-white border-teal-500',        past: 'bg-teal-100 text-teal-600 border-teal-200',         future: 'bg-white text-slate-400 border-slate-200 hover:border-teal-300 hover:text-teal-500' },
-  { key: 'completed',         label: 'אירוע הסתיים ונסגר תשלום', active: 'bg-slate-700 text-white border-slate-700', past: 'bg-slate-100 text-slate-600 border-slate-200',      future: 'bg-white text-slate-400 border-slate-200 hover:border-slate-400 hover:text-slate-600' },
+  { key: 'completed',         label: 'אירוע הסתיים והתקבל תשלום', active: 'bg-slate-700 text-white border-slate-700', past: 'bg-slate-100 text-slate-600 border-slate-200',      future: 'bg-white text-slate-400 border-slate-200 hover:border-slate-400 hover:text-slate-600' },
 ];
 
 const LOST_REASONS = [
@@ -349,20 +349,6 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
                     <button onClick={() => setShowAddTask(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition">+ משימה</button>
                     <button onClick={() => setShowPriceOffer(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition">הצעת מחיר</button>
                     <button onClick={() => setShowContract(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-700 text-white hover:bg-violet-800 transition">חוזה</button>
-                    <button
-                      onClick={async () => {
-                        const newPriority = lead.priority === 'hot' ? 'normal' : 'hot';
-                        const { data } = await api.patch(`/leads/${lead.id}`, { priority: newPriority });
-                        setLead(data);
-                      }}
-                      className={`text-sm font-bold px-2.5 py-1 rounded-xl transition ${
-                        lead.priority === 'hot'
-                          ? 'bg-orange-500 text-white hover:bg-orange-600'
-                          : 'bg-slate-100 text-slate-600 hover:bg-orange-100 hover:text-orange-700'
-                      }`}
-                    >
-                      🔥 {lead.priority === 'hot' ? 'חם ✓' : 'ליד חם'}
-                    </button>
                   </div>
                 </div>
               }>
@@ -373,7 +359,18 @@ export default function LeadCard({ leadId, onClose, onUpdated }) {
                 </span>
               )}
               {mode === 'הפקה' && (lead.stage === 'deposit' || lead.stage === 'production' || lead.stage === 'completed') ? (
-                <ProductionChecklist leadId={leadId} />
+                <>
+                  <ProductionChecklist leadId={leadId} />
+                  {(lead.stage === 'deposit' || lead.stage === 'production') && (
+                    <button
+                      onClick={() => !savingStage && changeStage('completed')}
+                      disabled={savingStage}
+                      className="mt-2 w-full text-sm px-3 py-2 rounded-xl font-bold transition border bg-slate-700 text-white border-slate-700 hover:bg-slate-800"
+                    >
+                      אירוע הסתיים והתקבל תשלום
+                    </button>
+                  )}
+                </>
               ) : (
                 <div className="flex flex-wrap gap-1.5">
                   {STAGES.map((s, i) => (
