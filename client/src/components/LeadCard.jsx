@@ -3,14 +3,15 @@ import api from '../api';
 import DriveFilePicker from './DriveFilePicker';
 
 const STAGES = [
-  { key: 'new',           label: 'חדש',          active: 'bg-sky-500 text-white border-sky-500',         past: 'bg-sky-100 text-sky-600 border-sky-200',         future: 'bg-white text-slate-400 border-slate-200 hover:border-sky-300 hover:text-sky-500' },
-  { key: 'contacted',     label: 'יצירת קשר',    active: 'bg-amber-500 text-white border-amber-500',     past: 'bg-amber-100 text-amber-600 border-amber-200',   future: 'bg-white text-slate-400 border-slate-200 hover:border-amber-300 hover:text-amber-500' },
-  { key: 'meeting',       label: 'פגישה',         active: 'bg-violet-500 text-white border-violet-500',   past: 'bg-violet-100 text-violet-600 border-violet-200', future: 'bg-white text-slate-400 border-slate-200 hover:border-violet-300 hover:text-violet-500' },
-  { key: 'offer_sent',    label: 'הצעת מחיר',    active: 'bg-blue-500 text-white border-blue-500',       past: 'bg-blue-100 text-blue-600 border-blue-200',       future: 'bg-white text-slate-400 border-slate-200 hover:border-blue-300 hover:text-blue-500' },
-  { key: 'negotiation',   label: 'מו"מ',          active: 'bg-orange-500 text-white border-orange-500',   past: 'bg-orange-100 text-orange-600 border-orange-200', future: 'bg-white text-slate-400 border-slate-200 hover:border-orange-300 hover:text-orange-500' },
-  { key: 'contract_sent', label: 'חוזה נשלח',    active: 'bg-indigo-500 text-white border-indigo-500',   past: 'bg-indigo-100 text-indigo-600 border-indigo-200', future: 'bg-white text-slate-400 border-slate-200 hover:border-indigo-300 hover:text-indigo-500' },
-  { key: 'deposit',       label: 'מקדמה',         active: 'bg-emerald-500 text-white border-emerald-500', past: 'bg-emerald-100 text-emerald-600 border-emerald-200', future: 'bg-white text-slate-400 border-slate-200 hover:border-amber-300 hover:text-emerald-500' },
-  { key: 'production',    label: 'הפקה',          active: 'bg-teal-500 text-white border-teal-500',       past: 'bg-teal-100 text-teal-600 border-teal-200',       future: 'bg-white text-slate-400 border-slate-200 hover:border-teal-300 hover:text-teal-500' },
+  { key: 'new',               label: 'חדש',                 active: 'bg-sky-500 text-white border-sky-500',          past: 'bg-sky-100 text-sky-600 border-sky-200',            future: 'bg-white text-slate-400 border-slate-200 hover:border-sky-300 hover:text-sky-500' },
+  { key: 'contacted',         label: 'בוצעה שיחה ראשונית', active: 'bg-amber-500 text-white border-amber-500',      past: 'bg-amber-100 text-amber-600 border-amber-200',      future: 'bg-white text-slate-400 border-slate-200 hover:border-amber-300 hover:text-amber-500' },
+  { key: 'meeting_scheduled', label: 'נקבעה פגישה',        active: 'bg-fuchsia-500 text-white border-fuchsia-500',  past: 'bg-fuchsia-100 text-fuchsia-600 border-fuchsia-200', future: 'bg-white text-slate-400 border-slate-200 hover:border-fuchsia-300 hover:text-fuchsia-500' },
+  { key: 'meeting',           label: 'בוצעה פגישה',        active: 'bg-violet-500 text-white border-violet-500',    past: 'bg-violet-100 text-violet-600 border-violet-200',   future: 'bg-white text-slate-400 border-slate-200 hover:border-violet-300 hover:text-violet-500' },
+  { key: 'offer_sent',        label: 'נשלחה הצעת מחיר',   active: 'bg-blue-500 text-white border-blue-500',        past: 'bg-blue-100 text-blue-600 border-blue-200',         future: 'bg-white text-slate-400 border-slate-200 hover:border-blue-300 hover:text-blue-500' },
+  { key: 'negotiation',       label: 'מו"מ',               active: 'bg-orange-500 text-white border-orange-500',    past: 'bg-orange-100 text-orange-600 border-orange-200',   future: 'bg-white text-slate-400 border-slate-200 hover:border-orange-300 hover:text-orange-500' },
+  { key: 'contract_sent',     label: 'חוזה נשלח',          active: 'bg-indigo-500 text-white border-indigo-500',    past: 'bg-indigo-100 text-indigo-600 border-indigo-200',   future: 'bg-white text-slate-400 border-slate-200 hover:border-indigo-300 hover:text-indigo-500' },
+  { key: 'deposit',           label: 'התקבלה מקדמה',       active: 'bg-emerald-500 text-white border-emerald-500',  past: 'bg-emerald-100 text-emerald-600 border-emerald-200', future: 'bg-white text-slate-400 border-slate-200 hover:border-amber-300 hover:text-emerald-500' },
+  { key: 'production',        label: 'הפקה',               active: 'bg-teal-500 text-white border-teal-500',        past: 'bg-teal-100 text-teal-600 border-teal-200',         future: 'bg-white text-slate-400 border-slate-200 hover:border-teal-300 hover:text-teal-500' },
 ];
 
 const LOST_REASONS = [

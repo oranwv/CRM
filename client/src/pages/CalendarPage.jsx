@@ -11,9 +11,10 @@ function formatDate(d) {
 }
 
 const STAGE_LABELS = {
-  new: 'חדש', contacted: 'יצירת קשר', meeting: 'פגישה',
-  offer_sent: 'הצעת מחיר', negotiation: 'מו"מ', contract_sent: 'חוזה נשלח',
-  deposit: 'מקדמה', production: 'הפקה', lost: 'לא סגרו',
+  new: 'חדש', contacted: 'בוצעה שיחה ראשונית',
+  meeting_scheduled: 'נקבעה פגישה', meeting: 'בוצעה פגישה',
+  offer_sent: 'נשלחה הצעת מחיר', negotiation: 'מו"מ',
+  contract_sent: 'חוזה נשלח', deposit: 'התקבלה מקדמה', production: 'הפקה', lost: 'לא סגרו',
 };
 
 export default function CalendarPage() {

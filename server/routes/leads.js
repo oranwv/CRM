@@ -19,7 +19,7 @@ function syncCalendar(leadId, type = 'option', userId = null) {
 
 const STAGE_TABS = {
   new: ['new'],
-  in_process: ['contacted','meeting','offer_sent','negotiation','contract_sent'],
+  in_process: ['contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent'],
   closed: ['deposit','production'],
   lost: ['lost'],
 };
@@ -166,8 +166,10 @@ router.patch('/:id', async (req, res) => {
     // Log stage change to timeline
     if (oldStage && lead.stage !== oldStage) {
       const STAGE_NAMES = {
-        new:'חדש', contacted:'ביצירת קשר', meeting:'פגישה', offer_sent:'הצעה נשלחה',
-        negotiation:'מו"מ', contract_sent:'חוזה נשלח', deposit:'מקדמה', production:'הפקה', lost:'אבוד'
+        new:'חדש', contacted:'בוצעה שיחה ראשונית',
+        meeting_scheduled:'נקבעה פגישה', meeting:'בוצעה פגישה',
+        offer_sent:'נשלחה הצעת מחיר', negotiation:'מו"מ',
+        contract_sent:'חוזה נשלח', deposit:'התקבלה מקדמה', production:'הפקה', lost:'אבוד'
       };
       const from = STAGE_NAMES[oldStage]  || oldStage;
       const to   = STAGE_NAMES[lead.stage] || lead.stage;
@@ -240,8 +242,8 @@ router.post('/:id/interactions', async (req, res) => {
       [req.params.id, type, direction, body, req.user.id]
     );
     await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [req.params.id]);
-    // Auto-advance new → contacted on first outbound interaction
-    if (direction === 'outbound') {
+    // Auto-advance new → contacted on first outbound interaction (excluding meeting logs)
+    if (direction === 'outbound' && type !== 'meeting') {
       await pool.query(
         `UPDATE leads SET stage = 'contacted', updated_at = NOW() WHERE id = $1 AND stage = 'new'`,
         [req.params.id]

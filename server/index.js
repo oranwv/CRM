@@ -148,6 +148,14 @@ pool.query(`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS orderer_name TEXT`)
   .catch(err => console.error('[DB] orderer_name migration error:', err.message));
 
 pool.query(`
+  ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_stage_check;
+  ALTER TABLE leads ADD CONSTRAINT leads_stage_check
+    CHECK (stage IN ('new','contacted','meeting_scheduled','meeting',
+                     'offer_sent','negotiation','contract_sent',
+                     'deposit','production','lost'));
+`).catch(err => console.error('[DB] stage constraint migration error:', err.message));
+
+pool.query(`
   CREATE TABLE IF NOT EXISTS google_calendar_cache (
     google_event_id TEXT PRIMARY KEY,
     title TEXT,

@@ -93,6 +93,13 @@ router.post('/leads/:leadId/meeting', async (req, res) => {
       [lead.id, `📅 פגישה נקבעה: ${title} | ${fmtDate} ${fmtStart}–${fmtEnd}`, req.user?.id || null]
     );
 
+    // Auto-advance stage to meeting_scheduled when a meeting is booked
+    await pool.query(
+      `UPDATE leads SET stage = 'meeting_scheduled', updated_at = NOW()
+       WHERE id = $1 AND stage IN ('new','contacted')`,
+      [lead.id]
+    );
+
     const baseUrl = process.env.SERVER_URL || 'http://localhost:3001';
     const icsUrl    = `${baseUrl}/api/calendar/meetings/${eventId}/ics`;
     const confirmUrl = `${baseUrl}/api/calendar/meetings/${confirmToken}/confirm`;
