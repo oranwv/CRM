@@ -141,7 +141,7 @@ function fileIconByExt(name = '') {
   return '📎';
 }
 
-export default function LeadCard({ leadId, onClose, onUpdated }) {
+export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
   const currentUser = JSON.parse(localStorage.getItem('crm_user') || '{}');
   const [lead, setLead]                 = useState(null);
   const [interactions, setInteractions] = useState([]);
