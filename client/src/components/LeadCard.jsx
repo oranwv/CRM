@@ -803,7 +803,7 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
   const [rows, setRows]               = useState(DEFAULT_ROWS);
   const [loadingImport, setLoadingImport] = useState(false);
   const [importNotFound, setImportNotFound] = useState(false);
-  const [newRow, setNewRow]           = useState({ label: '', desc: '', qty: 1, price: 0 });
+  const [newRow, setNewRow]           = useState({ label: '', desc: '', qty: 1, price: 0, isPct: false, pct: 0 });
   const [sending, setSending]         = useState('');
   const [sent, setSent]               = useState(false);
   const [signingUrl, setSigningUrl]   = useState('');
@@ -895,10 +895,14 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
   const progressPct = Math.min(100, Math.round((step / (totalSteps || 1)) * 100));
 
   // Calculated values
-  const pkgTotal         = Number(fields.packageTotal) || 0;
-  const subtotal         = isPackage ? Math.round(pkgTotal / 1.18) : rows.reduce((s, r) => s + (r.qty || 0) * (r.price || 0), 0);
-  const vat              = isPackage ? pkgTotal - subtotal : Math.round(subtotal * 0.18);
-  const total            = isPackage ? pkgTotal : subtotal + vat;
+  const pkgTotal           = Number(fields.packageTotal) || 0;
+  const cFixedSubtotal     = isPackage
+    ? Math.round(pkgTotal / 1.18)
+    : rows.filter(r => !r.isPct).reduce((s, r) => s + (r.qty || 0) * (r.price || 0), 0);
+  const cGetRowTotal       = (r) => r.isPct ? Math.round(cFixedSubtotal * (r.pct || 0) / 100) : (r.qty || 0) * (r.price || 0);
+  const subtotal           = isPackage ? Math.round(pkgTotal / 1.18) : rows.reduce((s, r) => s + cGetRowTotal(r), 0);
+  const vat                = isPackage ? pkgTotal - subtotal : Math.round(subtotal * 0.18);
+  const total              = isPackage ? pkgTotal : subtotal + vat;
   const depositPct       = Number(fields.depositPercent) || 0;
   const depositAmount    = Math.round(total * depositPct / 100);
   const depositAmountVat = Math.round(depositAmount * 1.18);
@@ -1118,14 +1122,28 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
               <p className="font-bold text-slate-700">הוסף שורת תמחור (אופציונלי)</p>
               <input placeholder="שם פריט" value={newRow.label} onChange={e => setNewRow(r => ({ ...r, label: e.target.value }))} className={cls} />
               <input placeholder="תיאור (אופציונלי)" value={newRow.desc} onChange={e => setNewRow(r => ({ ...r, desc: e.target.value }))} className={cls} />
-              <div className="grid grid-cols-2 gap-3">
-                <input type="number" placeholder="כמות" min="0" value={newRow.qty} onChange={e => setNewRow(r => ({ ...r, qty: Number(e.target.value) }))} className={cls} />
-                <input type="number" placeholder="מחיר" min="0" value={newRow.price} onChange={e => setNewRow(r => ({ ...r, price: Number(e.target.value) }))} className={cls} />
+              <div className="flex gap-1 p-1 rounded-xl bg-slate-100">
+                <button onClick={() => setNewRow(r => ({ ...r, isPct: false }))}
+                  className={`flex-1 py-1.5 rounded-lg font-bold text-xs transition ${!newRow.isPct ? 'bg-violet-600 text-white' : 'text-slate-500 hover:text-slate-700'}`}>
+                  מחיר בש"ח
+                </button>
+                <button onClick={() => setNewRow(r => ({ ...r, isPct: true }))}
+                  className={`flex-1 py-1.5 rounded-lg font-bold text-xs transition ${newRow.isPct ? 'bg-violet-600 text-white' : 'text-slate-500 hover:text-slate-700'}`}>
+                  מחיר באחוזים
+                </button>
               </div>
+              {newRow.isPct ? (
+                <input type="number" placeholder="אחוזים %" min="0" value={newRow.pct} onChange={e => setNewRow(r => ({ ...r, pct: Number(e.target.value) }))} className={cls} />
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <input type="number" placeholder="כמות" min="0" value={newRow.qty} onChange={e => setNewRow(r => ({ ...r, qty: Number(e.target.value) }))} className={cls} />
+                  <input type="number" placeholder="מחיר" min="0" value={newRow.price} onChange={e => setNewRow(r => ({ ...r, price: Number(e.target.value) }))} className={cls} />
+                </div>
+              )}
               {newRow.label.trim() && (
                 <button onClick={() => {
                   setRows(rs => [...rs, { ...newRow, id: Date.now() }]);
-                  setNewRow({ label: '', desc: '', qty: 1, price: 0 });
+                  setNewRow({ label: '', desc: '', qty: 1, price: 0, isPct: false, pct: 0 });
                 }} className="text-sm font-bold text-violet-600 underline">+ הוסף שורה</button>
               )}
             </div>
@@ -1256,13 +1274,15 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
                           <EditableCell value={row.desc || ''} onChange={v => setRows(rs => rs.map(r => r.id === row.id ? { ...r, desc: v } : r))} />
                         </td>
                         <td style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>
-                          <EditableCell value={String(row.qty)} onChange={v => setRows(rs => rs.map(r => r.id === row.id ? { ...r, qty: parseFloat(v) || 0 } : r))} />
+                          {row.isPct ? '-' : <EditableCell value={String(row.qty)} onChange={v => setRows(rs => rs.map(r => r.id === row.id ? { ...r, qty: parseFloat(v) || 0 } : r))} />}
                         </td>
                         <td style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>
-                          <EditableCell value={String(row.price)} onChange={v => setRows(rs => rs.map(r => r.id === row.id ? { ...r, price: parseFloat(v) || 0 } : r))} />{' ש"ח'}
+                          {row.isPct
+                            ? `${row.pct || 0}%`
+                            : <><EditableCell value={String(row.price)} onChange={v => setRows(rs => rs.map(r => r.id === row.id ? { ...r, price: parseFloat(v) || 0 } : r))} />{' ש"ח'}</>}
                         </td>
                         <td style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>
-                          {((row.qty || 0) * (row.price || 0)).toLocaleString()}{' ש"ח'}
+                          {cGetRowTotal(row).toLocaleString()}{' ש"ח'}
                         </td>
                         <td style={{ border: '1px solid #ccc', padding: '2px', textAlign: 'center' }}>
                           <button onClick={() => setRows(rs => rs.filter((_, idx) => idx !== i))}
@@ -1489,6 +1509,8 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
   const [step, setStep]           = useState(0);
   const [offerType, setOfferType] = useState(''); // '' | 'regular' | 'package'
   const [editMode, setEditMode]   = useState(false);
+  const [vatAnswered, setVatAnswered] = useState(false);
+  const [withVat, setWithVat]         = useState(true);
   const [fields, setFields]   = useState({
     name: lead.name || '', email: allEmails[0] || '', phone: lead.phone || '',
     eventDate: lead.event_date_text || '', doorTime: lead.event_time || '',
@@ -1502,7 +1524,7 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
     { id: 4, label: 'מנהל אירוע / קייטרינג שירות', desc: '', qty: 1, price: 900 },
     { id: 5, label: 'תאורה והגברה + תפעול לאורך האירוע', desc: '', qty: 1, price: 0 },
   ]);
-  const [newRow, setNewRow]         = useState({ label: '', desc: '', qty: 1, price: 0 });
+  const [newRow, setNewRow]         = useState({ label: '', desc: '', qty: 1, price: 0, isPct: false, pct: 0 });
   const [newInclude, setNewInclude] = useState('');
   const [newPkgLine, setNewPkgLine] = useState('');
   const [saving, setSaving]     = useState(false);
@@ -1598,9 +1620,11 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
   const isPkgAddIncludeStep  = offerType === 'package' && step === PKG_ADD_INCLUDE_STEP;
   const isPreviewStep        = offerType === 'regular' ? step === previewStep : step === PKG_PREVIEW_STEP;
 
-  const subtotal = rows.reduce((s, r) => s + r.qty * r.price, 0);
-  const vat      = Math.round(subtotal * 0.18);
-  const total    = subtotal + vat;
+  const fixedSubtotal = rows.filter(r => !r.isPct).reduce((s, r) => s + r.qty * r.price, 0);
+  const getRowTotal   = (r) => r.isPct ? Math.round(fixedSubtotal * (r.pct || 0) / 100) : r.qty * r.price;
+  const subtotal      = rows.reduce((s, r) => s + getRowTotal(r), 0);
+  const vat           = withVat ? Math.round(subtotal * 0.18) : 0;
+  const total         = subtotal + vat;
 
   const advance = () => { setEditMode(false); setStep(s => s + 1); };
   const back    = () => { setEditMode(false); setStep(s => Math.max(0, s - 1)); };
@@ -1638,8 +1662,11 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
   function addNewRow() {
     if (!newRow.label.trim()) return;
     const nextId = Math.max(0, ...rows.map(r => r.id)) + 1;
-    setRows(prev => [...prev, { ...newRow, id: nextId, qty: parseFloat(newRow.qty) || 0, price: parseFloat(newRow.price) || 0 }]);
-    setNewRow({ label: '', desc: '', qty: 1, price: 0 });
+    const row = newRow.isPct
+      ? { ...newRow, id: nextId, pct: parseFloat(newRow.pct) || 0 }
+      : { ...newRow, id: nextId, qty: parseFloat(newRow.qty) || 0, price: parseFloat(newRow.price) || 0 };
+    setRows(prev => [...prev, row]);
+    setNewRow({ label: '', desc: '', qty: 1, price: 0, isPct: false, pct: 0 });
     setStep(s => s + 1);
   }
 
@@ -1650,7 +1677,7 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
   async function generateBlob() {
     const res = await api.post(
       `/leads/${lead.id}/price-offer`,
-      { fields, rows, texts, offerType },
+      { fields: { ...fields, withVat }, rows, texts, offerType },
       { responseType: 'blob' }
     );
     return res.data;
@@ -1736,8 +1763,23 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-5">
 
+          {/* ── VAT pre-step ── */}
+          {offerType === '' && !vatAnswered && (
+            <div className="space-y-4 text-center">
+              <p className="font-black text-slate-700 text-lg">האם ההצעה כוללת מע"מ?</p>
+              <button onClick={() => { setWithVat(true); setVatAnswered(true); }}
+                className="w-full border-2 border-amber-300 text-amber-700 font-bold py-4 rounded-xl hover:bg-amber-50 text-lg">
+                עם מע"מ (18%)
+              </button>
+              <button onClick={() => { setWithVat(false); setVatAnswered(true); }}
+                className="w-full border-2 border-amber-300 text-amber-700 font-bold py-4 rounded-xl hover:bg-amber-50 text-lg">
+                ללא מע"מ
+              </button>
+            </div>
+          )}
+
           {/* ── Type selection ── */}
-          {offerType === '' && (
+          {offerType === '' && vatAnswered && (
             <div className="space-y-4">
               <p className="text-slate-500 text-sm font-semibold text-center">בחר סוג הצעת מחיר</p>
               <button onClick={() => setOfferType('regular')}
@@ -2025,18 +2067,36 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                   className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-amber-400" placeholder="שם פריט *" />
                 <input value={newRow.desc} onChange={e => setNewRow(r => ({ ...r, desc: e.target.value }))}
                   className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-400 text-slate-600" placeholder="תיאור (אופציונלי)" />
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <p className="text-xs text-slate-400 mb-1">כמות</p>
-                    <input type="number" value={newRow.qty} onChange={e => setNewRow(r => ({ ...r, qty: parseFloat(e.target.value) || 0 }))}
-                      className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-amber-400" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-xs text-slate-400 mb-1">מחיר ש"ח</p>
-                    <input type="number" value={newRow.price} onChange={e => setNewRow(r => ({ ...r, price: parseFloat(e.target.value) || 0 }))}
-                      className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-amber-400" />
-                  </div>
+                <div className="flex gap-1 p-1 rounded-xl bg-slate-100">
+                  <button onClick={() => setNewRow(r => ({ ...r, isPct: false }))}
+                    className={`flex-1 py-1.5 rounded-lg font-bold text-xs transition ${!newRow.isPct ? 'bg-amber-500 text-white' : 'text-slate-500 hover:text-slate-700'}`}>
+                    מחיר בש"ח
+                  </button>
+                  <button onClick={() => setNewRow(r => ({ ...r, isPct: true }))}
+                    className={`flex-1 py-1.5 rounded-lg font-bold text-xs transition ${newRow.isPct ? 'bg-amber-500 text-white' : 'text-slate-500 hover:text-slate-700'}`}>
+                    מחיר באחוזים
+                  </button>
                 </div>
+                {newRow.isPct ? (
+                  <div>
+                    <p className="text-xs text-slate-400 mb-1">אחוזים מסכום השורות הקבועות</p>
+                    <input type="number" value={newRow.pct} onChange={e => setNewRow(r => ({ ...r, pct: parseFloat(e.target.value) || 0 }))}
+                      className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-amber-400" placeholder="לדוגמה: 10" />
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <p className="text-xs text-slate-400 mb-1">כמות</p>
+                      <input type="number" value={newRow.qty} onChange={e => setNewRow(r => ({ ...r, qty: parseFloat(e.target.value) || 0 }))}
+                        className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-amber-400" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs text-slate-400 mb-1">מחיר ש"ח</p>
+                      <input type="number" value={newRow.price} onChange={e => setNewRow(r => ({ ...r, price: parseFloat(e.target.value) || 0 }))}
+                        className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-amber-400" />
+                    </div>
+                  </div>
+                )}
               </div>
               <button onClick={addNewRow} disabled={!newRow.label.trim()}
                 className="w-full border-2 border-amber-300 text-amber-600 font-bold py-2.5 rounded-xl hover:bg-amber-50 disabled:opacity-40 disabled:cursor-not-allowed transition">
@@ -2133,13 +2193,15 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                           <EditableCell value={row.desc} onChange={v => updateRow(i, { desc: v })} />
                         </td>
                         <td style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>
-                          <EditableCell value={String(row.qty)} onChange={v => updateRow(i, { qty: parseFloat(v) || 0 })} />
+                          {row.isPct ? '-' : <EditableCell value={String(row.qty)} onChange={v => updateRow(i, { qty: parseFloat(v) || 0 })} />}
                         </td>
                         <td style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>
-                          <EditableCell value={String(row.price)} onChange={v => updateRow(i, { price: parseFloat(v) || 0 })} />{' ש"ח'}
+                          {row.isPct
+                            ? `${row.pct || 0}%`
+                            : <><EditableCell value={String(row.price)} onChange={v => updateRow(i, { price: parseFloat(v) || 0 })} />{' ש"ח'}</>}
                         </td>
                         <td style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>
-                          {(row.qty * row.price).toLocaleString()} {'ש"ח'}
+                          {getRowTotal(row).toLocaleString()} {'ש"ח'}
                         </td>
                         <td data-html2canvas-ignore="true" style={{ border: '1px solid #ccc', padding: '2px', textAlign: 'center' }}>
                           <button onClick={() => setRows(prev => prev.filter((_, idx) => idx !== i))}
@@ -2147,14 +2209,16 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                         </td>
                       </tr>
                     ))}
-                    <tr>
-                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>{'‫סה"כ חייב במע"מ:‬'}</td>
-                      <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center', fontWeight: 'bold' }}>{subtotal.toLocaleString()} {'ש"ח'}</td>
-                    </tr>
-                    <tr>
-                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right' }}>{'‫מע"מ (18%):‬'}</td>
-                      <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{vat.toLocaleString()} {'ש"ח'}</td>
-                    </tr>
+                    {withVat && <>
+                      <tr>
+                        <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>{'‫סה"כ חייב במע"מ:‬'}</td>
+                        <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center', fontWeight: 'bold' }}>{subtotal.toLocaleString()} {'ש"ח'}</td>
+                      </tr>
+                      <tr>
+                        <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right' }}>{'‫מע"מ (18%):‬'}</td>
+                        <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{vat.toLocaleString()} {'ש"ח'}</td>
+                      </tr>
+                    </>}
                     <tr style={{ fontWeight: 'bold' }}>
                       <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right' }}>{'‫סה"כ לתשלום:‬'}</td>
                       <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{total.toLocaleString()} {'ש"ח'}</td>
@@ -2256,6 +2320,9 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                 <p style={{ marginTop: '10pt', fontSize: '9pt', color: '#555' }}>
                   <EditableCell value={texts.payment} onChange={v => setTxt('payment', v)} multiline />
                 </p>
+                {!withVat && (
+                  <p style={{ fontSize: '9pt', fontWeight: 'bold' }}>המחיר אינו כולל מע"מ</p>
+                )}
                 <p style={{ fontSize: '9pt', color: '#555' }}>
                   <EditableCell value={texts.validity} onChange={v => setTxt('validity', v)} />
                 </p>

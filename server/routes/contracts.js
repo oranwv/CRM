@@ -43,14 +43,19 @@ function buildContractHtml({ contractData, signingData, staffSignature }) {
     ? new Date(eventDate + 'T12:00:00').toLocaleDateString('he-IL')
     : '';
 
-  const dataRowsHtml = (rows || []).map(r => `
-    <tr>
+  const fixedRowsSubtotal = (rows || []).filter(r => !r.isPct).reduce((s, r) => s + (r.qty ?? 0) * (r.price ?? 0), 0);
+  const dataRowsHtml = (rows || []).map(r => {
+    const rowTotal  = r.isPct ? Math.round(fixedRowsSubtotal * (r.pct || 0) / 100) : (r.qty ?? 0) * (r.price ?? 0);
+    const priceCell = r.isPct ? `${r.pct || 0}%` : `${fmt(r.price)} &#x202B;&#x202C;&#x05E9;"&#x05D7;`;
+    const qtyCell   = r.isPct ? '-' : esc(String(r.qty ?? ''));
+    return `<tr>
       <td style="border:1px solid #ccc;padding:4px 6px;">${esc(r.label)}</td>
       <td style="border:1px solid #ccc;padding:4px 6px;font-size:8pt;color:#555;">${esc(r.desc || '')}</td>
-      <td style="border:1px solid #ccc;padding:4px 6px;text-align:center;">${esc(String(r.qty ?? ''))}</td>
-      <td style="border:1px solid #ccc;padding:4px 6px;text-align:center;">${fmt(r.price)} &#x202B;&#x202C;&#x05E9;"&#x05D7;</td>
-      <td style="border:1px solid #ccc;padding:4px 6px;text-align:center;">${fmt((r.qty ?? 0) * (r.price ?? 0))} &#x202B;&#x202C;&#x05E9;"&#x05D7;</td>
-    </tr>`).join('');
+      <td style="border:1px solid #ccc;padding:4px 6px;text-align:center;">${qtyCell}</td>
+      <td style="border:1px solid #ccc;padding:4px 6px;text-align:center;">${priceCell}</td>
+      <td style="border:1px solid #ccc;padding:4px 6px;text-align:center;">${fmt(rowTotal)} &#x202B;&#x202C;&#x05E9;"&#x05D7;</td>
+    </tr>`;
+  }).join('');
 
   const customerSigHtml = signed && signingData.signatureImage
     ? `<img src="${signingData.signatureImage}" style="max-height:70px;max-width:180px;display:block;margin:0 auto;" />`

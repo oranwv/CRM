@@ -24,9 +24,12 @@ function fmt(n) {
 }
 
 function buildHtml({ fields, rows, texts, offerType }) {
-  const subtotal = rows.reduce((s, r) => s + (r.qty * r.price), 0);
-  const vat      = Math.round(subtotal * 0.18);
-  const total    = subtotal + vat;
+  const withVat       = fields.withVat !== false;
+  const fixedSubtotal = rows.filter(r => !r.isPct).reduce((s, r) => s + (r.qty * r.price), 0);
+  const getRowTotal   = (r) => r.isPct ? Math.round(fixedSubtotal * (r.pct || 0) / 100) : r.qty * r.price;
+  const subtotal      = rows.reduce((s, r) => s + getRowTotal(r), 0);
+  const vat           = withVat ? Math.round(subtotal * 0.18) : 0;
+  const total         = subtotal + vat;
 
   const headerRowsHtml = [
     { label: 'לכבוד',             value: fields.name,      ltr: false },
@@ -48,14 +51,18 @@ function buildHtml({ fields, rows, texts, offerType }) {
     .map(h => `<th style="border:1px solid #ccc;padding:4px 6px;text-align:center;background:#f5f5f5;">${esc(h)}</th>`)
     .join('');
 
-  const dataRowsHtml = rows.map(r => `
-    <tr>
+  const dataRowsHtml = rows.map(r => {
+    const rowTotal  = r.isPct ? Math.round(fixedSubtotal * (r.pct || 0) / 100) : r.qty * r.price;
+    const priceCell = r.isPct ? `${r.pct || 0}%` : `${fmt(r.price)} ש"ח`;
+    const qtyCell   = r.isPct ? '-' : esc(String(r.qty));
+    return `<tr>
       <td style="border:1px solid #ccc;padding:4px 6px;">${esc(r.label)}</td>
       <td style="border:1px solid #ccc;padding:4px 6px;font-size:8pt;color:#555;">${esc(r.desc || '')}</td>
-      <td style="border:1px solid #ccc;padding:4px 6px;text-align:center;">${esc(String(r.qty))}</td>
-      <td style="border:1px solid #ccc;padding:4px 6px;text-align:center;">${fmt(r.price)} ש"ח</td>
-      <td style="border:1px solid #ccc;padding:4px 6px;text-align:center;">${fmt(r.qty * r.price)} ש"ח</td>
-    </tr>`).join('');
+      <td style="border:1px solid #ccc;padding:4px 6px;text-align:center;">${qtyCell}</td>
+      <td style="border:1px solid #ccc;padding:4px 6px;text-align:center;">${priceCell}</td>
+      <td style="border:1px solid #ccc;padding:4px 6px;text-align:center;">${fmt(rowTotal)} ש"ח</td>
+    </tr>`;
+  }).join('');
 
   const venueDescItemsHtml = (texts.venueDescItems || [])
     .filter(item => item.trim())
@@ -134,6 +141,7 @@ ${offerType === 'package' ? packageCostHtml : `
   <thead><tr>${tableHeadersHtml}</tr></thead>
   <tbody>
     ${dataRowsHtml}
+    ${withVat ? `
     <tr>
       <td colspan="4" style="border:1px solid #ccc;padding:4px 6px;text-align:right;font-weight:bold;">&#x202B;סה"כ חייב במע"מ:&#x202C;</td>
       <td style="border:1px solid #ccc;padding:4px 6px;text-align:center;font-weight:bold;">${fmt(subtotal)} ש"ח</td>
@@ -141,7 +149,7 @@ ${offerType === 'package' ? packageCostHtml : `
     <tr>
       <td colspan="4" style="border:1px solid #ccc;padding:4px 6px;text-align:right;">&#x202B;מע"מ (18%):&#x202C;</td>
       <td style="border:1px solid #ccc;padding:4px 6px;text-align:center;">${fmt(vat)} ש"ח</td>
-    </tr>
+    </tr>` : ''}
     <tr style="font-weight:bold;">
       <td colspan="4" style="border:1px solid #ccc;padding:4px 6px;text-align:right;">&#x202B;סה"כ לתשלום:&#x202C;</td>
       <td style="border:1px solid #ccc;padding:4px 6px;text-align:center;">${fmt(total)} ש"ח</td>
@@ -163,6 +171,7 @@ ${extraGuestHtml}
 ${notesHtml}
 
 <p style="margin-top:10pt;font-size:9pt;color:#555;">${esc(texts.payment)}</p>
+${!withVat ? `<p style="font-size:9pt;font-weight:bold;">המחיר אינו כולל מע"מ</p>` : ''}
 <p style="font-size:9pt;color:#555;">${esc(texts.validity)}</p>
 <p style="margin-top:6pt;font-weight:bold;">${esc(texts.closing)}</p>
 
