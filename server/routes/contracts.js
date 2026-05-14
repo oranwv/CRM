@@ -227,6 +227,40 @@ contractLeadRouter.post('/', async (req, res) => {
     );
 
     res.json({ id: rows[0].id, token: rows[0].token });
+
+    // Background: generate unsigned PDF and save to lead files
+    const leadId = req.params.id;
+    const userId = req.user.id;
+    const contractDataCopy = contract_data;
+    setImmediate(async () => {
+      let bgBrowser;
+      try {
+        const { rows: lr } = await pool.query('SELECT name FROM leads WHERE id=$1', [leadId]);
+        if (!lr[0]) return;
+        const html = buildContractHtml({ contractData: contractDataCopy, signingData: null, staffSignature: null });
+        bgBrowser = await puppeteer.launch({
+          executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser',
+          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+          headless: true,
+        });
+        const page = await bgBrowser.newPage();
+        page.setDefaultTimeout(25000);
+        await page.setContent(html, { waitUntil: 'load' });
+        const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true, margin: { top: 0, bottom: 0, left: 0, right: 0 } });
+        await bgBrowser.close();
+        bgBrowser = null;
+        const filename = `חוזה ${lr[0].name}.pdf`;
+        const { url, storedName } = await uploadBuffer(pdfBuffer, filename, 'application/pdf');
+        await pool.query(
+          'INSERT INTO files (lead_id, filename, url, stored_name, file_type, uploaded_by) VALUES ($1,$2,$3,$4,$5,$6)',
+          [leadId, filename, url, storedName, 'contract', userId]
+        );
+        console.log('[Contracts] unsigned PDF saved for lead', leadId);
+      } catch (err) {
+        if (bgBrowser) await bgBrowser.close().catch(() => {});
+        console.error('[Contracts] unsigned PDF error:', err.message);
+      }
+    });
   } catch (err) {
     console.error('[Contracts] create error:', err.message);
     res.status(500).json({ error: err.message });
@@ -262,7 +296,8 @@ contractPublicRouter.post('/:token/sign', async (req, res) => {
     }
 
     const { rows } = await pool.query(
-      `SELECT c.*, l.phone as lead_phone, l.email as lead_email
+      `SELECT c.*, l.phone as lead_phone, l.email as lead_email,
+              l.name as lead_name, l.event_date as lead_event_date
        FROM contracts c JOIN leads l ON l.id = c.lead_id
        WHERE c.token=$1 AND c.status='pending'`,
       [req.params.token]
@@ -294,7 +329,9 @@ contractPublicRouter.post('/:token/sign', async (req, res) => {
     await browser.close();
     browser = null;
 
-    const filename = `חוזה-חתום-${ordererName}.pdf`;
+    const _ed = contract.lead_event_date ? new Date(contract.lead_event_date) : null;
+    const dateSuffix = _ed ? `${_ed.getDate()}.${_ed.getMonth()+1}.${String(_ed.getFullYear()).slice(2)}` : '';
+    const filename = `חוזה חתום ${contract.lead_name}${dateSuffix ? ` ${dateSuffix}` : ''}.pdf`;
     const { url: signedPdfUrl, storedName } = await uploadBuffer(pdfBuffer, filename, 'application/pdf');
 
     await pool.query(
