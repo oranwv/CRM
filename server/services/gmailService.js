@@ -14,6 +14,15 @@ function getAuth() {
   return oauth2;
 }
 
+// ── HELPERS ──────────────────────────────────────────────────────────────────
+
+function normalizePhone(phone) {
+  if (!phone) return phone;
+  const digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('972') && digits.length === 12) return '0' + digits.slice(3);
+  return phone;
+}
+
 // ── PARSERS ──────────────────────────────────────────────────────────────────
 
 function parseCallEvent(body) {
@@ -61,6 +70,15 @@ function parseWebsiteForm(body) {
     phone: get('טלפון'),
     notes: get('פרטי הפנייה'),
   };
+}
+
+function parseVonage(body) {
+  const phoneMatch = body.match(/מספר\s+טלפון\s+שהתקשרו\s+ממנו[^:\n]*:\s*(\S+)/);
+  const phone = phoneMatch ? phoneMatch[1].trim() : null;
+  const nameMatch = body.match(/שם\s+בעל\s+האירוע[^:\n]*:\s*(.+)/);
+  const rawName = nameMatch ? nameMatch[1].trim() : '';
+  const name = rawName || phone || '';
+  return { source: 'vonage', phone, name, notes: body.trim() };
 }
 
 function parseTelekol(body) {
@@ -130,6 +148,7 @@ function extractBody(payload) {
 
 async function upsertLead(parsed, emailId, emailTs) {
   if (!parsed.phone && !parsed.email && !parsed.name) return;
+  if (parsed.phone) parsed.phone = normalizePhone(parsed.phone);
 
   const tsExpr = emailTs ? `to_timestamp(${Math.floor(emailTs / 1000)})` : 'NOW()';
 
@@ -223,6 +242,8 @@ async function pollGmail() {
         parsed = parseWebsiteForm(body);
       } else if (from.includes('telekol') && subject.includes('טלקול')) {
         parsed = parseTelekol(body);
+      } else if (from.includes('dont-reply@ai.vonage.com')) {
+        parsed = parseVonage(body);
       }
 
       if (parsed) {

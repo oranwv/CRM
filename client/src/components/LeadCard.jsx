@@ -29,7 +29,7 @@ const LOST_REASONS = [
 
 const SOURCE_LABELS = {
   website_popup: 'אתר (פופאפ)', website_form: 'אתר (טופס)',
-  call_event: 'Call Event', telekol: 'טלקול',
+  call_event: 'Call Event', telekol: 'טלקול', vonage: 'מענה קולי',
   whatsapp: 'וואטסאפ', facebook: 'פייסבוק',
   instagram: 'אינסטגרם', manual: 'ידני',
 };
