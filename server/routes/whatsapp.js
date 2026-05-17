@@ -150,7 +150,7 @@ router.post('/webhook', async (req, res) => {
       const baseUrl = process.env.SERVER_URL || 'https://crm-production-c3df.up.railway.app';
       const preview = _notifyText.slice(0, 200);
       await sendWhatsApp(rows[0].phone,
-        `הודעה חדשה מ${rows[0].name}:\n"${preview}"\nלפתיחת הליד: ${baseUrl}/?lead=${_notifyLeadId}`
+        `הודעת וואטסאפ חדשה מ${rows[0].name}:\n"${preview}"\nלפתיחת הליד: ${baseUrl}/?lead=${_notifyLeadId}`
       );
     }).catch(() => {});
 
