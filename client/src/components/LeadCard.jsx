@@ -1226,7 +1226,7 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
                 </h2>
 
                 <p>שנערך ונחתם ביום ___ לאירוע בתאריך {fields.eventDate ? new Date(fields.eventDate + 'T12:00:00').toLocaleDateString('he-IL') : '___'}</p>
-                <p>‫בין:‬ {fields.clientName || '___'} &nbsp;&nbsp;&nbsp; ‫ת.ז\ח.פ:‬ ___</p>
+                <p>‫בין:‬ ___ &nbsp;&nbsp;&nbsp; ‫ת.ז\ח.פ:‬ ___</p>
                 <p style={{ textAlign: 'left' }}>מצד אחד;</p>
                 <p>לבין:</p>
                 <p>שרביה, מספר שותפות 558450383</p>
