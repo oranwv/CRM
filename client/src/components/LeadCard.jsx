@@ -421,7 +421,14 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
                 <>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <InfoRow label="טלפון">
-                      {lead.phone ? <a href={`tel:${lead.phone}`} className="text-violet-700 hover:underline font-medium" dir="ltr">{lead.phone}</a> : '—'}
+                      {lead.phone ? (
+                        <a
+                          href={`tel:${lead.phone}`}
+                          className="text-violet-700 hover:underline font-medium"
+                          dir="ltr"
+                          onClick={() => api.post(`/leads/${lead.id}/interactions`, { type: 'call', direction: 'outbound', body: '' }).then(load)}
+                        >{lead.phone}</a>
+                      ) : '—'}
                     </InfoRow>
                     <InfoRow label="אימייל">{lead.email || '—'}</InfoRow>
                     <InfoRow label="תאריך אירוע">{lead.event_date_text || formatDate(lead.event_date)}{lead.event_time ? ` · ${lead.event_time}` : ''}</InfoRow>
