@@ -372,10 +372,25 @@ contractPublicRouter.post('/:token/sign', async (req, res) => {
     const clientEmail = contract.contract_data?.fields?.clientEmail || contract.lead_email;
     if (clientEmail) {
       try {
+        const { rows: emailSettings } = await pool.query(
+          `SELECT key, value FROM settings WHERE key IN ('contract_email_body','contract_email_bank')`
+        );
+        const settingsMap  = Object.fromEntries(emailSettings.map(r => [r.key, r.value]));
+        const customBody   = settingsMap.contract_email_body?.trim() || '';
+        const bankDetails  = settingsMap.contract_email_bank?.trim() || '';
+        const emailBody = [
+          `שלום ${ordererName},`,
+          '',
+          'תודה על החתימה! החוזה החתום מצורף.',
+          ...(customBody   ? ['', customBody]               : []),
+          ...(bankDetails  ? ['', 'פרטי תשלום:', bankDetails] : []),
+          '',
+          'בברכה, צוות שרביה',
+        ].join('\n');
         await sendEmail({
           to: clientEmail,
           subject: 'החוזה החתום שלך — שרביה',
-          body: `שלום ${ordererName},\n\nתודה על החתימה! החוזה החתום מצורף.\n\nבברכה, צוות שרביה`,
+          body: emailBody,
           attachmentBuffer: pdfBuffer,
           attachmentName: filename,
           attachmentMime: 'application/pdf',

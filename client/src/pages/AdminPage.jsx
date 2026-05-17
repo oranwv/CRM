@@ -28,6 +28,10 @@ export default function AdminPage() {
   const [calAclNewEmail, setCalAclNewEmail] = useState('');
   const [calAclAdding, setCalAclAdding] = useState(false);
   const [calAclError, setCalAclError] = useState('');
+  const [contractEmailBody, setContractEmailBody] = useState('');
+  const [contractEmailBank, setContractEmailBank] = useState('');
+  const [contractEmailSaving, setContractEmailSaving] = useState(false);
+  const [contractEmailSaved, setContractEmailSaved] = useState(false);
 
   useEffect(() => {
     api.get('/admin/settings')
@@ -35,6 +39,8 @@ export default function AdminPage() {
         setAiInstructions(r.data.ai_instructions || '');
         setStaffSig(r.data.staff_signature || '');
         setDriveFolders(r.data.drive_folders ? JSON.parse(r.data.drive_folders) : []);
+        setContractEmailBody(r.data.contract_email_body || '');
+        setContractEmailBank(r.data.contract_email_bank || '');
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -92,6 +98,20 @@ export default function AdminPage() {
     setSaving(true); setSaved(false);
     try { await api.put('/admin/settings/ai_instructions', { value: aiInstructions }); setSaved(true); setTimeout(() => setSaved(false), 3000); }
     finally { setSaving(false); }
+  }
+
+  async function handleContractEmailSave() {
+    setContractEmailSaving(true); setContractEmailSaved(false);
+    try {
+      await Promise.all([
+        api.put('/admin/settings/contract_email_body', { value: contractEmailBody }),
+        api.put('/admin/settings/contract_email_bank', { value: contractEmailBank }),
+      ]);
+      setContractEmailSaved(true);
+      setTimeout(() => setContractEmailSaved(false), 3000);
+    } finally {
+      setContractEmailSaving(false);
+    }
   }
 
   async function handleUserSave() {
@@ -263,6 +283,38 @@ export default function AdminPage() {
             {sigUploading ? 'מעלה...' : staffSig ? 'החלף חתימה' : 'העלה חתימה'}
             <input type="file" accept="image/*" className="hidden" onChange={handleSigUpload} disabled={sigUploading} />
           </label>
+        </div>
+
+        {/* ── Contract email content ── */}
+        <div className="rounded-2xl p-4 bg-white border border-violet-100 shadow-sm">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-lg">📧</span>
+            <h2 className="font-black text-base text-slate-800">תוכן אימייל חוזה חתום</h2>
+          </div>
+          <p className="text-xs mb-3 text-slate-400">הטקסט כאן יופיע באימייל שנשלח ללקוח לאחר החתימה על החוזה.</p>
+          <label className="block text-xs font-bold text-slate-600 mb-1">הודעה אישית ללקוח</label>
+          <textarea
+            value={contractEmailBody}
+            onChange={e => setContractEmailBody(e.target.value)}
+            rows={4}
+            placeholder="לדוגמה: מצפים לאירוע שלכם! לכל שאלה אנחנו זמינים."
+            className="w-full rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none border border-violet-200 focus:border-violet-400 text-slate-700 mb-3"
+            style={{ fontFamily: 'inherit', lineHeight: '1.6' }}
+          />
+          <label className="block text-xs font-bold text-slate-600 mb-1">פרטי תשלום / חשבון בנק</label>
+          <textarea
+            value={contractEmailBank}
+            onChange={e => setContractEmailBank(e.target.value)}
+            rows={4}
+            placeholder="לדוגמה: בנק הפועלים, סניף 123, חשבון 456789, על שם שרביה בע&quot;מ"
+            className="w-full rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none border border-violet-200 focus:border-violet-400 text-slate-700 mb-3"
+            style={{ fontFamily: 'inherit', lineHeight: '1.6' }}
+          />
+          <button onClick={handleContractEmailSave} disabled={contractEmailSaving}
+            className="w-full py-2.5 rounded-xl font-black text-sm transition disabled:opacity-50 text-white"
+            style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+            {contractEmailSaving ? 'שומר...' : contractEmailSaved ? 'נשמר' : 'שמור'}
+          </button>
         </div>
 
         {/* ── WhatsApp status ── */}
