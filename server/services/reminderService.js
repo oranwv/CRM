@@ -1,7 +1,7 @@
 const pool   = require('../db/pool');
 const axios  = require('axios');
 const jwt    = require('jsonwebtoken');
-const OpenAI = require('openai');
+const { OpenAI } = require('openai');
 
 const GREEN_API_URL      = process.env.GREEN_API_URL;
 const GREEN_API_INSTANCE = process.env.GREEN_API_INSTANCE;

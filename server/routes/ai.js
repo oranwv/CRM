@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const pool   = require('../db/pool');
-const OpenAI = require('openai');
+const { OpenAI } = require('openai');
 
 function getClient() {
   const key = process.env.OPENAI_API_KEY;
