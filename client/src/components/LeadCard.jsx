@@ -802,7 +802,8 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
   const [newInclude, setNewInclude]   = useState('');
   const [rows, setRows]               = useState(DEFAULT_ROWS);
   const [loadingImport, setLoadingImport] = useState(false);
-  const [importNotFound, setImportNotFound] = useState(false);
+  const [latestContract,   setLatestContract]   = useState(undefined);
+  const [latestPriceOffer, setLatestPriceOffer] = useState(undefined);
   const [newRow, setNewRow]           = useState({ label: '', desc: '', qty: 1, price: 0, isPct: false, pct: 0 });
   const [sending, setSending]         = useState('');
   const [sent, setSent]               = useState(false);
@@ -911,49 +912,65 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
     ? (() => { const d = new Date(fields.eventDate + 'T12:00:00'); d.setMonth(d.getMonth() + 6); return d.toLocaleDateString('he-IL'); })()
     : '';
 
-  async function handleImportYes() {
+  async function handleSelectType(type) {
+    setContractType(type);
     setLoadingImport(true);
-    setImportNotFound(false);
-    try {
-      const { data } = await api.get(`/leads/${lead.id}/price-offer/latest`);
-      if (!data) { setImportNotFound(true); return; }
-      const f = data.fields || {};
-      if (isPackage) {
-        setFields(prev => ({
-          ...prev,
-          clientName:             f.name                    || '',
-          clientEmail:            f.email                   || '',
-          clientPhone:            f.phone                   || '',
-          startTime:              f.doorTime                || '',
-          endTime:                f.endTime                 || '',
-          packageGuests:          f.packageGuests          != null ? String(f.packageGuests)          : '',
-          packageTotal:           f.packagePrice           != null ? String(f.packagePrice)           : '',
-          packageExtraGuestPrice: f.packageExtraGuestPrice != null ? String(f.packageExtraGuestPrice) : '',
-          chefMenu:               f.chefMenu               || '',
-          barMenu:                f.barMenu                || '',
-        }));
-      } else {
-        setFields(prev => ({
-          ...prev,
-          clientName:      f.name            || '',
-          clientEmail:     f.email           || '',
-          clientPhone:     f.phone           || '',
-          startTime:       f.doorTime        || '',
-          endTime:         f.endTime         || '',
-          guests:          f.guests          != null ? String(f.guests)          : '',
-          extraGuestPrice: f.extraGuestPrice != null ? String(f.extraGuestPrice) : '',
-          chefMenu:        f.chefMenu        || '',
-          barMenu:         f.barMenu         || '',
-        }));
-        if (data.rows?.length) setRows(data.rows);
-      }
-      if (data.includes?.length) setContractTexts(t => ({ ...t, includes: data.includes }));
-      setStep(1);
-    } catch {
-      setImportNotFound(true);
-    } finally {
-      setLoadingImport(false);
+    const [cRes, oRes] = await Promise.allSettled([
+      api.get(`/leads/${lead.id}/contracts/latest?type=${type}`),
+      api.get(`/leads/${lead.id}/price-offer/latest`),
+    ]);
+    const contract = cRes.status === 'fulfilled' ? cRes.value.data : null;
+    const offer    = oRes.status === 'fulfilled' ? oRes.value.data : null;
+    setLatestContract(contract);
+    setLatestPriceOffer(offer);
+    setLoadingImport(false);
+    if (!contract && !offer) setStep(1);
+  }
+
+  function handleImportFromOffer() {
+    const data = latestPriceOffer;
+    if (!data) return;
+    const f = data.fields || {};
+    if (isPackage) {
+      setFields(prev => ({
+        ...prev,
+        clientName:             f.name                    || '',
+        clientEmail:            f.email                   || '',
+        clientPhone:            f.phone                   || '',
+        startTime:              f.doorTime                || '',
+        endTime:                f.endTime                 || '',
+        packageGuests:          f.packageGuests          != null ? String(f.packageGuests)          : '',
+        packageTotal:           f.packagePrice           != null ? String(f.packagePrice)           : '',
+        packageExtraGuestPrice: f.packageExtraGuestPrice != null ? String(f.packageExtraGuestPrice) : '',
+        chefMenu:               f.chefMenu               || '',
+        barMenu:                f.barMenu                || '',
+      }));
+    } else {
+      setFields(prev => ({
+        ...prev,
+        clientName:      f.name            || '',
+        clientEmail:     f.email           || '',
+        clientPhone:     f.phone           || '',
+        startTime:       f.doorTime        || '',
+        endTime:         f.endTime         || '',
+        guests:          f.guests          != null ? String(f.guests)          : '',
+        extraGuestPrice: f.extraGuestPrice != null ? String(f.extraGuestPrice) : '',
+        chefMenu:        f.chefMenu        || '',
+        barMenu:         f.barMenu         || '',
+      }));
+      if (data.rows?.length) setRows(data.rows);
     }
+    if (data.includes?.length) setContractTexts(t => ({ ...t, includes: data.includes }));
+    setStep(1);
+  }
+
+  function handleImportFromContract() {
+    const data = latestContract;
+    if (!data) return;
+    if (data.fields) setFields(prev => ({ ...prev, ...data.fields }));
+    if (!isPackage && data.rows?.length) setRows(data.rows);
+    if (data.texts) setContractTexts(data.texts);
+    setStep(1);
   }
 
   async function handleSend(channel) {
@@ -1025,12 +1042,12 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
           {contractType === null && (
             <div className="flex flex-col items-center gap-4 py-8">
               <p className="font-bold text-slate-700 text-base">בחר סוג חוזה</p>
-              <button onClick={() => setContractType('regular')}
+              <button onClick={() => handleSelectType('regular')}
                 className="w-full max-w-xs py-4 rounded-2xl font-black text-sm text-white"
                 style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
                 חוזה רגיל
               </button>
-              <button onClick={() => setContractType('package')}
+              <button onClick={() => handleSelectType('package')}
                 className="w-full max-w-xs py-4 rounded-2xl font-black text-sm border-2 border-violet-400 text-violet-700 bg-white">
                 חוזה חבילה
               </button>
@@ -1062,26 +1079,26 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
           {isImportStep && (
             <div className="flex flex-col items-center gap-4 py-6">
               {loadingImport ? (
-                <p className="text-slate-500 text-sm">טוען הצעת מחיר...</p>
-              ) : importNotFound ? (
-                <div className="text-center">
-                  <p className="text-slate-500 text-sm mb-4">לא נמצאה הצעת מחיר עבור ליד זה</p>
-                  <button onClick={() => setStep(1)}
-                    className="px-6 py-2.5 rounded-xl font-bold text-sm text-white"
-                    style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
-                    המשך
-                  </button>
-                </div>
+                <p className="text-slate-500 text-sm">טוען...</p>
               ) : (
                 <div className="text-center">
-                  <p className="font-bold text-slate-700 mb-1">לייבא פרטים מהצעת המחיר האחרונה?</p>
-                  <p className="text-xs text-slate-400 mb-5">שם לקוח, תאריך, שעות, אורחים, עלויות ורשימת הכולל ימולאו אוטומטית</p>
-                  <div className="flex gap-3 justify-center">
-                    <button onClick={handleImportYes}
-                      className="px-6 py-2.5 rounded-xl font-bold text-sm text-white"
-                      style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
-                      כן, ייבא
-                    </button>
+                  <p className="font-bold text-slate-700 mb-1">לייבא פרטים?</p>
+                  <p className="text-xs text-slate-400 mb-5">פרטי לקוח, תאריך, שעות, תפריטים ועלויות ימולאו אוטומטית</p>
+                  <div className="flex flex-wrap gap-3 justify-center">
+                    {latestContract && (
+                      <button onClick={handleImportFromContract}
+                        className="px-6 py-2.5 rounded-xl font-bold text-sm text-white"
+                        style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+                        ייבא מחוזה אחרון
+                      </button>
+                    )}
+                    {latestPriceOffer && (
+                      <button onClick={handleImportFromOffer}
+                        className="px-6 py-2.5 rounded-xl font-bold text-sm text-white"
+                        style={{ background: 'linear-gradient(135deg, #06b6d4, #3b82f6)' }}>
+                        ייבא מהצעת מחיר
+                      </button>
+                    )}
                     <button onClick={() => setStep(1)}
                       className="px-6 py-2.5 rounded-xl font-bold text-sm border border-slate-200 text-slate-600">
                       לא

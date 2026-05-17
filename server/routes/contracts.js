@@ -213,6 +213,22 @@ ${tArr('legalParagraphs').map((p, i) => `<p style="${i === 0 ? 'margin-top:8pt;'
 // ── Lead-scoped router (protected, mergeParams gets :id) ──────────────────────
 const contractLeadRouter = require('express').Router({ mergeParams: true });
 
+contractLeadRouter.get('/latest', async (req, res) => {
+  try {
+    const { id: leadId } = req.params;
+    const { type } = req.query;
+    const { rows } = await pool.query(
+      `SELECT contract_data FROM contracts
+       WHERE lead_id = $1 AND contract_data->>'offerType' = $2
+       ORDER BY created_at DESC LIMIT 1`,
+      [leadId, type || 'regular']
+    );
+    res.json(rows[0]?.contract_data || null);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 contractLeadRouter.post('/', async (req, res) => {
   try {
     const { contract_data } = req.body;
