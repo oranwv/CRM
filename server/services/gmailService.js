@@ -2,6 +2,7 @@ const { google } = require('googleapis');
 const fs = require('fs');
 const path = require('path');
 const pool = require('../db/pool');
+const { sendWhatsApp } = require('./reminderService');
 
 const CREDENTIALS_PATH = path.join(__dirname, '../credentials.json');
 const TOKEN_PATH       = path.join(__dirname, '../google_token.json');
@@ -169,6 +170,21 @@ async function upsertLead(parsed, emailId, emailTs) {
        VALUES ($1, 'email', 'inbound', $2, NULL, false, ${tsExpr})`,
       [existing.id, `[אימייל אוטומטי - ${parsed.source}] ${parsed.notes || ''}`]
     );
+
+    // Notify assigned user about inbound email (non-blocking)
+    const _eid = existing.id;
+    const _src = parsed.source;
+    const _preview = (parsed.notes || '').slice(0, 200);
+    pool.query(
+      `SELECT u.phone, l.name FROM leads l JOIN users u ON u.id = l.assigned_to WHERE l.id = $1 AND u.phone IS NOT NULL`,
+      [_eid]
+    ).then(async ({ rows }) => {
+      if (!rows[0]) return;
+      const baseUrl = process.env.SERVER_URL || 'https://crm-production-c3df.up.railway.app';
+      await sendWhatsApp(rows[0].phone,
+        `אימייל חדש מ${rows[0].name} (${_src}):\n"${_preview}"\nלפתיחת הליד: ${baseUrl}/?lead=${_eid}`
+      );
+    }).catch(() => {});
   } else {
     const fields = ['source', 'stage', 'name', 'phone', 'email', 'event_date', 'event_type', 'guest_count', 'budget', 'notes', 'event_name'];
     const values = [parsed.source, 'new', parsed.name, parsed.phone, parsed.email,

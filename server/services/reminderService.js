@@ -1,6 +1,7 @@
-const pool = require('../db/pool');
-const axios = require('axios');
-const jwt   = require('jsonwebtoken');
+const pool   = require('../db/pool');
+const axios  = require('axios');
+const jwt    = require('jsonwebtoken');
+const OpenAI = require('openai');
 
 const GREEN_API_URL      = process.env.GREEN_API_URL;
 const GREEN_API_INSTANCE = process.env.GREEN_API_INSTANCE;
@@ -17,6 +18,42 @@ async function sendWhatsApp(phone, message) {
     await new Promise(r => setTimeout(r, 5000));
   } catch (err) {
     console.error(`[Reminder] WhatsApp send failed to ${phone}:`, err.message);
+  }
+}
+
+async function generateLeadSummary(leadId, leadName, stage) {
+  try {
+    const key = process.env.OPENAI_API_KEY;
+    if (!key) return null;
+    const client = new OpenAI({ apiKey: key });
+
+    const { rows: interactions } = await pool.query(
+      `SELECT direction, body FROM lead_interactions WHERE lead_id = $1 ORDER BY created_at DESC LIMIT 5`,
+      [leadId]
+    );
+    const { rows: messages } = await pool.query(
+      `SELECT direction, body FROM messages WHERE lead_id = $1 ORDER BY timestamp DESC LIMIT 3`,
+      [leadId]
+    );
+
+    const history = [
+      ...interactions.map(r => `[${r.direction === 'inbound' ? 'לקוח' : 'צוות'}]: ${r.body}`),
+      ...messages.map(r => `[${r.direction === 'inbound' ? 'לקוח' : 'צוות'}]: ${r.body}`),
+    ].join('\n');
+
+    const completion = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      max_tokens: 150,
+      messages: [{
+        role: 'user',
+        content: `סכם את מצב הליד "${leadName}" (שלב: ${stage}) ב-3 שורות קצרות בעברית בלבד.\nהיסטוריה:\n${history || '(אין היסטוריה)'}\n\nכתוב בדיוק 3 שורות, כל שורה בשורה חדשה.`,
+      }],
+    });
+
+    return completion.choices[0].message.content.trim();
+  } catch (err) {
+    console.error('[Reminder] generateLeadSummary failed:', err.message);
+    return null;
   }
 }
 
@@ -112,7 +149,7 @@ async function runReminders() {
     console.log('[Reminders] baseUrl:', baseUrl);
 
     const dueTasks = await pool.query(`
-      SELECT t.id, t.title, t.lead_id, l.name AS lead_name,
+      SELECT t.id, t.title, t.lead_id, l.name AS lead_name, l.phone AS lead_phone, l.stage AS lead_stage,
              u.phone AS user_phone, u.display_name
       FROM tasks t
       JOIN leads l ON l.id = t.lead_id
@@ -141,9 +178,13 @@ async function runReminders() {
       );
       const actionUrl = `${baseUrl}/task-action/${task.id}?token=${actionToken}`;
 
+      const summary = await generateLeadSummary(task.lead_id, task.lead_name, task.lead_stage);
+      const summaryBlock = summary ? `---\n${summary}\n---\n` : '';
+      const phoneBlock = task.lead_phone ? `📞 ${task.lead_phone}\n` : '';
+
       await sendWhatsApp(
         task.user_phone,
-        `⏰ תזכורת משימה: "${task.title}" עבור הליד "${task.lead_name}" - עכשיו!\n🔗 לפתיחת הליד: ${baseUrl}/?lead=${task.lead_id}\n👇 פעולות (הושלם / דחייה / המשך): ${actionUrl}`
+        `⏰ תזכורת משימה: "${task.title}" - ${task.lead_name}\n${phoneBlock}${summaryBlock}לפתיחת הליד: ${baseUrl}/?lead=${task.lead_id}\nפעולות (הושלם / דחייה / המשך): ${actionUrl}`
       );
     }
 
@@ -155,4 +196,4 @@ async function runReminders() {
   }
 }
 
-module.exports = { runReminders };
+module.exports = { runReminders, sendWhatsApp };

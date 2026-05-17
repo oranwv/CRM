@@ -1,12 +1,11 @@
 const router = require('express').Router();
 const pool   = require('../db/pool');
-const AnthropicModule = require('@anthropic-ai/sdk');
-const Anthropic = AnthropicModule.default || AnthropicModule;
+const OpenAI = require('openai');
 
 function getClient() {
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) throw new Error('ANTHROPIC_API_KEY is not set');
-  return new Anthropic({ apiKey: key });
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) throw new Error('OPENAI_API_KEY is not set');
+  return new OpenAI({ apiKey: key });
 }
 
 // POST /api/ai/translate — translate text to Hebrew or English
@@ -19,12 +18,12 @@ router.post('/translate', async (req, res) => {
     : 'תרגם את הטקסט הבא לעברית. החזר רק את הטקסט המתורגם, ללא הסברים.';
 
   try {
-    const msg = await getClient().messages.create({
-      model: 'claude-haiku-4-5-20251001',
+    const completion = await getClient().chat.completions.create({
+      model: 'gpt-4o-mini',
       max_tokens: 1024,
       messages: [{ role: 'user', content: `${instruction}\n\n${text}` }],
     });
-    res.json({ result: msg.content[0].text.trim() });
+    res.json({ result: completion.choices[0].message.content.trim() });
   } catch (err) {
     console.error('[AI] translate error:', err.message);
     res.status(500).json({ error: err.message });
@@ -72,13 +71,15 @@ ${history || '(אין היסטוריה)'}
     const aiInstructions = aiRows[0]?.value?.trim() || '';
     const replySystem = `אתה איש מכירות מקצועי של אולם אירועים שרביה בתל אביב. אתה כותב תגובות חמות, מקצועיות ומשכנעות ללקוחות פוטנציאליים בעברית. החזר רק את טקסט ההודעה ללא כותרות או הסברים.${aiInstructions ? '\n\n' + aiInstructions : ''}`;
 
-    const msg = await getClient().messages.create({
-      model: 'claude-sonnet-4-6',
+    const completion = await getClient().chat.completions.create({
+      model: 'gpt-4o',
       max_tokens: 1024,
-      system: replySystem,
-      messages: [{ role: 'user', content: prompt }],
+      messages: [
+        { role: 'system', content: replySystem },
+        { role: 'user', content: prompt },
+      ],
     });
-    res.json({ result: msg.content[0].text.trim() });
+    res.json({ result: completion.choices[0].message.content.trim() });
   } catch (err) {
     console.error('[AI] reply error:', err.message);
     res.status(500).json({ error: err.message });
@@ -94,13 +95,15 @@ router.post('/improve', async (req, res) => {
     const { rows: aiRows2 } = await pool.query("SELECT value FROM settings WHERE key = 'ai_instructions'");
     const aiInstructions2 = aiRows2[0]?.value?.trim() || '';
     const improveSystem = `אתה עוזר לאיש מכירות של אולם אירועים שרביה לשפר הודעות ללקוחות. שפר את ההודעה הבאה — תהיה מקצועי יותר, חם ומשכנע, תוך שמירה על הכוונה המקורית. החזר רק את טקסט ההודעה המשופרת ללא הסברים.${aiInstructions2 ? '\n\n' + aiInstructions2 : ''}`;
-    const msg = await getClient().messages.create({
-      model: 'claude-haiku-4-5-20251001',
+    const completion = await getClient().chat.completions.create({
+      model: 'gpt-4o-mini',
       max_tokens: 1024,
-      system: improveSystem,
-      messages: [{ role: 'user', content: text }],
+      messages: [
+        { role: 'system', content: improveSystem },
+        { role: 'user', content: text },
+      ],
     });
-    res.json({ result: msg.content[0].text.trim() });
+    res.json({ result: completion.choices[0].message.content.trim() });
   } catch (err) {
     console.error('[AI] improve error:', err.message);
     res.status(500).json({ error: err.message });

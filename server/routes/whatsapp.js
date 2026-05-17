@@ -138,6 +138,22 @@ router.post('/webhook', async (req, res) => {
     );
     await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [leadId]);
 
+    // Notify assigned user about inbound message (non-blocking)
+    const _notifyText = text;
+    const _notifyLeadId = leadId;
+    pool.query(
+      `SELECT u.phone, l.name FROM leads l JOIN users u ON u.id = l.assigned_to WHERE l.id = $1 AND u.phone IS NOT NULL`,
+      [_notifyLeadId]
+    ).then(async ({ rows }) => {
+      if (!rows[0]) return;
+      const { sendWhatsApp } = require('../services/reminderService');
+      const baseUrl = process.env.SERVER_URL || 'https://crm-production-c3df.up.railway.app';
+      const preview = _notifyText.slice(0, 200);
+      await sendWhatsApp(rows[0].phone,
+        `הודעה חדשה מ${rows[0].name}:\n"${preview}"\nלפתיחת הליד: ${baseUrl}/?lead=${_notifyLeadId}`
+      );
+    }).catch(() => {});
+
     console.log(`[WhatsApp] Message from ${senderPhone} → lead ${leadId}`);
     res.sendStatus(200);
   } catch (err) {
