@@ -145,7 +145,7 @@ async function getLeadCalendarStatus(leadId) {
   return rows[0] || null;
 }
 
-async function createMeeting({ leadId, title, start, end, guestEmail, guestName }) {
+async function createMeeting({ leadId, title, start, end, guestEmail, guestName, sendInvite }) {
   const auth     = getAuth();
   const calendar = google.calendar({ version: 'v3', auth });
 
@@ -155,7 +155,7 @@ async function createMeeting({ leadId, title, start, end, guestEmail, guestName 
   const baseUrl = process.env.SERVER_URL || 'http://localhost:3001';
   const result = await calendar.events.insert({
     calendarId: 'primary',
-    sendUpdates: 'none',
+    sendUpdates: sendInvite ? 'all' : 'none',
     requestBody: {
       summary: title,
       location: 'שרביה, פנחס בן יאיר 3, תל אביב',

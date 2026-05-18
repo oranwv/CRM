@@ -3885,6 +3885,7 @@ function ScheduleMeetingModal({ lead, leadId, onClose, onDone }) {
 
       const { data } = await api.post(`/calendar/leads/${leadId}/meeting`, {
         title, start, end, guestEmail, guestName: lead.name,
+        sendInvite: delivery === 'email',
       });
 
       if (delivery === 'whatsapp') {
@@ -3893,8 +3894,6 @@ function ScheduleMeetingModal({ lead, leadId, onClose, onDone }) {
           message: `שלום! קישור לפגישה שנקבעה לך ל-${new Date(`${date}T${startTime}`).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' })} בשעה ${startTime} בשרביה:\n${data.icsUrl}`,
         });
         if (guestEmail) await api.post(`/calendar/meetings/${data.eventId}/notify`);
-      } else {
-        await api.post(`/calendar/meetings/${data.eventId}/notify`);
       }
 
       setResult(data);

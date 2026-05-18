@@ -55,7 +55,7 @@ router.get('/leads/:leadId/status', async (req, res) => {
 
 // POST /api/calendar/leads/:leadId/meeting — create a meeting event for a lead
 router.post('/leads/:leadId/meeting', async (req, res) => {
-  const { title, start, end, guestEmail, guestName } = req.body;
+  const { title, start, end, guestEmail, guestName, sendInvite } = req.body;
   try {
     const { rows } = await pool.query('SELECT * FROM leads WHERE id = $1', [req.params.leadId]);
     const lead = rows[0];
@@ -68,6 +68,7 @@ router.post('/leads/:leadId/meeting', async (req, res) => {
       end,
       guestEmail: guestEmail || lead.email || null,
       guestName:  guestName  || lead.name  || null,
+      sendInvite: !!sendInvite,
     });
 
     await pool.query(
