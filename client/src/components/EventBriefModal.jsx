@@ -54,6 +54,18 @@ export default function EventBriefModal({ leadId, onClose }) {
     }, 800);
   }, [leadId]);
 
+  async function saveNow() {
+    clearTimeout(saveTimer.current);
+    setSaving(true);
+    try {
+      await api.put(`/leads/${leadId}/event-brief`, { data });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function set(key, val) {
     const next = { ...data, [key]: val };
     setData(next);
@@ -114,13 +126,6 @@ export default function EventBriefModal({ leadId, onClose }) {
 
   const isWedding = (auto.event_type || '').includes('חתונה');
 
-  const eventTimeDisplay = (() => {
-    const t = val('event_time');
-    const e = val('event_end_time');
-    if (t && e) return `${t} – ${e}`;
-    return t;
-  })();
-
   return (
     <div className="fixed inset-0 z-[60] flex flex-col bg-white" dir="rtl">
       {/* Header */}
@@ -130,6 +135,14 @@ export default function EventBriefModal({ leadId, onClose }) {
         <div className="flex items-center gap-2">
           {saving && <span className="text-xs text-slate-400">שומר...</span>}
           {saved  && <span className="text-xs text-emerald-600 font-bold">נשמר</span>}
+          <button
+            onClick={saveNow}
+            disabled={saving}
+            className="text-xs px-3 py-1.5 rounded-xl font-bold text-white disabled:opacity-50"
+            style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}
+          >
+            שמור
+          </button>
           <button
             onClick={exportPdf}
             className="text-xs px-3 py-1.5 rounded-xl font-bold border border-violet-300 text-violet-700 hover:bg-violet-50 transition"
@@ -162,7 +175,7 @@ export default function EventBriefModal({ leadId, onClose }) {
           <Field label="שעות אירוע" auto={isAuto('event_time')}>
             <input
               className={inputCls}
-              value={eventTimeDisplay}
+              value={val('event_time')}
               onChange={e => set('event_time', e.target.value)}
               placeholder="שעת התחלה – שעת סיום"
             />

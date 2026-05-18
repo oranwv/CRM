@@ -6,3 +6,16 @@ server/credentials.json
 server/google_token.json
 uploads/
 *.log
+
+# bedrock: noisy auto-generated content excluded from git
+# Curated knowledge (Memory/, History/, Evidence/imports/, Dashboards/) IS tracked.
+bedrock/Evidence/raw/
+bedrock/Evidence/captures/
+bedrock/Outputs/site/
+bedrock/Outputs/graph.json
+bedrock/Outputs/knowledge-index.json
+bedrock/Outputs/knowledge-index.md
+bedrock/Outputs/absorb-manifest.md
+bedrock/.obsidian/workspace
+bedrock/.obsidian/workspace.json
+bedrock/.obsidian/workspaces.json
