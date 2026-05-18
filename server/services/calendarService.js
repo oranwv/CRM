@@ -172,11 +172,12 @@ async function createMeeting({ leadId, title, start, end, guestEmail, guestName 
 async function sendMeetingInvite(eventId) {
   const auth     = getAuth();
   const calendar = google.calendar({ version: 'v3', auth });
-  await calendar.events.patch({
+  const { data: event } = await calendar.events.get({ calendarId: 'primary', eventId });
+  await calendar.events.update({
     calendarId: 'primary',
     eventId,
     sendUpdates: 'all',
-    requestBody: {},
+    requestBody: event,
   });
 }
 
