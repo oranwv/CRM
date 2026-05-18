@@ -327,6 +327,14 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
             {t.label}
           </button>
         ))}
+        {['deposit', 'production', 'completed'].includes(lead.stage) && (
+          <button
+            onClick={() => setShowBrief(true)}
+            className="flex-1 py-3 transition border-b-2 border-transparent text-violet-500 hover:text-violet-700 font-bold"
+          >
+            בריף אירוע
+          </button>
+        )}
       </div>
 
       {/* Content */}
