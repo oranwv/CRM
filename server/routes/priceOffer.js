@@ -74,7 +74,7 @@ function buildHtml({ fields, rows, texts, offerType }) {
 <div style="font-size:9pt;line-height:1.8;">${venueDescItemsHtml}</div>`;
 
   const extraGuestHtml = (fields.extraGuestPrice && Number(fields.extraGuestPrice) > 0)
-    ? `<p style="margin-top:4pt;">עלות כל אורח נוסף מעל ${esc(String(fields.guests || ''))} אורחים הינה ${Number(fields.extraGuestPrice).toLocaleString()} ש"ח לפני מע"מ</p>`
+    ? `<p style="margin-top:4pt;">עלות כל אורח נוסף מעל ${esc(String(fields.guests || ''))} אורחים הינה ${Number(fields.extraGuestPrice).toLocaleString()} ש"ח ${withVat ? 'כולל מע"מ' : 'לא כולל מע"מ'}</p>`
     : '';
 
   const packageCostLinesHtml = (texts.packageCostLines || [])

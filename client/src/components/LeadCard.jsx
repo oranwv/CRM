@@ -1687,11 +1687,12 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
 
   useEffect(() => {
     if (!isPreviewStep || offerType !== 'package' || texts.packageCostLines.length > 0) return;
+    const vatLabel = withVat ? 'כולל מע"מ' : 'לא כולל מע"מ';
     const lines = [];
     if (fields.packageGuests && fields.packagePrice)
-      lines.push(`עלות החבילה עבור ${fields.packageGuests} אורחים - ${Number(fields.packagePrice).toLocaleString()} ש"ח כולל מע"מ`);
+      lines.push(`עלות החבילה עבור ${fields.packageGuests} אורחים - ${Number(fields.packagePrice).toLocaleString()} ש"ח ${vatLabel}`);
     if (fields.packageGuests && fields.packageExtraGuestPrice)
-      lines.push(`כל אורח נוסף מעל ${fields.packageGuests} אורחים בתוספת של - ${Number(fields.packageExtraGuestPrice).toLocaleString()} ש"ח כולל מע"מ`);
+      lines.push(`כל אורח נוסף מעל ${fields.packageGuests} אורחים בתוספת של - ${Number(fields.packageExtraGuestPrice).toLocaleString()} ש"ח ${vatLabel}`);
     if (lines.length) setTexts(t => ({ ...t, packageCostLines: lines }));
   }, [isPreviewStep]);
 
@@ -2282,7 +2283,7 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
                     </p>
                     {fields.extraGuestPrice && Number(fields.extraGuestPrice) > 0 && (
                       <p style={{ marginTop: '4pt' }}>
-                        {`עלות כל אורח נוסף מעל ${fields.guests || ''} אורחים הינה ${Number(fields.extraGuestPrice).toLocaleString()} ש"ח לפני מע"מ`}
+                        {`עלות כל אורח נוסף מעל ${fields.guests || ''} אורחים הינה ${Number(fields.extraGuestPrice).toLocaleString()} ש"ח ${withVat ? 'כולל מע"מ' : 'לא כולל מע"מ'}`}
                       </p>
                     )}
                   </>
