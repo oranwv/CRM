@@ -237,40 +237,48 @@ async function pollGmail() {
 
     const messages = res.data.messages || [];
     for (const msg of messages) {
-      // Skip already processed
-      const already = await pool.query('SELECT 1 FROM processed_emails WHERE gmail_id = $1', [msg.id]);
-      if (already.rows.length > 0) continue;
+      try {
+        // Skip already processed
+        const already = await pool.query('SELECT 1 FROM processed_emails WHERE gmail_id = $1', [msg.id]);
+        if (already.rows.length > 0) continue;
 
-      const full = await gmail.users.messages.get({ userId: 'me', id: msg.id, format: 'full' });
-      const emailTs = full.data.internalDate ? Number(full.data.internalDate) : null;
-      const headers = full.data.payload.headers;
-      const from    = headers.find(h => h.name === 'From')?.value || '';
-      const subject = headers.find(h => h.name === 'Subject')?.value || '';
-      const body    = extractBody(full.data.payload);
+        const full = await gmail.users.messages.get({ userId: 'me', id: msg.id, format: 'full' });
+        const emailTs = full.data.internalDate ? Number(full.data.internalDate) : null;
+        const headers = full.data.payload.headers;
+        const from    = headers.find(h => h.name === 'From')?.value || '';
+        const subject = headers.find(h => h.name === 'Subject')?.value || '';
+        const body    = extractBody(full.data.payload);
 
-      let parsed = null;
+        let parsed = null;
 
-      if (from.includes('hafakot.co.il') && subject.toUpperCase().includes('CALL EVENT')) {
-        parsed = parseCallEvent(body);
-      } else if (subject.includes('הודעה חדשה פופאפ')) {
-        parsed = parseWebsitePopup(body);
-      } else if (subject.includes('פנייה חדשה מאתר שרביה')) {
-        parsed = parseWebsiteForm(body);
-      } else if (from.includes('telekol') && subject.includes('טלקול')) {
-        parsed = parseTelekol(body);
-      } else if (from.includes('dont-reply@ai.vonage.com')) {
-        parsed = parseVonage(body);
-      }
+        if (from.includes('hafakot.co.il') && (subject.toUpperCase().includes('CALL EVENT') || body.includes('להלן פרטי הליד:'))) {
+          parsed = parseCallEvent(body);
+        } else if (subject.includes('הודעה חדשה פופאפ')) {
+          parsed = parseWebsitePopup(body);
+        } else if (subject.includes('פנייה חדשה מאתר שרביה')) {
+          parsed = parseWebsiteForm(body);
+        } else if (from.includes('telekol') && subject.includes('טלקול')) {
+          parsed = parseTelekol(body);
+        } else if (from.includes('dont-reply@ai.vonage.com')) {
+          parsed = parseVonage(body);
+        }
 
-      if (parsed) {
-        await upsertLead(parsed, msg.id, emailTs);
-        console.log(`[Gmail] Processed: ${subject} → ${parsed.source} lead`);
-      } else {
-        // Mark as processed so we don't re-check irrelevant emails
+        if (parsed) {
+          await upsertLead(parsed, msg.id, emailTs);
+          console.log(`[Gmail] Processed: ${subject} → ${parsed.source} lead`);
+        } else {
+          // Mark as processed so we don't re-check irrelevant emails
+          await pool.query(
+            `INSERT INTO processed_emails (gmail_id) VALUES ($1) ON CONFLICT DO NOTHING`,
+            [msg.id]
+          );
+        }
+      } catch (err) {
+        console.error(`[Gmail] Error processing message ${msg.id}:`, err.message);
         await pool.query(
           `INSERT INTO processed_emails (gmail_id) VALUES ($1) ON CONFLICT DO NOTHING`,
           [msg.id]
-        );
+        ).catch(() => {});
       }
     }
   } catch (err) {

@@ -180,6 +180,12 @@ pool.query(`
 `).catch(err => console.error('[DB] stage constraint migration error:', err.message));
 
 pool.query(`
+  ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_source_check;
+  ALTER TABLE leads ADD CONSTRAINT leads_source_check
+    CHECK (source IN ('website_popup','website_form','call_event','telekol','vonage','whatsapp','facebook','instagram','manual'));
+`).catch(err => console.error('[DB] source constraint migration error:', err.message));
+
+pool.query(`
   CREATE TABLE IF NOT EXISTS google_calendar_cache (
     google_event_id TEXT PRIMARY KEY,
     title TEXT,

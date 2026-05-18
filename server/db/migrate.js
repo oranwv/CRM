@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS leads (
   event_type VARCHAR(100),
   guest_count VARCHAR(50),
   budget VARCHAR(100),
-  source VARCHAR(50) DEFAULT 'manual' CHECK (source IN ('website_popup','website_form','call_event','telekol','whatsapp','facebook','instagram','manual')),
+  source VARCHAR(50) DEFAULT 'manual' CHECK (source IN ('website_popup','website_form','call_event','telekol','vonage','whatsapp','facebook','instagram','manual')),
   stage VARCHAR(30) DEFAULT 'new' CHECK (stage IN ('new','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent','deposit','production','lost')),
   lost_reason VARCHAR(100),
   lost_reason_text TEXT,
