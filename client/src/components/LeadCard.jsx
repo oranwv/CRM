@@ -10,9 +10,9 @@ const STAGES = [
   { key: 'contacted',         label: 'בוצעה שיחה ראשונית', active: 'bg-amber-500 text-white border-amber-500',      past: 'bg-amber-100 text-amber-600 border-amber-200',      future: 'bg-white text-slate-400 border-slate-200 hover:border-amber-300 hover:text-amber-500' },
   { key: 'meeting_scheduled', label: 'נקבעה פגישה',        active: 'bg-fuchsia-500 text-white border-fuchsia-500',  past: 'bg-fuchsia-100 text-fuchsia-600 border-fuchsia-200', future: 'bg-white text-slate-400 border-slate-200 hover:border-fuchsia-300 hover:text-fuchsia-500' },
   { key: 'meeting',           label: 'בוצעה פגישה',        active: 'bg-violet-500 text-white border-violet-500',    past: 'bg-violet-100 text-violet-600 border-violet-200',   future: 'bg-white text-slate-400 border-slate-200 hover:border-violet-300 hover:text-violet-500' },
-  { key: 'offer_sent',        label: 'שלח הצעת מחיר',      active: 'bg-blue-500 text-white border-blue-500',        past: 'bg-blue-100 text-blue-600 border-blue-200',         future: 'bg-white text-slate-400 border-slate-200 hover:border-blue-300 hover:text-blue-500' },
+  { key: 'offer_sent',        label: 'נשלחה הצעת מחיר',    active: 'bg-blue-500 text-white border-blue-500',        past: 'bg-blue-100 text-blue-600 border-blue-200',         future: 'bg-white text-slate-400 border-slate-200 hover:border-blue-300 hover:text-blue-500' },
   { key: 'negotiation',       label: 'מו"מ',               active: 'bg-orange-500 text-white border-orange-500',    past: 'bg-orange-100 text-orange-600 border-orange-200',   future: 'bg-white text-slate-400 border-slate-200 hover:border-orange-300 hover:text-orange-500' },
-  { key: 'contract_sent',     label: 'שלח חוזה',            active: 'bg-indigo-500 text-white border-indigo-500',    past: 'bg-indigo-100 text-indigo-600 border-indigo-200',   future: 'bg-white text-slate-400 border-slate-200 hover:border-indigo-300 hover:text-indigo-500' },
+  { key: 'contract_sent',     label: 'נשלח חוזה',           active: 'bg-indigo-500 text-white border-indigo-500',    past: 'bg-indigo-100 text-indigo-600 border-indigo-200',   future: 'bg-white text-slate-400 border-slate-200 hover:border-indigo-300 hover:text-indigo-500' },
   { key: 'deposit',           label: 'התקבלה מקדמה',       active: 'bg-emerald-500 text-white border-emerald-500',  past: 'bg-emerald-100 text-emerald-600 border-emerald-200', future: 'bg-white text-slate-400 border-slate-200 hover:border-amber-300 hover:text-emerald-500' },
   { key: 'production',        label: 'הפקה',               active: 'bg-teal-500 text-white border-teal-500',        past: 'bg-teal-100 text-teal-600 border-teal-200',         future: 'bg-white text-slate-400 border-slate-200 hover:border-teal-300 hover:text-teal-500' },
   { key: 'completed',         label: 'אירוע הסתיים והתקבל תשלום', active: 'bg-slate-700 text-white border-slate-700', past: 'bg-slate-100 text-slate-600 border-slate-200',      future: 'bg-white text-slate-400 border-slate-200 hover:border-slate-400 hover:text-slate-600' },
@@ -1025,6 +1025,10 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
           await api.post('/whatsapp/send-file', fd);
         }
       }
+      const stageOrder = ['new','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent','deposit','production','completed'];
+      if (stageOrder.indexOf(lead.stage) < stageOrder.indexOf('contract_sent')) {
+        await api.patch(`/leads/${lead.id}`, { stage: 'contract_sent' });
+      }
       setSentChannel(channel);
       setSent(true);
     } catch (err) {
@@ -1750,6 +1754,10 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
       const fd2 = new FormData();
       fd2.append('file', blob, `הצעת מחיר - ${fields.name}.pdf`);
       await api.post(`/leads/${lead.id}/files`, fd2);
+      const stageOrder = ['new','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent','deposit','production','completed'];
+      if (stageOrder.indexOf(lead.stage) < stageOrder.indexOf('offer_sent')) {
+        await api.patch(`/leads/${lead.id}`, { stage: 'offer_sent' });
+      }
       onSaved(); onClose();
     } catch { alert('שגיאה בשליחה'); setSending(false); }
   }
@@ -1770,6 +1778,10 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
       }
       if (driveIds.length) fd.append('driveFileIds', JSON.stringify(driveIds));
       await api.post(`/leads/${lead.id}/email/send`, fd);
+      const stageOrder = ['new','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent','deposit','production','completed'];
+      if (stageOrder.indexOf(lead.stage) < stageOrder.indexOf('offer_sent')) {
+        await api.patch(`/leads/${lead.id}`, { stage: 'offer_sent' });
+      }
       onSaved(); onClose();
     } catch { alert('שגיאה בשליחת אימייל'); setSending(false); }
   }

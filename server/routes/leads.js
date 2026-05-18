@@ -174,7 +174,7 @@ router.patch('/:id', async (req, res) => {
         new:'חדש', contacted:'בוצעה שיחה ראשונית',
         meeting_scheduled:'נקבעה פגישה', meeting:'בוצעה פגישה',
         offer_sent:'נשלחה הצעת מחיר', negotiation:'מו"מ',
-        contract_sent:'שלח חוזה', deposit:'התקבלה מקדמה', production:'הפקה', completed:'אירוע הסתיים והתקבל תשלום', lost:'אבוד'
+        contract_sent:'נשלח חוזה', deposit:'התקבלה מקדמה', production:'הפקה', completed:'אירוע הסתיים והתקבל תשלום', lost:'אבוד'
       };
       const from = STAGE_NAMES[oldStage]  || oldStage;
       const to   = STAGE_NAMES[lead.stage] || lead.stage;
