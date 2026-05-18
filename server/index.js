@@ -238,8 +238,12 @@ app.use(express.static(clientBuild));
 app.get('/{*splat}', (req, res) => res.sendFile(path.join(clientBuild, 'index.html')));
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`CRM server running on port ${PORT}`);
+  try {
+    const { rows } = await pool.query("SELECT value FROM settings WHERE key='google_token'");
+    if (rows[0]?.value) fs.writeFileSync(path.join(__dirname, 'google_token.json'), rows[0].value);
+  } catch {}
   startCronJobs();
 });
 

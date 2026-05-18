@@ -3,6 +3,8 @@ const pool   = require('../db/pool');
 const axios  = require('axios');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
+const path   = require('path');
+const fs     = require('fs');
 
 const sigUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
 
@@ -145,6 +147,24 @@ router.delete('/settings/staff-signature', adminOnly, async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/google-token — update stored Google OAuth token
+router.post('/google-token', adminOnly, async (req, res) => {
+  try {
+    const { token } = req.body;
+    const parsed = JSON.parse(token);
+    if (!parsed.refresh_token) return res.status(400).json({ error: 'Missing refresh_token' });
+    await pool.query(
+      `INSERT INTO settings (key, value, updated_at) VALUES ('google_token', $1, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
+      [token]
+    );
+    fs.writeFileSync(path.join(__dirname, '../google_token.json'), token);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: 'Invalid token JSON' });
   }
 });
 

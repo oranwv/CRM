@@ -32,6 +32,9 @@ export default function AdminPage() {
   const [contractEmailBank, setContractEmailBank] = useState('');
   const [contractEmailSaving, setContractEmailSaving] = useState(false);
   const [contractEmailSaved, setContractEmailSaved] = useState(false);
+  const [googleToken, setGoogleToken]           = useState('');
+  const [savingToken, setSavingToken]           = useState(false);
+  const [tokenSaveResult, setTokenSaveResult]   = useState('');
 
   useEffect(() => {
     api.get('/admin/settings')
@@ -179,6 +182,20 @@ export default function AdminPage() {
       setCalAcl(prev => prev.filter(r => r.id !== ruleId));
     } catch (err) {
       alert(err.response?.data?.error || err.message);
+    }
+  }
+
+  async function saveGoogleToken() {
+    setSavingToken(true);
+    setTokenSaveResult('');
+    try {
+      await api.post('/admin/google-token', { token: googleToken.trim() });
+      setTokenSaveResult('ok');
+      setGoogleToken('');
+    } catch (e) {
+      setTokenSaveResult(e.response?.data?.error || 'שגיאה');
+    } finally {
+      setSavingToken(false);
     }
   }
 
@@ -368,6 +385,39 @@ export default function AdminPage() {
           )}
           {syncResult?.error && (
             <p className="mt-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{syncResult.error}</p>
+          )}
+        </div>
+
+        {/* ── Google Token Re-auth ── */}
+        <div className="rounded-2xl p-4 bg-white border border-violet-100 shadow-sm">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-lg">🔑</span>
+            <h2 className="font-black text-base text-slate-800">Google API — חידוש הרשאה</h2>
+          </div>
+          <p className="text-xs mb-3 text-slate-400">
+            כאשר Gmail ו-Calendar מפסיקים לעבוד (שגיאת "invalid grant"), יש להריץ את הפקודה{' '}
+            <code className="bg-slate-100 px-1 rounded">node server/scripts/googleAuth.js</code>{' '}
+            מקומית ולהדביק את תוכן הקובץ <code className="bg-slate-100 px-1 rounded">server/google_token.json</code> כאן.
+          </p>
+          <textarea
+            value={googleToken}
+            onChange={e => setGoogleToken(e.target.value)}
+            rows={4}
+            className="w-full border border-slate-200 rounded-xl p-3 text-xs font-mono mb-3 resize-none focus:outline-none focus:ring-2 focus:ring-violet-300"
+            placeholder='{"access_token":"...","refresh_token":"...","expiry_date":...}'
+            dir="ltr"
+          />
+          <button
+            onClick={saveGoogleToken}
+            disabled={!googleToken.trim() || savingToken}
+            className="px-5 py-2 rounded-xl font-bold text-sm text-white disabled:opacity-40"
+            style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+            {savingToken ? 'שומר...' : 'עדכן טוקן'}
+          </button>
+          {tokenSaveResult && (
+            <p className={`text-xs mt-2 ${tokenSaveResult === 'ok' ? 'text-green-600' : 'text-red-500'}`}>
+              {tokenSaveResult === 'ok' ? 'הטוקן עודכן בהצלחה' : tokenSaveResult}
+            </p>
           )}
         </div>
 
