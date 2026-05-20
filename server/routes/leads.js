@@ -192,6 +192,26 @@ router.patch('/:id', async (req, res) => {
         );
         lead.priority = 'normal';
       }
+
+      // On transition to lost: delete meetings, calendar events, and open tasks
+      if (lead.stage === 'lost' && oldStage !== 'lost') {
+        if (hasGoogle()) {
+          const { deleteMeeting } = require('../services/calendarService');
+          const [mtgRows, calRows] = await Promise.all([
+            pool.query('SELECT google_event_id FROM meetings        WHERE lead_id = $1 AND google_event_id IS NOT NULL', [req.params.id]),
+            pool.query('SELECT google_event_id FROM calendar_events WHERE lead_id = $1 AND google_event_id IS NOT NULL', [req.params.id]),
+          ]);
+          for (const r of [...mtgRows.rows, ...calRows.rows]) {
+            deleteMeeting(r.google_event_id).catch(() => {});
+          }
+        }
+        await Promise.all([
+          pool.query('DELETE FROM meetings        WHERE lead_id = $1', [req.params.id]),
+          pool.query('DELETE FROM calendar_events WHERE lead_id = $1', [req.params.id]),
+          pool.query('DELETE FROM tasks           WHERE lead_id = $1 AND completed_at IS NULL', [req.params.id]),
+          pool.query('UPDATE leads SET meeting_event_id = NULL, meeting_rsvp_status = NULL WHERE id = $1', [req.params.id]),
+        ]);
+      }
     }
 
     res.json(lead);
