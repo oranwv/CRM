@@ -158,6 +158,7 @@ async function createMeeting({ leadId, title, start, end, guestEmail, guestName,
     sendUpdates: sendInvite ? 'all' : 'none',
     requestBody: {
       summary: title,
+      colorId: '3',
       location: 'שרביה, פנחס בן יאיר 3, תל אביב',
       description: `🔗 פתח ליד ב-CRM: ${baseUrl}/?lead=${leadId}`,
       start: { dateTime: start, timeZone: 'Asia/Jerusalem' },
