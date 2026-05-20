@@ -150,6 +150,42 @@ router.delete('/settings/staff-signature', adminOnly, async (req, res) => {
   }
 });
 
+// POST /api/admin/settings/floorplan/:section — upload venue floor plan image
+const fpUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+router.post('/settings/floorplan/:section', adminOnly, fpUpload.single('file'), async (req, res) => {
+  const sec = req.params.section;
+  if (!['inside', 'outside'].includes(sec)) return res.status(400).json({ error: 'Invalid section' });
+  if (!req.file) return res.status(400).json({ error: 'No file' });
+  const { widthM, heightM } = req.body;
+  const dataUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+  const value = JSON.stringify({ image: dataUrl, widthM: parseFloat(widthM) || 20, heightM: parseFloat(heightM) || 15 });
+  try {
+    await pool.query(
+      `INSERT INTO settings (key, value, updated_at) VALUES ($1, $2, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+      [`floorplan_${sec}`, value]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/admin/seating/custom-items — save global custom palette items
+router.put('/seating/custom-items', adminOnly, async (req, res) => {
+  try {
+    const { items } = req.body;
+    await pool.query(
+      `INSERT INTO settings (key, value, updated_at) VALUES ('seating_custom_items', $1, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
+      [JSON.stringify(items || [])]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/admin/google-token — update stored Google OAuth token
 router.post('/google-token', adminOnly, async (req, res) => {
   try {

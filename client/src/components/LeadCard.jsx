@@ -4,6 +4,7 @@ import DriveFilePicker from './DriveFilePicker';
 import { useAppMode } from '../context/AppModeContext';
 import ProductionChecklist from './ProductionChecklist';
 import EventBriefModal from './EventBriefModal';
+import SeatingChart from './SeatingChart';
 
 const STAGES = [
   { key: 'new',               label: 'חדש',                 active: 'bg-sky-500 text-white border-sky-500',          past: 'bg-sky-100 text-sky-600 border-sky-200',            future: 'bg-white text-slate-400 border-slate-200 hover:border-sky-300 hover:text-sky-500' },
@@ -166,7 +167,8 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
   const [showMeetingModal, setShowMeetingModal] = useState(false);
   const [showPriceOffer, setShowPriceOffer]     = useState(false);
   const [showContract, setShowContract]         = useState(false);
-  const [showBrief, setShowBrief]               = useState(false);
+  const [showBrief,    setShowBrief]    = useState(false);
+  const [showSeating,  setShowSeating]  = useState(false);
   const { mode } = useAppMode();
 
   const load = useCallback(async () => {
@@ -328,12 +330,20 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
           </button>
         ))}
         {['deposit', 'production', 'completed'].includes(lead.stage) && (
-          <button
-            onClick={() => setShowBrief(true)}
-            className="flex-1 py-3 transition border-b-2 border-transparent text-violet-500 hover:text-violet-700 font-bold"
-          >
-            בריף אירוע
-          </button>
+          <>
+            <button
+              onClick={() => setShowBrief(true)}
+              className="flex-1 py-3 transition border-b-2 border-transparent text-violet-500 hover:text-violet-700 font-bold"
+            >
+              בריף אירוע
+            </button>
+            <button
+              onClick={() => setShowSeating(true)}
+              className="flex-1 py-3 transition border-b-2 border-transparent text-violet-500 hover:text-violet-700 font-bold"
+            >
+              סקיצה
+            </button>
+          </>
         )}
       </div>
 
@@ -412,12 +422,20 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
 
             {/* Event brief button — visible on closed leads */}
             {(lead.stage === 'deposit' || lead.stage === 'production' || lead.stage === 'completed') && (
-              <button
-                onClick={() => setShowBrief(true)}
-                className="w-full py-2.5 rounded-2xl font-bold text-sm border-2 border-violet-300 text-violet-700 hover:bg-violet-50 transition"
-              >
-                בריף אירוע
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowBrief(true)}
+                  className="flex-1 py-2.5 rounded-2xl font-bold text-sm border-2 border-violet-300 text-violet-700 hover:bg-violet-50 transition"
+                >
+                  בריף אירוע
+                </button>
+                <button
+                  onClick={() => setShowSeating(true)}
+                  className="flex-1 py-2.5 rounded-2xl font-bold text-sm border-2 border-violet-300 text-violet-700 hover:bg-violet-50 transition"
+                >
+                  סקיצת פריסה
+                </button>
+              </div>
             )}
 
             {/* Details */}
@@ -515,6 +533,10 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
 
       {showBrief && (
         <EventBriefModal leadId={leadId} onClose={() => setShowBrief(false)} />
+      )}
+
+      {showSeating && (
+        <SeatingChart leadId={leadId} onClose={() => setShowSeating(false)} />
       )}
 
       {showAddTask && (

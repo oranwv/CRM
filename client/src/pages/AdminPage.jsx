@@ -2,6 +2,54 @@ import { useState, useEffect } from 'react';
 import api from '../api';
 
 const ROLE_LABELS = { admin: 'מנהל', sales: 'מכירות', production: 'הפקה' };
+
+function FloorplanUpload({ section, label }) {
+  const [widthM,    setWidthM]    = useState('');
+  const [heightM,   setHeightM]   = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [preview,   setPreview]   = useState(null);
+  const [done,      setDone]      = useState(false);
+
+  async function handleUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!widthM || !heightM) { alert('נא להזין רוחב וגובה בטרם העלאה'); return; }
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('widthM',  widthM);
+      fd.append('heightM', heightM);
+      await api.post(`/admin/settings/floorplan/${section}`, fd);
+      setPreview(URL.createObjectURL(file));
+      setDone(true);
+      setTimeout(() => setDone(false), 3000);
+    } catch (err) {
+      alert(err.response?.data?.error || err.message);
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  }
+
+  return (
+    <div className="mb-4 p-3 rounded-xl border border-slate-100 bg-slate-50">
+      <p className="text-sm font-bold text-slate-700 mb-2">{label}</p>
+      <div className="flex gap-2 mb-2">
+        <input value={widthM} onChange={e => setWidthM(e.target.value)} type="number" min="1" step="0.5" placeholder="רוחב (מ')"
+          className="w-full text-sm border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-violet-400" />
+        <input value={heightM} onChange={e => setHeightM(e.target.value)} type="number" min="1" step="0.5" placeholder="עומק (מ')"
+          className="w-full text-sm border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-violet-400" />
+      </div>
+      {preview && <img src={preview} alt="" className="w-full h-24 object-cover rounded-lg mb-2 border border-slate-200" />}
+      <label className={`block w-full py-2 rounded-xl font-bold text-sm text-white text-center cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}
+        style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+        {uploading ? 'מעלה...' : done ? 'הועלה!' : 'העלה תמונה'}
+        <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} />
+      </label>
+    </div>
+  );
+}
 const ROLE_COLORS = { admin: 'bg-violet-100 text-violet-700', sales: 'bg-indigo-100 text-indigo-700', production: 'bg-slate-100 text-slate-600' };
 const emptyUser = { username: '', display_name: '', email: '', phone: '', role: 'sales', password: '' };
 
@@ -510,6 +558,18 @@ export default function AdminPage() {
             >+</button>
           </div>
           {driveSaving && <p className="text-xs text-slate-400 mt-2 text-center">שומר...</p>}
+        </div>
+
+        {/* ── Venue floor plan images ── */}
+        <div className="rounded-2xl p-4 bg-white border border-violet-100 shadow-sm">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-lg">🗺️</span>
+            <h2 className="font-black text-base text-slate-800">סקיצת פריסה — תמונות רקע</h2>
+          </div>
+          <p className="text-xs mb-4 text-slate-400">העלה תמונת בסיס (תוכנית אולם) לכל קטע. הזן את המידות האמיתיות כדי שהפריטים יוצגו בקנה מידה נכון.</p>
+          {[['inside', 'פנים'], ['outside', 'חוץ']].map(([sec, lbl]) => (
+            <FloorplanUpload key={sec} section={sec} label={lbl} />
+          ))}
         </div>
 
       </div>

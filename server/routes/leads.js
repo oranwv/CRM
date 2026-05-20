@@ -486,4 +486,36 @@ router.delete('/:id/contacts/:cid', async (req, res) => {
   }
 });
 
+// GET /api/leads/:id/seating
+router.get('/:id/seating', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT section, elements FROM seating_layouts WHERE lead_id = $1',
+      [req.params.id]
+    );
+    const result = { inside: [], outside: [] };
+    rows.forEach(r => { result[r.section] = r.elements; });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/leads/:id/seating
+router.put('/:id/seating', async (req, res) => {
+  try {
+    const { section, elements } = req.body;
+    await pool.query(
+      `INSERT INTO seating_layouts (lead_id, section, elements, updated_at)
+       VALUES ($1, $2, $3::jsonb, NOW())
+       ON CONFLICT (lead_id, section)
+       DO UPDATE SET elements = $3::jsonb, updated_at = NOW()`,
+      [req.params.id, section, JSON.stringify(elements)]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

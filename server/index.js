@@ -172,6 +172,17 @@ pool.query(`
 `).catch(err => console.error('[DB] production tables migration error:', err.message));
 
 pool.query(`
+  CREATE TABLE IF NOT EXISTS seating_layouts (
+    id         SERIAL PRIMARY KEY,
+    lead_id    INT REFERENCES leads(id) ON DELETE CASCADE,
+    section    VARCHAR(20) NOT NULL,
+    elements   JSONB DEFAULT '[]'::jsonb,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(lead_id, section)
+  );
+`).catch(err => console.error('[DB] seating_layouts migration error:', err.message));
+
+pool.query(`
   ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_stage_check;
   ALTER TABLE leads ADD CONSTRAINT leads_stage_check
     CHECK (stage IN ('new','contacted','meeting_scheduled','meeting',
