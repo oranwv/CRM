@@ -103,7 +103,6 @@ export default function SeatingChart({ leadId, onClose }) {
   const [zoom,        setZoom]        = useState(() => Math.min(1, (window.innerWidth - 96) / 900));
 
   const canvasRef      = useRef(null);
-  const outerScrollRef = useRef(null);
   const dragRef        = useRef(null);
   const saveTimer      = useRef(null);
   const sectionRef     = useRef(section);
@@ -175,10 +174,9 @@ export default function SeatingChart({ leadId, onClose }) {
       const canvas = canvasRef.current;
       if (!canvas) return;
       const rect   = canvas.getBoundingClientRect();
-      const outer  = outerScrollRef.current;
       const z      = zoomRef.current;
-      const mx = (clientX - rect.left + (outer?.scrollLeft ?? 0)) / z;
-      const my = (clientY - rect.top  + (outer?.scrollTop  ?? 0)) / z;
+      const mx = (clientX - rect.left) / z;
+      const my = (clientY - rect.top)  / z;
       if (ds.mode === 'move') {
         setLayouts(prev => {
           const sec = sectionRef.current;
@@ -200,7 +198,6 @@ export default function SeatingChart({ leadId, onClose }) {
       const canvas = canvasRef.current;
       if (!canvas) return;
       const rect  = canvas.getBoundingClientRect();
-      const outer = outerScrollRef.current;
       if (clientX >= rect.left && clientX <= rect.right &&
           clientY >= rect.top  && clientY <= rect.bottom) {
         const ds  = dragRef.current;
@@ -208,8 +205,8 @@ export default function SeatingChart({ leadId, onClose }) {
         const z   = zoomRef.current;
         const wPx = ds.wM * s;
         const hPx = ds.hM * s;
-        const mx  = (clientX - rect.left + (outer?.scrollLeft ?? 0)) / z;
-        const my  = (clientY - rect.top  + (outer?.scrollTop  ?? 0)) / z;
+        const mx  = (clientX - rect.left) / z;
+        const my  = (clientY - rect.top)  / z;
         const newEl = {
           id: uid(), type: ds.type,
           x: Math.max(0, mx - wPx / 2),
@@ -325,10 +322,9 @@ export default function SeatingChart({ leadId, onClose }) {
     const def   = elDef(el);
     const s     = scaleRef.current;
     const rect  = canvasRef.current.getBoundingClientRect();
-    const outer = outerScrollRef.current;
     const z     = zoomRef.current;
-    const mx    = (e.clientX - rect.left + (outer?.scrollLeft ?? 0)) / z;
-    const my    = (e.clientY - rect.top  + (outer?.scrollTop  ?? 0)) / z;
+    const mx    = (e.clientX - rect.left) / z;
+    const my    = (e.clientY - rect.top)  / z;
     dragRef.current = { mode: 'move', id: el.id, offX: mx - el.x, offY: my - el.y, wPx: def.wM * s, hPx: def.hM * s };
   }
 
@@ -339,11 +335,10 @@ export default function SeatingChart({ leadId, onClose }) {
     const def   = elDef(el);
     const s     = scaleRef.current;
     const rect  = canvasRef.current.getBoundingClientRect();
-    const outer = outerScrollRef.current;
     const z     = zoomRef.current;
     const t     = e.touches[0];
-    const mx    = (t.clientX - rect.left + (outer?.scrollLeft ?? 0)) / z;
-    const my    = (t.clientY - rect.top  + (outer?.scrollTop  ?? 0)) / z;
+    const mx    = (t.clientX - rect.left) / z;
+    const my    = (t.clientY - rect.top)  / z;
     dragRef.current = { mode: 'move', id: el.id, offX: mx - el.x, offY: my - el.y, wPx: def.wM * s, hPx: def.hM * s };
   }
 
@@ -550,7 +545,7 @@ export default function SeatingChart({ leadId, onClose }) {
         </div>
 
         {/* Canvas */}
-        <div ref={outerScrollRef} className="flex-1 overflow-auto bg-slate-300" dir="ltr"
+        <div className="flex-1 overflow-auto bg-slate-300" dir="ltr"
           onMouseDown={e => { if (e.target === e.currentTarget) setSelected(null); }}>
           <div ref={canvasRef}
                style={{ width: Math.round(900 * zoom), height: Math.round(canvasH * zoom),
