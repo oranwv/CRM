@@ -390,9 +390,9 @@ export default function SeatingChart({ leadId, onClose }) {
         </div>
 
         {/* Canvas */}
-        <div ref={canvasRef} className="flex-1 overflow-auto bg-slate-300"
+        <div ref={canvasRef} className="flex-1 overflow-auto bg-slate-300" dir="ltr"
           onMouseDown={e => { if (e.target === e.currentTarget) setSelected(null); }}>
-          <div style={{ width: 900, height: canvasH, position: 'relative', minWidth: 900 }}>
+          <div style={{ width: 900, height: canvasH, position: 'relative', minWidth: 900 }} dir="ltr">
             {fp?.image
               ? <img src={fp.image} alt="" draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', pointerEvents: 'none', userSelect: 'none' }} />
               : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
