@@ -267,6 +267,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
       id: `m-${m.id}`, _time: m.timestamp,
       type: m.channel, direction: m.direction,
       body: m.body, author: m.sent_by_name || null,
+      contact_value: m.contact_value || null,
     })),
   ].sort((a, b) => new Date(b._time) - new Date(a._time)); // newest first
 
@@ -2860,6 +2861,13 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, allPhon
                     <span className={`text-sm font-semibold px-2 py-0.5 rounded-full ${meta.bg} ${meta.text}`}>
                       {meta.icon} {meta.label}
                     </span>
+                    {item.type === 'whatsapp' && !isIn && item.contact_value && (
+                      <span className="text-xs text-slate-400 font-medium">
+                        {allPhoneLabels[item.contact_value]
+                          ? `${allPhoneLabels[item.contact_value]} (${item.contact_value})`
+                          : item.contact_value}
+                      </span>
+                    )}
                     {item.id.startsWith('i-') && ['call','meeting','note'].includes(item.type) && (
                       <button
                         onClick={() => { setEditingInteractionId(item.id); setEditInteractionBody(item.body); }}
