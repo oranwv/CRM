@@ -201,6 +201,60 @@ router.put('/seating/element-overrides', adminOnly, async (req, res) => {
   }
 });
 
+// GET /api/admin/seating/templates — list all saved sketch templates
+router.get('/seating/templates', adminOnly, async (req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT value FROM settings WHERE key = 'seating_templates'`);
+    const templates = rows[0] ? JSON.parse(rows[0].value) : [];
+    res.json(templates);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/seating/templates — save new sketch template
+router.post('/seating/templates', adminOnly, async (req, res) => {
+  try {
+    const { name, section, elements, thumbnail } = req.body;
+    const { rows } = await pool.query(`SELECT value FROM settings WHERE key = 'seating_templates'`);
+    const templates = rows[0] ? JSON.parse(rows[0].value) : [];
+    const tpl = {
+      id: `tpl_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      name: (name || '').trim() || 'סקיצה ללא שם',
+      section: section || 'inside',
+      elements: elements || [],
+      thumbnail: thumbnail || null,
+    };
+    templates.push(tpl);
+    await pool.query(
+      `INSERT INTO settings (key, value, updated_at) VALUES ('seating_templates', $1, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
+      [JSON.stringify(templates)]
+    );
+    res.json(tpl);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/admin/seating/templates/:id — delete a sketch template
+router.delete('/seating/templates/:id', adminOnly, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rows } = await pool.query(`SELECT value FROM settings WHERE key = 'seating_templates'`);
+    const templates = rows[0] ? JSON.parse(rows[0].value) : [];
+    const updated = templates.filter(t => t.id !== id);
+    await pool.query(
+      `INSERT INTO settings (key, value, updated_at) VALUES ('seating_templates', $1, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
+      [JSON.stringify(updated)]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/admin/google-token — update stored Google OAuth token
 router.post('/google-token', adminOnly, async (req, res) => {
   try {

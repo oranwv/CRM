@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../api';
+import SeatingTemplateGallery from './SeatingTemplateGallery';
 
 const DEFS = {
   round_table_4:  { label: 'שולחן עגול (4)',   shape: 'circle', wM: 1,   hM: 1,    guests: 4  },
@@ -99,6 +100,11 @@ export default function SeatingChart({ leadId, onClose }) {
   const [newItem,     setNewItem]     = useState({ label: '', wM: '', hM: '', shape: 'rect' });
   const [ghost,       setGhost]       = useState(null);
   const [elemOverrides, setElemOverrides] = useState({});
+  const [templates,    setTemplates]    = useState([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [showGallery,  setShowGallery]  = useState(false);
+  const [templateBusy, setTemplateBusy] = useState(false);
+  const [templateSaved, setTemplateSaved] = useState(false);
   const elDef = el => getElDef(el, elemOverrides);
   const [zoom,        setZoom]        = useState(() => Math.min(1, (window.innerWidth - 96) / 900));
 
@@ -109,9 +115,20 @@ export default function SeatingChart({ leadId, onClose }) {
   const scaleRef       = useRef(45);
   const zoomRef        = useRef(zoom);
   const pinchRef       = useRef({ active: false, dist0: 0, zoom0: 1 });
+  const dropdownRef    = useRef(null);
 
   useEffect(() => { sectionRef.current = section; }, [section]);
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+
+  useEffect(() => {
+    function onClickOutside(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
 
   useEffect(() => {
     api.get(`/leads/${leadId}/seating`).then(r => {
@@ -125,6 +142,7 @@ export default function SeatingChart({ leadId, onClose }) {
       setFloorplans(fp);
       try { setCustomItems(d.seating_custom_items ? JSON.parse(d.seating_custom_items) : []); } catch {}
       try { setElemOverrides(d.seating_element_overrides ? JSON.parse(d.seating_element_overrides) : {}); } catch {}
+      try { setTemplates(d.seating_templates ? JSON.parse(d.seating_templates) : []); } catch {}
     }).catch(() => {});
   }, [leadId]);
 
@@ -386,6 +404,55 @@ export default function SeatingChart({ leadId, onClose }) {
 
   const totalGuests = layouts[section].reduce((sum, el) => sum + (elDef(el).guests || 0), 0);
 
+  async function captureThumbnail() {
+    const { default: html2canvas } = await import('html2canvas');
+    const innerDiv = canvasRef.current?.querySelector('[dir="ltr"]');
+    if (!innerDiv) return null;
+    const cvs = await html2canvas(innerDiv, { scale: 0.3, useCORS: true, logging: false, backgroundColor: '#cbd5e1' });
+    return cvs.toDataURL('image/jpeg', 0.6);
+  }
+
+  async function saveAsTemplate() {
+    const name = window.prompt('שם הסקיצה:');
+    if (name === null) return;
+    setShowDropdown(false);
+    setTemplateBusy(true);
+    try {
+      let thumbnail = null;
+      try { thumbnail = await captureThumbnail(); } catch {}
+      const res = await api.post('/admin/seating/templates', {
+        name: name.trim() || 'סקיצה ללא שם',
+        section,
+        elements: layouts[section],
+        thumbnail,
+      });
+      setTemplates(prev => [...prev, res.data]);
+      setTemplateSaved(true);
+      setTimeout(() => setTemplateSaved(false), 2000);
+    } catch (err) {
+      console.error('[template save]', err);
+    } finally {
+      setTemplateBusy(false);
+    }
+  }
+
+  function loadTemplate(tpl) {
+    if (layouts[tpl.section].length > 0) {
+      if (!window.confirm('להחליף את הסקיצה הקיימת?')) return;
+    }
+    setSection(tpl.section);
+    const next = { ...layouts, [tpl.section]: tpl.elements };
+    setLayouts(next);
+    triggerSave(next, tpl.section);
+    setShowGallery(false);
+  }
+
+  async function deleteTemplate(id) {
+    if (!window.confirm('למחוק את הסקיצה?')) return;
+    await api.delete(`/admin/seating/templates/${id}`).catch(() => {});
+    setTemplates(prev => prev.filter(t => t.id !== id));
+  }
+
   async function captureCanvasImage() {
     const { default: html2canvas } = await import('html2canvas');
     const innerDiv = canvasRef.current?.querySelector('[dir="ltr"]');
@@ -447,17 +514,39 @@ export default function SeatingChart({ leadId, onClose }) {
         )}
         {saving && <span className="text-xs text-slate-400">שומר...</span>}
         {saved  && <span className="text-xs text-emerald-600 font-bold">נשמר</span>}
+        {templateSaved && <span className="text-xs text-violet-600 font-bold">הסקיצה נשמרה</span>}
         <button onClick={saveNow} disabled={saving}
           className="text-xs px-3 py-1.5 rounded-xl font-bold text-white disabled:opacity-50"
           style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>שמור</button>
-        <button onClick={downloadPdf} disabled={pdfBusy}
-          className="text-xs px-3 py-1.5 rounded-xl font-bold border border-violet-300 text-violet-700 hover:bg-violet-50 transition disabled:opacity-50">
-          {pdfBusy ? '...' : 'הורד PDF'}
-        </button>
-        <button onClick={saveToFiles} disabled={pdfBusy}
-          className="text-xs px-3 py-1.5 rounded-xl font-bold border border-slate-300 text-slate-600 hover:bg-slate-50 transition disabled:opacity-50">
-          {pdfBusy ? '...' : 'שמור לקובץ'}
-        </button>
+        <div className="relative" ref={dropdownRef}>
+          <button
+            onClick={() => setShowDropdown(p => !p)}
+            disabled={pdfBusy || templateBusy}
+            className="text-xs px-3 py-1.5 rounded-xl font-bold border border-slate-300 text-slate-600 hover:bg-slate-50 transition disabled:opacity-50">
+            {(pdfBusy || templateBusy) ? '...' : '+'}
+          </button>
+          {showDropdown && (
+            <div className="absolute top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 overflow-hidden w-44" style={{ right: 0 }}>
+              <button onClick={() => { setShowDropdown(false); downloadPdf(); }}
+                className="w-full text-right px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 transition">
+                הורד PDF
+              </button>
+              <button onClick={() => { setShowDropdown(false); saveToFiles(); }}
+                className="w-full text-right px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 transition">
+                שמור בקבצים
+              </button>
+              <div className="h-px bg-slate-100 mx-2" />
+              <button onClick={() => { setShowDropdown(false); setShowGallery(true); }}
+                className="w-full text-right px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 transition">
+                סקיצות מוכנות
+              </button>
+              <button onClick={saveAsTemplate}
+                className="w-full text-right px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 transition">
+                שמור כסקיצה מוכנה
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Body */}
@@ -613,6 +702,15 @@ export default function SeatingChart({ leadId, onClose }) {
           </div>
         </div>
       </div>
+
+      {showGallery && (
+        <SeatingTemplateGallery
+          templates={templates}
+          onSelect={loadTemplate}
+          onClose={() => setShowGallery(false)}
+          onDelete={deleteTemplate}
+        />
+      )}
 
       {/* Ghost during palette drag */}
       {ghost && (() => {
