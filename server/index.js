@@ -213,6 +213,53 @@ pool.query(`
   )
 `).catch(err => console.error('[DB] google_calendar_cache migration error:', err.message));
 
+pool.query(`
+  CREATE TABLE IF NOT EXISTS supplier_categories (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    sort_order INT DEFAULT 0
+  );
+  INSERT INTO supplier_categories (name, sort_order) VALUES
+    ('קייטרינג/שף', 0), ('צלמים', 1), ('מלצרים', 2), ('ברמנים', 3),
+    ('שומרים', 4), ('נקיון', 5), ('כללי', 6)
+  ON CONFLICT (name) DO NOTHING;
+  CREATE TABLE IF NOT EXISTS suppliers (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    phone VARCHAR(50),
+    email VARCHAR(255),
+    description TEXT,
+    category VARCHAR(100) NOT NULL DEFAULT 'כללי',
+    created_by INT REFERENCES users(id),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS lead_suppliers (
+    id SERIAL PRIMARY KEY,
+    lead_id INT REFERENCES leads(id) ON DELETE CASCADE,
+    supplier_id INT REFERENCES suppliers(id) ON DELETE CASCADE,
+    UNIQUE(lead_id, supplier_id)
+  );
+  CREATE TABLE IF NOT EXISTS supplier_files (
+    id SERIAL PRIMARY KEY,
+    supplier_id INT REFERENCES suppliers(id) ON DELETE CASCADE,
+    filename VARCHAR(255) NOT NULL,
+    stored_name VARCHAR(255) NOT NULL,
+    file_type VARCHAR(100),
+    uploaded_by INT REFERENCES users(id),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS supplier_interactions (
+    id SERIAL PRIMARY KEY,
+    supplier_id INT REFERENCES suppliers(id) ON DELETE CASCADE,
+    type VARCHAR(30) NOT NULL,
+    direction VARCHAR(10) DEFAULT 'outbound',
+    body TEXT,
+    created_by INT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )
+`).catch(err => console.error('[DB] suppliers migration error:', err.message));
+
 const { pollGoogleCalendar } = require('./services/calendarPollService');
 pollGoogleCalendar();
 setInterval(pollGoogleCalendar, 5 * 60 * 1000);
@@ -241,6 +288,7 @@ app.get('/api/drive/debug',         driveDebugHandler);
 app.use('/api/drive',               requireAuth, driveRoutes);
 app.use('/api/users',               requireAuth, usersRoutes);
 app.use('/api/analytics',           requireAuth, analyticsRoutes);
+app.use('/api/suppliers',           requireAuth, require('./routes/suppliers'));
 app.use('/api/ai',                  requireAuth, aiRoutes);
 app.use('/api/calendar', (req, res, next) => {
   // ICS download and lead confirmation are public — no auth required

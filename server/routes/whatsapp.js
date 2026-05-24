@@ -164,7 +164,30 @@ router.post('/webhook', async (req, res) => {
 
 // POST /api/whatsapp/send — send text message (authenticated)
 router.post('/send', requireAuth, async (req, res) => {
-  const { leadId, message, phone: phoneOverride } = req.body;
+  const { leadId, supplierId, message, phone: phoneOverride } = req.body;
+
+  if (supplierId) {
+    try {
+      const { rows } = await pool.query('SELECT phone FROM suppliers WHERE id = $1', [supplierId]);
+      if (!rows.length) return res.status(404).json({ error: 'Supplier not found' });
+      const phone = normalizePhone(phoneOverride || rows[0].phone);
+      if (!phone) return res.status(400).json({ error: 'No phone number' });
+      const url = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/sendMessage/${process.env.GREEN_API_TOKEN}`;
+      await waitForWaSlot();
+      await axios.post(url, { chatId: `${phone}@c.us`, message });
+      try {
+        await pool.query(
+          `INSERT INTO supplier_interactions (supplier_id, type, direction, body, created_by) VALUES ($1, 'whatsapp', 'outbound', $2, $3)`,
+          [supplierId, message, req.user?.id || null]
+        );
+      } catch (dbErr) { console.error('[WhatsApp] DB log error:', dbErr.message); }
+      return res.json({ success: true });
+    } catch (err) {
+      console.error('[WhatsApp] send error:', err.response?.data || err.message);
+      return res.status(500).json({ error: 'Failed to send message' });
+    }
+  }
+
   try {
     const { rows } = await pool.query('SELECT phone FROM leads WHERE id = $1', [leadId]);
     if (!rows.length) return res.status(404).json({ error: 'Lead not found' });

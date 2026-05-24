@@ -169,6 +169,10 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
   const [showContract, setShowContract]         = useState(false);
   const [showBrief,    setShowBrief]    = useState(false);
   const [showSeating,  setShowSeating]  = useState(false);
+  const [leadSuppliers,      setLeadSuppliers]      = useState([]);
+  const [allSuppliers,       setAllSuppliers]       = useState([]);
+  const [showSupplierPicker, setShowSupplierPicker] = useState(false);
+  const [supplierSearch,     setSupplierSearch]     = useState('');
   const { mode } = useAppMode();
 
   const load = useCallback(async () => {
@@ -205,6 +209,25 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [load, leadId]);
+
+  useEffect(() => {
+    if (!lead || !['deposit', 'production', 'completed'].includes(lead.stage)) return;
+    api.get(`/leads/${leadId}/suppliers`).then(r => setLeadSuppliers(r.data)).catch(() => {});
+    api.get('/suppliers').then(r => setAllSuppliers(r.data)).catch(() => {});
+  }, [lead?.stage, leadId]);
+
+  async function linkSupplier(supplierId) {
+    await api.post(`/leads/${leadId}/suppliers`, { supplierId }).catch(() => {});
+    const s = allSuppliers.find(x => x.id === supplierId);
+    if (s) setLeadSuppliers(prev => [...prev.filter(x => x.id !== supplierId), s]);
+    setShowSupplierPicker(false);
+    setSupplierSearch('');
+  }
+
+  async function unlinkSupplier(supplierId) {
+    await api.delete(`/leads/${leadId}/suppliers/${supplierId}`).catch(() => {});
+    setLeadSuppliers(prev => prev.filter(s => s.id !== supplierId));
+  }
 
   async function changeStage(stageKey) {
     if (stageKey === 'lost') { setShowLostModal(true); return; }
@@ -479,6 +502,43 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
             {/* Production module — only for deposit/production/completed stage */}
             {(lead.stage === 'deposit' || lead.stage === 'production' || lead.stage === 'completed') && (
               <ProductionSection leadId={leadId} lead={lead} onUpdated={load} />
+            )}
+
+            {/* Suppliers — visible on deposit/production/completed */}
+            {(lead.stage === 'deposit' || lead.stage === 'production' || lead.stage === 'completed') && (
+              <Section title={`ספקים${leadSuppliers.length ? ` (${leadSuppliers.length})` : ''}`}>
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    {leadSuppliers.map(s => (
+                      <span key={s.id} className="flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-violet-100 text-violet-700 border border-violet-200">
+                        {s.name}
+                        <button onClick={() => unlinkSupplier(s.id)} className="opacity-50 hover:opacity-100 font-black leading-none">×</button>
+                      </span>
+                    ))}
+                  </div>
+                  <button onClick={() => setShowSupplierPicker(p => !p)}
+                    className="text-xs text-violet-600 font-bold hover:text-violet-800 transition">
+                    + הוסף ספק
+                  </button>
+                  {showSupplierPicker && (
+                    <div className="bg-white border border-slate-200 rounded-xl p-2 space-y-1 max-h-44 overflow-y-auto shadow-lg">
+                      <input value={supplierSearch} onChange={e => setSupplierSearch(e.target.value)}
+                        placeholder="חיפוש ספק..." autoFocus
+                        className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-400 mb-1" />
+                      {allSuppliers
+                        .filter(s => !leadSuppliers.find(ls => ls.id === s.id) && (!supplierSearch || s.name.toLowerCase().includes(supplierSearch.toLowerCase())))
+                        .map(s => (
+                          <button key={s.id} onClick={() => linkSupplier(s.id)}
+                            className="w-full text-right text-xs px-2 py-1.5 hover:bg-violet-50 rounded-lg flex items-center gap-2 transition">
+                            <span className="font-bold text-slate-800">{s.name}</span>
+                            <span className="text-slate-400 text-[10px]">{s.category}</span>
+                          </button>
+                        ))
+                      }
+                    </div>
+                  )}
+                </div>
+              </Section>
             )}
 
             {/* Files */}

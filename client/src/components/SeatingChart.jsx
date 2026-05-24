@@ -526,7 +526,7 @@ export default function SeatingChart({ leadId, onClose }) {
             {(pdfBusy || templateBusy) ? '...' : '+'}
           </button>
           {showDropdown && (
-            <div className="absolute top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 overflow-hidden w-44" style={{ right: 0 }}>
+            <div className="absolute top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 overflow-hidden w-44" style={{ left: 0 }}>
               <button onClick={() => { setShowDropdown(false); downloadPdf(); }}
                 className="w-full text-right px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 transition">
                 הורד PDF

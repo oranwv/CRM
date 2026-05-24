@@ -538,4 +538,41 @@ router.put('/:id/seating', async (req, res) => {
   }
 });
 
+// GET /api/leads/:id/suppliers
+router.get('/:id/suppliers', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT s.* FROM lead_suppliers ls JOIN suppliers s ON s.id = ls.supplier_id WHERE ls.lead_id = $1 ORDER BY s.name`,
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/leads/:id/suppliers
+router.post('/:id/suppliers', async (req, res) => {
+  try {
+    const { supplierId } = req.body;
+    await pool.query(
+      `INSERT INTO lead_suppliers (lead_id, supplier_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      [req.params.id, supplierId]
+    );
+    res.status(201).json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/leads/:id/suppliers/:supplierId
+router.delete('/:id/suppliers/:supplierId', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM lead_suppliers WHERE lead_id = $1 AND supplier_id = $2', [req.params.id, req.params.supplierId]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

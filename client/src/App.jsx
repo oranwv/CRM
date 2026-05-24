@@ -10,6 +10,7 @@ import PostponePage    from './pages/PostponePage';
 import TaskActionPage  from './pages/TaskActionPage';
 import AdminPage       from './pages/AdminPage';
 import SignaturePage   from './pages/SignaturePage';
+import SuppliersPage  from './pages/SuppliersPage';
 import { AppModeProvider, useAppMode } from './context/AppModeContext';
 import api from './api';
 
@@ -27,7 +28,7 @@ function GlobalHeader() {
   function handleModeChange(e) {
     const m = e.target.value;
     setMode(m);
-    navigate(m === 'הפקה' ? '/events' : '/');
+    navigate(m === 'הפקה' ? '/events' : m === 'ספקים' ? '/suppliers' : '/');
   }
 
   return (
@@ -45,6 +46,7 @@ function GlobalHeader() {
       >
         <option value="מכירות" style={{ color: '#1e293b' }}>מכירות</option>
         <option value="הפקה"   style={{ color: '#1e293b' }}>הפקה</option>
+        <option value="ספקים"  style={{ color: '#1e293b' }}>ספקים</option>
       </select>
     </div>
   );
@@ -67,8 +69,11 @@ function AppShellNav() {
   }, [mode]);
 
   const isProduction = mode === 'הפקה';
+  const isSuppliers  = mode === 'ספקים';
 
-  const tabs = isProduction
+  const tabs = isSuppliers
+    ? [{ path: '/suppliers', icon: '🏢', label: 'ספקים' }]
+    : isProduction
     ? [
         { path: '/events',   icon: '🎉', label: 'אירועים' },
         { path: '/tasks',    icon: '✅', label: 'משימות' },
@@ -183,6 +188,16 @@ function AppRoutes() {
             <>
               <div className="pt-11" />
               <AdminPage />
+              <AppShellNav />
+              <div className="pb-28" />
+            </>
+          </PrivateRoute>
+        } />
+        <Route path="/suppliers" element={
+          <PrivateRoute>
+            <>
+              <div className="pt-11" />
+              <SuppliersPage />
               <AppShellNav />
               <div className="pb-28" />
             </>
