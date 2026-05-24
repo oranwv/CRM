@@ -1,19 +1,32 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../api';
 
 const ROLE_LABELS = { admin: 'מנהל', sales: 'מכירות', production: 'הפקה' };
 
-function FloorplanUpload({ section, label }) {
-  const [widthM,    setWidthM]    = useState('');
-  const [heightM,   setHeightM]   = useState('');
-  const [uploading, setUploading] = useState(false);
-  const [preview,   setPreview]   = useState(null);
-  const [done,      setDone]      = useState(false);
+function FloorplanUpload({ section, label, existing, onSaved }) {
+  const [widthM,       setWidthM]       = useState('');
+  const [heightM,      setHeightM]      = useState('');
+  const [file,         setFile]         = useState(null);
+  const [localPreview, setLocalPreview] = useState(null);
+  const [uploading,    setUploading]    = useState(false);
+  const fileInputRef = useRef(null);
 
-  async function handleUpload(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (!widthM || !heightM) { alert('נא להזין רוחב וגובה בטרם העלאה'); return; }
+  useEffect(() => {
+    if (existing) {
+      setWidthM(String(existing.widthM ?? ''));
+      setHeightM(String(existing.heightM ?? ''));
+    }
+  }, [existing]);
+
+  function handleFileChange(e) {
+    const f = e.target.files[0];
+    if (!f) return;
+    setFile(f);
+    setLocalPreview(URL.createObjectURL(f));
+  }
+
+  async function handleSave() {
+    if (!file || !widthM || !heightM) return;
     setUploading(true);
     try {
       const fd = new FormData();
@@ -21,32 +34,50 @@ function FloorplanUpload({ section, label }) {
       fd.append('widthM',  widthM);
       fd.append('heightM', heightM);
       await api.post(`/admin/settings/floorplan/${section}`, fd);
-      setPreview(URL.createObjectURL(file));
-      setDone(true);
-      setTimeout(() => setDone(false), 3000);
+      onSaved?.(section, { image: localPreview, widthM: parseFloat(widthM), heightM: parseFloat(heightM) });
+      setFile(null);
+      setLocalPreview(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (err) {
       alert(err.response?.data?.error || err.message);
     } finally {
       setUploading(false);
-      e.target.value = '';
     }
   }
+
+  const displayImage = localPreview || existing?.image || null;
+  const canSave = file && widthM && heightM && !uploading;
 
   return (
     <div className="mb-4 p-3 rounded-xl border border-slate-100 bg-slate-50">
       <p className="text-sm font-bold text-slate-700 mb-2">{label}</p>
+
+      {displayImage && (
+        <div className="mb-2">
+          <img src={displayImage} alt="" className="w-full h-32 object-cover rounded-lg border border-slate-200 mb-1" />
+          {!localPreview && existing && (
+            <p className="text-xs text-slate-500 text-center">רוחב: {existing.widthM} מ׳ &nbsp;|&nbsp; עומק: {existing.heightM} מ׳</p>
+          )}
+        </div>
+      )}
+
       <div className="flex gap-2 mb-2">
         <input value={widthM} onChange={e => setWidthM(e.target.value)} type="number" min="1" step="0.5" placeholder="רוחב (מ')"
           className="w-full text-sm border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-violet-400" />
         <input value={heightM} onChange={e => setHeightM(e.target.value)} type="number" min="1" step="0.5" placeholder="עומק (מ')"
           className="w-full text-sm border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-violet-400" />
       </div>
-      {preview && <img src={preview} alt="" className="w-full h-24 object-cover rounded-lg mb-2 border border-slate-200" />}
-      <label className={`block w-full py-2 rounded-xl font-bold text-sm text-white text-center cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}
-        style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
-        {uploading ? 'מעלה...' : done ? 'הועלה!' : 'העלה תמונה'}
-        <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} />
+
+      <label className="block w-full py-2 rounded-xl font-bold text-sm text-center cursor-pointer border-2 border-dashed border-violet-300 text-violet-600 hover:bg-violet-50 transition mb-2">
+        {file ? file.name : 'בחר תמונה...'}
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
       </label>
+
+      <button onClick={handleSave} disabled={!canSave}
+        className="w-full py-2 rounded-xl font-bold text-sm text-white disabled:opacity-40 transition"
+        style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+        {uploading ? 'שומר...' : 'שמור'}
+      </button>
     </div>
   );
 }
@@ -83,6 +114,7 @@ export default function AdminPage() {
   const [googleToken, setGoogleToken]           = useState('');
   const [savingToken, setSavingToken]           = useState(false);
   const [tokenSaveResult, setTokenSaveResult]   = useState('');
+  const [fpData, setFpData] = useState({ inside: null, outside: null });
 
   useEffect(() => {
     api.get('/admin/settings')
@@ -92,6 +124,10 @@ export default function AdminPage() {
         setDriveFolders(r.data.drive_folders ? JSON.parse(r.data.drive_folders) : []);
         setContractEmailBody(r.data.contract_email_body || '');
         setContractEmailBank(r.data.contract_email_bank || '');
+        const fp = { inside: null, outside: null };
+        try { fp.inside  = r.data.floorplan_inside  ? JSON.parse(r.data.floorplan_inside)  : null; } catch {}
+        try { fp.outside = r.data.floorplan_outside ? JSON.parse(r.data.floorplan_outside) : null; } catch {}
+        setFpData(fp);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -568,7 +604,10 @@ export default function AdminPage() {
           </div>
           <p className="text-xs mb-4 text-slate-400">העלה תמונת בסיס (תוכנית אולם) לכל קטע. הזן את המידות האמיתיות כדי שהפריטים יוצגו בקנה מידה נכון.</p>
           {[['inside', 'פנים'], ['outside', 'חוץ']].map(([sec, lbl]) => (
-            <FloorplanUpload key={sec} section={sec} label={lbl} />
+            <FloorplanUpload key={sec} section={sec} label={lbl}
+              existing={fpData[sec]}
+              onSaved={(s, data) => setFpData(prev => ({ ...prev, [s]: data }))}
+            />
           ))}
         </div>
 
