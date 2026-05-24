@@ -408,8 +408,8 @@ export default function SeatingChart({ leadId, onClose }) {
     const { default: html2canvas } = await import('html2canvas');
     const innerDiv = canvasRef.current?.querySelector('[dir="ltr"]');
     if (!innerDiv) return null;
-    const cvs = await html2canvas(innerDiv, { scale: 0.3, useCORS: true, logging: false, backgroundColor: '#cbd5e1' });
-    return cvs.toDataURL('image/jpeg', 0.6);
+    const cvs = await html2canvas(innerDiv, { scale: 0.8, useCORS: true, logging: false, backgroundColor: '#cbd5e1' });
+    return cvs.toDataURL('image/jpeg', 0.88);
   }
 
   async function saveAsTemplate() {
