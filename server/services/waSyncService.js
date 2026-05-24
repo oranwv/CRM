@@ -27,6 +27,7 @@ function extractText(msg) {
   if (msg.extendedTextMessageData?.text) return msg.extendedTextMessageData.text;
   if (msg.imageMessageData?.caption) return msg.imageMessageData.caption;
   if (msg.fileMessageData?.caption) return msg.fileMessageData.caption;
+  if (msg.fileMessageData?.fileName) return `📎 ${msg.fileMessageData.fileName}`;
   return `[${msg.typeMessage || 'message'}]`;
 }
 

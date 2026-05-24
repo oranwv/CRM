@@ -14,7 +14,7 @@ function mediaMimeToExt(mime) {
 async function saveInboundMedia(msg, leadId, externalId) {
   const d = msg.imageMessageData || msg.fileMessageData || {};
   const mediaUrl = d.downloadUrl || d.url || null;
-  if (!mediaUrl) return { text: d.caption || `[${msg.typeMessage}]` };
+  if (!mediaUrl) return { text: d.fileName ? `📎 ${d.fileName}` : (d.caption || `[${msg.typeMessage}]`) };
 
   const caption  = d.caption || '';
   const mime     = d.mimeType || 'application/octet-stream';
@@ -36,7 +36,7 @@ async function saveInboundMedia(msg, leadId, externalId) {
   } catch (err) {
     console.error('[WhatsApp] media download error:', err.message);
     try { fs.unlinkSync(tmpPath); } catch {}
-    return { text: caption || `[${msg.typeMessage}]` };
+    return { text: d.fileName ? `📎 ${d.fileName}` : (caption || `[${msg.typeMessage}]`) };
   }
 }
 

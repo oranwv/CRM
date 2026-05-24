@@ -749,9 +749,11 @@ function BodyWithFile({ body }) {
   const text = body.replace(FILE_RE, '').trim();
   const files = [...body.matchAll(/\[\[FILE:([^\|]+)\|([^\]]+)\]\]/g)]
     .map(m => ({ id: m[1], name: m[2] }));
+  const isMediaPlaceholder = /^\[.+Message\]$/.test(text);
   return (
     <div>
-      {text.trim() && <p className="text-base text-slate-700 whitespace-pre-wrap">{text.trim()}</p>}
+      {text.trim() && !isMediaPlaceholder && <p className="text-base text-slate-700 whitespace-pre-wrap">{text.trim()}</p>}
+      {isMediaPlaceholder && !files.length && <span className="text-sm text-slate-400 italic">📎 קובץ</span>}
       {files.map((f, i) => (
         <button key={i}
           onClick={e => { e.stopPropagation(); openFile(f.id); }}
@@ -2861,13 +2863,17 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, allPhon
                     <span className={`text-sm font-semibold px-2 py-0.5 rounded-full ${meta.bg} ${meta.text}`}>
                       {meta.icon} {meta.label}
                     </span>
-                    {item.type === 'whatsapp' && !isIn && item.contact_value && (
-                      <span className="text-xs text-slate-400 font-medium">
-                        {allPhoneLabels[item.contact_value]
-                          ? `${allPhoneLabels[item.contact_value]} (${item.contact_value})`
-                          : item.contact_value}
-                      </span>
-                    )}
+                    {item.type === 'whatsapp' && !isIn && item.contact_value && (() => {
+                      const lastN = p => (p || '').replace(/\D/g, '').slice(-9);
+                      const isPrimary = lastN(item.contact_value) === lastN(lead?.phone);
+                      const name = allPhoneLabels[item.contact_value]
+                        || (isPrimary ? (lead?.event_name || lead?.name) : null);
+                      return (
+                        <span className="text-xs text-slate-400 font-medium">
+                          {name ? `${name} (${item.contact_value})` : item.contact_value}
+                        </span>
+                      );
+                    })()}
                     {item.id.startsWith('i-') && ['call','meeting','note'].includes(item.type) && (
                       <button
                         onClick={() => { setEditingInteractionId(item.id); setEditInteractionBody(item.body); }}
