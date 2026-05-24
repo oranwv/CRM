@@ -55,9 +55,9 @@ function getElDef(el) {
 }
 
 function palDims(wM, hM) {
-  const MAX = 46;
-  const s = Math.min(MAX / wM, MAX / hM, 28);
-  return { w: Math.max(10, Math.round(wM * s)), h: Math.max(10, Math.round(hM * s)) };
+  const MAX = 32;
+  const s = Math.min(MAX / wM, MAX / hM, 20);
+  return { w: Math.max(8, Math.round(wM * s)), h: Math.max(8, Math.round(hM * s)) };
 }
 
 function ShapeBox({ shape, fill, stroke, width, height, guests }) {
@@ -91,14 +91,18 @@ export default function SeatingChart({ leadId, onClose }) {
   const [addingCustom, setAddingCustom] = useState(false);
   const [newItem,     setNewItem]     = useState({ label: '', wM: '', hM: '', shape: 'rect' });
   const [ghost,       setGhost]       = useState(null);
+  const [zoom,        setZoom]        = useState(() => Math.min(1, (window.innerWidth - 96) / 900));
 
   const canvasRef   = useRef(null);
   const dragRef     = useRef(null);
   const saveTimer   = useRef(null);
   const sectionRef  = useRef(section);
   const scaleRef    = useRef(45);
+  const zoomRef     = useRef(zoom);
+  const pinchRef    = useRef({ active: false, dist0: 0, zoom0: 1 });
 
   useEffect(() => { sectionRef.current = section; }, [section]);
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
 
   useEffect(() => {
     api.get(`/leads/${leadId}/seating`).then(r => {
@@ -154,18 +158,15 @@ export default function SeatingChart({ leadId, onClose }) {
   }
 
   useEffect(() => {
-    function onMove(e) {
+    function applyMove(clientX, clientY) {
       const ds = dragRef.current;
-      if (!ds) return;
-      if (ds.mode === 'palette') {
-        setGhost(g => g ? { ...g, x: e.clientX, y: e.clientY } : g);
-        return;
-      }
+      if (!ds || ds.mode === 'palette') return;
       const canvas = canvasRef.current;
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
-      const mx   = e.clientX - rect.left + canvas.scrollLeft;
-      const my   = e.clientY - rect.top  + canvas.scrollTop;
+      const z  = zoomRef.current;
+      const mx = (clientX - rect.left + canvas.scrollLeft) / z;
+      const my = (clientY - rect.top  + canvas.scrollTop)  / z;
       if (ds.mode === 'move') {
         setLayouts(prev => {
           const sec = sectionRef.current;
@@ -182,37 +183,98 @@ export default function SeatingChart({ leadId, onClose }) {
       }
     }
 
+    function applyDrop(clientX, clientY) {
+      setGhost(null);
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      if (clientX >= rect.left && clientX <= rect.right &&
+          clientY >= rect.top  && clientY <= rect.bottom) {
+        const ds  = dragRef.current;
+        const s   = scaleRef.current;
+        const z   = zoomRef.current;
+        const wPx = ds.wM * s;
+        const hPx = ds.hM * s;
+        const mx  = (clientX - rect.left + canvas.scrollLeft) / z;
+        const my  = (clientY - rect.top  + canvas.scrollTop)  / z;
+        const newEl = {
+          id: uid(), type: ds.type,
+          x: Math.max(0, mx - wPx / 2),
+          y: Math.max(0, my - hPx / 2),
+          rotation: 0,
+          ...(ds.type === 'custom' ? { wM: ds.wM, hM: ds.hM, shape: ds.shape, label: ds.label } : {}),
+        };
+        setLayouts(prev => {
+          const sec = sectionRef.current;
+          const next = { ...prev, [sec]: [...prev[sec], newEl] };
+          triggerSave(next, sec);
+          return next;
+        });
+        setSelected(newEl.id);
+      }
+    }
+
+    function onMove(e) {
+      const ds = dragRef.current;
+      if (!ds) return;
+      if (ds.mode === 'palette') {
+        setGhost(g => g ? { ...g, x: e.clientX, y: e.clientY } : g);
+        return;
+      }
+      applyMove(e.clientX, e.clientY);
+    }
+
     function onUp(e) {
       const ds = dragRef.current;
       if (!ds) return;
       if (ds.mode === 'palette') {
+        applyDrop(e.clientX, e.clientY);
+      } else if (ds.mode === 'move' || ds.mode === 'rotate') {
+        setLayouts(prev => { triggerSave(prev, sectionRef.current); return prev; });
+      }
+      dragRef.current = null;
+    }
+
+    function onTouchStart(e) {
+      if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        pinchRef.current = { active: true, dist0: Math.hypot(dx, dy), zoom0: zoomRef.current };
+        dragRef.current = null;
         setGhost(null);
-        const canvas = canvasRef.current;
-        if (canvas) {
-          const rect = canvas.getBoundingClientRect();
-          if (e.clientX >= rect.left && e.clientX <= rect.right &&
-              e.clientY >= rect.top  && e.clientY <= rect.bottom) {
-            const s   = scaleRef.current;
-            const wPx = ds.wM * s;
-            const hPx = ds.hM * s;
-            const mx  = e.clientX - rect.left + canvas.scrollLeft;
-            const my  = e.clientY - rect.top  + canvas.scrollTop;
-            const newEl = {
-              id: uid(), type: ds.type,
-              x: Math.max(0, mx - wPx / 2),
-              y: Math.max(0, my - hPx / 2),
-              rotation: 0,
-              ...(ds.type === 'custom' ? { wM: ds.wM, hM: ds.hM, shape: ds.shape, label: ds.label } : {}),
-            };
-            setLayouts(prev => {
-              const sec = sectionRef.current;
-              const next = { ...prev, [sec]: [...prev[sec], newEl] };
-              triggerSave(next, sec);
-              return next;
-            });
-            setSelected(newEl.id);
-          }
-        }
+      }
+    }
+
+    function onTouchMove(e) {
+      if (pinchRef.current.active && e.touches.length === 2) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const newZ = Math.max(0.2, Math.min(3, pinchRef.current.zoom0 * Math.hypot(dx, dy) / pinchRef.current.dist0));
+        setZoom(newZ);
+        return;
+      }
+      const ds = dragRef.current;
+      if (!ds) return;
+      e.preventDefault();
+      const t = e.touches[0];
+      if (ds.mode === 'palette') {
+        setGhost(g => g ? { ...g, x: t.clientX, y: t.clientY } : g);
+        return;
+      }
+      applyMove(t.clientX, t.clientY);
+    }
+
+    function onTouchEnd(e) {
+      if (pinchRef.current.active) {
+        pinchRef.current.active = false;
+        return;
+      }
+      const ds = dragRef.current;
+      if (!ds) return;
+      if (ds.mode === 'palette') {
+        const t = e.changedTouches[0];
+        applyDrop(t.clientX, t.clientY);
       } else if (ds.mode === 'move' || ds.mode === 'rotate') {
         setLayouts(prev => { triggerSave(prev, sectionRef.current); return prev; });
       }
@@ -221,9 +283,15 @@ export default function SeatingChart({ leadId, onClose }) {
 
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup',   onUp);
+    document.addEventListener('touchstart', onTouchStart);
+    document.addEventListener('touchmove',  onTouchMove, { passive: false });
+    document.addEventListener('touchend',   onTouchEnd);
     return () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup',   onUp);
+      document.removeEventListener('touchstart', onTouchStart);
+      document.removeEventListener('touchmove',  onTouchMove);
+      document.removeEventListener('touchend',   onTouchEnd);
     };
   }, [leadId]);
 
@@ -245,8 +313,24 @@ export default function SeatingChart({ leadId, onClose }) {
     const s      = scaleRef.current;
     const canvas = canvasRef.current;
     const rect   = canvas.getBoundingClientRect();
-    const mx     = e.clientX - rect.left + canvas.scrollLeft;
-    const my     = e.clientY - rect.top  + canvas.scrollTop;
+    const z      = zoomRef.current;
+    const mx     = (e.clientX - rect.left + canvas.scrollLeft) / z;
+    const my     = (e.clientY - rect.top  + canvas.scrollTop)  / z;
+    dragRef.current = { mode: 'move', id: el.id, offX: mx - el.x, offY: my - el.y, wPx: def.wM * s, hPx: def.hM * s };
+  }
+
+  function startElementMoveTouch(e, el) {
+    if (e.touches.length > 1) return;
+    e.stopPropagation(); e.preventDefault();
+    setSelected(el.id);
+    const def    = getElDef(el);
+    const s      = scaleRef.current;
+    const canvas = canvasRef.current;
+    const rect   = canvas.getBoundingClientRect();
+    const z      = zoomRef.current;
+    const t      = e.touches[0];
+    const mx     = (t.clientX - rect.left + canvas.scrollLeft) / z;
+    const my     = (t.clientY - rect.top  + canvas.scrollTop)  / z;
     dragRef.current = { mode: 'move', id: el.id, offX: mx - el.x, offY: my - el.y, wPx: def.wM * s, hPx: def.hM * s };
   }
 
@@ -254,11 +338,26 @@ export default function SeatingChart({ leadId, onClose }) {
     e.stopPropagation();
     const def = getElDef(el);
     const s   = scaleRef.current;
-    dragRef.current = {
-      mode: 'rotate', id: el.id,
-      cx: el.x + (def.wM * s) / 2,
-      cy: el.y + (def.hM * s) / 2,
-    };
+    dragRef.current = { mode: 'rotate', id: el.id, cx: el.x + (def.wM * s) / 2, cy: el.y + (def.hM * s) / 2 };
+  }
+
+  function startRotateTouch(e, el) {
+    e.stopPropagation(); e.preventDefault();
+    const def = getElDef(el);
+    const s   = scaleRef.current;
+    dragRef.current = { mode: 'rotate', id: el.id, cx: el.x + (def.wM * s) / 2, cy: el.y + (def.hM * s) / 2 };
+  }
+
+  function startPaletteDragTouch(e, type, customData = null) {
+    e.preventDefault();
+    const t    = e.touches[0];
+    const wM   = type === 'custom' ? customData.wM : DEFS[type].wM;
+    const hM   = type === 'custom' ? customData.hM : DEFS[type].hM;
+    const shape = type === 'custom' ? customData.shape : DEFS[type].shape;
+    dragRef.current = { mode: 'palette', type, wM, hM, shape, label: customData?.label };
+    setGhost({ x: t.clientX, y: t.clientY, type, wM, hM, shape,
+      fill:   type === 'custom' ? '#e2e8f0' : (FILL[type]   || '#ddd6fe'),
+      stroke: type === 'custom' ? '#64748b' : (STROKE[type] || '#7c3aed') });
   }
 
   async function addCustomItem() {
@@ -311,21 +410,23 @@ export default function SeatingChart({ leadId, onClose }) {
       {/* Body */}
       <div className="flex flex-1 overflow-hidden">
         {/* Palette */}
-        <div className="w-36 shrink-0 border-l border-slate-200 overflow-y-auto bg-slate-50 p-2 space-y-3" dir="rtl">
+        <div className="w-24 shrink-0 border-l border-slate-200 overflow-y-auto bg-slate-50 p-1.5 space-y-2" dir="rtl">
           {PALETTE_GROUPS.map(group => (
             <div key={group.label}>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-wide mb-1">{group.label}</p>
-              <div className="space-y-1">
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-wide mb-1 text-center">{group.label}</p>
+              <div className="grid grid-cols-2 gap-1 mb-1">
                 {group.keys.map(key => {
                   const d = DEFS[key];
                   const { w, h } = palDims(d.wM, d.hM);
                   return (
-                    <div key={key} onMouseDown={e => startPaletteDrag(e, key)}
-                      className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-white hover:shadow-sm cursor-grab transition select-none">
-                      <div className="shrink-0 flex items-center justify-center" style={{ width: 50, height: 50 }}>
+                    <div key={key}
+                      onMouseDown={e => startPaletteDrag(e, key)}
+                      onTouchStart={e => startPaletteDragTouch(e, key)}
+                      className="flex flex-col items-center gap-0.5 p-1 rounded-lg hover:bg-white hover:shadow-sm cursor-grab transition select-none">
+                      <div className="flex items-center justify-center" style={{ width: 36, height: 36 }}>
                         <ShapeBox shape={d.shape} fill={FILL[key]} stroke={STROKE[key]} width={w} height={h} guests={d.guests} />
                       </div>
-                      <span className="text-[10px] text-slate-600 leading-tight">{d.label}</span>
+                      <span className="text-[8px] text-slate-600 leading-tight text-center">{d.label}</span>
                     </div>
                   );
                 })}
@@ -335,19 +436,20 @@ export default function SeatingChart({ leadId, onClose }) {
 
           {customItems.length > 0 && (
             <div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-wide mb-1">מותאם אישית</p>
-              <div className="space-y-1">
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-wide mb-1 text-center">מותאם אישית</p>
+              <div className="grid grid-cols-2 gap-1 mb-1">
                 {customItems.map(item => {
                   const { w, h } = palDims(item.wM, item.hM);
                   return (
-                    <div key={item.id} className="relative group flex items-center gap-2 p-1.5 rounded-lg hover:bg-white hover:shadow-sm transition select-none">
-                      <div className="shrink-0 flex items-center justify-center cursor-grab" style={{ width: 50, height: 50 }}
-                        onMouseDown={e => startPaletteDrag(e, 'custom', item)}>
+                    <div key={item.id} className="relative group flex flex-col items-center gap-0.5 p-1 rounded-lg hover:bg-white hover:shadow-sm transition select-none cursor-grab"
+                      onMouseDown={e => startPaletteDrag(e, 'custom', item)}
+                      onTouchStart={e => startPaletteDragTouch(e, 'custom', item)}>
+                      <div className="flex items-center justify-center" style={{ width: 36, height: 36 }}>
                         <ShapeBox shape={item.shape} fill="#e2e8f0" stroke="#64748b" width={w} height={h} guests={0} />
                       </div>
-                      <span className="text-[10px] text-slate-600 leading-tight flex-1">{item.label}</span>
-                      <button onClick={() => deleteCustomItem(item.id)}
-                        className="hidden group-hover:flex items-center justify-center w-4 h-4 rounded-full bg-red-400 text-white text-[10px] leading-none shrink-0">×</button>
+                      <span className="text-[8px] text-slate-600 leading-tight text-center">{item.label}</span>
+                      <button onClick={ev => { ev.stopPropagation(); deleteCustomItem(item.id); }}
+                        className="hidden group-hover:flex absolute top-0.5 right-0.5 items-center justify-center w-3.5 h-3.5 rounded-full bg-red-400 text-white text-[9px] leading-none">×</button>
                     </div>
                   );
                 })}
@@ -392,7 +494,9 @@ export default function SeatingChart({ leadId, onClose }) {
         {/* Canvas */}
         <div ref={canvasRef} className="flex-1 overflow-auto bg-slate-300" dir="ltr"
           onMouseDown={e => { if (e.target === e.currentTarget) setSelected(null); }}>
-          <div style={{ width: 900, height: canvasH, position: 'relative', minWidth: 900 }} dir="ltr">
+          <div style={{ width: Math.round(900 * zoom), height: Math.round(canvasH * zoom), position: 'relative' }}>
+          <div style={{ width: 900, height: canvasH, position: 'absolute', top: 0, left: 0,
+                        transform: `scale(${zoom})`, transformOrigin: 'top left' }} dir="ltr">
             {fp?.image
               ? <img src={fp.image} alt="" draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', pointerEvents: 'none', userSelect: 'none' }} />
               : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -417,35 +521,40 @@ export default function SeatingChart({ leadId, onClose }) {
                     outline: isSel ? '2px solid #7c3aed' : 'none',
                     outlineOffset: 2,
                   }}
-                  onMouseDown={e => startElementMove(e, el)}>
+                  onMouseDown={e => startElementMove(e, el)}
+                  onTouchStart={e => startElementMoveTouch(e, el)}>
                   <ShapeBox shape={def.shape} fill={def.fill} stroke={def.stroke} width={wPx} height={hPx} guests={def.guests} />
 
+                  {def.guests === 0 && (
+                    <div style={{
+                      position: 'absolute', bottom: -13, left: 0, right: 0,
+                      textAlign: 'center', fontSize: 9, color: '#374151',
+                      fontWeight: 'bold', whiteSpace: 'nowrap', pointerEvents: 'none',
+                      background: 'rgba(255,255,255,0.8)', borderRadius: 2,
+                    }}>
+                      {def.label}
+                    </div>
+                  )}
+
                   {isSel && (
-                    <>
-                      <div
-                        onMouseDown={e => startRotate(e, el)}
-                        style={{
-                          position: 'absolute', top: -20, left: '50%',
-                          transform: 'translateX(-50%)',
-                          width: 14, height: 14, borderRadius: '50%',
-                          background: '#7c3aed', border: '2px solid white',
-                          cursor: 'grab', zIndex: 20, pointerEvents: 'auto',
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-                        }}
-                        title="גרור לסיבוב"
-                      />
-                      <div style={{
-                        position: 'absolute', bottom: -14, left: 0, right: 0,
-                        textAlign: 'center', fontSize: 9, color: '#7c3aed',
-                        fontWeight: 'bold', whiteSpace: 'nowrap', pointerEvents: 'none',
-                      }}>
-                        {def.label}
-                      </div>
-                    </>
+                    <div
+                      onMouseDown={e => startRotate(e, el)}
+                      onTouchStart={e => startRotateTouch(e, el)}
+                      style={{
+                        position: 'absolute', top: -20, left: '50%',
+                        transform: 'translateX(-50%)',
+                        width: 14, height: 14, borderRadius: '50%',
+                        background: '#7c3aed', border: '2px solid white',
+                        cursor: 'grab', zIndex: 20, pointerEvents: 'auto',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                      }}
+                      title="גרור לסיבוב"
+                    />
                   )}
                 </div>
               );
             })}
+          </div>
           </div>
         </div>
       </div>
