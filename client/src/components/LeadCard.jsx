@@ -169,6 +169,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
   const [showContract, setShowContract]         = useState(false);
   const [showBrief,    setShowBrief]    = useState(false);
   const [showSeating,  setShowSeating]  = useState(false);
+  const [hasSketch,    setHasSketch]    = useState(false);
   const [leadSuppliers,      setLeadSuppliers]      = useState([]);
   const [allSuppliers,       setAllSuppliers]       = useState([]);
   const [showSupplierPicker, setShowSupplierPicker] = useState(false);
@@ -214,6 +215,16 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
     if (!lead || !['deposit', 'production', 'completed'].includes(lead.stage)) return;
     api.get(`/leads/${leadId}/suppliers`).then(r => setLeadSuppliers(r.data)).catch(() => {});
     api.get('/suppliers').then(r => setAllSuppliers(r.data)).catch(() => {});
+  }, [lead?.stage, leadId]);
+
+  useEffect(() => {
+    if (!lead || ['deposit', 'production', 'completed'].includes(lead.stage)) return;
+    api.get(`/leads/${leadId}/seating`)
+      .then(r => {
+        const d = r.data || {};
+        setHasSketch((d.inside?.length || 0) + (d.outside?.length || 0) > 0);
+      })
+      .catch(() => {});
   }, [lead?.stage, leadId]);
 
   async function linkSupplier(supplierId) {
@@ -544,6 +555,13 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
             {/* Files */}
             <Section title={`קבצים${files.length ? ` (${files.length})` : ''}`}>
               <FilesSection leadId={leadId} files={files} onChanged={load} isAdmin={currentUser.role === 'admin'} />
+              {!['deposit', 'production', 'completed'].includes(lead.stage) && (
+                <button
+                  onClick={() => setShowSeating(true)}
+                  className="w-full mt-1 border-2 border-dashed border-violet-200 rounded-xl py-3 text-sm font-semibold text-center text-violet-500 hover:border-violet-400 hover:text-violet-700 hover:bg-violet-50 transition">
+                  {hasSketch ? 'ערוך סקיצה' : '+ צור סקיצה'}
+                </button>
+              )}
             </Section>
 
             {/* Interactions */}
