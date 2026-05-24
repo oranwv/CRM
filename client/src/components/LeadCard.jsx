@@ -253,6 +253,9 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
   const openTasks  = tasks.filter(t => !t.completed_at).length;
   const allPhones  = [lead.phone, ...contacts.filter(c => c.type === 'phone').map(c => c.value)].filter(Boolean);
   const allEmails  = [lead.email, ...contacts.filter(c => c.type === 'email').map(c => c.value)].filter(Boolean);
+  const allPhoneLabels = Object.fromEntries(
+    contacts.filter(c => c.type === 'phone' && c.label).map(c => [c.value, c.label])
+  );
 
   const timeline = [
     ...interactions.map(i => ({
@@ -498,7 +501,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
 
         {/* ── WHATSAPP TAB ── */}
         {activeTab === 'whatsapp' && (
-          <WhatsAppTab leadId={leadId} allPhones={allPhones} messages={messages} onSent={load} />
+          <WhatsAppTab leadId={leadId} allPhones={allPhones} allPhoneLabels={allPhoneLabels} messages={messages} onSent={load} />
         )}
       </div>
 
@@ -3019,7 +3022,7 @@ function TasksTab({ leadId, tasks, users, onUpdated, completeTask, onTaskAction,
 }
 
 /* ── WHATSAPP TAB ── */
-function WhatsAppTab({ leadId, allPhones, messages, onSent }) {
+function WhatsAppTab({ leadId, allPhones, allPhoneLabels = {}, messages, onSent }) {
   const [msg, setMsg]           = useState('');
   const [sending, setSending]   = useState(false);
   const [waPhone, setWaPhone]   = useState(allPhones[0] || '');
@@ -3048,7 +3051,13 @@ function WhatsAppTab({ leadId, allPhones, messages, onSent }) {
               <div className={`max-w-[75%] rounded-2xl px-3 py-2 text-base ${m.direction === 'outbound' ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-800'}`}>
                 <p>{m.body}</p>
                 <p className={`text-sm mt-1 ${m.direction === 'outbound' ? 'text-green-200' : 'text-slate-400'}`}>{formatFull(m.timestamp)}</p>
-                {m.contact_value && <p className={`text-xs mt-0.5 ${m.direction === 'outbound' ? 'text-green-200' : 'text-slate-400'}`} dir="ltr">{m.contact_value}</p>}
+                {m.contact_value && (
+                  <p className={`text-xs mt-0.5 ${m.direction === 'outbound' ? 'text-green-200' : 'text-slate-400'}`} dir="ltr">
+                    {allPhoneLabels[m.contact_value]
+                      ? `${allPhoneLabels[m.contact_value]} (${m.contact_value})`
+                      : m.contact_value}
+                  </p>
+                )}
               </div>
             </div>
           ))}
@@ -3059,7 +3068,11 @@ function WhatsAppTab({ leadId, allPhones, messages, onSent }) {
             {allPhones.length > 1 && (
               <select value={waPhone} onChange={e => setWaPhone(e.target.value)}
                 className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-green-400" dir="ltr">
-                {allPhones.map(p => <option key={p} value={p}>{p}</option>)}
+                {allPhones.map(p => (
+                  <option key={p} value={p}>
+                    {allPhoneLabels[p] ? `${allPhoneLabels[p]} (${p})` : p}
+                  </option>
+                ))}
               </select>
             )}
             <div className="flex gap-2">
@@ -4100,20 +4113,23 @@ function AdditionalContacts({ leadId, contacts, onChanged }) {
 }
 
 function ContactGroup({ label, type, items, leadId, onRemove, onAdded, placeholder, inputDir }) {
-  const [adding, setAdding] = useState(false);
-  const [value, setValue]   = useState('');
-  const [saving, setSaving] = useState(false);
+  const [adding, setAdding]   = useState(false);
+  const [value, setValue]     = useState('');
+  const [itemLabel, setItemLabel] = useState('');
+  const [saving, setSaving]   = useState(false);
 
   async function add() {
     if (!value.trim()) return;
     setSaving(true);
     try {
-      await api.post(`/leads/${leadId}/contacts`, { type, value: value.trim() });
-      setValue(''); setAdding(false);
+      await api.post(`/leads/${leadId}/contacts`, { type, value: value.trim(), label: itemLabel.trim() || undefined });
+      setValue(''); setItemLabel(''); setAdding(false);
       await onAdded();
     } catch { }
     setSaving(false);
   }
+
+  function cancel() { setAdding(false); setValue(''); setItemLabel(''); }
 
   return (
     <div>
@@ -4121,23 +4137,29 @@ function ContactGroup({ label, type, items, leadId, onRemove, onAdded, placehold
       <div className="space-y-1">
         {items.map(c => (
           <div key={c.id} className="flex items-center gap-2 bg-white rounded-xl px-3 py-2 border border-slate-100">
+            {c.label && <span className="text-sm font-semibold text-slate-500 shrink-0">{c.label}</span>}
             <span className="flex-1 text-base text-slate-700 font-medium" dir={inputDir}>{c.value}</span>
             <button onClick={() => onRemove(c.id)}
               className="text-slate-300 hover:text-red-400 transition text-sm px-1 rounded">🗑️</button>
           </div>
         ))}
         {adding ? (
-          <div className="flex gap-2">
-            <input autoFocus value={value} onChange={e => setValue(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && add()}
-              className="flex-1 border-2 border-slate-200 rounded-xl px-3 py-1.5 text-base focus:outline-none focus:border-violet-400"
-              placeholder={placeholder} dir={inputDir} />
-            <button onClick={add} disabled={saving || !value.trim()}
-              className="bg-violet-600 text-white text-sm font-bold px-3 py-1.5 rounded-xl disabled:opacity-50">
-              {saving ? '...' : 'הוסף'}
-            </button>
-            <button onClick={() => { setAdding(false); setValue(''); }}
-              className="text-slate-400 hover:text-slate-600 text-sm px-2">✕</button>
+          <div className="space-y-1.5">
+            <input autoFocus value={itemLabel} onChange={e => setItemLabel(e.target.value)}
+              className="w-full border-2 border-slate-200 rounded-xl px-3 py-1.5 text-base focus:outline-none focus:border-violet-400"
+              placeholder="שם (אופציונלי)" dir="rtl" />
+            <div className="flex gap-2">
+              <input value={value} onChange={e => setValue(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && add()}
+                className="flex-1 border-2 border-slate-200 rounded-xl px-3 py-1.5 text-base focus:outline-none focus:border-violet-400"
+                placeholder={placeholder} dir={inputDir} />
+              <button onClick={add} disabled={saving || !value.trim()}
+                className="bg-violet-600 text-white text-sm font-bold px-3 py-1.5 rounded-xl disabled:opacity-50">
+                {saving ? '...' : 'הוסף'}
+              </button>
+              <button onClick={cancel}
+                className="text-slate-400 hover:text-slate-600 text-sm px-2">✕</button>
+            </div>
           </div>
         ) : (
           <button onClick={() => setAdding(true)} className="text-sm text-violet-600 hover:underline font-semibold">

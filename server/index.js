@@ -149,6 +149,9 @@ pool.query(`
 pool.query(`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS orderer_name TEXT`)
   .catch(err => console.error('[DB] orderer_name migration error:', err.message));
 
+pool.query(`ALTER TABLE lead_contacts ADD COLUMN IF NOT EXISTS label TEXT`)
+  .catch(err => console.error('[DB] lead_contacts label migration error:', err.message));
+
 pool.query(`
   CREATE TABLE IF NOT EXISTS production_checklist (
     id SERIAL PRIMARY KEY,

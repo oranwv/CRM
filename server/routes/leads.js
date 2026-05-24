@@ -481,11 +481,11 @@ router.get('/:id/contacts', async (req, res) => {
 // POST /api/leads/:id/contacts
 router.post('/:id/contacts', async (req, res) => {
   try {
-    const { type, value } = req.body;
+    const { type, value, label } = req.body;
     if (!type || !value) return res.status(400).json({ error: 'type and value required' });
     const { rows } = await pool.query(
-      'INSERT INTO lead_contacts (lead_id, type, value) VALUES ($1, $2, $3) RETURNING *',
-      [req.params.id, type, value.trim()]
+      'INSERT INTO lead_contacts (lead_id, type, value, label) VALUES ($1, $2, $3, $4) RETURNING *',
+      [req.params.id, type, value.trim(), label?.trim() || null]
     );
     res.json(rows[0]);
   } catch (err) {
