@@ -81,6 +81,136 @@ function FloorplanUpload({ section, label, existing, onSaved }) {
     </div>
   );
 }
+const SEATING_DEFS = [
+  { key: 'round_table_4',  label: 'שולחן עגול (4)',    shape: 'circle', wM: 1,   hM: 1,    fill: '#ddd6fe', stroke: '#7c3aed' },
+  { key: 'rect_table_10',  label: 'שולחן מלבני (10)',  shape: 'rect',   wM: 0.8, hM: 2.4,  fill: '#ddd6fe', stroke: '#7c3aed' },
+  { key: 'rect_table_20',  label: 'שולחן מלבני (20)',  shape: 'rect',   wM: 0.8, hM: 4.8,  fill: '#ddd6fe', stroke: '#7c3aed' },
+  { key: 'round_bar',      label: 'בר (עגול)',          shape: 'circle', wM: 1,   hM: 1,    fill: '#fed7aa', stroke: '#ea580c' },
+  { key: 'chavit',         label: 'חבית',               shape: 'circle', wM: 1,   hM: 1,    fill: '#d1fae5', stroke: '#059669' },
+  { key: 'bama',           label: 'במה',                shape: 'rect',   wM: 3,   hM: 2.4,  fill: '#fce7f3', stroke: '#db2777' },
+  { key: 'dj_stand',       label: 'DJ',                 shape: 'rect',   wM: 1,   hM: 0.3,  fill: '#e0e7ff', stroke: '#4f46e5' },
+  { key: 'coffee_corner',  label: 'פינת קפה',           shape: 'rect',   wM: 1.5, hM: 0.3,  fill: '#fef3c7', stroke: '#d97706' },
+  { key: 'butcher_large',  label: "בוצ'ר גדול",         shape: 'rect',   wM: 1.8, hM: 1,    fill: '#dcfce7', stroke: '#16a34a' },
+  { key: 'butcher_small',  label: "בוצ'ר קטן",          shape: 'rect',   wM: 1.3, hM: 0.5,  fill: '#dcfce7', stroke: '#16a34a' },
+  { key: 'kasefet',        label: 'כספת',               shape: 'rect',   wM: 0.4, hM: 0.4,  fill: '#f1f5f9', stroke: '#64748b' },
+  { key: 'sofa',           label: 'ספה',                shape: 'rect',   wM: 1.8, hM: 0.3,  fill: '#fdf4ff', stroke: '#a21caf' },
+  { key: 'butcher_cart',   label: "בוצ'ר עגלה",         shape: 'rect',   wM: 1,   hM: 0.3,  fill: '#dcfce7', stroke: '#16a34a' },
+  { key: 'couch',          label: 'ספת ישיבה',          shape: 'rect',   wM: 0.4, hM: 0.3,  fill: '#fef9c3', stroke: '#ca8a04' },
+  { key: 'bar_arc',        label: 'בר (קשתי)',          shape: 'arc',    wM: 2.5, hM: 1.25, fill: '#fed7aa', stroke: '#ea580c' },
+];
+
+function ItemEditorModal({ overrides, onSave, onClose }) {
+  const [local, setLocal] = useState(() => {
+    const init = {};
+    SEATING_DEFS.forEach(d => {
+      const ov = overrides[d.key] || {};
+      init[d.key] = { wM: ov.wM ?? d.wM, hM: ov.hM ?? d.hM, shape: ov.shape ?? d.shape,
+                      fill: ov.fill ?? d.fill, stroke: ov.stroke ?? d.stroke, image: ov.image ?? null };
+    });
+    return init;
+  });
+  const [saving, setSaving] = useState(false);
+
+  function set(key, field, val) {
+    setLocal(p => ({ ...p, [key]: { ...p[key], [field]: val } }));
+  }
+
+  function handleImage(key, e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => set(key, 'image', ev.target.result);
+    reader.readAsDataURL(file);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await api.put('/admin/seating/element-overrides', { overrides: local });
+      onSave(local);
+      onClose();
+    } catch (err) {
+      alert(err.response?.data?.error || err.message);
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 overflow-auto py-6 px-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl" onClick={e => e.stopPropagation()} dir="rtl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+          <h2 className="font-black text-slate-800 text-base">עריכת פריטי סקיצה</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+        </div>
+        <div className="overflow-y-auto max-h-[70vh] p-4 space-y-2">
+          {SEATING_DEFS.map(d => {
+            const v = local[d.key];
+            return (
+              <div key={d.key} className="p-3 rounded-xl border border-slate-100 bg-slate-50 space-y-2">
+                <p className="font-bold text-sm text-slate-700">{d.label}</p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <label className="text-xs text-slate-500">
+                    רוחב (מ')
+                    <input type="number" min="0.1" step="0.1" value={v.wM}
+                      onChange={e => set(d.key, 'wM', parseFloat(e.target.value) || v.wM)}
+                      className="w-full mt-0.5 text-sm border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-violet-400" />
+                  </label>
+                  <label className="text-xs text-slate-500">
+                    עומק (מ')
+                    <input type="number" min="0.1" step="0.1" value={v.hM}
+                      onChange={e => set(d.key, 'hM', parseFloat(e.target.value) || v.hM)}
+                      className="w-full mt-0.5 text-sm border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-violet-400" />
+                  </label>
+                  <label className="text-xs text-slate-500">
+                    צורה
+                    <select value={v.shape} onChange={e => set(d.key, 'shape', e.target.value)}
+                      className="w-full mt-0.5 text-sm border border-slate-200 rounded-lg px-2 py-1 focus:outline-none">
+                      <option value="rect">מלבן</option>
+                      <option value="circle">עיגול</option>
+                      <option value="arc">קשת</option>
+                    </select>
+                  </label>
+                  <div className="flex gap-2">
+                    <label className="text-xs text-slate-500">
+                      רקע
+                      <input type="color" value={v.fill} onChange={e => set(d.key, 'fill', e.target.value)}
+                        className="mt-0.5 w-full h-8 rounded cursor-pointer border border-slate-200" />
+                    </label>
+                    <label className="text-xs text-slate-500">
+                      מסגרת
+                      <input type="color" value={v.stroke} onChange={e => set(d.key, 'stroke', e.target.value)}
+                        className="mt-0.5 w-full h-8 rounded cursor-pointer border border-slate-200" />
+                    </label>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  {v.image
+                    ? <div className="flex items-center gap-2">
+                        <img src={v.image} alt="" className="h-10 w-10 object-contain rounded border border-slate-200" />
+                        <button onClick={() => set(d.key, 'image', null)}
+                          className="text-xs text-red-500 hover:underline">הסר תמונה</button>
+                      </div>
+                    : <label className="text-xs px-3 py-1.5 rounded-lg border border-dashed border-violet-300 text-violet-600 cursor-pointer hover:bg-violet-50">
+                        העלה תמונה
+                        <input type="file" accept="image/*" className="hidden" onChange={e => handleImage(d.key, e)} />
+                      </label>
+                  }
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="px-5 py-4 border-t border-slate-100">
+          <button onClick={handleSave} disabled={saving}
+            className="w-full py-2.5 rounded-xl font-bold text-white disabled:opacity-50"
+            style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+            {saving ? 'שומר...' : 'שמור שינויים'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const ROLE_COLORS = { admin: 'bg-violet-100 text-violet-700', sales: 'bg-indigo-100 text-indigo-700', production: 'bg-slate-100 text-slate-600' };
 const emptyUser = { username: '', display_name: '', email: '', phone: '', role: 'sales', password: '' };
 
@@ -115,6 +245,8 @@ export default function AdminPage() {
   const [savingToken, setSavingToken]           = useState(false);
   const [tokenSaveResult, setTokenSaveResult]   = useState('');
   const [fpData, setFpData] = useState({ inside: null, outside: null });
+  const [showItemEditor, setShowItemEditor]   = useState(false);
+  const [elemOverrides,  setElemOverrides]    = useState({});
 
   useEffect(() => {
     api.get('/admin/settings')
@@ -128,6 +260,7 @@ export default function AdminPage() {
         try { fp.inside  = r.data.floorplan_inside  ? JSON.parse(r.data.floorplan_inside)  : null; } catch {}
         try { fp.outside = r.data.floorplan_outside ? JSON.parse(r.data.floorplan_outside) : null; } catch {}
         setFpData(fp);
+        try { setElemOverrides(r.data.seating_element_overrides ? JSON.parse(r.data.seating_element_overrides) : {}); } catch {}
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -609,9 +742,21 @@ export default function AdminPage() {
               onSaved={(s, data) => setFpData(prev => ({ ...prev, [s]: data }))}
             />
           ))}
+          <button onClick={() => setShowItemEditor(true)}
+            className="mt-2 w-full py-2.5 rounded-xl font-bold text-sm border-2 border-dashed border-violet-300 text-violet-600 hover:bg-violet-50 transition">
+            ערוך פריטים
+          </button>
         </div>
 
       </div>
+
+      {showItemEditor && (
+        <ItemEditorModal
+          overrides={elemOverrides}
+          onSave={newOv => setElemOverrides(newOv)}
+          onClose={() => setShowItemEditor(false)}
+        />
+      )}
 
       {/* ── User edit/add modal ── */}
       {editingUser && (

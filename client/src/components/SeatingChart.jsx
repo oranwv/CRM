@@ -45,13 +45,14 @@ function uid() {
   return `el_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
-function getElDef(el) {
+function getElDef(el, overrides = {}) {
   if (el.type === 'custom') {
     return { wM: el.wM, hM: el.hM, shape: el.shape, label: el.label, guests: 0, fill: '#e2e8f0', stroke: '#64748b' };
   }
   const d = DEFS[el.type];
   if (!d) return { wM: 1, hM: 1, shape: 'rect', label: el.type, guests: 0, fill: '#e2e8f0', stroke: '#64748b' };
-  return { ...d, fill: FILL[el.type] || '#ddd6fe', stroke: STROKE[el.type] || '#7c3aed' };
+  const ov = overrides[el.type] || {};
+  return { ...d, fill: FILL[el.type] || '#ddd6fe', stroke: STROKE[el.type] || '#7c3aed', ...ov };
 }
 
 function palDims(wM, hM) {
@@ -60,7 +61,12 @@ function palDims(wM, hM) {
   return { w: Math.max(8, Math.round(wM * s)), h: Math.max(8, Math.round(hM * s)) };
 }
 
-function ShapeBox({ shape, fill, stroke, width, height, guests }) {
+function ShapeBox({ shape, fill, stroke, width, height, guests, image }) {
+  if (image) return (
+    <div style={{ width, height, pointerEvents: 'none', userSelect: 'none', overflow: 'hidden', borderRadius: 4, border: `2px solid ${stroke}` }}>
+      <img src={image} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+    </div>
+  );
   const fs = Math.max(8, Math.min(width, height) * 0.32);
   const text = guests > 0 ? String(guests) : '';
   const base = {
@@ -71,7 +77,7 @@ function ShapeBox({ shape, fill, stroke, width, height, guests }) {
   if (shape === 'arc') return (
     <div style={{ width, height, pointerEvents: 'none', userSelect: 'none' }}>
       <svg width={width} height={height} viewBox="0 0 100 50" preserveAspectRatio="none" style={{ display: 'block' }}>
-        <path d="M 0 50 A 50 50 0 0 0 100 50 L 88 50 A 38 38 0 0 1 12 50 Z" fill={fill} stroke={stroke} strokeWidth="3" />
+        <path d="M 0 50 A 50 50 0 0 1 100 50 L 88 50 A 38 38 0 0 0 12 50 Z" fill={fill} stroke={stroke} strokeWidth="3" />
       </svg>
     </div>
   );
@@ -88,18 +94,22 @@ export default function SeatingChart({ leadId, onClose }) {
   const [selected,    setSelected]    = useState(null);
   const [saving,      setSaving]      = useState(false);
   const [saved,       setSaved]       = useState(false);
+  const [pdfBusy,     setPdfBusy]     = useState(false);
   const [addingCustom, setAddingCustom] = useState(false);
   const [newItem,     setNewItem]     = useState({ label: '', wM: '', hM: '', shape: 'rect' });
   const [ghost,       setGhost]       = useState(null);
+  const [elemOverrides, setElemOverrides] = useState({});
+  const elDef = el => getElDef(el, elemOverrides);
   const [zoom,        setZoom]        = useState(() => Math.min(1, (window.innerWidth - 96) / 900));
 
-  const canvasRef   = useRef(null);
-  const dragRef     = useRef(null);
-  const saveTimer   = useRef(null);
-  const sectionRef  = useRef(section);
-  const scaleRef    = useRef(45);
-  const zoomRef     = useRef(zoom);
-  const pinchRef    = useRef({ active: false, dist0: 0, zoom0: 1 });
+  const canvasRef      = useRef(null);
+  const outerScrollRef = useRef(null);
+  const dragRef        = useRef(null);
+  const saveTimer      = useRef(null);
+  const sectionRef     = useRef(section);
+  const scaleRef       = useRef(45);
+  const zoomRef        = useRef(zoom);
+  const pinchRef       = useRef({ active: false, dist0: 0, zoom0: 1 });
 
   useEffect(() => { sectionRef.current = section; }, [section]);
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
@@ -115,6 +125,7 @@ export default function SeatingChart({ leadId, onClose }) {
       try { fp.outside = d.floorplan_outside ? JSON.parse(d.floorplan_outside) : null; } catch {}
       setFloorplans(fp);
       try { setCustomItems(d.seating_custom_items ? JSON.parse(d.seating_custom_items) : []); } catch {}
+      try { setElemOverrides(d.seating_element_overrides ? JSON.parse(d.seating_element_overrides) : {}); } catch {}
     }).catch(() => {});
   }, [leadId]);
 
@@ -163,10 +174,11 @@ export default function SeatingChart({ leadId, onClose }) {
       if (!ds || ds.mode === 'palette') return;
       const canvas = canvasRef.current;
       if (!canvas) return;
-      const rect = canvas.getBoundingClientRect();
-      const z  = zoomRef.current;
-      const mx = (clientX - rect.left + canvas.scrollLeft) / z;
-      const my = (clientY - rect.top  + canvas.scrollTop)  / z;
+      const rect   = canvas.getBoundingClientRect();
+      const outer  = outerScrollRef.current;
+      const z      = zoomRef.current;
+      const mx = (clientX - rect.left + (outer?.scrollLeft ?? 0)) / z;
+      const my = (clientY - rect.top  + (outer?.scrollTop  ?? 0)) / z;
       if (ds.mode === 'move') {
         setLayouts(prev => {
           const sec = sectionRef.current;
@@ -187,7 +199,8 @@ export default function SeatingChart({ leadId, onClose }) {
       setGhost(null);
       const canvas = canvasRef.current;
       if (!canvas) return;
-      const rect = canvas.getBoundingClientRect();
+      const rect  = canvas.getBoundingClientRect();
+      const outer = outerScrollRef.current;
       if (clientX >= rect.left && clientX <= rect.right &&
           clientY >= rect.top  && clientY <= rect.bottom) {
         const ds  = dragRef.current;
@@ -195,8 +208,8 @@ export default function SeatingChart({ leadId, onClose }) {
         const z   = zoomRef.current;
         const wPx = ds.wM * s;
         const hPx = ds.hM * s;
-        const mx  = (clientX - rect.left + canvas.scrollLeft) / z;
-        const my  = (clientY - rect.top  + canvas.scrollTop)  / z;
+        const mx  = (clientX - rect.left + (outer?.scrollLeft ?? 0)) / z;
+        const my  = (clientY - rect.top  + (outer?.scrollTop  ?? 0)) / z;
         const newEl = {
           id: uid(), type: ds.type,
           x: Math.max(0, mx - wPx / 2),
@@ -309,13 +322,13 @@ export default function SeatingChart({ leadId, onClose }) {
   function startElementMove(e, el) {
     e.stopPropagation();
     setSelected(el.id);
-    const def    = getElDef(el);
-    const s      = scaleRef.current;
-    const canvas = canvasRef.current;
-    const rect   = canvas.getBoundingClientRect();
-    const z      = zoomRef.current;
-    const mx     = (e.clientX - rect.left + canvas.scrollLeft) / z;
-    const my     = (e.clientY - rect.top  + canvas.scrollTop)  / z;
+    const def   = elDef(el);
+    const s     = scaleRef.current;
+    const rect  = canvasRef.current.getBoundingClientRect();
+    const outer = outerScrollRef.current;
+    const z     = zoomRef.current;
+    const mx    = (e.clientX - rect.left + (outer?.scrollLeft ?? 0)) / z;
+    const my    = (e.clientY - rect.top  + (outer?.scrollTop  ?? 0)) / z;
     dragRef.current = { mode: 'move', id: el.id, offX: mx - el.x, offY: my - el.y, wPx: def.wM * s, hPx: def.hM * s };
   }
 
@@ -323,27 +336,27 @@ export default function SeatingChart({ leadId, onClose }) {
     if (e.touches.length > 1) return;
     e.stopPropagation(); e.preventDefault();
     setSelected(el.id);
-    const def    = getElDef(el);
-    const s      = scaleRef.current;
-    const canvas = canvasRef.current;
-    const rect   = canvas.getBoundingClientRect();
-    const z      = zoomRef.current;
-    const t      = e.touches[0];
-    const mx     = (t.clientX - rect.left + canvas.scrollLeft) / z;
-    const my     = (t.clientY - rect.top  + canvas.scrollTop)  / z;
+    const def   = elDef(el);
+    const s     = scaleRef.current;
+    const rect  = canvasRef.current.getBoundingClientRect();
+    const outer = outerScrollRef.current;
+    const z     = zoomRef.current;
+    const t     = e.touches[0];
+    const mx    = (t.clientX - rect.left + (outer?.scrollLeft ?? 0)) / z;
+    const my    = (t.clientY - rect.top  + (outer?.scrollTop  ?? 0)) / z;
     dragRef.current = { mode: 'move', id: el.id, offX: mx - el.x, offY: my - el.y, wPx: def.wM * s, hPx: def.hM * s };
   }
 
   function startRotate(e, el) {
     e.stopPropagation();
-    const def = getElDef(el);
+    const def = elDef(el);
     const s   = scaleRef.current;
     dragRef.current = { mode: 'rotate', id: el.id, cx: el.x + (def.wM * s) / 2, cy: el.y + (def.hM * s) / 2 };
   }
 
   function startRotateTouch(e, el) {
     e.stopPropagation(); e.preventDefault();
-    const def = getElDef(el);
+    const def = elDef(el);
     const s   = scaleRef.current;
     dragRef.current = { mode: 'rotate', id: el.id, cx: el.x + (def.wM * s) / 2, cy: el.y + (def.hM * s) / 2 };
   }
@@ -376,7 +389,44 @@ export default function SeatingChart({ leadId, onClose }) {
     await api.put('/admin/seating/custom-items', { items: next }).catch(() => {});
   }
 
-  const totalGuests = layouts[section].reduce((sum, el) => sum + (getElDef(el).guests || 0), 0);
+  const totalGuests = layouts[section].reduce((sum, el) => sum + (elDef(el).guests || 0), 0);
+
+  async function captureCanvasImage() {
+    const { default: html2canvas } = await import('html2canvas');
+    const innerDiv = canvasRef.current?.querySelector('[dir="ltr"]');
+    if (!innerDiv) throw new Error('canvas not found');
+    return html2canvas(innerDiv, { scale: 2, useCORS: true, logging: false, backgroundColor: '#cbd5e1' });
+  }
+
+  async function downloadPdf() {
+    setPdfBusy(true);
+    try {
+      const { default: jsPDF } = await import('jspdf');
+      const cvs = await captureCanvasImage();
+      const imgData = cvs.toDataURL('image/jpeg', 0.92);
+      const pdf = new jsPDF({ orientation: cvs.width > cvs.height ? 'landscape' : 'portrait', unit: 'px', format: [cvs.width / 2, cvs.height / 2] });
+      pdf.addImage(imgData, 'JPEG', 0, 0, cvs.width / 2, cvs.height / 2);
+      pdf.save(`סקיצה-${section === 'inside' ? 'פנים' : 'חוץ'}.pdf`);
+    } catch (err) { console.error('[PDF]', err); }
+    finally { setPdfBusy(false); }
+  }
+
+  async function saveToFiles() {
+    setPdfBusy(true);
+    try {
+      const { default: jsPDF } = await import('jspdf');
+      const cvs = await captureCanvasImage();
+      const imgData = cvs.toDataURL('image/jpeg', 0.92);
+      const pdf = new jsPDF({ orientation: cvs.width > cvs.height ? 'landscape' : 'portrait', unit: 'px', format: [cvs.width / 2, cvs.height / 2] });
+      pdf.addImage(imgData, 'JPEG', 0, 0, cvs.width / 2, cvs.height / 2);
+      const blob = pdf.output('blob');
+      const fd = new FormData();
+      fd.append('file', new File([blob], `סקיצה-${section === 'inside' ? 'פנים' : 'חוץ'}.pdf`, { type: 'application/pdf' }));
+      await api.post(`/leads/${leadId}/files`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      alert('הקובץ נשמר בהצלחה');
+    } catch (err) { console.error('[PDF save]', err); }
+    finally { setPdfBusy(false); }
+  }
 
   return (
     <div className="fixed inset-0 z-[60] flex flex-col bg-white" dir="rtl">
@@ -405,6 +455,14 @@ export default function SeatingChart({ leadId, onClose }) {
         <button onClick={saveNow} disabled={saving}
           className="text-xs px-3 py-1.5 rounded-xl font-bold text-white disabled:opacity-50"
           style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>שמור</button>
+        <button onClick={downloadPdf} disabled={pdfBusy}
+          className="text-xs px-3 py-1.5 rounded-xl font-bold border border-violet-300 text-violet-700 hover:bg-violet-50 transition disabled:opacity-50">
+          {pdfBusy ? '...' : 'הורד PDF'}
+        </button>
+        <button onClick={saveToFiles} disabled={pdfBusy}
+          className="text-xs px-3 py-1.5 rounded-xl font-bold border border-slate-300 text-slate-600 hover:bg-slate-50 transition disabled:opacity-50">
+          {pdfBusy ? '...' : 'שמור לקובץ'}
+        </button>
       </div>
 
       {/* Body */}
@@ -413,7 +471,7 @@ export default function SeatingChart({ leadId, onClose }) {
         <div className="w-24 shrink-0 border-l border-slate-200 overflow-y-auto bg-slate-50 p-1.5 space-y-2" dir="rtl">
           {PALETTE_GROUPS.map(group => (
             <div key={group.label}>
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-wide mb-1 text-center">{group.label}</p>
+              <p className="text-[11px] font-black text-slate-400 uppercase tracking-wide mb-1 text-center">{group.label}</p>
               <div className="grid grid-cols-2 gap-1 mb-1">
                 {group.keys.map(key => {
                   const d = DEFS[key];
@@ -426,7 +484,7 @@ export default function SeatingChart({ leadId, onClose }) {
                       <div className="flex items-center justify-center" style={{ width: 36, height: 36 }}>
                         <ShapeBox shape={d.shape} fill={FILL[key]} stroke={STROKE[key]} width={w} height={h} guests={d.guests} />
                       </div>
-                      <span className="text-[8px] text-slate-600 leading-tight text-center">{d.label}</span>
+                      <span className="text-[11px] text-slate-600 leading-tight text-center">{d.label}</span>
                     </div>
                   );
                 })}
@@ -436,7 +494,7 @@ export default function SeatingChart({ leadId, onClose }) {
 
           {customItems.length > 0 && (
             <div>
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-wide mb-1 text-center">מותאם אישית</p>
+              <p className="text-[11px] font-black text-slate-400 uppercase tracking-wide mb-1 text-center">מותאם אישית</p>
               <div className="grid grid-cols-2 gap-1 mb-1">
                 {customItems.map(item => {
                   const { w, h } = palDims(item.wM, item.hM);
@@ -447,7 +505,7 @@ export default function SeatingChart({ leadId, onClose }) {
                       <div className="flex items-center justify-center" style={{ width: 36, height: 36 }}>
                         <ShapeBox shape={item.shape} fill="#e2e8f0" stroke="#64748b" width={w} height={h} guests={0} />
                       </div>
-                      <span className="text-[8px] text-slate-600 leading-tight text-center">{item.label}</span>
+                      <span className="text-[11px] text-slate-600 leading-tight text-center">{item.label}</span>
                       <button onClick={ev => { ev.stopPropagation(); deleteCustomItem(item.id); }}
                         className="hidden group-hover:flex absolute top-0.5 right-0.5 items-center justify-center w-3.5 h-3.5 rounded-full bg-red-400 text-white text-[9px] leading-none">×</button>
                     </div>
@@ -492,9 +550,11 @@ export default function SeatingChart({ leadId, onClose }) {
         </div>
 
         {/* Canvas */}
-        <div ref={canvasRef} className="flex-1 overflow-auto bg-slate-300" dir="ltr"
+        <div ref={outerScrollRef} className="flex-1 overflow-auto bg-slate-300" dir="ltr"
           onMouseDown={e => { if (e.target === e.currentTarget) setSelected(null); }}>
-          <div style={{ width: Math.round(900 * zoom), height: Math.round(canvasH * zoom), position: 'relative' }}>
+          <div ref={canvasRef}
+               style={{ width: Math.round(900 * zoom), height: Math.round(canvasH * zoom),
+                        position: 'relative', marginLeft: 'auto' }}>
           <div style={{ width: 900, height: canvasH, position: 'absolute', top: 0, left: 0,
                         transform: `scale(${zoom})`, transformOrigin: 'top left' }} dir="ltr">
             {fp?.image
@@ -505,7 +565,7 @@ export default function SeatingChart({ leadId, onClose }) {
             }
 
             {layouts[section].map(el => {
-              const def  = getElDef(el);
+              const def  = elDef(el);
               const wPx  = def.wM * scale;
               const hPx  = def.hM * scale;
               const isSel = selected === el.id;
@@ -523,12 +583,12 @@ export default function SeatingChart({ leadId, onClose }) {
                   }}
                   onMouseDown={e => startElementMove(e, el)}
                   onTouchStart={e => startElementMoveTouch(e, el)}>
-                  <ShapeBox shape={def.shape} fill={def.fill} stroke={def.stroke} width={wPx} height={hPx} guests={def.guests} />
+                  <ShapeBox shape={def.shape} fill={def.fill} stroke={def.stroke} width={wPx} height={hPx} guests={def.guests} image={def.image || null} />
 
                   {def.guests === 0 && (
                     <div style={{
                       position: 'absolute', bottom: -13, left: 0, right: 0,
-                      textAlign: 'center', fontSize: 9, color: '#374151',
+                      textAlign: 'center', fontSize: 11, color: '#374151',
                       fontWeight: 'bold', whiteSpace: 'nowrap', pointerEvents: 'none',
                       background: 'rgba(255,255,255,0.8)', borderRadius: 2,
                     }}>

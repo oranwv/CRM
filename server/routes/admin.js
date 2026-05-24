@@ -186,6 +186,21 @@ router.put('/seating/custom-items', adminOnly, async (req, res) => {
   }
 });
 
+// PUT /api/admin/seating/element-overrides — save built-in element overrides
+router.put('/seating/element-overrides', adminOnly, async (req, res) => {
+  try {
+    const { overrides } = req.body;
+    await pool.query(
+      `INSERT INTO settings (key, value, updated_at) VALUES ('seating_element_overrides', $1, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
+      [JSON.stringify(overrides || {})]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/admin/google-token — update stored Google OAuth token
 router.post('/google-token', adminOnly, async (req, res) => {
   try {
