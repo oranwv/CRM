@@ -3,6 +3,8 @@ import api from '../api';
 
 const ROLE_LABELS = { admin: 'מנהל', sales: 'מכירות', production: 'הפקה' };
 
+const uid = () => Math.random().toString(36).slice(2, 9);
+
 function FloorplanUpload({ section, label, existing, onSaved }) {
   const [widthM,       setWidthM]       = useState('');
   const [heightM,      setHeightM]      = useState('');
@@ -99,40 +101,85 @@ const SEATING_DEFS = [
   { key: 'bar_arc',        label: 'בר (קשתי)',          shape: 'arc',    wM: 2.5, hM: 1.25, fill: '#fed7aa', stroke: '#ea580c' },
 ];
 
-function ItemEditorModal({ overrides, onSave, onClose }) {
+function DimInputs({ v, itemKey, setFn }) {
+  const cls = 'w-full mt-0.5 text-sm border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-violet-400';
+  if (v.shape === 'circle') {
+    return (
+      <label className="text-xs text-slate-500 col-span-2">
+        רדיוס (מ')
+        <input type="number" min="0.1" step="0.1" value={+(v.wM / 2).toFixed(2)}
+          onChange={e => { const r = parseFloat(e.target.value) || 0.5; setFn(itemKey, 'wM', r * 2); setFn(itemKey, 'hM', r * 2); }}
+          className={cls} />
+      </label>
+    );
+  }
+  return (
+    <>
+      <label className="text-xs text-slate-500">
+        רוחב (מ')
+        <input type="number" min="0.1" step="0.1" value={v.wM}
+          onChange={e => setFn(itemKey, 'wM', parseFloat(e.target.value) || v.wM)}
+          className={cls} />
+      </label>
+      <label className="text-xs text-slate-500">
+        עומק (מ')
+        <input type="number" min="0.1" step="0.1" value={v.hM}
+          onChange={e => setFn(itemKey, 'hM', parseFloat(e.target.value) || v.hM)}
+          className={cls} />
+      </label>
+    </>
+  );
+}
+
+function ItemEditorModal({ overrides, customItems, onSave, onClose }) {
   const [local, setLocal] = useState(() => {
     const init = {};
     SEATING_DEFS.forEach(d => {
       const ov = overrides[d.key] || {};
-      init[d.key] = { wM: ov.wM ?? d.wM, hM: ov.hM ?? d.hM, shape: ov.shape ?? d.shape,
-                      fill: ov.fill ?? d.fill, stroke: ov.stroke ?? d.stroke, image: ov.image ?? null };
+      init[d.key] = { label: ov.label ?? d.label, wM: ov.wM ?? d.wM, hM: ov.hM ?? d.hM,
+                      shape: ov.shape ?? d.shape, fill: ov.fill ?? d.fill,
+                      stroke: ov.stroke ?? d.stroke, image: ov.image ?? null };
     });
     return init;
   });
+  const [customs, setCustoms] = useState(customItems ?? []);
   const [saving, setSaving] = useState(false);
 
   function set(key, field, val) {
     setLocal(p => ({ ...p, [key]: { ...p[key], [field]: val } }));
   }
 
-  function handleImage(key, e) {
+  function setCustom(id, field, val) {
+    setCustoms(p => p.map(c => c.id === id ? { ...c, [field]: val } : c));
+  }
+
+  function handleImage(key, e, isCustom) {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = ev => set(key, 'image', ev.target.result);
+    reader.onload = ev => isCustom ? setCustom(key, 'image', ev.target.result) : set(key, 'image', ev.target.result);
     reader.readAsDataURL(file);
+  }
+
+  function addCustomItem() {
+    setCustoms(p => [...p, { id: uid(), type: 'custom', label: 'פריט חדש', shape: 'rect', wM: 1, hM: 1, fill: '#e2e8f0', stroke: '#64748b', image: null }]);
   }
 
   async function handleSave() {
     setSaving(true);
     try {
       await api.put('/admin/seating/element-overrides', { overrides: local });
-      onSave(local);
+      await api.put('/admin/seating/custom-items', { items: customs });
+      onSave(local, customs);
       onClose();
     } catch (err) {
       alert(err.response?.data?.error || err.message);
     } finally { setSaving(false); }
   }
+
+  const cardCls = 'p-3 rounded-xl border border-slate-100 bg-slate-50 space-y-2';
+  const inputCls = 'w-full mt-0.5 text-sm border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-violet-400';
+  const colorCls = 'mt-0.5 w-full h-8 rounded cursor-pointer border border-slate-200';
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 overflow-auto py-6 px-4" onClick={onClose}>
@@ -145,25 +192,14 @@ function ItemEditorModal({ overrides, onSave, onClose }) {
           {SEATING_DEFS.map(d => {
             const v = local[d.key];
             return (
-              <div key={d.key} className="p-3 rounded-xl border border-slate-100 bg-slate-50 space-y-2">
-                <p className="font-bold text-sm text-slate-700">{d.label}</p>
+              <div key={d.key} className={cardCls}>
+                <input type="text" value={v.label} onChange={e => set(d.key, 'label', e.target.value)}
+                  className="font-bold text-sm border border-slate-200 rounded-lg px-2 py-0.5 w-full focus:outline-none focus:border-violet-400" />
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  <label className="text-xs text-slate-500">
-                    רוחב (מ')
-                    <input type="number" min="0.1" step="0.1" value={v.wM}
-                      onChange={e => set(d.key, 'wM', parseFloat(e.target.value) || v.wM)}
-                      className="w-full mt-0.5 text-sm border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-violet-400" />
-                  </label>
-                  <label className="text-xs text-slate-500">
-                    עומק (מ')
-                    <input type="number" min="0.1" step="0.1" value={v.hM}
-                      onChange={e => set(d.key, 'hM', parseFloat(e.target.value) || v.hM)}
-                      className="w-full mt-0.5 text-sm border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-violet-400" />
-                  </label>
+                  <DimInputs v={v} itemKey={d.key} setFn={set} />
                   <label className="text-xs text-slate-500">
                     צורה
-                    <select value={v.shape} onChange={e => set(d.key, 'shape', e.target.value)}
-                      className="w-full mt-0.5 text-sm border border-slate-200 rounded-lg px-2 py-1 focus:outline-none">
+                    <select value={v.shape} onChange={e => set(d.key, 'shape', e.target.value)} className={inputCls}>
                       <option value="rect">מלבן</option>
                       <option value="circle">עיגול</option>
                       <option value="arc">קשת</option>
@@ -172,13 +208,11 @@ function ItemEditorModal({ overrides, onSave, onClose }) {
                   <div className="flex gap-2">
                     <label className="text-xs text-slate-500">
                       רקע
-                      <input type="color" value={v.fill} onChange={e => set(d.key, 'fill', e.target.value)}
-                        className="mt-0.5 w-full h-8 rounded cursor-pointer border border-slate-200" />
+                      <input type="color" value={v.fill} onChange={e => set(d.key, 'fill', e.target.value)} className={colorCls} />
                     </label>
                     <label className="text-xs text-slate-500">
                       מסגרת
-                      <input type="color" value={v.stroke} onChange={e => set(d.key, 'stroke', e.target.value)}
-                        className="mt-0.5 w-full h-8 rounded cursor-pointer border border-slate-200" />
+                      <input type="color" value={v.stroke} onChange={e => set(d.key, 'stroke', e.target.value)} className={colorCls} />
                     </label>
                   </div>
                 </div>
@@ -186,18 +220,69 @@ function ItemEditorModal({ overrides, onSave, onClose }) {
                   {v.image
                     ? <div className="flex items-center gap-2">
                         <img src={v.image} alt="" className="h-10 w-10 object-contain rounded border border-slate-200" />
-                        <button onClick={() => set(d.key, 'image', null)}
-                          className="text-xs text-red-500 hover:underline">הסר תמונה</button>
+                        <button onClick={() => set(d.key, 'image', null)} className="text-xs text-red-500 hover:underline">הסר תמונה</button>
                       </div>
                     : <label className="text-xs px-3 py-1.5 rounded-lg border border-dashed border-violet-300 text-violet-600 cursor-pointer hover:bg-violet-50">
                         העלה תמונה
-                        <input type="file" accept="image/*" className="hidden" onChange={e => handleImage(d.key, e)} />
+                        <input type="file" accept="image/*" className="hidden" onChange={e => handleImage(d.key, e, false)} />
                       </label>
                   }
                 </div>
               </div>
             );
           })}
+
+          {customs.length > 0 && (
+            <p className="text-xs font-bold text-slate-500 pt-2 pb-1">פריטים מותאמים אישית</p>
+          )}
+          {customs.map(c => (
+            <div key={c.id} className={cardCls}>
+              <div className="flex items-center gap-2">
+                <input type="text" value={c.label} onChange={e => setCustom(c.id, 'label', e.target.value)}
+                  className="font-bold text-sm border border-slate-200 rounded-lg px-2 py-0.5 flex-1 focus:outline-none focus:border-violet-400" />
+                <button onClick={() => setCustoms(p => p.filter(x => x.id !== c.id))}
+                  className="text-slate-400 hover:text-red-500 text-lg leading-none px-1">&times;</button>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <DimInputs v={c} itemKey={c.id} setFn={setCustom} />
+                <label className="text-xs text-slate-500">
+                  צורה
+                  <select value={c.shape} onChange={e => setCustom(c.id, 'shape', e.target.value)} className={inputCls}>
+                    <option value="rect">מלבן</option>
+                    <option value="circle">עיגול</option>
+                    <option value="arc">קשת</option>
+                  </select>
+                </label>
+                <div className="flex gap-2">
+                  <label className="text-xs text-slate-500">
+                    רקע
+                    <input type="color" value={c.fill} onChange={e => setCustom(c.id, 'fill', e.target.value)} className={colorCls} />
+                  </label>
+                  <label className="text-xs text-slate-500">
+                    מסגרת
+                    <input type="color" value={c.stroke} onChange={e => setCustom(c.id, 'stroke', e.target.value)} className={colorCls} />
+                  </label>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {c.image
+                  ? <div className="flex items-center gap-2">
+                      <img src={c.image} alt="" className="h-10 w-10 object-contain rounded border border-slate-200" />
+                      <button onClick={() => setCustom(c.id, 'image', null)} className="text-xs text-red-500 hover:underline">הסר תמונה</button>
+                    </div>
+                  : <label className="text-xs px-3 py-1.5 rounded-lg border border-dashed border-violet-300 text-violet-600 cursor-pointer hover:bg-violet-50">
+                      העלה תמונה
+                      <input type="file" accept="image/*" className="hidden" onChange={e => handleImage(c.id, e, true)} />
+                    </label>
+                }
+              </div>
+            </div>
+          ))}
+
+          <button onClick={addCustomItem}
+            className="w-full py-2.5 rounded-xl font-bold text-sm border-2 border-dashed border-violet-300 text-violet-600 hover:bg-violet-50 transition">
+            + הוסף פריט חדש
+          </button>
         </div>
         <div className="px-5 py-4 border-t border-slate-100">
           <button onClick={handleSave} disabled={saving}
@@ -247,6 +332,7 @@ export default function AdminPage() {
   const [fpData, setFpData] = useState({ inside: null, outside: null });
   const [showItemEditor, setShowItemEditor]   = useState(false);
   const [elemOverrides,  setElemOverrides]    = useState({});
+  const [customItems,    setCustomItems]      = useState([]);
 
   useEffect(() => {
     api.get('/admin/settings')
@@ -261,6 +347,7 @@ export default function AdminPage() {
         try { fp.outside = r.data.floorplan_outside ? JSON.parse(r.data.floorplan_outside) : null; } catch {}
         setFpData(fp);
         try { setElemOverrides(r.data.seating_element_overrides ? JSON.parse(r.data.seating_element_overrides) : {}); } catch {}
+        try { setCustomItems(r.data.seating_custom_items ? JSON.parse(r.data.seating_custom_items) : []); } catch {}
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -753,7 +840,8 @@ export default function AdminPage() {
       {showItemEditor && (
         <ItemEditorModal
           overrides={elemOverrides}
-          onSave={newOv => setElemOverrides(newOv)}
+          customItems={customItems}
+          onSave={(newOv, newCustoms) => { setElemOverrides(newOv); setCustomItems(newCustoms); }}
           onClose={() => setShowItemEditor(false)}
         />
       )}

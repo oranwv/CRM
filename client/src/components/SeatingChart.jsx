@@ -469,7 +469,7 @@ export default function SeatingChart({ leadId, onClose }) {
               <p className="text-[11px] font-black text-slate-400 uppercase tracking-wide mb-1 text-center">{group.label}</p>
               <div className="grid grid-cols-2 gap-1 mb-1">
                 {group.keys.map(key => {
-                  const d = DEFS[key];
+                  const d = elDef({ type: key });
                   const { w, h } = palDims(d.wM, d.hM);
                   return (
                     <div key={key}
@@ -477,7 +477,7 @@ export default function SeatingChart({ leadId, onClose }) {
                       onTouchStart={e => startPaletteDragTouch(e, key)}
                       className="flex flex-col items-center gap-0.5 p-1 rounded-lg hover:bg-white hover:shadow-sm cursor-grab transition select-none">
                       <div className="flex items-center justify-center" style={{ width: 36, height: 36 }}>
-                        <ShapeBox shape={d.shape} fill={FILL[key]} stroke={STROKE[key]} width={w} height={h} guests={d.guests} />
+                        <ShapeBox shape={d.shape} fill={d.fill} stroke={d.stroke} width={w} height={h} guests={d.guests} image={d.image} />
                       </div>
                       <span className="text-[11px] text-slate-600 leading-tight text-center">{d.label}</span>
                     </div>
