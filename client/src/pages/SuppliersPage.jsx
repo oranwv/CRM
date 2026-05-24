@@ -163,7 +163,12 @@ export default function SuppliersPage() {
                   </button>
                 </div>
                 <h3 className="font-black text-slate-800 text-sm leading-tight mb-1 truncate">{s.name}</h3>
-                {s.phone && <p className="text-xs text-slate-500 truncate" dir="ltr">{s.phone}</p>}
+                {s.phone && (
+                  <a href={`tel:${s.phone}`} onClick={e => e.stopPropagation()}
+                    className="text-xs text-slate-500 truncate block hover:text-violet-600" dir="ltr">
+                    {s.phone}
+                  </a>
+                )}
                 {s.email && <p className="text-xs text-slate-400 truncate" dir="ltr">{s.email}</p>}
                 {s.description && <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">{s.description}</p>}
               </div>

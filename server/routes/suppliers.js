@@ -2,8 +2,11 @@ const router  = require('express').Router();
 const multer  = require('multer');
 const os      = require('os');
 const fs      = require('fs');
+const axios   = require('axios');
+const FormData = require('form-data');
 const pool    = require('../db/pool');
 const { uploadFile, getSignedUrl } = require('../services/storageService');
+const { normalizePhone } = require('../utils/phoneUtils');
 
 const upload = multer({ dest: os.tmpdir(), limits: { fileSize: 20 * 1024 * 1024 } });
 
@@ -133,8 +136,11 @@ router.get('/:id/events', async (req, res) => {
 router.get('/:id/interactions', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT si.*, u.display_name AS created_by_name
-       FROM supplier_interactions si LEFT JOIN users u ON u.id = si.created_by
+      `SELECT si.*, u.display_name AS created_by_name,
+              sf.filename AS file_name, sf.file_type AS file_mime, sf.id AS file_id
+       FROM supplier_interactions si
+       LEFT JOIN users u ON u.id = si.created_by
+       LEFT JOIN supplier_files sf ON sf.id = si.file_id
        WHERE si.supplier_id = $1 ORDER BY si.created_at DESC`,
       [req.params.id]
     );
@@ -145,17 +151,42 @@ router.get('/:id/interactions', async (req, res) => {
 });
 
 // POST /api/suppliers/:id/interactions
-router.post('/:id/interactions', async (req, res) => {
+router.post('/:id/interactions', upload.single('file'), async (req, res) => {
   try {
     const { type, body, direction } = req.body;
     if (!type || !body?.trim()) return res.status(400).json({ error: 'סוג ותוכן נדרשים' });
+
+    let file_id = null;
+    let fileRow = null;
+
+    if (req.file) {
+      const originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+      const source = type === 'call' ? 'שיחה' : 'הערה';
+      const { storedName } = await uploadFile(req.file.path, originalName, req.file.mimetype);
+      fs.unlinkSync(req.file.path);
+      const { rows: fRows } = await pool.query(
+        `INSERT INTO supplier_files (supplier_id, filename, stored_name, file_type, uploaded_by, source)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+        [req.params.id, originalName, storedName, req.file.mimetype, req.user.id, source]
+      );
+      fileRow = fRows[0];
+      file_id = fileRow.id;
+    }
+
     const { rows } = await pool.query(
-      `INSERT INTO supplier_interactions (supplier_id, type, direction, body, created_by)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [req.params.id, type, direction || 'outbound', body.trim(), req.user.id]
+      `INSERT INTO supplier_interactions (supplier_id, type, direction, body, created_by, file_id)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [req.params.id, type, direction || 'outbound', body.trim(), req.user.id, file_id]
     );
-    res.status(201).json({ ...rows[0], created_by_name: req.user.display_name });
+    res.status(201).json({
+      ...rows[0],
+      created_by_name: req.user.display_name,
+      file_name: fileRow?.filename || null,
+      file_mime: fileRow?.file_type || null,
+      file_id: file_id,
+    });
   } catch (err) {
+    if (req.file) try { fs.unlinkSync(req.file.path); } catch {}
     res.status(500).json({ error: err.message });
   }
 });
@@ -233,6 +264,61 @@ router.delete('/:id/files/:fileId', async (req, res) => {
     }
     res.json({ success: true });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/suppliers/:id/whatsapp-file
+router.post('/:id/whatsapp-file', upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'לא נשלח קובץ' });
+  const { message = '' } = req.body;
+  try {
+    const { rows: sRows } = await pool.query('SELECT phone FROM suppliers WHERE id = $1', [req.params.id]);
+    if (!sRows.length) return res.status(404).json({ error: 'ספק לא נמצא' });
+    const phone = normalizePhone(sRows[0].phone);
+    if (!phone) return res.status(400).json({ error: 'אין מספר טלפון לספק' });
+
+    const originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+    const mime = req.file.mimetype;
+
+    // Upload to Green API first (while temp file still exists)
+    const uploadFd = new FormData();
+    uploadFd.append('file', fs.createReadStream(req.file.path), { filename: originalName, contentType: mime });
+    const uploadUrl = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/uploadFile/${process.env.GREEN_API_TOKEN}`;
+    const uploadRes = await axios.post(uploadUrl, uploadFd, { headers: uploadFd.getHeaders() });
+    const urlFile = uploadRes.data.urlFile;
+
+    // Save to Supabase
+    const { storedName } = await uploadFile(req.file.path, originalName, mime);
+    fs.unlinkSync(req.file.path);
+
+    // Send via WhatsApp
+    const sendUrl = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/sendFileByUrl/${process.env.GREEN_API_TOKEN}`;
+    await new Promise(r => setTimeout(r, 300));
+    await axios.post(sendUrl, { chatId: `${phone}@c.us`, urlFile, fileName: originalName, caption: message });
+
+    // Persist file
+    const { rows: fRows } = await pool.query(
+      `INSERT INTO supplier_files (supplier_id, filename, stored_name, file_type, uploaded_by, source)
+       VALUES ($1, $2, $3, $4, $5, 'whatsapp') RETURNING *`,
+      [req.params.id, originalName, storedName, mime, req.user.id]
+    );
+    const fileRow = fRows[0];
+
+    // Log interaction
+    const body = message ? `${message} [${originalName}]` : originalName;
+    const { rows: iRows } = await pool.query(
+      `INSERT INTO supplier_interactions (supplier_id, type, direction, body, created_by, file_id)
+       VALUES ($1, 'whatsapp', 'outbound', $2, $3, $4) RETURNING *`,
+      [req.params.id, body, req.user.id, fileRow.id]
+    );
+
+    res.status(201).json({
+      interaction: { ...iRows[0], created_by_name: req.user.display_name, file_name: originalName, file_mime: mime, file_id: fileRow.id },
+      file: fileRow,
+    });
+  } catch (err) {
+    if (req.file) try { fs.unlinkSync(req.file.path); } catch {}
     res.status(500).json({ error: err.message });
   }
 });

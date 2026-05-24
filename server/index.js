@@ -260,6 +260,11 @@ pool.query(`
   )
 `).catch(err => console.error('[DB] suppliers migration error:', err.message));
 
+pool.query(`
+  ALTER TABLE supplier_interactions ADD COLUMN IF NOT EXISTS file_id INT REFERENCES supplier_files(id) ON DELETE SET NULL;
+  ALTER TABLE supplier_files ADD COLUMN IF NOT EXISTS source VARCHAR(50)
+`).catch(err => console.error('[DB] supplier interactions/files column migration error:', err.message));
+
 const { pollGoogleCalendar } = require('./services/calendarPollService');
 pollGoogleCalendar();
 setInterval(pollGoogleCalendar, 5 * 60 * 1000);

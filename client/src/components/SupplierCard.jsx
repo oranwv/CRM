@@ -21,6 +21,12 @@ const STAGE_LABELS = {
   contract_sent: 'חוזה נשלח', deposit: 'מקדמה', production: 'הפקה', completed: 'הסתיים',
 };
 
+const SOURCE_LABELS = {
+  'הערה':    'הועלה מהערה',
+  'שיחה':    'הועלה משיחה',
+  'whatsapp': 'נשלח ב-WhatsApp',
+};
+
 function fileIcon(type) {
   if (!type) return '📎';
   if (type.includes('pdf')) return '📄';
@@ -28,6 +34,14 @@ function fileIcon(type) {
   if (type.includes('sheet') || type.includes('excel')) return '📊';
   if (type.startsWith('image/')) return '🖼️';
   return '📎';
+}
+
+function formatDateTime(d) {
+  if (!d) return '';
+  const dt = new Date(d);
+  const date = `${dt.getDate().toString().padStart(2,'0')}/${(dt.getMonth()+1).toString().padStart(2,'0')}/${dt.getFullYear()}`;
+  const time = `${dt.getHours().toString().padStart(2,'0')}:${dt.getMinutes().toString().padStart(2,'0')}`;
+  return `${date} ${time}`;
 }
 
 export default function SupplierCard({ supplierId, onClose, categories }) {
@@ -41,10 +55,15 @@ export default function SupplierCard({ supplierId, onClose, categories }) {
   const [saving, setSaving]             = useState(false);
   const [intType, setIntType]           = useState('call');
   const [intBody, setIntBody]           = useState('');
+  const [intFile, setIntFile]           = useState(null);
   const [waMsg, setWaMsg]               = useState('');
+  const [waFile, setWaFile]             = useState(null);
   const [waSending, setWaSending]       = useState(false);
   const [uploading, setUploading]       = useState(false);
+  const [addingInt, setAddingInt]       = useState(false);
   const fileInputRef                    = useRef(null);
+  const intFileRef                      = useRef(null);
+  const waFileRef                       = useRef(null);
 
   useEffect(() => {
     if (!supplierId) return;
@@ -75,11 +94,34 @@ export default function SupplierCard({ supplierId, onClose, categories }) {
 
   async function addInteraction() {
     if (!intBody.trim()) return;
+    setAddingInt(true);
     try {
-      const res = await api.post(`/suppliers/${supplierId}/interactions`, { type: intType, body: intBody });
+      let res;
+      if (intFile) {
+        const fd = new FormData();
+        fd.append('type', intType);
+        fd.append('body', intBody);
+        fd.append('file', intFile);
+        res = await api.post(`/suppliers/${supplierId}/interactions`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        if (res.data.file_id) {
+          setFiles(prev => [{
+            id: res.data.file_id,
+            filename: res.data.file_name,
+            file_type: res.data.file_mime,
+            created_at: res.data.created_at,
+            uploaded_by_name: res.data.created_by_name,
+            source: intType === 'call' ? 'שיחה' : 'הערה',
+          }, ...prev]);
+        }
+      } else {
+        res = await api.post(`/suppliers/${supplierId}/interactions`, { type: intType, body: intBody });
+      }
       setInteractions(prev => [res.data, ...prev]);
       setIntBody('');
+      setIntFile(null);
+      if (intFileRef.current) intFileRef.current.value = '';
     } catch {}
+    finally { setAddingInt(false); }
   }
 
   async function deleteInteraction(id) {
@@ -87,17 +129,35 @@ export default function SupplierCard({ supplierId, onClose, categories }) {
     setInteractions(prev => prev.filter(i => i.id !== id));
   }
 
+  async function openInteractionFile(fileId) {
+    try {
+      const res = await api.get(`/suppliers/${supplierId}/files/${fileId}/url`);
+      window.open(res.data.url, '_blank');
+    } catch {}
+  }
+
   async function sendWhatsApp() {
-    if (!waMsg.trim()) return;
+    if (!waMsg.trim() && !waFile) return;
     setWaSending(true);
     try {
-      await api.post('/whatsapp/send', { supplierId, message: waMsg, phone: supplier?.phone });
-      setInteractions(prev => [{
-        id: Date.now(), type: 'whatsapp', direction: 'outbound', body: waMsg,
-        created_at: new Date().toISOString(), created_by_name: 'אתה',
-      }, ...prev]);
+      if (waFile) {
+        const fd = new FormData();
+        fd.append('file', waFile);
+        if (waMsg.trim()) fd.append('message', waMsg.trim());
+        const res = await api.post(`/suppliers/${supplierId}/whatsapp-file`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        setInteractions(prev => [res.data.interaction, ...prev]);
+        setFiles(prev => [res.data.file, ...prev]);
+      } else {
+        await api.post('/whatsapp/send', { supplierId, message: waMsg, phone: supplier?.phone });
+        setInteractions(prev => [{
+          id: Date.now(), type: 'whatsapp', direction: 'outbound', body: waMsg,
+          created_at: new Date().toISOString(), created_by_name: 'אתה',
+        }, ...prev]);
+      }
       setWaMsg('');
-    } catch (e) {
+      setWaFile(null);
+      if (waFileRef.current) waFileRef.current.value = '';
+    } catch {
       alert('שגיאה בשליחת WhatsApp');
     } finally {
       setWaSending(false);
@@ -141,12 +201,6 @@ export default function SupplierCard({ supplierId, onClose, categories }) {
     if (type === 'call') return '📞';
     if (type === 'whatsapp') return '💬';
     return '📝';
-  }
-
-  function formatDate(d) {
-    if (!d) return '';
-    const dt = new Date(d);
-    return `${dt.getDate().toString().padStart(2,'0')}/${(dt.getMonth()+1).toString().padStart(2,'0')}/${dt.getFullYear()}`;
   }
 
   return (
@@ -239,7 +293,7 @@ export default function SupplierCard({ supplierId, onClose, categories }) {
             <div className="bg-slate-50 rounded-xl p-3 space-y-2">
               <div className="flex gap-2">
                 <select value={intType} onChange={e => setIntType(e.target.value)}
-                  className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none bg-white">
+                  className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none bg-white shrink-0">
                   <option value="call">📞 שיחה</option>
                   <option value="note">📝 הערה</option>
                 </select>
@@ -247,26 +301,61 @@ export default function SupplierCard({ supplierId, onClose, categories }) {
                   onKeyDown={e => e.key === 'Enter' && addInteraction()}
                   placeholder={intType === 'call' ? 'תוכן השיחה...' : 'הערה...'}
                   className="flex-1 text-xs border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-violet-400" />
-                <button onClick={addInteraction} disabled={!intBody.trim()}
-                  className="px-3 py-1.5 rounded-lg text-xs font-bold text-white disabled:opacity-40"
-                  style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>הוסף</button>
+                <button
+                  onClick={() => intFileRef.current?.click()}
+                  title="צרף קובץ"
+                  className="px-2 py-1.5 rounded-lg text-xs border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 shrink-0">
+                  📎
+                </button>
+                <button onClick={addInteraction} disabled={!intBody.trim() || addingInt}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold text-white disabled:opacity-40 shrink-0"
+                  style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+                  {addingInt ? '...' : 'הוסף'}
+                </button>
               </div>
+              <input ref={intFileRef} type="file" className="hidden"
+                onChange={e => setIntFile(e.target.files?.[0] || null)} />
+              {intFile && (
+                <div className="flex items-center gap-1 text-[10px] text-slate-500">
+                  <span className="truncate">{intFile.name}</span>
+                  <button onClick={() => { setIntFile(null); if (intFileRef.current) intFileRef.current.value = ''; }}
+                    className="text-red-400 hover:text-red-600 font-bold shrink-0">✕</button>
+                </div>
+              )}
             </div>
 
             {/* WhatsApp send */}
             {supplier.phone && (
               <div className="bg-green-50 border border-green-200 rounded-xl p-3 space-y-2">
-                <p className="text-xs font-bold text-green-800">WhatsApp — {supplier.phone}</p>
+                <p className="text-xs font-bold text-green-800">
+                  WhatsApp —{' '}
+                  <a href={`tel:${supplier.phone}`} className="hover:underline">{supplier.phone}</a>
+                </p>
                 <div className="flex gap-2">
                   <input value={waMsg} onChange={e => setWaMsg(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && sendWhatsApp()}
+                    onKeyDown={e => e.key === 'Enter' && !waFile && sendWhatsApp()}
                     placeholder="הודעה..."
                     className="flex-1 text-xs border border-green-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-green-400 bg-white" />
-                  <button onClick={sendWhatsApp} disabled={!waMsg.trim() || waSending}
-                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-green-600 hover:bg-green-700 disabled:opacity-40 transition">
+                  <button
+                    onClick={() => waFileRef.current?.click()}
+                    title="צרף קובץ"
+                    className="px-2 py-1.5 rounded-lg text-xs border border-green-200 bg-white hover:bg-green-50 text-green-700 shrink-0">
+                    📎
+                  </button>
+                  <button onClick={sendWhatsApp} disabled={(!waMsg.trim() && !waFile) || waSending}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-green-600 hover:bg-green-700 disabled:opacity-40 transition shrink-0">
                     {waSending ? '...' : 'שלח'}
                   </button>
                 </div>
+                <input ref={waFileRef} type="file" className="hidden"
+                  onChange={e => setWaFile(e.target.files?.[0] || null)} />
+                {waFile && (
+                  <div className="flex items-center gap-1 text-[10px] text-green-700">
+                    <span className="truncate">{waFile.name}</span>
+                    <button onClick={() => { setWaFile(null); if (waFileRef.current) waFileRef.current.value = ''; }}
+                      className="text-red-400 hover:text-red-600 font-bold shrink-0">✕</button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -280,12 +369,19 @@ export default function SupplierCard({ supplierId, onClose, categories }) {
                 <div className="flex-1 bg-white border border-slate-100 rounded-xl px-3 py-2 shadow-sm">
                   <div className="flex items-center justify-between gap-2 mb-1">
                     <span className="text-[10px] text-slate-400 font-medium">
-                      {formatDate(int.created_at)} {int.created_by_name ? `· ${int.created_by_name}` : ''}
+                      {formatDateTime(int.created_at)}{int.created_by_name ? ` · ${int.created_by_name}` : ''}
                     </span>
                     <button onClick={() => deleteInteraction(int.id)}
                       className="hidden group-hover:block text-[10px] text-red-400 hover:text-red-600 font-bold">מחק</button>
                   </div>
                   <p className="text-sm text-slate-700 whitespace-pre-wrap">{int.body}</p>
+                  {int.file_id && int.file_name && (
+                    <button onClick={() => openInteractionFile(int.file_id)}
+                      className="mt-1.5 flex items-center gap-1 text-xs text-violet-600 hover:text-violet-800 hover:underline">
+                      <span>{fileIcon(int.file_mime)}</span>
+                      <span className="truncate">{int.file_name}</span>
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -302,7 +398,7 @@ export default function SupplierCard({ supplierId, onClose, categories }) {
               <div key={ev.id} className="bg-white border border-slate-200 rounded-xl px-4 py-3">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-slate-800 text-sm">{ev.name}</span>
-                  <span className="text-xs text-slate-400">{formatDate(ev.event_date)}</span>
+                  <span className="text-xs text-slate-400">{formatDateTime(ev.event_date).split(' ')[0]}</span>
                 </div>
                 <div className="flex items-center gap-2 mt-1">
                   {ev.event_type && <span className="text-xs text-slate-500">{ev.event_type}</span>}
@@ -339,7 +435,14 @@ export default function SupplierCard({ supplierId, onClose, categories }) {
                   <button onClick={() => openFile(f)} className="text-xs font-bold text-violet-700 hover:underline truncate block text-right w-full">
                     {f.filename}
                   </button>
-                  <p className="text-[10px] text-slate-400">{formatDate(f.created_at)}{f.uploaded_by_name ? ` · ${f.uploaded_by_name}` : ''}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                    <p className="text-[10px] text-slate-400">{formatDateTime(f.created_at).split(' ')[0]}{f.uploaded_by_name ? ` · ${f.uploaded_by_name}` : ''}</p>
+                    {f.source && SOURCE_LABELS[f.source] && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600">
+                        {SOURCE_LABELS[f.source]}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <button onClick={() => deleteFile(f.id)}
                   className="hidden group-hover:block text-red-400 hover:text-red-600 text-sm font-bold">✕</button>
