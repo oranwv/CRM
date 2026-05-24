@@ -487,7 +487,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
 
             {/* Interactions */}
             <Section title={`פעילות${timeline.length ? ` (${timeline.length})` : ''}`}>
-              <TimelineSection leadId={leadId} lead={lead} timeline={timeline} allPhones={allPhones} allEmails={allEmails} onAdded={load} />
+              <TimelineSection leadId={leadId} lead={lead} timeline={timeline} allPhones={allPhones} allEmails={allEmails} allPhoneLabels={allPhoneLabels} leadFiles={files} onAdded={load} />
             </Section>
 
           </div>
@@ -2498,7 +2498,7 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
 }
 
 /* ── TIMELINE SECTION ── */
-function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, onAdded }) {
+function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, allPhoneLabels = {}, leadFiles = [], onAdded }) {
   const phone = allPhones[0] || null;
   const email = allEmails[0] || null;
   const [adding, setAdding]     = useState(null); // 'call'|'meeting'|'note'|'wa_send'|'email_send'
@@ -2513,6 +2513,7 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, onAdded
   const [confirmWA, setConfirmWA] = useState(false);
   const [draggingWA, setDraggingWA]       = useState(false);
   const [draggingEmail, setDraggingEmail] = useState(false);
+  const [showLeadFiles, setShowLeadFiles] = useState(false);
   const fileRef                 = useRef();
 
   const [translations, setTranslations]   = useState({}); // itemId → translated text
@@ -2599,8 +2600,10 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, onAdded
           if (waPhone) fd.append('phone', waPhone);
           if (att.type === 'local') {
             fd.append('file', att.file);
-          } else {
+          } else if (att.type === 'drive') {
             fd.append('driveFileId', att.fileId);
+          } else if (att.type === 'lead_file') {
+            fd.append('leadFileId', att.fileId);
           }
           await api.post('/whatsapp/send-file', fd);
         }
@@ -2692,7 +2695,7 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, onAdded
           {allPhones.length > 1 ? (
             <select value={waPhone} onChange={e => setWaPhone(e.target.value)}
               className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-green-400 text-right" dir="ltr">
-              {allPhones.map(p => <option key={p} value={p}>{p}</option>)}
+              {allPhones.map(p => <option key={p} value={p}>{allPhoneLabels[p] ? `${allPhoneLabels[p]} (${p})` : p}</option>)}
             </select>
           ) : (
             <p className="text-sm text-slate-500 font-semibold text-right">שלח ל: {phone || '(אין מספר)'}</p>
@@ -2717,12 +2720,31 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, onAdded
               className="flex-1 border-2 border-dashed rounded-xl py-2 text-sm font-semibold text-center transition border-slate-200 text-slate-400 hover:border-green-300 hover:text-green-600">
               מ-Google Drive
             </button>
+            {leadFiles.length > 0 && (
+              <button onClick={() => setShowLeadFiles(v => !v)}
+                className={`flex-1 border-2 border-dashed rounded-xl py-2 text-sm font-semibold text-center transition ${
+                  showLeadFiles ? 'border-green-400 bg-green-50 text-green-600' : 'border-slate-200 text-slate-400 hover:border-green-300 hover:text-green-600'
+                }`}>
+                מקבצים שנשלחו
+              </button>
+            )}
           </div>
+          {showLeadFiles && (
+            <div className="border-2 border-slate-200 rounded-xl p-2 space-y-1 max-h-40 overflow-y-auto">
+              {leadFiles.map(f => (
+                <button key={f.id}
+                  onClick={() => { setAttachments(a => [...a, { type: 'lead_file', fileId: f.id, filename: f.filename }]); setShowLeadFiles(false); }}
+                  className="w-full text-right text-sm text-slate-700 hover:bg-slate-50 px-2 py-1 rounded-lg truncate block">
+                  {f.filename}
+                </button>
+              ))}
+            </div>
+          )}
           {attachments.length > 0 && (
             <div className="space-y-1">
               {attachments.map((att, i) => (
                 <div key={i} className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-2.5 py-1.5 text-xs">
-                  <span className="truncate text-green-800">📎 {att.type === 'local' ? att.file.name : att.name}</span>
+                  <span className="truncate text-green-800">📎 {att.type === 'local' ? att.file.name : att.filename ?? att.name}</span>
                   <button onClick={() => setAttachments(a => a.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 mr-1 shrink-0">&times;</button>
                 </div>
               ))}

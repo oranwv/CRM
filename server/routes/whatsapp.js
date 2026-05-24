@@ -200,9 +200,9 @@ router.post('/send', requireAuth, async (req, res) => {
 });
 
 // POST /api/whatsapp/send-file — send message + file (authenticated)
-// Accepts either a multipart `file` upload OR a `driveFileId` body param (Drive file)
+// Accepts multipart `file`, `driveFileId`, or `leadFileId` (existing lead file)
 router.post('/send-file', requireAuth, upload.single('file'), async (req, res) => {
-  const { leadId, message = '', phone: phoneOverride, driveFileId } = req.body;
+  const { leadId, message = '', phone: phoneOverride, driveFileId, leadFileId } = req.body;
   try {
     const { rows } = await pool.query('SELECT phone FROM leads WHERE id = $1', [leadId]);
     if (!rows.length) return res.status(404).json({ error: 'Lead not found' });
@@ -224,6 +224,50 @@ router.post('/send-file', requireAuth, upload.single('file'), async (req, res) =
       tmpPath = path.join(os.tmpdir(), `drive_wa_${Date.now()}_${name}`);
       fs.writeFileSync(tmpPath, buffer);
       req.file = { path: tmpPath, originalname: name, mimetype: mimeType };
+    }
+
+    if (leadFileId && !req.file && !driveFileId) {
+      // Use a file already stored on this lead — download from Supabase and send without creating a duplicate DB row
+      const { rows: fRows } = await pool.query(
+        'SELECT id, filename, stored_name, file_type FROM files WHERE id = $1 AND lead_id = $2',
+        [leadFileId, leadId]
+      );
+      if (!fRows.length) return res.status(404).json({ error: 'File not found' });
+      const { id: existingId, filename: fName, stored_name: sName, file_type: fType } = fRows[0];
+
+      const { getSignedUrl } = require('../services/storageService');
+      const signedUrl = await getSignedUrl(sName, 300);
+      const fileRes = await axios.get(signedUrl, { responseType: 'arraybuffer' });
+      const lTmpPath = path.join(os.tmpdir(), `leadfile_wa_${Date.now()}_${fName}`);
+      fs.writeFileSync(lTmpPath, Buffer.from(fileRes.data));
+
+      const uploadFd = new FormData();
+      uploadFd.append('file', fs.createReadStream(lTmpPath), { filename: fName, contentType: fType || 'application/octet-stream' });
+      const uploadUrl = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/uploadFile/${process.env.GREEN_API_TOKEN}`;
+      const uploadRes = await axios.post(uploadUrl, uploadFd, { headers: uploadFd.getHeaders() });
+      const urlFile = uploadRes.data.urlFile;
+
+      const sendUrl = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/sendFileByUrl/${process.env.GREEN_API_TOKEN}`;
+      await waitForWaSlot();
+      await axios.post(sendUrl, { chatId: `${phone}@c.us`, urlFile, fileName: fName, caption: message });
+      fs.unlinkSync(lTmpPath);
+
+      const logBody = message ? `${message}\n[[FILE:${existingId}|${fName}]]` : `[[FILE:${existingId}|${fName}]]`;
+      try {
+        await pool.query(
+          `INSERT INTO messages (lead_id, channel, direction, body, timestamp, contact_value, sent_by)
+           VALUES ($1, 'whatsapp', 'outbound', $2, NOW(), $3, $4)`,
+          [leadId, logBody, phone, req.user?.id || null]
+        );
+        await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [leadId]);
+        await pool.query(
+          `UPDATE leads SET stage = 'contacted', updated_at = NOW() WHERE id = $1 AND stage = 'new'`,
+          [leadId]
+        );
+      } catch (dbErr) {
+        console.error('[WhatsApp] DB log error (file was sent):', dbErr.message);
+      }
+      return res.json({ success: true });
     }
 
     if (req.file) {
