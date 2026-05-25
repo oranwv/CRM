@@ -190,7 +190,7 @@ router.post('/settings/floorplan/:section', adminOnly, fpUpload.single('file'), 
 });
 
 // GET /api/admin/settings/floorplan/:section/url — get signed URL for floor plan image
-router.get('/settings/floorplan/:section/url', adminOnly, async (req, res) => {
+router.get('/settings/floorplan/:section/url', async (req, res) => {
   try {
     const { rows } = await pool.query("SELECT value FROM settings WHERE key = $1", [`floorplan_${req.params.section}`]);
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
