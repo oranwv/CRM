@@ -17,16 +17,20 @@ const PAYMENT_METHODS = [
   { value: 11, label: 'אחר' },
 ];
 
-export default function InvoiceModal({ lead, onClose, onCreated }) {
-  const depositAmount   = lead.deposit_amount    ? Number(lead.deposit_amount)    : null;
-  const remainingAmount = lead.remaining_balance_override ? Number(lead.remaining_balance_override) : null;
+const VAT_OPTIONS = [
+  { value: 1, label: 'כולל מע"מ' },
+  { value: 0, label: 'הוסף מע"מ' },
+  { value: 2, label: 'פטור' },
+];
 
+const todayStr = () => new Date().toISOString().slice(0, 10);
+
+export default function InvoiceModal({ lead, onClose, onCreated }) {
   const [docType,       setDocType]       = useState(300);
   const [paymentMethod, setPaymentMethod] = useState(4);
-  const [amountSource,  setAmountSource]  = useState('custom');
-  const [customAmount,  setCustomAmount]  = useState('');
-  const [description,   setDescription]   = useState('שירותי הפקת אירוע');
-  const [includeVat,    setIncludeVat]    = useState(true);
+  const [items,         setItems]         = useState([{ description: 'שירותי הפקת אירוע', quantity: 1, price: '', vatType: 1 }]);
+  const [docDate,       setDocDate]       = useState(todayStr());
+  const [secondDate,    setSecondDate]    = useState(todayStr());
   const [sendByEmail,   setSendByEmail]   = useState(false);
   const [sendByWa,      setSendByWa]      = useState(false);
   const [waMessage,     setWaMessage]     = useState('');
@@ -34,25 +38,32 @@ export default function InvoiceModal({ lead, onClose, onCreated }) {
   const [error,         setError]         = useState(null);
   const [created,       setCreated]       = useState(null);
 
-  const resolvedAmount =
-    amountSource === 'deposit'   ? depositAmount :
-    amountSource === 'remaining' ? remainingAmount :
-    customAmount ? Number(customAmount) : null;
+  function updateItem(i, field, val) {
+    setItems(prev => prev.map((it, idx) => idx === i ? { ...it, [field]: val } : it));
+  }
+  function addItem() {
+    setItems(prev => [...prev, { description: '', quantity: 1, price: '', vatType: 1 }]);
+  }
+  function removeItem(i) {
+    setItems(prev => prev.filter((_, idx) => idx !== i));
+  }
+
+  const needsPmt    = [400, 320].includes(docType);
+  const secondLabel = needsPmt ? 'תאריך תשלום' : 'לתשלום עד';
 
   async function submit() {
-    if (!resolvedAmount || resolvedAmount <= 0) {
-      setError('נא להזין סכום תקין');
-      return;
-    }
+    const allValid = items.every(it => it.description && Number(it.price) > 0 && Number(it.quantity) > 0);
+    if (!allValid) { setError('נא למלא את כל פרטי הפריטים'); return; }
     setSubmitting(true);
     setError(null);
     try {
       const { data } = await api.post('/greeninvoice/document', {
         leadId:          lead.id,
         type:            docType,
-        amount:          resolvedAmount,
-        description,
-        includeVat,
+        items:           items.map(it => ({ description: it.description, quantity: Number(it.quantity), price: Number(it.price), vatType: Number(it.vatType) })),
+        docDate,
+        dueDate:         needsPmt ? undefined : secondDate,
+        paymentDate:     needsPmt ? secondDate : undefined,
         paymentMethod,
         sendByEmail,
         sendByWhatsApp:  sendByWa,
@@ -69,7 +80,7 @@ export default function InvoiceModal({ lead, onClose, onCreated }) {
 
   return (
     <div className="fixed inset-0 z-[75] flex items-center justify-center bg-black/50 p-4" dir="rtl">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
@@ -78,9 +89,8 @@ export default function InvoiceModal({ lead, onClose, onCreated }) {
         </div>
 
         {created ? (
-          /* Success state */
           <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6 text-center">
-            <div className="text-4xl">✓</div>
+            <div className="text-4xl">&#10003;</div>
             <p className="font-bold text-slate-800">המסמך נוצר בהצלחה!</p>
             <p className="text-xs text-slate-500">{created.filename}</p>
             <a href={created.url} target="_blank" rel="noreferrer"
@@ -114,8 +124,8 @@ export default function InvoiceModal({ lead, onClose, onCreated }) {
                 </div>
               </div>
 
-              {/* Payment method — required for receipt types */}
-              {[400, 320].includes(docType) && (
+              {/* Payment method — receipt types only */}
+              {needsPmt && (
                 <div>
                   <label className="text-xs font-bold text-slate-500 block mb-2">אמצעי תשלום</label>
                   <div className="grid grid-cols-3 gap-2">
@@ -133,49 +143,77 @@ export default function InvoiceModal({ lead, onClose, onCreated }) {
                 </div>
               )}
 
-              {/* Description */}
+              {/* Items */}
               <div>
-                <label className="text-xs font-bold text-slate-500 block mb-1">תיאור</label>
-                <input value={description} onChange={e => setDescription(e.target.value)}
-                  className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-violet-400" />
+                <label className="text-xs font-bold text-slate-500 block mb-2">פריטים</label>
+                <div className="space-y-2">
+                  {items.map((it, i) => (
+                    <div key={i} className="border border-slate-200 rounded-xl p-3 space-y-2">
+                      <div className="flex gap-2 items-start">
+                        <input
+                          value={it.description}
+                          onChange={e => updateItem(i, 'description', e.target.value)}
+                          placeholder="תיאור"
+                          className="flex-1 text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-400"
+                        />
+                        {items.length > 1 && (
+                          <button onClick={() => removeItem(i)}
+                            className="text-slate-400 hover:text-red-500 text-lg leading-none pt-1">&#x2715;</button>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <label className="text-[10px] text-slate-400 block mb-0.5">כמות</label>
+                          <input type="number" min="1"
+                            value={it.quantity}
+                            onChange={e => updateItem(i, 'quantity', e.target.value)}
+                            className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-400"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-[10px] text-slate-400 block mb-0.5">מחיר (₪)</label>
+                          <input type="number" min="0"
+                            value={it.price}
+                            onChange={e => updateItem(i, 'price', e.target.value)}
+                            placeholder="0"
+                            className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-400"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-[10px] text-slate-400 block mb-0.5">מע"מ</label>
+                          <select
+                            value={it.vatType}
+                            onChange={e => updateItem(i, 'vatType', Number(e.target.value))}
+                            className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-400 bg-white"
+                          >
+                            {VAT_OPTIONS.map(v => (
+                              <option key={v.value} value={v.value}>{v.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button onClick={addItem}
+                  className="mt-2 text-xs text-violet-600 font-bold hover:text-violet-800 transition">
+                  + הוסף פריט
+                </button>
               </div>
 
-              {/* Amount */}
-              <div>
-                <label className="text-xs font-bold text-slate-500 block mb-2">סכום</label>
-                <div className="space-y-2">
-                  {depositAmount != null && (
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="radio" name="amountSrc" checked={amountSource === 'deposit'}
-                        onChange={() => setAmountSource('deposit')} />
-                      <span className="text-sm text-slate-700">מקדמה — ₪{depositAmount.toLocaleString('he-IL')}</span>
-                    </label>
-                  )}
-                  {remainingAmount != null && (
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="radio" name="amountSrc" checked={amountSource === 'remaining'}
-                        onChange={() => setAmountSource('remaining')} />
-                      <span className="text-sm text-slate-700">יתרה לתשלום — ₪{remainingAmount.toLocaleString('he-IL')}</span>
-                    </label>
-                  )}
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="amountSrc" checked={amountSource === 'custom'}
-                      onChange={() => setAmountSource('custom')} />
-                    <span className="text-sm text-slate-700">סכום אחר</span>
-                  </label>
-                  {amountSource === 'custom' && (
-                    <input type="number" value={customAmount} onChange={e => setCustomAmount(e.target.value)}
-                      placeholder="סכום בשקלים"
-                      className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-violet-400" />
-                  )}
+              {/* Dates */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">תאריך מסמך</label>
+                  <input type="date" value={docDate} onChange={e => setDocDate(e.target.value)}
+                    className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-violet-400" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">{secondLabel}</label>
+                  <input type="date" value={secondDate} onChange={e => setSecondDate(e.target.value)}
+                    className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-violet-400" />
                 </div>
               </div>
-
-              {/* VAT */}
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={includeVat} onChange={e => setIncludeVat(e.target.checked)} />
-                <span className="text-sm text-slate-700">כולל מע"מ</span>
-              </label>
 
               {/* Client info */}
               <div className="bg-slate-50 rounded-xl p-3 space-y-1 text-xs text-slate-600">

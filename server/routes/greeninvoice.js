@@ -11,7 +11,7 @@ const DOC_NAMES = {
   300: 'דרישת-תשלום',
   305: 'חשבון-עסקה',
   400: 'קבלה',
-  405: 'חשבונית-מס-קבלה',
+  320: 'חשבונית-מס-קבלה',
 };
 
 async function getToken() {
@@ -37,7 +37,7 @@ async function getToken() {
 // POST /api/greeninvoice/document
 router.post('/document', async (req, res) => {
   const {
-    leadId, type, amount, description, includeVat,
+    leadId, type, items, docDate, dueDate, paymentDate,
     paymentMethod,
     sendByEmail, sendByWhatsApp, whatsappMessage,
   } = req.body;
@@ -66,18 +66,17 @@ router.post('/document', async (req, res) => {
     const headers = { Authorization: `Bearer ${token}` };
 
     // 3. Build and POST the document
-    // IncomeVatType: 1=INCLUDED (price has VAT baked in), 2=EXEMPT
-    const incomeVatType = includeVat ? 1 : 2;
-    const docType       = Number(type);
-    const today         = new Date().toISOString().slice(0, 10);
-    const needsPmt      = [400, 320].includes(docType);
+    const docType     = Number(type);
+    const today       = new Date().toISOString().slice(0, 10);
+    const needsPmt    = [400, 320].includes(docType);
+    const totalAmount = (items || []).reduce((sum, it) => sum + Number(it.price) * Number(it.quantity), 0);
 
     const docPayload = {
-      description: description || 'שירותי הפקת אירוע',
-      type:        docType,
-      date:        today,
-      lang:        'he',
-      currency:    'ILS',
+      type:     docType,
+      date:     docDate || today,
+      lang:     'he',
+      currency: 'ILS',
+      ...(dueDate ? { dueDate } : {}),
       client: {
         name:   lead.orderer_name || lead.name,
         add:    false,
@@ -85,17 +84,17 @@ router.post('/document', async (req, res) => {
         ...(lead.phone            ? { phone:  lead.phone }             : {}),
         ...(lead.email            ? { emails: [lead.email] }           : {}),
       },
-      income: [{
-        description: description || 'שירותי הפקת אירוע',
-        price:       Number(amount),
-        quantity:    1,
-        vatType:     incomeVatType,
-      }],
+      income: (items || []).map(it => ({
+        description: it.description,
+        price:       Number(it.price),
+        quantity:    Number(it.quantity),
+        vatType:     Number(it.vatType),
+      })),
       ...(needsPmt ? {
         payment: [{
           type:     Number(paymentMethod) || 4,
-          date:     today,
-          price:    Number(amount),
+          date:     paymentDate || today,
+          price:    totalAmount,
           currency: 'ILS',
         }],
       } : {}),
