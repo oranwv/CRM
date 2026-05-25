@@ -104,8 +104,11 @@ router.post('/document', async (req, res) => {
     console.log('[GreenInvoice] Sending payload:', JSON.stringify(docPayload));
 
     const { data: doc } = await axios.post(`${GI_BASE}/documents`, docPayload, { headers });
+    console.log('[GreenInvoice] Doc response:', JSON.stringify(doc));
     const docId     = doc.id;
-    const docUrl    = doc.url || `https://app.greeninvoice.co.il/documents/view/${docId}`;
+    const rawUrl    = doc.url;
+    const docUrl    = (typeof rawUrl === 'string' ? rawUrl : rawUrl?.origin || rawUrl?.download || rawUrl?.pdf || Object.values(rawUrl || {})[0])
+                   || `https://app.greeninvoice.co.il/documents/view/${docId}`;
     const docNumber = doc.number || docId;
     const filename  = `${DOC_NAMES[type] || 'מסמך'}-${docNumber}.pdf`;
 
