@@ -176,6 +176,11 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
   const [allSuppliers,       setAllSuppliers]       = useState([]);
   const [showSupplierPicker, setShowSupplierPicker] = useState(false);
   const [supplierSearch,     setSupplierSearch]     = useState('');
+  const [showActionMenu,     setShowActionMenu]     = useState(false);
+  const [showReviewModal,    setShowReviewModal]    = useState(false);
+  const [reviewSettings,     setReviewSettings]    = useState(null);
+  const [reviewMsg,          setReviewMsg]         = useState('');
+  const [reviewSending,      setReviewSending]     = useState(false);
   const { mode } = useAppMode();
 
   const load = useCallback(async () => {
@@ -240,6 +245,34 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
   async function unlinkSupplier(supplierId) {
     await api.delete(`/leads/${leadId}/suppliers/${supplierId}`).catch(() => {});
     setLeadSuppliers(prev => prev.filter(s => s.id !== supplierId));
+  }
+
+  async function openReviewModal() {
+    if (!reviewSettings) {
+      const res = await api.get('/admin/settings');
+      const s = res.data;
+      const settings = { link: s.google_review_link || '', message: s.google_review_message || '' };
+      setReviewSettings(settings);
+      setReviewMsg(settings.message);
+    } else {
+      setReviewMsg(reviewSettings.message);
+    }
+    setShowReviewModal(true);
+  }
+
+  async function sendReviewLink(channel) {
+    if (!reviewMsg.trim()) return;
+    setReviewSending(channel);
+    try {
+      await api.post(`/leads/${leadId}/send-review`, { channel, message: reviewMsg });
+      setShowReviewModal(false);
+      setReviewMsg('');
+      load();
+    } catch {
+      alert('שגיאה בשליחה');
+    } finally {
+      setReviewSending(false);
+    }
   }
 
   async function changeStage(stageKey) {
@@ -402,10 +435,10 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
                     <p className="text-sm font-bold text-slate-700 mb-2">🎉 {lead.event_name}</p>
                   )}
                   <div className="flex gap-2 flex-wrap">
-                    <button onClick={() => setShowMeetingModal(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition">📅 קבע פגישה</button>
+                    {mode !== 'הפקה' && <button onClick={() => setShowMeetingModal(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition">📅 קבע פגישה</button>}
                     {lead.meeting_event_id && <SendReminderButton eventId={lead.meeting_event_id} />}
                     <button onClick={() => setShowAddTask(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition">+ משימה</button>
-                    <button onClick={() => setShowPriceOffer(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition">הצעת מחיר</button>
+                    {mode !== 'הפקה' && <button onClick={() => setShowPriceOffer(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition">הצעת מחיר</button>}
                     {mode === 'הפקה' && (lead.stage === 'deposit' || lead.stage === 'production') && (
                       <button
                         onClick={() => !savingStage && changeStage('completed')}
@@ -415,7 +448,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
                         אירוע הסתיים והתקבל תשלום
                       </button>
                     )}
-                    <button onClick={() => setShowContract(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-700 text-white hover:bg-violet-800 transition">חוזה</button>
+                    {mode !== 'הפקה' && <button onClick={() => setShowContract(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-700 text-white hover:bg-violet-800 transition">חוזה</button>}
                   </div>
                 </div>
               }>
@@ -568,10 +601,12 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
 
             {/* Financial Documents */}
             <Section title="מסמכים פיננסיים">
-              <button onClick={() => setShowInvoice(true)}
-                className="w-full border-2 border-dashed border-emerald-200 rounded-xl py-3 text-sm font-semibold text-center text-emerald-600 hover:border-emerald-400 hover:bg-emerald-50 transition">
-                + צור מסמך (חשבונית / קבלה / דרישת תשלום)
-              </button>
+              {mode !== 'הפקה' && (
+                <button onClick={() => setShowInvoice(true)}
+                  className="w-full border-2 border-dashed border-emerald-200 rounded-xl py-3 text-sm font-semibold text-center text-emerald-600 hover:border-emerald-400 hover:bg-emerald-50 transition">
+                  + צור מסמך (חשבונית / קבלה / דרישת תשלום)
+                </button>
+              )}
             </Section>
 
             {/* Interactions */}
@@ -593,6 +628,72 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
           <WhatsAppTab leadId={leadId} allPhones={allPhones} allPhoneLabels={allPhoneLabels} messages={messages} onSent={load} />
         )}
       </div>
+
+      {/* ── הפקה FAB ── */}
+      {mode === 'הפקה' && (
+        <button
+          onClick={() => setShowActionMenu(true)}
+          className="fixed bottom-6 left-6 z-[66] w-14 h-14 rounded-full shadow-xl text-white text-3xl font-black flex items-center justify-center"
+          style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}
+        >
+          +
+        </button>
+      )}
+
+      {/* ── Action bottom sheet ── */}
+      {showActionMenu && mode === 'הפקה' && (
+        <div className="fixed inset-0 z-[67] flex items-end bg-black/40" dir="rtl"
+          onClick={() => setShowActionMenu(false)}>
+          <div className="w-full bg-white rounded-t-2xl shadow-2xl p-4 pb-8 space-y-1"
+            onClick={e => e.stopPropagation()}>
+            <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-4" />
+            {[
+              { label: '📅 קבע פגישה',          action: () => setShowMeetingModal(true) },
+              { label: 'הצעת מחיר',             action: () => setShowPriceOffer(true) },
+              { label: 'חוזה',                  action: () => setShowContract(true) },
+              { label: '+ צור מסמך פיננסי',     action: () => setShowInvoice(true) },
+              { label: 'שלח לינק לביקורות',     action: openReviewModal },
+            ].map(({ label, action }) => (
+              <button key={label}
+                onClick={() => { setShowActionMenu(false); action(); }}
+                className="w-full text-right px-4 py-3 rounded-xl text-sm font-bold text-slate-800 hover:bg-slate-100 transition">
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Review link modal ── */}
+      {showReviewModal && (
+        <div className="fixed inset-0 z-[68] flex items-end bg-black/40" dir="rtl"
+          onClick={() => setShowReviewModal(false)}>
+          <div className="w-full bg-white rounded-t-2xl shadow-2xl p-5 pb-8 space-y-4"
+            onClick={e => e.stopPropagation()}>
+            <h3 className="font-black text-slate-800 text-base">שלח לינק לביקורת</h3>
+            <textarea
+              value={reviewMsg}
+              onChange={e => setReviewMsg(e.target.value)}
+              rows={5}
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-400 resize-none"
+            />
+            <div className="flex gap-3">
+              <button onClick={() => sendReviewLink('whatsapp')}
+                disabled={!reviewMsg.trim() || !!reviewSending || !lead.phone}
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-green-600 hover:bg-green-700 disabled:opacity-40 transition">
+                {reviewSending === 'whatsapp' ? '...' : 'שלח ב-WhatsApp'}
+              </button>
+              <button onClick={() => sendReviewLink('email')}
+                disabled={!reviewMsg.trim() || !!reviewSending || !lead.email}
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-sky-600 hover:bg-sky-700 disabled:opacity-40 transition">
+                {reviewSending === 'email' ? '...' : 'שלח במייל'}
+              </button>
+            </div>
+            {!lead.phone && <p className="text-xs text-red-400 text-center">אין מספר טלפון בליד</p>}
+            {!lead.email && <p className="text-xs text-slate-400 text-center">אין אימייל בליד — לא ניתן לשלוח מייל</p>}
+          </div>
+        </div>
+      )}
 
       {showMeetingModal && (
         <ScheduleMeetingModal

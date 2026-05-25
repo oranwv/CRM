@@ -54,10 +54,11 @@ router.post('/document', async (req, res) => {
     const headers = { Authorization: `Bearer ${token}` };
 
     // 3. Build and POST the document
-    const vatType  = includeVat ? 0 : 1;  // 0=standard VAT, 1=exempt
-    const docType  = Number(type);
-    const today    = new Date().toISOString().slice(0, 10);
-    const needsPmt = [400, 320].includes(docType);
+    // IncomeVatType: 1=INCLUDED (price has VAT baked in), 2=EXEMPT
+    const incomeVatType = includeVat ? 1 : 2;
+    const docType       = Number(type);
+    const today         = new Date().toISOString().slice(0, 10);
+    const needsPmt      = [400, 320].includes(docType);
 
     const docPayload = {
       description: description || 'שירותי הפקת אירוע',
@@ -65,18 +66,17 @@ router.post('/document', async (req, res) => {
       date:        today,
       lang:        'he',
       currency:    'ILS',
-      vatType,
       client: {
         name: lead.orderer_name || lead.name,
         ...(lead.signer_id_number ? { taxId:  lead.signer_id_number } : {}),
         ...(lead.phone            ? { phone:  lead.phone }             : {}),
-        ...(lead.email            ? { emails: [lead.email] }           : {}),
+        ...(lead.email            ? { emails: [lead.email], send: !!sendByEmail } : { send: false }),
       },
       income: [{
         description: description || 'שירותי הפקת אירוע',
         price:       Number(amount),
         quantity:    1,
-        vatType,
+        vatType:     incomeVatType,
       }],
       ...(needsPmt ? {
         payment: [{
@@ -86,7 +86,6 @@ router.post('/document', async (req, res) => {
           currency: 'ILS',
         }],
       } : {}),
-      sendByEmail: !!sendByEmail,
     };
 
     const { data: doc } = await axios.post(`${GI_BASE}/documents`, docPayload, { headers });

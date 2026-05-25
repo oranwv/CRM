@@ -575,4 +575,44 @@ router.delete('/:id/suppliers/:supplierId', async (req, res) => {
   }
 });
 
+// POST /api/leads/:id/send-review
+router.post('/:id/send-review', async (req, res) => {
+  const { channel, message } = req.body;
+  if (!channel || !message?.trim()) return res.status(400).json({ error: 'channel ו-message נדרשים' });
+  try {
+    const { rows } = await pool.query('SELECT email, phone FROM leads WHERE id = $1', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'ליד לא נמצא' });
+    const lead = rows[0];
+
+    if (channel === 'whatsapp') {
+      const phone = normalizePhone(lead.phone);
+      if (!phone) return res.status(400).json({ error: 'אין מספר טלפון לליד' });
+      const axios = require('axios');
+      const url = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/sendMessage/${process.env.GREEN_API_TOKEN}`;
+      await axios.post(url, { chatId: `${phone}@c.us`, message: message.trim() });
+      await pool.query(
+        `INSERT INTO messages (lead_id, channel, direction, body, timestamp, contact_value, sent_by)
+         VALUES ($1, 'whatsapp', 'outbound', $2, NOW(), $3, $4)`,
+        [req.params.id, message.trim(), phone, req.user?.id || null]
+      );
+    } else if (channel === 'email') {
+      if (!lead.email) return res.status(400).json({ error: 'אין אימייל לליד' });
+      const { sendEmail } = require('../services/gmailService');
+      await sendEmail({ to: lead.email, subject: 'נשמח לביקורת שלכם', body: message.trim() });
+      await pool.query(
+        `INSERT INTO messages (lead_id, channel, direction, body, timestamp, contact_value, sent_by)
+         VALUES ($1, 'email', 'outbound', $2, NOW(), $3, $4)`,
+        [req.params.id, message.trim(), lead.email, req.user?.id || null]
+      );
+    } else {
+      return res.status(400).json({ error: 'channel חייב להיות whatsapp או email' });
+    }
+
+    await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

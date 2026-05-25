@@ -10,11 +10,11 @@ const DOC_TYPES = [
 
 const PAYMENT_METHODS = [
   { value: 4,  label: 'העברה בנקאית' },
-  { value: 2,  label: 'כרטיס אשראי' },
-  { value: 3,  label: 'מזומן' },
-  { value: 1,  label: "צ'ק" },
-  { value: 10, label: 'ביט' },
-  { value: 99, label: 'אחר' },
+  { value: 3,  label: 'כרטיס אשראי' },
+  { value: 1,  label: 'מזומן' },
+  { value: 2,  label: "צ'ק" },
+  { value: 10, label: 'ביט / אפליקציה' },
+  { value: 11, label: 'אחר' },
 ];
 
 export default function InvoiceModal({ lead, onClose, onCreated }) {

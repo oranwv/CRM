@@ -326,6 +326,10 @@ export default function AdminPage() {
   const [contractEmailBank, setContractEmailBank] = useState('');
   const [contractEmailSaving, setContractEmailSaving] = useState(false);
   const [contractEmailSaved, setContractEmailSaved] = useState(false);
+  const [googleReviewLink,    setGoogleReviewLink]    = useState('');
+  const [googleReviewMessage, setGoogleReviewMessage] = useState('');
+  const [reviewSaving,        setReviewSaving]        = useState(false);
+  const [reviewSaved,         setReviewSaved]         = useState(false);
   const [googleToken, setGoogleToken]           = useState('');
   const [savingToken, setSavingToken]           = useState(false);
   const [tokenSaveResult, setTokenSaveResult]   = useState('');
@@ -342,6 +346,8 @@ export default function AdminPage() {
         setDriveFolders(r.data.drive_folders ? JSON.parse(r.data.drive_folders) : []);
         setContractEmailBody(r.data.contract_email_body || '');
         setContractEmailBank(r.data.contract_email_bank || '');
+        setGoogleReviewLink(r.data.google_review_link || '');
+        setGoogleReviewMessage(r.data.google_review_message || '');
         const fp = { inside: null, outside: null };
         try { fp.inside  = r.data.floorplan_inside  ? JSON.parse(r.data.floorplan_inside)  : null; } catch {}
         try { fp.outside = r.data.floorplan_outside ? JSON.parse(r.data.floorplan_outside) : null; } catch {}
@@ -405,6 +411,20 @@ export default function AdminPage() {
     setSaving(true); setSaved(false);
     try { await api.put('/admin/settings/ai_instructions', { value: aiInstructions }); setSaved(true); setTimeout(() => setSaved(false), 3000); }
     finally { setSaving(false); }
+  }
+
+  async function handleReviewSave() {
+    setReviewSaving(true); setReviewSaved(false);
+    try {
+      await Promise.all([
+        api.put('/admin/settings/google_review_link', { value: googleReviewLink }),
+        api.put('/admin/settings/google_review_message', { value: googleReviewMessage }),
+      ]);
+      setReviewSaved(true);
+      setTimeout(() => setReviewSaved(false), 3000);
+    } finally {
+      setReviewSaving(false);
+    }
   }
 
   async function handleContractEmailSave() {
@@ -635,6 +655,38 @@ export default function AdminPage() {
             className="w-full py-2.5 rounded-xl font-black text-sm transition disabled:opacity-50 text-white"
             style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
             {contractEmailSaving ? 'שומר...' : contractEmailSaved ? 'נשמר' : 'שמור'}
+          </button>
+        </div>
+
+        {/* ── Google review link ── */}
+        <div className="rounded-2xl p-4 bg-white border border-violet-100 shadow-sm">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-lg">⭐</span>
+            <h2 className="font-black text-base text-slate-800">ביקורות Google</h2>
+          </div>
+          <p className="text-xs mb-3 text-slate-400">קישור וטקסט ברירת מחדל לשליחת בקשת ביקורת ללקוחות אחרי האירוע.</p>
+          <label className="block text-xs font-bold text-slate-600 mb-1">קישור לדף הביקורות</label>
+          <input
+            type="url"
+            value={googleReviewLink}
+            onChange={e => setGoogleReviewLink(e.target.value)}
+            placeholder="https://g.page/r/..."
+            dir="ltr"
+            className="w-full rounded-xl px-3 py-2 text-sm focus:outline-none border border-violet-200 focus:border-violet-400 text-slate-700 mb-3"
+          />
+          <label className="block text-xs font-bold text-slate-600 mb-1">הודעה ברירת מחדל</label>
+          <textarea
+            value={googleReviewMessage}
+            onChange={e => setGoogleReviewMessage(e.target.value)}
+            rows={4}
+            placeholder="לדוגמה: שלום! נשמח אם תשאירו לנו ביקורת קצרה: https://g.page/r/..."
+            className="w-full rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none border border-violet-200 focus:border-violet-400 text-slate-700 mb-3"
+            style={{ fontFamily: 'inherit', lineHeight: '1.6' }}
+          />
+          <button onClick={handleReviewSave} disabled={reviewSaving}
+            className="w-full py-2.5 rounded-xl font-black text-sm transition disabled:opacity-50 text-white"
+            style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+            {reviewSaving ? 'שומר...' : reviewSaved ? 'נשמר' : 'שמור'}
           </button>
         </div>
 
