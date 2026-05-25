@@ -128,8 +128,9 @@ router.post('/document', async (req, res) => {
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [leadId, filename, '', storedName, 'application/pdf', req.user.id]
       );
+      console.log('[GreenInvoice] PDF saved to files:', filename);
     } catch (pdfErr) {
-      console.error('[GreenInvoice] PDF save failed (non-fatal):', pdfErr.message);
+      console.error('[GreenInvoice] PDF save failed:', pdfErr.message, pdfErr.response?.status, JSON.stringify(pdfErr.response?.data));
     }
 
     // 5. Send via WhatsApp if requested
