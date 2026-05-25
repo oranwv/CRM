@@ -924,7 +924,8 @@ export default function AdminPage() {
             <select className={inputCls} value={editingUser.role}
               onChange={e => setEditingUser(u => ({ ...u, role: e.target.value }))}>
               <option value="sales">מכירות</option>
-              <option value="admin">מנהל</option>
+              <option value="manager">מנהל</option>
+              <option value="admin">מנהל מערכת</option>
               <option value="production">הפקה</option>
             </select>
             <input className={inputCls} placeholder={editingUser.id ? 'סיסמה חדשה (השאר ריק לשמירה)' : 'סיסמה *'}

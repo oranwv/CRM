@@ -19,10 +19,22 @@ function PrivateRoute({ children }) {
 }
 
 function GlobalHeader() {
-  const navigate       = useNavigate();
-  const { mode, setMode } = useAppMode();
-  const location       = useLocation();
-  const isPublic       = ['/login','/postpone','/task-action','/sign'].some(p => location.pathname.startsWith(p));
+  const navigate           = useNavigate();
+  const { mode, setMode }  = useAppMode();
+  const location           = useLocation();
+  const isPublic           = ['/login','/postpone','/task-action','/sign'].some(p => location.pathname.startsWith(p));
+  const user               = JSON.parse(localStorage.getItem('crm_user') || '{}');
+  const isManager          = ['admin', 'manager'].includes(user.role);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    if (!isManager || !localStorage.getItem('crm_token')) return;
+    const load = () => api.get('/greeninvoice/pending/count').then(r => setPendingCount(r.data.count)).catch(() => {});
+    load();
+    const t = setInterval(load, 60_000);
+    return () => clearInterval(t);
+  }, [isManager]);
+
   if (isPublic) return null;
 
   function handleModeChange(e) {
@@ -37,7 +49,14 @@ function GlobalHeader() {
       style={{ height: 44, background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', borderBottom: '1px solid rgba(255,255,255,0.15)' }}
       dir="rtl"
     >
-      <span className="text-white font-black text-sm opacity-90">שרביה CRM</span>
+      <div className="flex items-center gap-2">
+        <span className="text-white font-black text-sm opacity-90">שרביה CRM</span>
+        {isManager && pendingCount > 0 && (
+          <span className="bg-red-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
+            {pendingCount > 99 ? '99+' : pendingCount} ממתינים
+          </span>
+        )}
+      </div>
       <select
         value={mode}
         onChange={handleModeChange}
