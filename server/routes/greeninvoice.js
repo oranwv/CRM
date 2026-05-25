@@ -67,10 +67,11 @@ router.post('/document', async (req, res) => {
       lang:        'he',
       currency:    'ILS',
       client: {
-        name: lead.orderer_name || lead.name,
+        name:   lead.orderer_name || lead.name,
+        add:    false,
         ...(lead.signer_id_number ? { taxId:  lead.signer_id_number } : {}),
         ...(lead.phone            ? { phone:  lead.phone }             : {}),
-        ...(lead.email            ? { emails: [lead.email], send: !!sendByEmail } : { send: false }),
+        ...(lead.email            ? { emails: [lead.email] }           : {}),
       },
       income: [{
         description: description || 'שירותי הפקת אירוע',
@@ -87,6 +88,8 @@ router.post('/document', async (req, res) => {
         }],
       } : {}),
     };
+
+    console.log('[GreenInvoice] Sending payload:', JSON.stringify(docPayload));
 
     const { data: doc } = await axios.post(`${GI_BASE}/documents`, docPayload, { headers });
     const docId     = doc.id;
@@ -136,9 +139,10 @@ router.post('/document', async (req, res) => {
     res.json({ success: true, documentId: docId, url: docUrl, filename });
   } catch (err) {
     const giData = err.response?.data;
-    console.error('[GreenInvoice] Error:', JSON.stringify(giData), err.message);
-    const giMsg = giData?.message || giData?.error || err.message;
-    res.status(500).json({ error: giMsg || 'Failed to create document' });
+    const status = err.response?.status;
+    console.error('[GreenInvoice] HTTP', status, '— body:', JSON.stringify(giData), '— message:', err.message);
+    const giMsg = (typeof giData === 'string' ? giData : (giData?.message || giData?.error || JSON.stringify(giData))) || err.message;
+    res.status(500).json({ error: `GreenInvoice ${status || ''}: ${giMsg}` });
   }
 });
 
