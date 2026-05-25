@@ -5,6 +5,7 @@ import { useAppMode } from '../context/AppModeContext';
 import ProductionChecklist from './ProductionChecklist';
 import EventBriefModal from './EventBriefModal';
 import SeatingChart from './SeatingChart';
+import InvoiceModal from './InvoiceModal';
 
 const STAGES = [
   { key: 'new',               label: 'חדש',                 active: 'bg-sky-500 text-white border-sky-500',          past: 'bg-sky-100 text-sky-600 border-sky-200',            future: 'bg-white text-slate-400 border-slate-200 hover:border-sky-300 hover:text-sky-500' },
@@ -170,6 +171,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
   const [showBrief,    setShowBrief]    = useState(false);
   const [showSeating,  setShowSeating]  = useState(false);
   const [hasSketch,    setHasSketch]    = useState(false);
+  const [showInvoice,  setShowInvoice]  = useState(false);
   const [leadSuppliers,      setLeadSuppliers]      = useState([]);
   const [allSuppliers,       setAllSuppliers]       = useState([]);
   const [showSupplierPicker, setShowSupplierPicker] = useState(false);
@@ -564,6 +566,14 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
               )}
             </Section>
 
+            {/* Financial Documents */}
+            <Section title="מסמכים פיננסיים">
+              <button onClick={() => setShowInvoice(true)}
+                className="w-full border-2 border-dashed border-emerald-200 rounded-xl py-3 text-sm font-semibold text-center text-emerald-600 hover:border-emerald-400 hover:bg-emerald-50 transition">
+                + צור מסמך (חשבונית / קבלה / דרישת תשלום)
+              </button>
+            </Section>
+
             {/* Interactions */}
             <Section title={`פעילות${timeline.length ? ` (${timeline.length})` : ''}`}>
               <TimelineSection leadId={leadId} lead={lead} timeline={timeline} allPhones={allPhones} allEmails={allEmails} allPhoneLabels={allPhoneLabels} leadFiles={files} onAdded={load} />
@@ -619,6 +629,14 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
 
       {showSeating && (
         <SeatingChart leadId={leadId} onClose={() => setShowSeating(false)} />
+      )}
+
+      {showInvoice && lead && (
+        <InvoiceModal
+          lead={lead}
+          onClose={() => setShowInvoice(false)}
+          onCreated={() => { load(); }}
+        />
       )}
 
       {showAddTask && (

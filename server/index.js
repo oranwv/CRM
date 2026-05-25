@@ -294,6 +294,7 @@ app.use('/api/drive',               requireAuth, driveRoutes);
 app.use('/api/users',               requireAuth, usersRoutes);
 app.use('/api/analytics',           requireAuth, analyticsRoutes);
 app.use('/api/suppliers',           requireAuth, require('./routes/suppliers'));
+app.use('/api/greeninvoice',        requireAuth, require('./routes/greeninvoice'));
 app.use('/api/ai',                  requireAuth, aiRoutes);
 app.use('/api/calendar', (req, res, next) => {
   // ICS download and lead confirmation are public — no auth required
