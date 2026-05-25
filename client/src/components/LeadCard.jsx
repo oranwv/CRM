@@ -449,6 +449,15 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
                       </button>
                     )}
                     {mode !== 'הפקה' && <button onClick={() => setShowContract(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-700 text-white hover:bg-violet-800 transition">חוזה</button>}
+                    {mode === 'הפקה' && (
+                      <button
+                        onClick={() => setShowActionMenu(true)}
+                        className="text-sm font-bold px-2.5 py-1 rounded-xl text-white hover:opacity-90 transition"
+                        style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}
+                      >
+                        +
+                      </button>
+                    )}
                   </div>
                 </div>
               }>
@@ -628,17 +637,6 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
           <WhatsAppTab leadId={leadId} allPhones={allPhones} allPhoneLabels={allPhoneLabels} messages={messages} onSent={load} />
         )}
       </div>
-
-      {/* ── הפקה FAB ── */}
-      {mode === 'הפקה' && (
-        <button
-          onClick={() => setShowActionMenu(true)}
-          className="fixed bottom-6 left-6 z-[66] w-14 h-14 rounded-full shadow-xl text-white text-3xl font-black flex items-center justify-center"
-          style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}
-        >
-          +
-        </button>
-      )}
 
       {/* ── Action bottom sheet ── */}
       {showActionMenu && mode === 'הפקה' && (
