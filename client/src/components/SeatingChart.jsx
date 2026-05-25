@@ -134,11 +134,20 @@ export default function SeatingChart({ leadId, onClose }) {
     api.get(`/leads/${leadId}/seating`).then(r => {
       setLayouts({ inside: r.data.inside || [], outside: r.data.outside || [] });
     }).catch(() => {});
-    api.get('/admin/settings').then(r => {
+    api.get('/admin/settings').then(async r => {
       const d = r.data;
       const fp = { inside: null, outside: null };
       try { fp.inside  = d.floorplan_inside  ? JSON.parse(d.floorplan_inside)  : null; } catch {}
       try { fp.outside = d.floorplan_outside ? JSON.parse(d.floorplan_outside) : null; } catch {}
+      // For new-format records (storedName), fetch a signed URL
+      await Promise.all(['inside', 'outside'].map(async sec => {
+        if (fp[sec]?.storedName && !fp[sec]?.image) {
+          try {
+            const urlRes = await api.get(`/admin/settings/floorplan/${sec}/url`);
+            fp[sec].image = urlRes.data.url;
+          } catch {}
+        }
+      }));
       setFloorplans(fp);
       try { setCustomItems(d.seating_custom_items ? JSON.parse(d.seating_custom_items) : []); } catch {}
       try { setElemOverrides(d.seating_element_overrides ? JSON.parse(d.seating_element_overrides) : {}); } catch {}

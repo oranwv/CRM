@@ -340,7 +340,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     api.get('/admin/settings')
-      .then(r => {
+      .then(async r => {
         setAiInstructions(r.data.ai_instructions || '');
         setStaffSig(r.data.staff_signature || '');
         setDriveFolders(r.data.drive_folders ? JSON.parse(r.data.drive_folders) : []);
@@ -351,6 +351,15 @@ export default function AdminPage() {
         const fp = { inside: null, outside: null };
         try { fp.inside  = r.data.floorplan_inside  ? JSON.parse(r.data.floorplan_inside)  : null; } catch {}
         try { fp.outside = r.data.floorplan_outside ? JSON.parse(r.data.floorplan_outside) : null; } catch {}
+        // For new-format records (storedName), fetch signed URLs for preview
+        await Promise.all(['inside', 'outside'].map(async sec => {
+          if (fp[sec]?.storedName && !fp[sec]?.image) {
+            try {
+              const urlRes = await api.get(`/admin/settings/floorplan/${sec}/url`);
+              fp[sec].image = urlRes.data.url;
+            } catch {}
+          }
+        }));
         setFpData(fp);
         try { setElemOverrides(r.data.seating_element_overrides ? JSON.parse(r.data.seating_element_overrides) : {}); } catch {}
         try { setCustomItems(r.data.seating_custom_items ? JSON.parse(r.data.seating_custom_items) : []); } catch {}

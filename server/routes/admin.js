@@ -5,6 +5,8 @@ const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const path   = require('path');
 const fs     = require('fs');
+const os     = require('os');
+const { uploadFile, getSignedUrl } = require('../services/storageService');
 
 const sigUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
 
@@ -151,21 +153,51 @@ router.delete('/settings/staff-signature', adminOnly, async (req, res) => {
 });
 
 // POST /api/admin/settings/floorplan/:section — upload venue floor plan image
-const fpUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+const fpUpload = multer({ dest: os.tmpdir(), limits: { fileSize: 10 * 1024 * 1024 } });
 router.post('/settings/floorplan/:section', adminOnly, fpUpload.single('file'), async (req, res) => {
   const sec = req.params.section;
   if (!['inside', 'outside'].includes(sec)) return res.status(400).json({ error: 'Invalid section' });
   if (!req.file) return res.status(400).json({ error: 'No file' });
   const { widthM, heightM } = req.body;
-  const dataUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
-  const value = JSON.stringify({ image: dataUrl, widthM: parseFloat(widthM) || 20, heightM: parseFloat(heightM) || 15 });
+  const originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
   try {
+    // Delete previous file from Supabase if exists
+    const { rows: existing } = await pool.query("SELECT value FROM settings WHERE key = $1", [`floorplan_${sec}`]);
+    if (existing.length) {
+      try {
+        const old = JSON.parse(existing[0].value);
+        if (old.storedName) {
+          const { createClient } = require('@supabase/supabase-js');
+          const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+          await supabase.storage.from('crm-files').remove([old.storedName]);
+        }
+      } catch {}
+    }
+    // Upload new file to Supabase storage
+    const { storedName } = await uploadFile(req.file.path, originalName, req.file.mimetype);
+    fs.unlinkSync(req.file.path);
+    const value = JSON.stringify({ storedName, widthM: parseFloat(widthM) || 20, heightM: parseFloat(heightM) || 15 });
     await pool.query(
       `INSERT INTO settings (key, value, updated_at) VALUES ($1, $2, NOW())
        ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
       [`floorplan_${sec}`, value]
     );
-    res.json({ success: true });
+    res.json({ success: true, storedName });
+  } catch (err) {
+    if (req.file) try { fs.unlinkSync(req.file.path); } catch {}
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/admin/settings/floorplan/:section/url — get signed URL for floor plan image
+router.get('/settings/floorplan/:section/url', adminOnly, async (req, res) => {
+  try {
+    const { rows } = await pool.query("SELECT value FROM settings WHERE key = $1", [`floorplan_${req.params.section}`]);
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    const fp = JSON.parse(rows[0].value);
+    if (!fp.storedName) return res.status(404).json({ error: 'No stored file' });
+    const url = await getSignedUrl(fp.storedName, 3600);
+    res.json({ url, widthM: fp.widthM, heightM: fp.heightM });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
