@@ -15,12 +15,21 @@ const DOC_NAMES = {
 };
 
 async function getToken() {
-  const { data } = await axios.post(`${GI_BASE}/account/token`, {
-    id:     process.env.GREENINVOICE_API_KEY,
-    secret: process.env.GREENINVOICE_SECRET,
-  });
+  console.log('[GreenInvoice] Authenticating — key prefix:', (process.env.GREENINVOICE_API_KEY || '').slice(0, 8));
+  let res;
+  try {
+    res = await axios.post(`${GI_BASE}/account/token`, {
+      id:     process.env.GREENINVOICE_API_KEY,
+      secret: process.env.GREENINVOICE_SECRET,
+    });
+  } catch (authErr) {
+    console.error('[GreenInvoice] Auth endpoint FAILED — status:', authErr.response?.status, '— body:', JSON.stringify(authErr.response?.data));
+    throw authErr;
+  }
+  const data = res.data;
   console.log('[GreenInvoice] Token response keys:', Object.keys(data || {}));
   const token = data.token || data.accessToken || data.jwt || data.access_token;
+  console.log('[GreenInvoice] Token extracted:', token ? token.slice(0, 20) + '...' : 'NONE');
   if (!token) throw new Error('No token in GreenInvoice auth response: ' + JSON.stringify(data));
   return token;
 }
