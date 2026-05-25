@@ -195,6 +195,7 @@ router.get('/settings/floorplan/:section/url', adminOnly, async (req, res) => {
     const { rows } = await pool.query("SELECT value FROM settings WHERE key = $1", [`floorplan_${req.params.section}`]);
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
     const fp = JSON.parse(rows[0].value);
+    if (fp.image) return res.json({ url: fp.image, widthM: fp.widthM, heightM: fp.heightM });
     if (!fp.storedName) return res.status(404).json({ error: 'No stored file' });
     const url = await getSignedUrl(fp.storedName, 3600);
     res.json({ url, widthM: fp.widthM, heightM: fp.heightM });

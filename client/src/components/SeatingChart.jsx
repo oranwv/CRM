@@ -134,25 +134,25 @@ export default function SeatingChart({ leadId, onClose }) {
     api.get(`/leads/${leadId}/seating`).then(r => {
       setLayouts({ inside: r.data.inside || [], outside: r.data.outside || [] });
     }).catch(() => {});
-    api.get('/admin/settings').then(async r => {
+    api.get('/admin/settings').then(r => {
       const d = r.data;
-      const fp = { inside: null, outside: null };
-      try { fp.inside  = d.floorplan_inside  ? JSON.parse(d.floorplan_inside)  : null; } catch {}
-      try { fp.outside = d.floorplan_outside ? JSON.parse(d.floorplan_outside) : null; } catch {}
-      // For new-format records (storedName), fetch a signed URL
-      await Promise.all(['inside', 'outside'].map(async sec => {
-        if (fp[sec]?.storedName && !fp[sec]?.image) {
-          try {
-            const urlRes = await api.get(`/admin/settings/floorplan/${sec}/url`);
-            fp[sec].image = urlRes.data.url;
-          } catch {}
-        }
-      }));
-      setFloorplans(fp);
       try { setCustomItems(d.seating_custom_items ? JSON.parse(d.seating_custom_items) : []); } catch {}
       try { setElemOverrides(d.seating_element_overrides ? JSON.parse(d.seating_element_overrides) : {}); } catch {}
       try { setTemplates(d.seating_templates ? JSON.parse(d.seating_templates) : []); } catch {}
     }).catch(() => {});
+    // Fetch floorplan URLs from dedicated endpoints (handles both old base64 and new Supabase records)
+    Promise.all(['inside', 'outside'].map(async sec => {
+      try {
+        const r = await api.get(`/admin/settings/floorplan/${sec}/url`);
+        return [sec, { image: r.data.url, widthM: r.data.widthM, heightM: r.data.heightM }];
+      } catch {
+        return [sec, null];
+      }
+    })).then(results => {
+      const fp = { inside: null, outside: null };
+      results.forEach(([sec, val]) => { fp[sec] = val; });
+      setFloorplans(fp);
+    });
   }, [leadId]);
 
   const fp     = floorplans[section];
