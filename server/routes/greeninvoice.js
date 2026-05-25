@@ -26,6 +26,7 @@ async function getToken() {
 router.post('/document', async (req, res) => {
   const {
     leadId, type, amount, description, includeVat,
+    paymentMethod,
     sendByEmail, sendByWhatsApp, whatsappMessage,
   } = req.body;
 
@@ -53,19 +54,23 @@ router.post('/document', async (req, res) => {
     const headers = { Authorization: `Bearer ${token}` };
 
     // 3. Build and POST the document
-    const vatType = includeVat ? 1 : 0;
+    const vatType  = includeVat ? 0 : 1;  // 0=standard VAT, 1=exempt
+    const docType  = Number(type);
+    const today    = new Date().toISOString().slice(0, 10);
+    const needsPmt = [400, 320].includes(docType);
+
     const docPayload = {
       description: description || 'שירותי הפקת אירוע',
-      type:        Number(type),
-      date:        new Date().toISOString().slice(0, 10),
+      type:        docType,
+      date:        today,
       lang:        'he',
       currency:    'ILS',
       vatType,
       client: {
         name: lead.orderer_name || lead.name,
-        ...(lead.signer_id_number ? { taxId: lead.signer_id_number } : {}),
-        ...(lead.phone            ? { phone: lead.phone }             : {}),
-        ...(lead.email            ? { emails: [lead.email] }         : {}),
+        ...(lead.signer_id_number ? { taxId:  lead.signer_id_number } : {}),
+        ...(lead.phone            ? { phone:  lead.phone }             : {}),
+        ...(lead.email            ? { emails: [lead.email] }           : {}),
       },
       income: [{
         description: description || 'שירותי הפקת אירוע',
@@ -73,6 +78,14 @@ router.post('/document', async (req, res) => {
         quantity:    1,
         vatType,
       }],
+      ...(needsPmt ? {
+        payment: [{
+          type:     Number(paymentMethod) || 4,
+          date:     today,
+          price:    Number(amount),
+          currency: 'ILS',
+        }],
+      } : {}),
       sendByEmail: !!sendByEmail,
     };
 
@@ -123,8 +136,9 @@ router.post('/document', async (req, res) => {
 
     res.json({ success: true, documentId: docId, url: docUrl, filename });
   } catch (err) {
-    const giMsg = err.response?.data?.message || err.response?.data?.error || err.message;
-    console.error('[GreenInvoice] Error:', giMsg);
+    const giData = err.response?.data;
+    console.error('[GreenInvoice] Error:', JSON.stringify(giData), err.message);
+    const giMsg = giData?.message || giData?.error || err.message;
     res.status(500).json({ error: giMsg || 'Failed to create document' });
   }
 });

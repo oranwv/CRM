@@ -5,7 +5,16 @@ const DOC_TYPES = [
   { type: 300, label: 'דרישת תשלום' },
   { type: 305, label: 'חשבון עסקה' },
   { type: 400, label: 'קבלה' },
-  { type: 405, label: 'חשבונית מס קבלה' },
+  { type: 320, label: 'חשבונית מס קבלה' },
+];
+
+const PAYMENT_METHODS = [
+  { value: 4,  label: 'העברה בנקאית' },
+  { value: 2,  label: 'כרטיס אשראי' },
+  { value: 3,  label: 'מזומן' },
+  { value: 1,  label: "צ'ק" },
+  { value: 10, label: 'ביט' },
+  { value: 99, label: 'אחר' },
 ];
 
 export default function InvoiceModal({ lead, onClose, onCreated }) {
@@ -13,6 +22,7 @@ export default function InvoiceModal({ lead, onClose, onCreated }) {
   const remainingAmount = lead.remaining_balance_override ? Number(lead.remaining_balance_override) : null;
 
   const [docType,       setDocType]       = useState(300);
+  const [paymentMethod, setPaymentMethod] = useState(4);
   const [amountSource,  setAmountSource]  = useState('custom');
   const [customAmount,  setCustomAmount]  = useState('');
   const [description,   setDescription]   = useState('שירותי הפקת אירוע');
@@ -43,6 +53,7 @@ export default function InvoiceModal({ lead, onClose, onCreated }) {
         amount:          resolvedAmount,
         description,
         includeVat,
+        paymentMethod,
         sendByEmail,
         sendByWhatsApp:  sendByWa,
         whatsappMessage: waMessage,
@@ -102,6 +113,25 @@ export default function InvoiceModal({ lead, onClose, onCreated }) {
                   ))}
                 </div>
               </div>
+
+              {/* Payment method — required for receipt types */}
+              {[400, 320].includes(docType) && (
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-2">אמצעי תשלום</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {PAYMENT_METHODS.map(m => (
+                      <button key={m.value} onClick={() => setPaymentMethod(m.value)}
+                        className={`py-1.5 px-2 rounded-xl text-xs font-bold border-2 transition text-center ${
+                          paymentMethod === m.value
+                            ? 'border-violet-500 bg-violet-50 text-violet-700'
+                            : 'border-slate-200 text-slate-600 hover:border-violet-300'
+                        }`}>
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Description */}
               <div>
