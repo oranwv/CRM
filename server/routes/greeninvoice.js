@@ -19,7 +19,10 @@ async function getToken() {
     id:     process.env.GREENINVOICE_API_KEY,
     secret: process.env.GREENINVOICE_SECRET,
   });
-  return data.token;
+  console.log('[GreenInvoice] Token response keys:', Object.keys(data || {}));
+  const token = data.token || data.accessToken || data.jwt || data.access_token;
+  if (!token) throw new Error('No token in GreenInvoice auth response: ' + JSON.stringify(data));
+  return token;
 }
 
 // POST /api/greeninvoice/document
