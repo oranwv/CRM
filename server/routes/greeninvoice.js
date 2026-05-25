@@ -15,7 +15,7 @@ const DOC_NAMES = {
 };
 
 async function getToken() {
-  console.log('[GreenInvoice] Authenticating — key prefix:', (process.env.GREENINVOICE_API_KEY || '').slice(0, 8));
+  console.log('[GreenInvoice] Authenticating — key prefix:', (process.env.GREENINVOICE_API_KEY || '').slice(0, 8), '— secret prefix:', (process.env.GREENINVOICE_SECRET || '').slice(0, 5));
   let res;
   try {
     res = await axios.post(`${GI_BASE}/account/token`, {
