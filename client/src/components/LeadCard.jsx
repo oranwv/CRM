@@ -418,7 +418,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
         {[
           { key: 'info',     label: 'פרטים ופעילות' },
           { key: 'tasks',    label: `משימות${openTasks ? ` (${openTasks})` : ''}` },
-          { key: 'whatsapp', label: 'וואטסאפ' },
+          { key: 'whatsapp', label: 'וואטסאפ ואימייל' },
         ].map(t => (
           <button key={t.key} onClick={() => setActiveTab(t.key)}
             className={`flex-1 py-3 transition border-b-2 ${
@@ -712,7 +712,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
 
         {/* ── WHATSAPP TAB ── */}
         {activeTab === 'whatsapp' && (
-          <WhatsAppTab leadId={leadId} allPhones={allPhones} allPhoneLabels={allPhoneLabels} messages={messages} onSent={load} />
+          <WhatsAppTab leadId={leadId} allPhones={allPhones} allPhoneLabels={allPhoneLabels} allEmails={allEmails} leadFiles={leadFiles} messages={messages} onSent={load} />
         )}
       </div>
 
@@ -2815,25 +2815,13 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, onClose, 
 function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, allPhoneLabels = {}, leadFiles = [], onAdded }) {
   const phone = allPhones[0] || null;
   const email = allEmails[0] || null;
-  const [adding, setAdding]     = useState(null); // 'call'|'meeting'|'note'|'wa_send'|'email_send'
+  const [adding, setAdding]     = useState(null); // 'call'|'meeting'|'note'
   const [body, setBody]         = useState('');
   const [dir, setDir]           = useState('outbound');
-  const [attachments, setAttachments] = useState([]); // [{ type:'local', file } | { type:'drive', fileId, name, mimeType }]
-  const [drivePickerFor, setDrivePickerFor] = useState(null); // 'wa' | 'email' | null
-  const [waPhone, setWaPhone]   = useState(phone || '');
-  const [emailTo, setEmailTo]   = useState('');
-  const [subject, setSubject]   = useState('');
   const [saving, setSaving]     = useState(false);
-  const [confirmWA, setConfirmWA] = useState(false);
-  const [draggingWA, setDraggingWA]       = useState(false);
-  const [draggingEmail, setDraggingEmail] = useState(false);
-  const [showLeadFiles, setShowLeadFiles] = useState(false);
-  const fileRef                 = useRef();
 
   const [translations, setTranslations]   = useState({}); // itemId → translated text
   const [translating, setTranslating]     = useState({}); // itemId → bool
-  const [aiLoading, setAiLoading]         = useState(null); // null | 'translate'|'reply'|'improve'
-
   const [editingInteractionId, setEditingInteractionId] = useState(null);
   const [editInteractionBody, setEditInteractionBody]   = useState('');
 
@@ -2855,23 +2843,6 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, allPhon
     setTranslating(t => ({ ...t, [itemId]: false }));
   }
 
-  async function aiAction(action) {
-    setAiLoading(action);
-    try {
-      if (action === 'translate') {
-        const { data } = await api.post('/ai/translate', { text: body, to: 'en' });
-        setBody(data.result);
-      } else if (action === 'reply') {
-        const { data } = await api.post('/ai/reply', { leadId });
-        setBody(data.result);
-      } else if (action === 'improve') {
-        const { data } = await api.post('/ai/improve', { text: body });
-        setBody(data.result);
-      }
-    } catch { alert('שגיאה בבקשת ה-AI'); }
-    setAiLoading(null);
-  }
-
   const LOG_TYPES = [
     { type: 'call',     label: '📞 שיחה' },
     { type: 'meeting',  label: '🤝 פגישה' },
@@ -2880,9 +2851,7 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, allPhon
 
   function openAdding(type) {
     setAdding(adding === type ? null : type);
-    setBody(''); setAttachments([]); setDir('outbound');
-    setWaPhone(allPhones[0] || '');
-    setEmailTo(allEmails[0] || ''); setSubject('');
+    setBody(''); setDir('outbound');
   }
 
   async function saveLog() {
@@ -2894,64 +2863,8 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, allPhon
     setSaving(false);
   }
 
-  async function sendWA() {
-    if (!body.trim() && !attachments.length) return;
-    setSaving(true);
-    try {
-      if (!attachments.length) {
-        await api.post('/whatsapp/send', { leadId, message: body, phone: waPhone || undefined });
-      } else {
-        // send text first (if any), then each file with 2-second gaps
-        if (body.trim()) {
-          await api.post('/whatsapp/send', { leadId, message: body, phone: waPhone || undefined });
-        }
-        for (let i = 0; i < attachments.length; i++) {
-          if (i > 0) await new Promise(r => setTimeout(r, 2000));
-          const att = attachments[i];
-          const fd = new FormData();
-          fd.append('leadId', leadId);
-          fd.append('message', '');
-          if (waPhone) fd.append('phone', waPhone);
-          if (att.type === 'local') {
-            fd.append('file', att.file);
-          } else if (att.type === 'drive') {
-            fd.append('driveFileId', att.fileId);
-          } else if (att.type === 'lead_file') {
-            fd.append('leadFileId', att.fileId);
-          }
-          await api.post('/whatsapp/send-file', fd);
-        }
-      }
-      setBody(''); setAttachments([]); setAdding(null);
-      await onAdded();
-    } catch { alert('שגיאה בשליחת הוואטסאפ'); }
-    setSaving(false);
-  }
-
-  async function sendEmail() {
-    if (!emailTo.trim() || !body.trim()) return;
-    setSaving(true);
-    try {
-      const fd = new FormData();
-      fd.append('to', emailTo);
-      fd.append('subject', subject || '(ללא נושא)');
-      fd.append('body', body);
-      const driveIds = [];
-      for (const att of attachments) {
-        if (att.type === 'local') fd.append('files', att.file);
-        else driveIds.push(att.fileId);
-      }
-      if (driveIds.length) fd.append('driveFileIds', JSON.stringify(driveIds));
-      await api.post(`/leads/${leadId}/email/send`, fd);
-      setBody(''); setAttachments([]); setAdding(null);
-      await onAdded();
-    } catch (err) { alert(err.response?.data?.error || 'שגיאה בשליחת המייל'); }
-    setSaving(false);
-  }
-
   return (
     <div className="space-y-3">
-      <input ref={fileRef} type="file" multiple className="hidden" onChange={e => { Array.from(e.target.files).forEach(f => setAttachments(a => [...a, { type: 'local', file: f }])); e.target.value = ''; }} />
       {/* Quick-log buttons */}
       <div className="flex flex-wrap gap-1.5">
         {LOG_TYPES.map(btn => (
@@ -2963,18 +2876,6 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, allPhon
             {btn.label}
           </button>
         ))}
-        <button onClick={() => openAdding('wa_send')}
-          className={`text-sm font-bold px-3 py-1.5 rounded-xl border-2 transition ${
-            adding === 'wa_send' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-slate-600 border-slate-200 hover:border-green-300'
-          }`}>
-          📱 שלח וואטסאפ
-        </button>
-        <button onClick={() => openAdding('email_send')}
-          className={`text-sm font-bold px-3 py-1.5 rounded-xl border-2 transition ${
-            adding === 'email_send' ? 'bg-sky-600 text-white border-sky-600' : 'bg-white text-slate-600 border-slate-200 hover:border-sky-300'
-          }`}>
-          ✉️ שלח אימייל
-        </button>
       </div>
 
       {/* Log interaction form */}
@@ -3001,155 +2902,6 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, allPhon
             </button>
           </div>
         </div>
-      )}
-
-      {/* WhatsApp send form */}
-      {adding === 'wa_send' && (
-        <div className="bg-white border border-green-100 rounded-xl p-3 space-y-2">
-          {allPhones.length > 1 ? (
-            <select value={waPhone} onChange={e => setWaPhone(e.target.value)}
-              className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-green-400 text-right" dir="ltr">
-              {allPhones.map(p => <option key={p} value={p}>{allPhoneLabels[p] ? `${allPhoneLabels[p]} (${p})` : p}</option>)}
-            </select>
-          ) : (
-            <p className="text-sm text-slate-500 font-semibold text-right">שלח ל: {phone || '(אין מספר)'}</p>
-          )}
-          <textarea autoFocus value={body} onChange={e => setBody(e.target.value)}
-            className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-green-400 resize-none"
-            rows={3} placeholder="הודעה..." />
-          <AiButtons onAction={aiAction} aiLoading={aiLoading} hasBody={!!body.trim()} />
-          <div className="flex gap-2">
-            <div
-              onDragOver={e => { e.preventDefault(); setDraggingWA(true); }}
-              onDragEnter={e => { e.preventDefault(); setDraggingWA(true); }}
-              onDragLeave={() => setDraggingWA(false)}
-              onDrop={e => { e.preventDefault(); setDraggingWA(false); Array.from(e.dataTransfer.files).forEach(f => setAttachments(a => [...a, { type: 'local', file: f }])); }}
-              onClick={() => fileRef.current.click()}
-              className={`flex-1 border-2 border-dashed rounded-xl py-2 text-sm font-semibold text-center cursor-pointer transition ${
-                draggingWA ? 'border-green-400 bg-green-50 text-green-600' : 'border-slate-200 text-slate-400 hover:border-green-300 hover:text-green-600'
-              }`}>
-              {draggingWA ? 'שחרר להוספה' : '+ מהמחשב / גרור לכאן'}
-            </div>
-            <button onClick={() => setDrivePickerFor('wa')}
-              className="flex-1 border-2 border-dashed rounded-xl py-2 text-sm font-semibold text-center transition border-slate-200 text-slate-400 hover:border-green-300 hover:text-green-600">
-              מ-Google Drive
-            </button>
-            {leadFiles.length > 0 && (
-              <button onClick={() => setShowLeadFiles(v => !v)}
-                className={`flex-1 border-2 border-dashed rounded-xl py-2 text-sm font-semibold text-center transition ${
-                  showLeadFiles ? 'border-green-400 bg-green-50 text-green-600' : 'border-slate-200 text-slate-400 hover:border-green-300 hover:text-green-600'
-                }`}>
-                מקבצים שנשלחו
-              </button>
-            )}
-          </div>
-          {showLeadFiles && (
-            <div className="border-2 border-slate-200 rounded-xl p-2 space-y-1 max-h-40 overflow-y-auto">
-              {leadFiles.map(f => (
-                <button key={f.id}
-                  onClick={() => { setAttachments(a => [...a, { type: 'lead_file', fileId: f.id, filename: f.filename }]); setShowLeadFiles(false); }}
-                  className="w-full text-right text-sm text-slate-700 hover:bg-slate-50 px-2 py-1 rounded-lg truncate block">
-                  {f.filename}
-                </button>
-              ))}
-            </div>
-          )}
-          {attachments.length > 0 && (
-            <div className="space-y-1">
-              {attachments.map((att, i) => (
-                <div key={i} className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-2.5 py-1.5 text-xs">
-                  <span className="truncate text-green-800">📎 {att.type === 'local' ? att.file.name : att.filename ?? att.name}</span>
-                  <button onClick={() => setAttachments(a => a.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 mr-1 shrink-0">&times;</button>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="flex gap-2">
-            <button onClick={() => setAdding(null)} className="flex-1 border-2 border-slate-200 text-slate-500 text-base font-bold py-1.5 rounded-xl">ביטול</button>
-            <button onClick={() => setConfirmWA(true)} disabled={saving || (!body.trim() && !attachments.length) || !waPhone}
-              className="flex-1 bg-green-600 text-white text-base font-bold py-1.5 rounded-xl disabled:opacity-50">
-              {saving ? '...' : 'שלח'}
-            </button>
-          </div>
-        </div>
-      )}
-      {confirmWA && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50" onClick={() => setConfirmWA(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl p-5 w-80 mx-4 text-right space-y-3" onClick={e => e.stopPropagation()}>
-            <p className="font-bold text-slate-800 text-base">האם אתה בטוח שאתה רוצה לשלוח את הודעת הוואטסאפ?</p>
-            <div className="flex gap-2">
-              <button onClick={() => setConfirmWA(false)}
-                className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl">לא</button>
-              <button onClick={() => { setConfirmWA(false); sendWA(); }}
-                className="flex-1 bg-green-600 text-white font-bold py-2 rounded-xl">כן, שלח</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Email send form */}
-      {adding === 'email_send' && (
-        <div className="bg-white border border-sky-100 rounded-xl p-3 space-y-2">
-          {allEmails.length > 1 ? (
-            <select value={emailTo} onChange={e => setEmailTo(e.target.value)}
-              className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400" dir="ltr">
-              {allEmails.map(e => <option key={e} value={e}>{e}</option>)}
-            </select>
-          ) : (
-            <input value={emailTo} onChange={e => setEmailTo(e.target.value)}
-              className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-sky-400"
-              placeholder="אימייל נמען..." dir="ltr" />
-          )}
-          <input value={subject} onChange={e => setSubject(e.target.value)}
-            className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-sky-400"
-            placeholder="נושא..." />
-          <textarea autoFocus value={body} onChange={e => setBody(e.target.value)}
-            className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-sky-400 resize-none"
-            rows={4} placeholder="תוכן ההודעה..." />
-          <AiButtons onAction={aiAction} aiLoading={aiLoading} hasBody={!!body.trim()} />
-          <div className="flex gap-2">
-            <div
-              onDragOver={e => { e.preventDefault(); setDraggingEmail(true); }}
-              onDragEnter={e => { e.preventDefault(); setDraggingEmail(true); }}
-              onDragLeave={() => setDraggingEmail(false)}
-              onDrop={e => { e.preventDefault(); setDraggingEmail(false); Array.from(e.dataTransfer.files).forEach(f => setAttachments(a => [...a, { type: 'local', file: f }])); }}
-              onClick={() => fileRef.current.click()}
-              className={`flex-1 border-2 border-dashed rounded-xl py-2 text-sm font-semibold text-center cursor-pointer transition ${
-                draggingEmail ? 'border-sky-400 bg-sky-50 text-sky-600' : 'border-slate-200 text-slate-400 hover:border-sky-300 hover:text-sky-600'
-              }`}>
-              {draggingEmail ? 'שחרר להוספה' : '+ מהמחשב / גרור לכאן'}
-            </div>
-            <button onClick={() => setDrivePickerFor('email')}
-              className="flex-1 border-2 border-dashed rounded-xl py-2 text-sm font-semibold text-center transition border-slate-200 text-slate-400 hover:border-sky-300 hover:text-sky-600">
-              מ-Google Drive
-            </button>
-          </div>
-          {attachments.length > 0 && (
-            <div className="space-y-1">
-              {attachments.map((att, i) => (
-                <div key={i} className="flex items-center justify-between bg-sky-50 border border-sky-200 rounded-lg px-2.5 py-1.5 text-xs">
-                  <span className="truncate text-sky-800">📎 {att.type === 'local' ? att.file.name : att.name}</span>
-                  <button onClick={() => setAttachments(a => a.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 mr-1 shrink-0">&times;</button>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="flex gap-2">
-            <button onClick={() => setAdding(null)} className="flex-1 border-2 border-slate-200 text-slate-500 text-base font-bold py-1.5 rounded-xl">ביטול</button>
-            <button onClick={sendEmail} disabled={saving || !emailTo.trim() || !body.trim()}
-              className="flex-1 bg-sky-600 text-white text-base font-bold py-1.5 rounded-xl disabled:opacity-50">
-              {saving ? '...' : 'שלח'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Drive file picker */}
-      {drivePickerFor && (
-        <DriveFilePicker
-          onSelect={files => setAttachments(a => [...a, ...files])}
-          onClose={() => setDrivePickerFor(null)}
-        />
       )}
 
       {/* Feed */}
@@ -3377,27 +3129,105 @@ function TasksTab({ leadId, tasks, users, onUpdated, completeTask, onTaskAction,
 }
 
 /* ── WHATSAPP TAB ── */
-function WhatsAppTab({ leadId, allPhones, allPhoneLabels = {}, messages, onSent }) {
-  const [msg, setMsg]           = useState('');
-  const [sending, setSending]   = useState(false);
-  const [waPhone, setWaPhone]   = useState(allPhones[0] || '');
+function WhatsAppTab({ leadId, allPhones, allPhoneLabels = {}, allEmails = [], leadFiles = [], messages, onSent }) {
+  const [adding, setAdding]           = useState(null); // null | 'wa_send' | 'email_send'
+  const [body, setBody]               = useState('');
+  const [attachments, setAttachments] = useState([]);
+  const [drivePickerFor, setDrivePickerFor] = useState(null);
+  const [waPhone, setWaPhone]         = useState(allPhones[0] || '');
+  const [emailTo, setEmailTo]         = useState(allEmails[0] || '');
+  const [subject, setSubject]         = useState('');
+  const [saving, setSaving]           = useState(false);
+  const [confirmWA, setConfirmWA]     = useState(false);
+  const [draggingWA, setDraggingWA]   = useState(false);
+  const [draggingEmail, setDraggingEmail] = useState(false);
+  const [showLeadFiles, setShowLeadFiles] = useState(false);
+  const [aiLoading, setAiLoading]     = useState(null);
+  const fileRef = useRef();
   const phone = allPhones[0] || null;
 
-  async function send() {
-    if (!msg.trim() || !waPhone) return;
-    setSending(true);
+  async function aiAction(action) {
+    setAiLoading(action);
     try {
-      await api.post('/whatsapp/send', { leadId, message: msg, phone: waPhone });
-      setMsg('');
+      if (action === 'translate') {
+        const { data } = await api.post('/ai/translate', { text: body, to: 'en' });
+        setBody(data.result);
+      } else if (action === 'reply') {
+        const { data } = await api.post('/ai/reply', { leadId });
+        setBody(data.result);
+      } else if (action === 'improve') {
+        const { data } = await api.post('/ai/improve', { text: body });
+        setBody(data.result);
+      }
+    } catch { alert('שגיאה בבקשת ה-AI'); }
+    setAiLoading(null);
+  }
+
+  function openAdding(type) {
+    setAdding(adding === type ? null : type);
+    setBody(''); setAttachments([]);
+    setWaPhone(allPhones[0] || '');
+    setEmailTo(allEmails[0] || ''); setSubject('');
+  }
+
+  async function sendWA() {
+    if (!body.trim() && !attachments.length) return;
+    setSaving(true);
+    try {
+      if (!attachments.length) {
+        await api.post('/whatsapp/send', { leadId, message: body, phone: waPhone || undefined });
+      } else {
+        if (body.trim()) {
+          await api.post('/whatsapp/send', { leadId, message: body, phone: waPhone || undefined });
+        }
+        for (let i = 0; i < attachments.length; i++) {
+          if (i > 0) await new Promise(r => setTimeout(r, 2000));
+          const att = attachments[i];
+          const fd = new FormData();
+          fd.append('leadId', leadId);
+          fd.append('message', '');
+          if (waPhone) fd.append('phone', waPhone);
+          if (att.type === 'local') fd.append('file', att.file);
+          else if (att.type === 'drive') fd.append('driveFileId', att.fileId);
+          else if (att.type === 'lead_file') fd.append('leadFileId', att.fileId);
+          await api.post('/whatsapp/send-file', fd);
+        }
+      }
+      setBody(''); setAttachments([]); setAdding(null);
       await onSent();
-    } catch { alert('שגיאה בשליחת ההודעה'); }
-    setSending(false);
+    } catch { alert('שגיאה בשליחת הוואטסאפ'); }
+    setSaving(false);
+  }
+
+  async function sendEmail() {
+    if (!emailTo.trim() || !body.trim()) return;
+    setSaving(true);
+    try {
+      const fd = new FormData();
+      fd.append('to', emailTo);
+      fd.append('subject', subject || '(ללא נושא)');
+      fd.append('body', body);
+      const driveIds = [];
+      for (const att of attachments) {
+        if (att.type === 'local') fd.append('files', att.file);
+        else driveIds.push(att.fileId);
+      }
+      if (driveIds.length) fd.append('driveFileIds', JSON.stringify(driveIds));
+      await api.post(`/leads/${leadId}/email/send`, fd);
+      setBody(''); setAttachments([]); setAdding(null);
+      await onSent();
+    } catch (err) { alert(err.response?.data?.error || 'שגיאה בשליחת המייל'); }
+    setSaving(false);
   }
 
   const waMessages = messages.filter(m => m.channel === 'whatsapp');
 
   return (
     <div className="flex flex-col h-full">
+      <input ref={fileRef} type="file" multiple className="hidden"
+        onChange={e => { Array.from(e.target.files).forEach(f => setAttachments(a => [...a, { type: 'local', file: f }])); e.target.value = ''; }} />
+
+      {/* Message history */}
       <div className="flex-1 overflow-y-auto p-4 space-y-2 max-w-2xl mx-auto w-full">
         {waMessages.length === 0
           ? <div className="text-center py-12 text-slate-400 text-base">אין הודעות וואטסאפ</div>
@@ -3417,34 +3247,171 @@ function WhatsAppTab({ leadId, allPhones, allPhoneLabels = {}, messages, onSent 
             </div>
           ))}
       </div>
-      <div className="border-t border-slate-100 p-3 max-w-2xl mx-auto w-full space-y-2">
-        {phone ? (
-          <>
-            {allPhones.length > 1 && (
+
+      {/* Send area */}
+      <div className="border-t border-slate-100 p-3 max-w-2xl mx-auto w-full space-y-3">
+        {!adding && (
+          <div className="flex gap-2">
+            <button onClick={() => openAdding('wa_send')} disabled={!phone}
+              className="flex-1 bg-green-600 text-white font-bold py-2 rounded-xl text-sm disabled:opacity-40">
+              שלח וואטסאפ
+            </button>
+            <button onClick={() => openAdding('email_send')}
+              className="flex-1 bg-sky-600 text-white font-bold py-2 rounded-xl text-sm">
+              שלח אימייל
+            </button>
+          </div>
+        )}
+
+        {/* WA form */}
+        {adding === 'wa_send' && (
+          <div className="bg-white border border-green-100 rounded-xl p-3 space-y-2">
+            {allPhones.length > 1 ? (
               <select value={waPhone} onChange={e => setWaPhone(e.target.value)}
-                className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-green-400" dir="ltr">
-                {allPhones.map(p => (
-                  <option key={p} value={p}>
-                    {allPhoneLabels[p] ? `${allPhoneLabels[p]} (${p})` : p}
-                  </option>
-                ))}
+                className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-green-400 text-right" dir="ltr">
+                {allPhones.map(p => <option key={p} value={p}>{allPhoneLabels[p] ? `${allPhoneLabels[p]} (${p})` : p}</option>)}
               </select>
+            ) : (
+              <p className="text-sm text-slate-500 font-semibold text-right">שלח ל: {phone || '(אין מספר)'}</p>
+            )}
+            <textarea autoFocus value={body} onChange={e => setBody(e.target.value)}
+              className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-green-400 resize-none"
+              rows={3} placeholder="הודעה..." />
+            <AiButtons onAction={aiAction} aiLoading={aiLoading} hasBody={!!body.trim()} />
+            <div className="flex gap-2">
+              <div
+                onDragOver={e => { e.preventDefault(); setDraggingWA(true); }}
+                onDragEnter={e => { e.preventDefault(); setDraggingWA(true); }}
+                onDragLeave={() => setDraggingWA(false)}
+                onDrop={e => { e.preventDefault(); setDraggingWA(false); Array.from(e.dataTransfer.files).forEach(f => setAttachments(a => [...a, { type: 'local', file: f }])); }}
+                onClick={() => fileRef.current.click()}
+                className={`flex-1 border-2 border-dashed rounded-xl py-2 text-sm font-semibold text-center cursor-pointer transition ${
+                  draggingWA ? 'border-green-400 bg-green-50 text-green-600' : 'border-slate-200 text-slate-400 hover:border-green-300 hover:text-green-600'
+                }`}>
+                {draggingWA ? 'שחרר להוספה' : '+ מהמחשב / גרור לכאן'}
+              </div>
+              <button onClick={() => setDrivePickerFor('wa')}
+                className="flex-1 border-2 border-dashed rounded-xl py-2 text-sm font-semibold text-center transition border-slate-200 text-slate-400 hover:border-green-300 hover:text-green-600">
+                מ-Google Drive
+              </button>
+              {leadFiles.length > 0 && (
+                <button onClick={() => setShowLeadFiles(v => !v)}
+                  className={`flex-1 border-2 border-dashed rounded-xl py-2 text-sm font-semibold text-center transition ${
+                    showLeadFiles ? 'border-green-400 bg-green-50 text-green-600' : 'border-slate-200 text-slate-400 hover:border-green-300 hover:text-green-600'
+                  }`}>
+                  מקבצים שנשלחו
+                </button>
+              )}
+            </div>
+            {showLeadFiles && (
+              <div className="border-2 border-slate-200 rounded-xl p-2 space-y-1 max-h-40 overflow-y-auto">
+                {leadFiles.map(f => (
+                  <button key={f.id}
+                    onClick={() => { setAttachments(a => [...a, { type: 'lead_file', fileId: f.id, filename: f.filename }]); setShowLeadFiles(false); }}
+                    className="w-full text-right text-sm text-slate-700 hover:bg-slate-50 px-2 py-1 rounded-lg truncate block">
+                    {f.filename}
+                  </button>
+                ))}
+              </div>
+            )}
+            {attachments.length > 0 && (
+              <div className="space-y-1">
+                {attachments.map((att, i) => (
+                  <div key={i} className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-2.5 py-1.5 text-xs">
+                    <span className="truncate text-green-800">📎 {att.type === 'local' ? att.file.name : att.filename ?? att.name}</span>
+                    <button onClick={() => setAttachments(a => a.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 mr-1 shrink-0">&times;</button>
+                  </div>
+                ))}
+              </div>
             )}
             <div className="flex gap-2">
-              <button onClick={send} disabled={sending || !msg.trim()}
-                className="bg-green-600 text-white text-base font-bold px-4 py-2 rounded-xl disabled:opacity-50 shrink-0">
-                {sending ? '...' : 'שלח'}
+              <button onClick={() => setAdding(null)} className="flex-1 border-2 border-slate-200 text-slate-500 text-base font-bold py-1.5 rounded-xl">ביטול</button>
+              <button onClick={() => setConfirmWA(true)} disabled={saving || (!body.trim() && !attachments.length) || !waPhone}
+                className="flex-1 bg-green-600 text-white text-base font-bold py-1.5 rounded-xl disabled:opacity-50">
+                {saving ? '...' : 'שלח'}
               </button>
-              <input value={msg} onChange={e => setMsg(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
-                className="flex-1 border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-violet-400"
-                placeholder="הודעה..." />
             </div>
-          </>
-        ) : (
-          <p className="text-center text-base text-slate-400">אין מספר טלפון</p>
+          </div>
+        )}
+
+        {/* Email form */}
+        {adding === 'email_send' && (
+          <div className="bg-white border border-sky-100 rounded-xl p-3 space-y-2">
+            {allEmails.length > 1 ? (
+              <select value={emailTo} onChange={e => setEmailTo(e.target.value)}
+                className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400" dir="ltr">
+                {allEmails.map(e => <option key={e} value={e}>{e}</option>)}
+              </select>
+            ) : (
+              <input value={emailTo} onChange={e => setEmailTo(e.target.value)}
+                className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-sky-400"
+                placeholder="אימייל נמען..." dir="ltr" />
+            )}
+            <input value={subject} onChange={e => setSubject(e.target.value)}
+              className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-sky-400"
+              placeholder="נושא..." />
+            <textarea autoFocus value={body} onChange={e => setBody(e.target.value)}
+              className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-sky-400 resize-none"
+              rows={4} placeholder="תוכן ההודעה..." />
+            <AiButtons onAction={aiAction} aiLoading={aiLoading} hasBody={!!body.trim()} />
+            <div className="flex gap-2">
+              <div
+                onDragOver={e => { e.preventDefault(); setDraggingEmail(true); }}
+                onDragEnter={e => { e.preventDefault(); setDraggingEmail(true); }}
+                onDragLeave={() => setDraggingEmail(false)}
+                onDrop={e => { e.preventDefault(); setDraggingEmail(false); Array.from(e.dataTransfer.files).forEach(f => setAttachments(a => [...a, { type: 'local', file: f }])); }}
+                onClick={() => fileRef.current.click()}
+                className={`flex-1 border-2 border-dashed rounded-xl py-2 text-sm font-semibold text-center cursor-pointer transition ${
+                  draggingEmail ? 'border-sky-400 bg-sky-50 text-sky-600' : 'border-slate-200 text-slate-400 hover:border-sky-300 hover:text-sky-600'
+                }`}>
+                {draggingEmail ? 'שחרר להוספה' : '+ מהמחשב / גרור לכאן'}
+              </div>
+              <button onClick={() => setDrivePickerFor('email')}
+                className="flex-1 border-2 border-dashed rounded-xl py-2 text-sm font-semibold text-center transition border-slate-200 text-slate-400 hover:border-sky-300 hover:text-sky-600">
+                מ-Google Drive
+              </button>
+            </div>
+            {attachments.length > 0 && (
+              <div className="space-y-1">
+                {attachments.map((att, i) => (
+                  <div key={i} className="flex items-center justify-between bg-sky-50 border border-sky-200 rounded-lg px-2.5 py-1.5 text-xs">
+                    <span className="truncate text-sky-800">📎 {att.type === 'local' ? att.file.name : att.name}</span>
+                    <button onClick={() => setAttachments(a => a.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 mr-1 shrink-0">&times;</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button onClick={() => setAdding(null)} className="flex-1 border-2 border-slate-200 text-slate-500 text-base font-bold py-1.5 rounded-xl">ביטול</button>
+              <button onClick={sendEmail} disabled={saving || !emailTo.trim() || !body.trim()}
+                className="flex-1 bg-sky-600 text-white text-base font-bold py-1.5 rounded-xl disabled:opacity-50">
+                {saving ? '...' : 'שלח'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {drivePickerFor && (
+          <DriveFilePicker
+            onSelect={files => setAttachments(a => [...a, ...files])}
+            onClose={() => setDrivePickerFor(null)}
+          />
         )}
       </div>
+
+      {confirmWA && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50" onClick={() => setConfirmWA(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-5 w-80 mx-4 text-right space-y-3" onClick={e => e.stopPropagation()}>
+            <p className="font-bold text-slate-800 text-base">האם אתה בטוח שאתה רוצה לשלוח את הודעת הוואטסאפ?</p>
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmWA(false)}
+                className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl">לא</button>
+              <button onClick={() => { setConfirmWA(false); sendWA(); }}
+                className="flex-1 bg-green-600 text-white font-bold py-2 rounded-xl">כן, שלח</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
