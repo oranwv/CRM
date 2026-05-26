@@ -712,7 +712,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
 
         {/* ── WHATSAPP TAB ── */}
         {activeTab === 'whatsapp' && (
-          <WhatsAppTab leadId={leadId} allPhones={allPhones} allPhoneLabels={allPhoneLabels} allEmails={allEmails} leadFiles={leadFiles} messages={messages} onSent={load} />
+          <WhatsAppTab leadId={leadId} allPhones={allPhones} allPhoneLabels={allPhoneLabels} allEmails={allEmails} leadFiles={files} messages={messages} onSent={load} />
         )}
       </div>
 
@@ -3129,7 +3129,7 @@ function TasksTab({ leadId, tasks, users, onUpdated, completeTask, onTaskAction,
 }
 
 /* ── WHATSAPP TAB ── */
-function WhatsAppTab({ leadId, allPhones, allPhoneLabels = {}, allEmails = [], leadFiles = [], messages, onSent }) {
+function WhatsAppTab({ leadId, allPhones, allPhoneLabels = {}, allEmails = [], leadFiles = [], messages = [], onSent }) {
   const [adding, setAdding]           = useState(null); // null | 'wa_send' | 'email_send'
   const [body, setBody]               = useState('');
   const [attachments, setAttachments] = useState([]);
