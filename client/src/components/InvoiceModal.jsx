@@ -25,7 +25,7 @@ const VAT_OPTIONS = [
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
-export default function InvoiceModal({ lead, onClose, onCreated }) {
+export default function InvoiceModal({ lead, allPhones, allPhoneLabels, onClose, onCreated }) {
   const [docType,       setDocType]       = useState(300);
   const [paymentMethod, setPaymentMethod] = useState(4);
   const [items,         setItems]         = useState([{ description: 'שירותי הפקת אירוע', quantity: 1, price: '', vatType: 1 }]);
@@ -34,6 +34,7 @@ export default function InvoiceModal({ lead, onClose, onCreated }) {
   const [sendByEmail,   setSendByEmail]   = useState(false);
   const [sendByWa,      setSendByWa]      = useState(false);
   const [waMessage,     setWaMessage]     = useState('');
+  const [waPhone,       setWaPhone]       = useState(allPhones?.[0] || lead?.phone || '');
   const [submitting,    setSubmitting]    = useState(false);
   const [error,         setError]         = useState(null);
   const [created,       setCreated]       = useState(null);
@@ -68,6 +69,7 @@ export default function InvoiceModal({ lead, onClose, onCreated }) {
         sendByEmail,
         sendByWhatsApp:  sendByWa,
         whatsappMessage: waMessage,
+        whatsappPhone:   sendByWa ? waPhone : undefined,
       });
       setCreated(data);
       onCreated();
@@ -251,6 +253,18 @@ export default function InvoiceModal({ lead, onClose, onCreated }) {
                       שלח בווטסאפ{!lead.phone && ' (אין טלפון בתיק)'}
                     </span>
                   </label>
+                  {sendByWa && allPhones?.length > 1 && (
+                    <div className="mt-2 space-y-1">
+                      <label className="text-xs font-bold text-slate-500 block">שלח לנייד:</label>
+                      {allPhones.map(p => (
+                        <label key={p} className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
+                          <input type="radio" name="invoiceWaPhone" value={p}
+                            checked={waPhone === p} onChange={() => setWaPhone(p)} />
+                          {allPhoneLabels?.[p] ? `${allPhoneLabels[p]} (${p})` : p}
+                        </label>
+                      ))}
+                    </div>
+                  )}
                   {sendByWa && (
                     <textarea value={waMessage} onChange={e => setWaMessage(e.target.value)}
                       placeholder="הודעה (קישור למסמך יצורף אוטומטית)"

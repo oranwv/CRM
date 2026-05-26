@@ -775,6 +775,8 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
         <ScheduleMeetingModal
           lead={lead}
           leadId={leadId}
+          allPhones={allPhones}
+          allPhoneLabels={allPhoneLabels}
           onClose={() => setShowMeetingModal(false)}
           onDone={() => { setShowMeetingModal(false); load(); onUpdated(); }}
         />
@@ -784,6 +786,8 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
         <PriceOfferModal
           lead={lead}
           allEmails={allEmails}
+          allPhones={allPhones}
+          allPhoneLabels={allPhoneLabels}
           onClose={() => setShowPriceOffer(false)}
           onSaved={() => { setShowPriceOffer(false); load(); }}
         />
@@ -793,6 +797,8 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
         <ContractModal
           lead={lead}
           allEmails={allEmails}
+          allPhones={allPhones}
+          allPhoneLabels={allPhoneLabels}
           onClose={() => setShowContract(false)}
           onSaved={() => { setShowContract(false); load(); }}
         />
@@ -811,6 +817,8 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
       {showInvoice && lead && (
         <InvoiceModal
           lead={lead}
+          allPhones={allPhones}
+          allPhoneLabels={allPhoneLabels}
           onClose={() => setShowInvoice(false)}
           onCreated={() => { load(); api.get(`/greeninvoice/pending?leadId=${leadId}`).then(r => setPendingDocs(r.data)).catch(() => {}); }}
         />
@@ -831,6 +839,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
           lead={lead}
           users={users}
           allPhones={allPhones}
+          allPhoneLabels={allPhoneLabels}
           allEmails={allEmails}
           onClose={() => setTaskAction(null)}
           onDone={() => { setTaskAction(null); load(); onUpdated(); }}
@@ -1055,7 +1064,7 @@ function EditableCell({ value, onChange, multiline, dir: cellDir }) {
 }
 
 
-function ContractModal({ lead, allEmails, onClose, onSaved }) {
+function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, onClose, onSaved }) {
   const fmtNum = n => Number(n || 0).toLocaleString('he-IL');
 
   const FIELD_DEFS = [
@@ -1128,6 +1137,7 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
   const [contractExtraFiles, setContractExtraFiles] = useState([]);
   const [contractSendStep, setContractSendStep] = useState(null); // null | 'wa' | 'email'
   const [contractDrivePicker, setContractDrivePicker] = useState(false);
+  const [waPhone, setWaPhone] = useState(allPhones?.[0] || lead?.phone || '');
   const contractFileRef = useRef(null);
 
   const [contractTexts, setContractTexts] = useState({
@@ -1314,13 +1324,14 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
         if (driveIds.length) fd.append('driveFileIds', JSON.stringify(driveIds));
         await api.post(`/leads/${lead.id}/email/send`, fd);
       } else {
-        await api.post('/whatsapp/send', { leadId: lead.id, message: msg });
+        await api.post('/whatsapp/send', { leadId: lead.id, message: msg, phone: waPhone });
         for (let i = 0; i < contractExtraFiles.length; i++) {
           await new Promise(r => setTimeout(r, 2000));
           const att = contractExtraFiles[i];
           const fd = new FormData();
           fd.append('leadId', lead.id);
           fd.append('message', '');
+          fd.append('phone', waPhone);
           if (att.type === 'local') fd.append('file', att.file);
           else fd.append('driveFileId', att.fileId);
           await api.post('/whatsapp/send-file', fd);
@@ -1745,6 +1756,18 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
             </button>
           ) : contractSendStep ? (
             <div className="space-y-2">
+              {contractSendStep === 'whatsapp' && allPhones?.length > 1 && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 block">שלח לנייד:</label>
+                  {allPhones.map(p => (
+                    <label key={p} className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
+                      <input type="radio" name="contractWaPhone" value={p}
+                        checked={waPhone === p} onChange={() => setWaPhone(p)} />
+                      {allPhoneLabels?.[p] ? `${allPhoneLabels[p]} (${p})` : p}
+                    </label>
+                  ))}
+                </div>
+              )}
               <p className="text-sm font-bold text-slate-700">קבצים נוספים (אופציונלי)</p>
               <input ref={contractFileRef} type="file" className="hidden" onChange={e => { const f = e.target.files[0]; if (f) { setContractExtraFiles(a => [...a, { type: 'local', file: f }]); e.target.value = ''; } }} />
               <div className="flex gap-2">
@@ -1817,7 +1840,7 @@ function ContractModal({ lead, allEmails, onClose, onSaved }) {
   );
 }
 
-function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
+function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, onClose, onSaved }) {
   const FIELD_STEPS = 10;
   const FIELD_DEFS = [
     { key: 'name',      label: 'לכבוד',                type: 'text' },
@@ -1873,6 +1896,7 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
   const [offerExtraFiles, setOfferExtraFiles] = useState([]);
   const [showWaExtraFiles, setShowWaExtraFiles] = useState(false);
   const [offerDrivePicker, setOfferDrivePicker] = useState(null); // 'wa' | 'email' | null
+  const [waPhone, setWaPhone] = useState(allPhones?.[0] || lead?.phone || '');
   const offerFileRef = useRef(null);
   const previewRef = useRef(null);
   const [texts, setTexts] = useState({
@@ -2041,6 +2065,7 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
       fd1.append('leadId', lead.id);
       fd1.append('file', blob, `הצעת מחיר - ${fields.name}.pdf`);
       fd1.append('message', 'הצעת המחיר שלנו עבור האירוע שלך');
+      fd1.append('phone', waPhone);
       await api.post('/whatsapp/send-file', fd1);
       // send extra files with 2-second delay each
       for (let i = 0; i < offerExtraFiles.length; i++) {
@@ -2049,6 +2074,7 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
         const fd = new FormData();
         fd.append('leadId', lead.id);
         fd.append('message', '');
+        fd.append('phone', waPhone);
         if (att.type === 'local') fd.append('file', att.file);
         else fd.append('driveFileId', att.fileId);
         await api.post('/whatsapp/send-file', fd);
@@ -2685,6 +2711,18 @@ function PriceOfferModal({ lead, allEmails, onClose, onSaved }) {
           <div className="border-t border-slate-100 p-4 space-y-2 shrink-0">
             {showWaExtraFiles ? (
               <div className="space-y-2">
+                {allPhones?.length > 1 && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-500 block">שלח לנייד:</label>
+                    {allPhones.map(p => (
+                      <label key={p} className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
+                        <input type="radio" name="offerWaPhone" value={p}
+                          checked={waPhone === p} onChange={() => setWaPhone(p)} />
+                        {allPhoneLabels?.[p] ? `${allPhoneLabels[p]} (${p})` : p}
+                      </label>
+                    ))}
+                  </div>
+                )}
                 <p className="text-sm font-bold text-slate-700">קבצים נוספים לשליחה בוואטסאפ (אופציונלי)</p>
                 <input ref={offerFileRef} type="file" className="hidden" onChange={e => { const f = e.target.files[0]; if (f) { setOfferExtraFiles(a => [...a, { type: 'local', file: f }]); e.target.value = ''; } }} />
                 <div className="flex gap-2">
@@ -3715,6 +3753,8 @@ function CalendarSection({ lead, leadId, editForm, calStatus, onUpdated }) {
           leadId={leadId}
           eventId={lead.meeting_event_id}
           meeting={meeting}
+          allPhones={allPhones}
+          allPhoneLabels={allPhoneLabels}
           onClose={() => setShowMeetingAction(false)}
           onUpdated={async () => { setShowMeetingAction(false); await onUpdated(); }}
         />
@@ -3798,7 +3838,7 @@ function AddTaskModal({ leadId, users, onClose, onSaved }) {
 }
 
 /* ── TASK ACTION MODAL ── */
-function TaskActionModal({ task, leadId, lead, users, allPhones, allEmails, onClose, onDone, completeTask }) {
+function TaskActionModal({ task, leadId, lead, users, allPhones, allPhoneLabels, allEmails, onClose, onDone, completeTask }) {
   const [mode, setMode]           = useState(null); // null|'done'|'reschedule'|'followup'
   const [outcomeType, setOutcomeType] = useState(null); // null|'call'|'meeting'|'note'|'wa_send'|'email_send'
   const [body, setBody]           = useState('');
@@ -3949,10 +3989,16 @@ function TaskActionModal({ task, leadId, lead, users, allPhones, allEmails, onCl
         {mode === 'done' && outcomeType === 'wa_send' && (
           <div className="space-y-2">
             {allPhones && allPhones.length > 1 ? (
-              <select value={waPhone} onChange={e => setWaPhone(e.target.value)}
-                className={`${cls} text-sm`} dir="ltr">
-                {allPhones.map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-500 block">שלח לנייד:</label>
+                {allPhones.map(p => (
+                  <label key={p} className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
+                    <input type="radio" name="taskWaPhone" value={p}
+                      checked={waPhone === p} onChange={() => setWaPhone(p)} />
+                    {allPhoneLabels?.[p] ? `${allPhoneLabels[p]} (${p})` : p}
+                  </label>
+                ))}
+              </div>
             ) : (
               <p className="text-sm text-slate-500 font-semibold text-right">שלח ל: {lead?.phone || '(אין מספר)'}</p>
             )}
@@ -4069,13 +4115,14 @@ function AiButtons({ onAction, aiLoading, hasBody }) {
 }
 
 /* ── MEETING ACTION MODAL (cancel / postpone) ── */
-function MeetingActionModal({ lead, leadId, eventId, meeting, onClose, onUpdated }) {
+function MeetingActionModal({ lead, leadId, eventId, meeting, allPhones, allPhoneLabels, onClose, onUpdated }) {
   const [step, setStep] = useState(1); // 1=choose, 2=cancel, 3=postpone
   const [reason, setReason] = useState('');
   const [date, setDate] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [delivery, setDelivery] = useState(lead?.phone ? 'whatsapp' : 'email');
+  const [waPhone, setWaPhone] = useState(allPhones?.[0] || lead?.phone || '');
   const [saving, setSaving] = useState(false);
   const cls = 'w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-violet-400 bg-white';
 
@@ -4114,6 +4161,7 @@ function MeetingActionModal({ lead, leadId, eventId, meeting, onClose, onUpdated
       if (delivery === 'whatsapp') {
         await api.post('/whatsapp/send', {
           leadId,
+          phone: waPhone,
           message: `שלום! הפגישה שלך נדחתה לתאריך ${fmtDate} בשעה ${startTime}–${endTime}.\nהנה הקישור המעודכן:\n${icsUrl}`,
         });
         if (lead?.email) await api.post(`/calendar/meetings/${eventId}/notify`);
@@ -4210,6 +4258,18 @@ function MeetingActionModal({ lead, leadId, eventId, meeting, onClose, onUpdated
                 )}
               </div>
             </div>
+            {delivery === 'whatsapp' && allPhones?.length > 1 && (
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-500 block">שלח לנייד:</label>
+                {allPhones.map(p => (
+                  <label key={p} className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
+                    <input type="radio" name="meetingWaPhone" value={p}
+                      checked={waPhone === p} onChange={() => setWaPhone(p)} />
+                    {allPhoneLabels?.[p] ? `${allPhoneLabels[p]} (${p})` : p}
+                  </label>
+                ))}
+              </div>
+            )}
             <div className="flex gap-2 pt-1">
               <button onClick={() => setStep(1)} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl">חזור</button>
               <button onClick={confirmPostpone} disabled={saving || !date || !startTime || !endTime}
@@ -4226,7 +4286,7 @@ function MeetingActionModal({ lead, leadId, eventId, meeting, onClose, onUpdated
 }
 
 /* ── SCHEDULE MEETING MODAL ── */
-function ScheduleMeetingModal({ lead, leadId, onClose, onDone }) {
+function ScheduleMeetingModal({ lead, leadId, allPhones, allPhoneLabels, onClose, onDone }) {
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const tomorrowStr = tomorrow.toLocaleDateString('sv', { timeZone: 'Asia/Jerusalem' }); // yyyy-mm-dd
@@ -4236,6 +4296,7 @@ function ScheduleMeetingModal({ lead, leadId, onClose, onDone }) {
   const [startTime, setStart]   = useState('10:00');
   const [endTime, setEnd]       = useState('11:00');
   const [delivery, setDelivery] = useState(lead.phone ? 'whatsapp' : 'email');
+  const [waPhone, setWaPhone]   = useState(allPhones?.[0] || lead?.phone || '');
   const [step, setStep]         = useState(1); // 1=form, 2=done
   const [saving, setSaving]     = useState(false);
   const [result, setResult]     = useState(null); // { eventId, eventLink }
@@ -4264,6 +4325,7 @@ function ScheduleMeetingModal({ lead, leadId, onClose, onDone }) {
       if (delivery === 'whatsapp') {
         await api.post('/whatsapp/send', {
           leadId,
+          phone: waPhone,
           message: `שלום! קישור לפגישה שנקבעה לך ל-${new Date(`${date}T${startTime}`).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' })} בשעה ${startTime} בשרביה:\n${data.icsUrl}`,
         });
         if (guestEmail) await api.post(`/calendar/meetings/${data.eventId}/notify`);
@@ -4341,6 +4403,18 @@ function ScheduleMeetingModal({ lead, leadId, onClose, onDone }) {
                 <p className="text-sm text-red-400 text-right mt-1">אין מספר טלפון או אימייל</p>
               )}
             </div>
+            {delivery === 'whatsapp' && allPhones?.length > 1 && (
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-500 block">שלח לנייד:</label>
+                {allPhones.map(p => (
+                  <label key={p} className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
+                    <input type="radio" name="schedWaPhone" value={p}
+                      checked={waPhone === p} onChange={() => setWaPhone(p)} />
+                    {allPhoneLabels?.[p] ? `${allPhoneLabels[p]} (${p})` : p}
+                  </label>
+                ))}
+              </div>
+            )}
             <div className="flex gap-2 pt-1">
               <button onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl text-base">ביטול</button>
               <button onClick={submit} disabled={saving || !date || (!lead.phone && !lead.email)}

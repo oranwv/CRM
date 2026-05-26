@@ -169,7 +169,7 @@ async function notifyManagers(lead, docType, creatorName) {
 router.post('/document', async (req, res) => {
   const {
     leadId, type, items, docDate, dueDate, paymentDate,
-    paymentMethod, sendByEmail, sendByWhatsApp, whatsappMessage,
+    paymentMethod, sendByEmail, sendByWhatsApp, whatsappMessage, whatsappPhone,
   } = req.body;
 
   try {
@@ -193,7 +193,7 @@ router.post('/document', async (req, res) => {
 
     if (!isManagerOrAdmin) {
       // Save as pending and notify managers
-      const payload = { type, items, docDate, dueDate, paymentDate, paymentMethod, sendByEmail, sendByWhatsApp, whatsappMessage };
+      const payload = { type, items, docDate, dueDate, paymentDate, paymentMethod, sendByEmail, sendByWhatsApp, whatsappMessage, whatsappPhone };
       await pool.query(
         `INSERT INTO pending_documents (lead_id, created_by, payload) VALUES ($1, $2, $3)`,
         [leadId, req.user.id, JSON.stringify(payload)]
@@ -207,9 +207,9 @@ router.post('/document', async (req, res) => {
     const { docId, docUrl, filename } = await createAndSaveDoc(docPayload, leadId, req.user.id);
 
     // Send via WhatsApp if requested
-    if (sendByWhatsApp && lead.phone) {
+    if (sendByWhatsApp && (whatsappPhone || lead.phone)) {
       try {
-        const phone = normalizePhone(lead.phone);
+        const phone = normalizePhone(whatsappPhone || lead.phone);
         if (phone) {
           const msg   = [whatsappMessage, docUrl].filter(Boolean).join('\n');
           const waUrl = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/sendMessage/${process.env.GREEN_API_TOKEN}`;
@@ -306,9 +306,9 @@ router.post('/pending/:id/approve', managerOnly, async (req, res) => {
     );
 
     // Honour original WhatsApp send preference
-    if (params.sendByWhatsApp && pending.phone) {
+    if (params.sendByWhatsApp && (params.whatsappPhone || pending.phone)) {
       try {
-        const phone = normalizePhone(pending.phone);
+        const phone = normalizePhone(params.whatsappPhone || pending.phone);
         if (phone) {
           const msg   = [params.whatsappMessage, docUrl].filter(Boolean).join('\n');
           const waUrl = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/sendMessage/${process.env.GREEN_API_TOKEN}`;
