@@ -3147,6 +3147,14 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, allPhon
                         </span>
                       );
                     })()}
+                    {item.type === 'whatsapp' && isIn && item.contact_value && allPhones.length > 1 && (() => {
+                      const label = allPhoneLabels[item.contact_value];
+                      return (
+                        <span className="text-xs text-slate-400 font-medium">
+                          {label ? `${label} (${item.contact_value})` : item.contact_value}
+                        </span>
+                      );
+                    })()}
                     {item.id.startsWith('i-') && ['call','meeting','note'].includes(item.type) && (
                       <button
                         onClick={() => { setEditingInteractionId(item.id); setEditInteractionBody(item.body); }}
