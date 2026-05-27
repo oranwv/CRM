@@ -106,7 +106,10 @@ function AppShellNav() {
     : isSuppliers
     ? [{ path: '/suppliers', icon: '🏢', label: 'ספקים' }]
     : isOperations
-    ? [{ path: '/operations', icon: '🔧', label: 'תפעול' }]
+    ? [
+        { path: '/operations', icon: '🔧', label: 'תפעול' },
+        { path: '/calendar',   icon: '📅', label: 'לוח שנה' },
+      ]
     : isProduction
     ? [
         { path: '/events',   icon: '🎉', label: 'אירועים' },

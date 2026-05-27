@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api';
 import ChecklistDetail from '../components/ops/ChecklistDetail';
 
 const PRIORITY_LABEL = { urgent: 'דחוף', high: 'גבוה', normal: 'רגיל', low: 'נמוך' };
 const PRIORITY_COLOR = { urgent: 'bg-red-100 text-red-700', high: 'bg-orange-100 text-orange-700', normal: 'bg-violet-100 text-violet-700', low: 'bg-slate-100 text-slate-500' };
-const STATUS_LABEL   = { open: 'פתוח', in_progress: 'בתהליך', done: 'הושלם' };
 const FAULT_STATUS   = { open: { label: 'פתוחה', color: 'bg-red-100 text-red-700' }, in_progress: { label: 'בטיפול', color: 'bg-amber-100 text-amber-700' }, resolved: { label: 'טופל', color: 'bg-green-100 text-green-700' } };
+const FAULT_NEXT     = { open: 'in_progress', in_progress: 'resolved', resolved: 'open' };
 
 function heDay() {
   const d = new Date();
@@ -20,6 +20,11 @@ function formatDate(d) {
   return `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
 }
 
+function isOverdue(d) {
+  if (!d) return false;
+  return new Date(d) < new Date(new Date().toDateString());
+}
+
 function checklistProgress(checklist) {
   const run = checklist.latest_run;
   if (!run || run.completed_at) return { filled: 0, total: (checklist.items || []).length, done: !!run?.completed_at };
@@ -28,30 +33,41 @@ function checklistProgress(checklist) {
 }
 
 export default function OperationsPage() {
-  const [summary,          setSummary]          = useState({ openTasks: 0, pendingMissing: 0, overdueMaintenace: 0, openFaults: 0 });
-  const [tasks,            setTasks]            = useState([]);
-  const [checklists,       setChecklists]       = useState([]);
-  const [users,            setUsers]            = useState([]);
-  const [activeChecklist,  setActiveChecklist]  = useState(null);
-  const [showFab,          setShowFab]          = useState(false);
-  const [modal,            setModal]            = useState(null); // 'task' | 'checklist' | 'fault' | 'maintenance'
-  const [loading,          setLoading]          = useState(true);
-
-  // Form state
+  const [summary,         setSummary]         = useState({ openTasks: 0, pendingMissing: 0, overdueMaintenace: 0, openFaults: 0 });
+  const [tasks,           setTasks]           = useState([]);
+  const [checklists,      setChecklists]      = useState([]);
+  const [maintenance,     setMaintenance]     = useState([]);
+  const [faults,          setFaults]          = useState([]);
+  const [users,           setUsers]           = useState([]);
+  const [activeChecklist, setActiveChecklist] = useState(null);
+  const [showFab,         setShowFab]         = useState(false);
+  const [modal,           setModal]           = useState(null);
+  const [loading,         setLoading]         = useState(true);
+  const [taskSearch,      setTaskSearch]      = useState('');
+  const [taskAssignee,    setTaskAssignee]    = useState('');
   const [form, setForm] = useState({});
+
+  const tasksRef      = useRef(null);
+  const checklistsRef = useRef(null);
+  const maintenanceRef = useRef(null);
+  const faultsRef     = useRef(null);
 
   const loadAll = useCallback(async () => {
     try {
-      const [sRes, tRes, cRes, uRes] = await Promise.all([
+      const [sRes, tRes, cRes, uRes, mRes, fRes] = await Promise.all([
         api.get('/operations/summary'),
         api.get('/operations/tasks'),
         api.get('/operations/checklists'),
         api.get('/operations/users'),
+        api.get('/operations/maintenance'),
+        api.get('/operations/faults'),
       ]);
       setSummary(sRes.data);
       setTasks(tRes.data);
       setChecklists(cRes.data);
       setUsers(uRes.data);
+      setMaintenance(mRes.data);
+      setFaults(fRes.data);
     } catch {}
     setLoading(false);
   }, []);
@@ -116,7 +132,22 @@ export default function OperationsPage() {
     } catch {}
   }
 
-  // Checklist item helpers for create form
+  async function completeMaintenance(item) {
+    try {
+      await api.put(`/operations/maintenance/${item.id}/complete`);
+      loadAll();
+    } catch {}
+  }
+
+  async function cycleFaultStatus(fault) {
+    const next = FAULT_NEXT[fault.status] || 'open';
+    try {
+      await api.put(`/operations/faults/${fault.id}`, { ...fault, status: next });
+      setFaults(prev => prev.map(f => f.id === fault.id ? { ...f, status: next } : f));
+      if (next === 'resolved') setSummary(prev => ({ ...prev, openFaults: Math.max(0, prev.openFaults - 1) }));
+    } catch {}
+  }
+
   function addChecklistItem() {
     setForm(f => ({ ...f, items: [...(f.items || []), { name: '', unit: '', expected_qty: '' }] }));
   }
@@ -131,9 +162,13 @@ export default function OperationsPage() {
     setForm(f => ({ ...f, items: (f.items || []).filter((_, i) => i !== idx) }));
   }
 
+  function scrollTo(ref) {
+    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   if (activeChecklist) {
     return (
-      <div className="flex flex-col h-full" dir="rtl" style={{ paddingBottom: 0 }}>
+      <div className="flex flex-col h-full" dir="rtl">
         <ChecklistDetail
           checklist={activeChecklist}
           onBack={() => { setActiveChecklist(null); loadAll(); }}
@@ -144,11 +179,17 @@ export default function OperationsPage() {
     );
   }
 
+  const filteredTasks = tasks.filter(t => {
+    const matchSearch   = !taskSearch   || t.title.toLowerCase().includes(taskSearch.toLowerCase());
+    const matchAssignee = !taskAssignee || String(t.assigned_to) === String(taskAssignee);
+    return matchSearch && matchAssignee;
+  });
+
   const statCards = [
-    { label: 'משימות פתוחות',  value: summary.openTasks,        color: 'text-violet-600', bg: 'bg-violet-50',  border: 'border-violet-100' },
-    { label: 'חוסרים ממתינים', value: summary.pendingMissing,   color: 'text-amber-600',  bg: 'bg-amber-50',   border: 'border-amber-100' },
-    { label: 'תחזוקה דחופה',  value: summary.overdueMaintenace, color: 'text-red-600',    bg: 'bg-red-50',     border: 'border-red-100' },
-    { label: 'תקלות פתוחות',  value: summary.openFaults,        color: 'text-slate-600',  bg: 'bg-slate-50',   border: 'border-slate-200' },
+    { label: 'משימות פתוחות',  value: summary.openTasks,         color: 'text-violet-600', bg: 'bg-violet-50',  border: 'border-violet-100', ref: tasksRef },
+    { label: 'חוסרים ממתינים', value: summary.pendingMissing,    color: 'text-amber-600',  bg: 'bg-amber-50',   border: 'border-amber-100',  ref: checklistsRef },
+    { label: 'תחזוקה דחופה',   value: summary.overdueMaintenace, color: 'text-red-600',    bg: 'bg-red-50',     border: 'border-red-100',    ref: maintenanceRef },
+    { label: 'תקלות פתוחות',   value: summary.openFaults,        color: 'text-slate-600',  bg: 'bg-slate-50',   border: 'border-slate-200',  ref: faultsRef },
   ];
 
   return (
@@ -165,32 +206,54 @@ export default function OperationsPage() {
         <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">טוען...</div>
       ) : (
         <div className="flex-1 overflow-auto">
-          {/* Stat cards */}
+          {/* Stat cards — clickable */}
           <div className="grid grid-cols-4 gap-2 px-3 py-3">
             {statCards.map(c => (
-              <div key={c.label} className={`rounded-2xl ${c.bg} border ${c.border} p-2.5 text-center`}>
+              <button
+                key={c.label}
+                onClick={() => scrollTo(c.ref)}
+                className={`rounded-2xl ${c.bg} border ${c.border} p-2.5 text-center cursor-pointer hover:scale-105 active:scale-95 transition-transform`}
+              >
                 <p className={`text-2xl font-black ${c.color}`}>{c.value}</p>
                 <p className="text-[10px] text-slate-500 font-semibold mt-0.5 leading-tight">{c.label}</p>
-              </div>
+              </button>
             ))}
           </div>
 
           {/* Two-column body */}
-          <div className="flex gap-0 mx-0" style={{ minHeight: 0 }}>
+          <div className="flex gap-0 mx-0">
             {/* Right column: tasks */}
-            <div className="flex-1 border-l border-slate-100">
-              <div className="flex items-center justify-between px-3 py-2 bg-white border-b border-slate-100 sticky top-0 z-10">
-                <p className="text-xs font-black text-slate-700">משימות פתוחות</p>
-                <button onClick={() => openModal('task')} className="text-xs text-violet-600 font-bold">+ חדש</button>
+            <div className="flex-1 border-l border-slate-100" ref={tasksRef}>
+              <div className="px-3 py-2 bg-white border-b border-slate-100 sticky top-0 z-10">
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-xs font-black text-slate-700">משימות פתוחות</p>
+                  <button onClick={() => openModal('task')} className="text-xs text-violet-600 font-bold cursor-pointer">+ חדש</button>
+                </div>
+                {/* Search + filter */}
+                <input
+                  type="text"
+                  placeholder="חיפוש..."
+                  value={taskSearch}
+                  onChange={e => setTaskSearch(e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg px-2 py-1 text-xs mb-1 focus:outline-none focus:border-violet-400"
+                />
+                <select
+                  value={taskAssignee}
+                  onChange={e => setTaskAssignee(e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-violet-400"
+                >
+                  <option value="">כל האחראים</option>
+                  {users.map(u => <option key={u.id} value={u.id}>{u.display_name}</option>)}
+                </select>
               </div>
 
-              {tasks.length === 0 ? (
-                <p className="text-xs text-slate-400 text-center py-6">אין משימות פתוחות</p>
-              ) : tasks.map(task => (
-                <div key={task.id} className="flex items-start gap-2.5 px-3 py-2.5 border-b border-slate-50 bg-white">
+              {filteredTasks.length === 0 ? (
+                <p className="text-xs text-slate-400 text-center py-6">אין משימות</p>
+              ) : filteredTasks.map(task => (
+                <div key={task.id} className="flex items-start gap-2.5 px-3 py-2.5 border-b border-slate-50 bg-white hover:bg-violet-50 transition cursor-pointer">
                   <button
                     onClick={() => completeTask(task)}
-                    className="mt-0.5 w-4 h-4 rounded border-2 border-violet-300 flex-shrink-0 flex items-center justify-center hover:bg-violet-50 transition"
+                    className="mt-0.5 w-4 h-4 rounded border-2 border-violet-300 flex-shrink-0 flex items-center justify-center hover:bg-violet-100 transition cursor-pointer"
                   />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-bold text-slate-800 leading-snug">{task.title}</p>
@@ -201,10 +264,10 @@ export default function OperationsPage() {
                         </span>
                       )}
                       {task.assigned_to_name && (
-                        <span className="text-[9px] text-slate-400">{task.assigned_to_name}</span>
+                        <span className="text-xs text-slate-500 font-semibold">{task.assigned_to_name}</span>
                       )}
                       {task.due_date && (
-                        <span className="text-[9px] text-slate-400">{formatDate(task.due_date)}</span>
+                        <span className={`text-xs font-semibold ${isOverdue(task.due_date) ? 'text-red-500' : 'text-slate-400'}`}>{formatDate(task.due_date)}</span>
                       )}
                     </div>
                   </div>
@@ -212,15 +275,16 @@ export default function OperationsPage() {
               ))}
             </div>
 
-            {/* Left column: checklists */}
+            {/* Left column */}
             <div className="flex-1">
-              <div className="flex items-center justify-between px-3 py-2 bg-white border-b border-slate-100 sticky top-0 z-10">
+              {/* Checklists */}
+              <div ref={checklistsRef} className="flex items-center justify-between px-3 py-2 bg-white border-b border-slate-100 sticky top-0 z-10">
                 <p className="text-xs font-black text-slate-700">רשימות תיוג</p>
-                <button onClick={() => openModal('checklist')} className="text-xs text-violet-600 font-bold">+ חדש</button>
+                <button onClick={() => openModal('checklist')} className="text-xs text-violet-600 font-bold cursor-pointer">+ חדש</button>
               </div>
 
               {checklists.length === 0 ? (
-                <p className="text-xs text-slate-400 text-center py-6">אין רשימות</p>
+                <p className="text-xs text-slate-400 text-center py-4">אין רשימות</p>
               ) : checklists.map(cl => {
                 const { filled, total, done } = checklistProgress(cl);
                 const run = cl.latest_run;
@@ -230,16 +294,14 @@ export default function OperationsPage() {
                   <button
                     key={cl.id}
                     onClick={() => setActiveChecklist(cl)}
-                    className="w-full text-right px-3 py-2.5 border-b border-slate-50 bg-white hover:bg-violet-50 transition"
+                    className="w-full text-right px-3 py-2.5 border-b border-slate-50 bg-white hover:bg-violet-50 active:bg-violet-100 transition cursor-pointer"
                   >
                     <div className="flex items-center justify-between mb-1">
                       <p className="text-xs font-bold text-slate-800 truncate">{cl.name}</p>
                       {hasMissing && (
                         <span className="text-[9px] font-black text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full ml-1">חוסרים</span>
                       )}
-                      {done && (
-                        <span className="text-[9px] text-green-600">✓</span>
-                      )}
+                      {done && <span className="text-[9px] text-green-600 font-bold">✓</span>}
                     </div>
                     {total > 0 && (
                       <>
@@ -249,34 +311,74 @@ export default function OperationsPage() {
                             style={{ width: total ? `${(filled / total) * 100}%` : '0%' }}
                           />
                         </div>
-                        <p className="text-[9px] text-slate-400">{filled}/{total}</p>
+                        <p className="text-xs text-slate-400 font-semibold">{filled}/{total}</p>
                       </>
                     )}
                   </button>
                 );
               })}
 
-              {/* Maintenance quick view */}
-              <div className="flex items-center justify-between px-3 py-2 bg-white border-b border-t border-slate-100 mt-2 sticky top-0">
+              {/* Maintenance */}
+              <div ref={maintenanceRef} className="flex items-center justify-between px-3 py-2 bg-white border-b border-t border-slate-100 mt-2 sticky top-0 z-10">
                 <p className="text-xs font-black text-slate-700">תחזוקה</p>
-                <button onClick={() => openModal('maintenance')} className="text-xs text-violet-600 font-bold">+ חדש</button>
+                <button onClick={() => openModal('maintenance')} className="text-xs text-violet-600 font-bold cursor-pointer">+ חדש</button>
               </div>
-              <p className="text-[10px] text-slate-400 text-center py-2">
-                {summary.overdueMaintenace > 0
-                  ? `${summary.overdueMaintenace} משימות באיחור`
-                  : 'הכל תקין'}
-              </p>
 
-              {/* Faults quick view */}
-              <div className="flex items-center justify-between px-3 py-2 bg-white border-b border-t border-slate-100 mt-1">
+              {maintenance.length === 0 ? (
+                <p className="text-xs text-slate-400 text-center py-4">אין משימות תחזוקה</p>
+              ) : maintenance.map(item => {
+                const overdue = isOverdue(item.next_due);
+                return (
+                  <div key={item.id} className={`flex items-center gap-2 px-3 py-2.5 border-b border-slate-50 ${overdue ? 'bg-red-50' : 'bg-white'} hover:bg-violet-50 transition cursor-pointer`}>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-slate-800 leading-snug">{item.name}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {item.next_due && (
+                          <span className={`text-xs font-semibold ${overdue ? 'text-red-600' : 'text-slate-400'}`}>
+                            {overdue ? 'איחור — ' : ''}{formatDate(item.next_due)}
+                          </span>
+                        )}
+                        {item.assignee_name && (
+                          <span className="text-xs text-slate-500 font-semibold">{item.assignee_name}</span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={e => { e.stopPropagation(); completeMaintenance(item); }}
+                      className="text-[10px] font-black px-2 py-1 rounded-lg bg-green-100 text-green-700 hover:bg-green-200 transition cursor-pointer whitespace-nowrap"
+                    >
+                      בוצע
+                    </button>
+                  </div>
+                );
+              })}
+
+              {/* Faults */}
+              <div ref={faultsRef} className="flex items-center justify-between px-3 py-2 bg-white border-b border-t border-slate-100 mt-2 sticky top-0 z-10">
                 <p className="text-xs font-black text-slate-700">תקלות</p>
-                <button onClick={() => openModal('fault')} className="text-xs text-violet-600 font-bold">+ דווח</button>
+                <button onClick={() => openModal('fault')} className="text-xs text-violet-600 font-bold cursor-pointer">+ דווח</button>
               </div>
-              <p className="text-[10px] text-slate-400 text-center py-2">
-                {summary.openFaults > 0
-                  ? `${summary.openFaults} תקלות פתוחות`
-                  : 'אין תקלות פתוחות'}
-              </p>
+
+              {faults.filter(f => f.status !== 'resolved').length === 0 ? (
+                <p className="text-xs text-slate-400 text-center py-4">אין תקלות פתוחות</p>
+              ) : faults.filter(f => f.status !== 'resolved').map(fault => {
+                const s = FAULT_STATUS[fault.status] || FAULT_STATUS.open;
+                return (
+                  <div
+                    key={fault.id}
+                    onClick={() => cycleFaultStatus(fault)}
+                    className="flex items-center gap-2 px-3 py-2.5 border-b border-slate-50 bg-white hover:bg-red-50 active:bg-red-100 transition cursor-pointer"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-slate-800 leading-snug">{fault.title}</p>
+                      {fault.assignee_name && (
+                        <p className="text-xs text-slate-500 font-semibold mt-0.5">{fault.assignee_name}</p>
+                      )}
+                    </div>
+                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full whitespace-nowrap ${s.color}`}>{s.label}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -285,7 +387,7 @@ export default function OperationsPage() {
       {/* FAB */}
       <button
         onClick={() => setShowFab(f => !f)}
-        className="fixed bottom-24 left-4 z-50 w-13 h-13 rounded-full text-white text-2xl font-black shadow-xl flex items-center justify-center transition-transform"
+        className="fixed bottom-24 left-4 z-50 w-13 h-13 rounded-full text-white text-2xl font-black shadow-xl flex items-center justify-center transition-transform cursor-pointer"
         style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', width: 52, height: 52, transform: showFab ? 'rotate(45deg)' : 'none' }}
       >
         +
@@ -293,24 +395,21 @@ export default function OperationsPage() {
 
       {/* FAB menu */}
       {showFab && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={() => setShowFab(false)}
-        >
+        <div className="fixed inset-0 z-40" onClick={() => setShowFab(false)}>
           <div
             className="absolute bottom-40 left-4 bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-100"
             onClick={e => e.stopPropagation()}
           >
             {[
-              { label: '✅ משימה חדשה',     type: 'task' },
-              { label: '📋 רשימת תיוג',     type: 'checklist' },
-              { label: '🔧 תחזוקה חוזרת',   type: 'maintenance' },
-              { label: '⚠️ דווח על תקלה',   type: 'fault' },
+              { label: 'משימה חדשה',    type: 'task' },
+              { label: 'רשימת תיוג',    type: 'checklist' },
+              { label: 'תחזוקה חוזרת',  type: 'maintenance' },
+              { label: 'דווח על תקלה',  type: 'fault' },
             ].map(({ label, type }) => (
               <button
                 key={type}
                 onClick={() => openModal(type)}
-                className="block w-full text-right px-5 py-3 text-sm font-bold text-slate-800 hover:bg-slate-50 transition border-b border-slate-50 last:border-0"
+                className="block w-full text-right px-5 py-3 text-sm font-bold text-slate-800 hover:bg-slate-50 transition border-b border-slate-50 last:border-0 cursor-pointer"
               >
                 {label}
               </button>
@@ -332,7 +431,6 @@ export default function OperationsPage() {
           >
             <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-2" />
 
-            {/* TASK MODAL */}
             {modal === 'task' && (
               <>
                 <h3 className="font-black text-slate-800 text-base">משימה חדשה</h3>
@@ -378,7 +476,6 @@ export default function OperationsPage() {
               </>
             )}
 
-            {/* CHECKLIST MODAL */}
             {modal === 'checklist' && (
               <>
                 <h3 className="font-black text-slate-800 text-base">רשימת תיוג חדשה</h3>
@@ -411,20 +508,14 @@ export default function OperationsPage() {
                         onChange={e => updateItem(idx, 'expected_qty', e.target.value)}
                         className="w-16 border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:border-violet-400"
                       />
-                      <button onClick={() => removeItem(idx)} className="text-red-400 font-bold text-sm px-1">✕</button>
+                      <button onClick={() => removeItem(idx)} className="text-red-400 font-bold text-sm px-1 cursor-pointer">✕</button>
                     </div>
                   ))}
                 </div>
-                <button
-                  onClick={addChecklistItem}
-                  className="text-xs text-violet-600 font-bold"
-                >
-                  + הוסף פריט
-                </button>
+                <button onClick={addChecklistItem} className="text-xs text-violet-600 font-bold cursor-pointer">+ הוסף פריט</button>
               </>
             )}
 
-            {/* FAULT MODAL */}
             {modal === 'fault' && (
               <>
                 <h3 className="font-black text-slate-800 text-base">דיווח תקלה</h3>
@@ -453,7 +544,6 @@ export default function OperationsPage() {
               </>
             )}
 
-            {/* MAINTENANCE MODAL */}
             {modal === 'maintenance' && (
               <>
                 <h3 className="font-black text-slate-800 text-base">תחזוקה חוזרת</h3>
@@ -488,7 +578,7 @@ export default function OperationsPage() {
 
             <button
               onClick={handleSubmit}
-              className="w-full py-3 rounded-2xl text-white font-black text-sm shadow-md transition"
+              className="w-full py-3 rounded-2xl text-white font-black text-sm shadow-md transition cursor-pointer"
               style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}
             >
               שמור
