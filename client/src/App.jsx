@@ -11,6 +11,9 @@ import TaskActionPage  from './pages/TaskActionPage';
 import AdminPage       from './pages/AdminPage';
 import SignaturePage   from './pages/SignaturePage';
 import SuppliersPage  from './pages/SuppliersPage';
+import RSVPsPage        from './pages/RSVPs/RSVPsPage';
+import RSVPDetailPage   from './pages/RSVPs/RSVPDetailPage';
+import OperationsPage   from './pages/OperationsPage';
 import { AppModeProvider, useAppMode } from './context/AppModeContext';
 import api from './api';
 
@@ -40,7 +43,11 @@ function GlobalHeader() {
   function handleModeChange(e) {
     const m = e.target.value;
     setMode(m);
-    navigate(m === 'הפקה' ? '/events' : m === 'ספקים' ? '/suppliers' : '/');
+    if (m === 'הפקה') navigate('/events');
+    else if (m === 'ספקים') navigate('/suppliers');
+    else if (m === 'אישורי הגעה') navigate('/rsvps');
+    else if (m === 'תפעול') navigate('/operations');
+    else navigate('/');
   }
 
   return (
@@ -63,9 +70,11 @@ function GlobalHeader() {
         className="text-xs font-black px-3 py-1 rounded-lg border-0 focus:outline-none cursor-pointer"
         style={{ background: 'rgba(255,255,255,0.18)', color: '#ffffff' }}
       >
-        <option value="מכירות" style={{ color: '#1e293b' }}>מכירות</option>
-        <option value="הפקה"   style={{ color: '#1e293b' }}>הפקה</option>
-        <option value="ספקים"  style={{ color: '#1e293b' }}>ספקים</option>
+        <option value="מכירות"      style={{ color: '#1e293b' }}>מכירות</option>
+        <option value="הפקה"        style={{ color: '#1e293b' }}>הפקה</option>
+        <option value="ספקים"       style={{ color: '#1e293b' }}>ספקים</option>
+        <option value="אישורי הגעה" style={{ color: '#1e293b' }}>אישורי הגעה</option>
+        <option value="תפעול"       style={{ color: '#1e293b' }}>תפעול</option>
       </select>
     </div>
   );
@@ -87,11 +96,17 @@ function AppShellNav() {
     return () => clearInterval(t);
   }, [mode]);
 
-  const isProduction = mode === 'הפקה';
-  const isSuppliers  = mode === 'ספקים';
+  const isProduction  = mode === 'הפקה';
+  const isSuppliers   = mode === 'ספקים';
+  const isRSVP        = mode === 'אישורי הגעה';
+  const isOperations  = mode === 'תפעול';
 
-  const tabs = isSuppliers
+  const tabs = isRSVP
+    ? [{ path: '/rsvps', icon: '📋', label: 'אישורי הגעה', prefix: '/rsvps' }]
+    : isSuppliers
     ? [{ path: '/suppliers', icon: '🏢', label: 'ספקים' }]
+    : isOperations
+    ? [{ path: '/operations', icon: '🔧', label: 'תפעול' }]
     : isProduction
     ? [
         { path: '/events',   icon: '🎉', label: 'אירועים' },
@@ -105,8 +120,10 @@ function AppShellNav() {
         { path: '/tasks',     icon: '✅', label: 'משימות' },
       ];
 
-  const NavBtn = ({ path, icon, label }) => {
-    const active = location.pathname === path;
+  const NavBtn = ({ path, icon, label, prefix }) => {
+    const active = prefix
+      ? location.pathname === path || location.pathname.startsWith(prefix + '/')
+      : location.pathname === path;
     const isTasksTab = path === '/tasks';
     return (
       <button
@@ -217,6 +234,36 @@ function AppRoutes() {
             <>
               <div className="pt-11" />
               <SuppliersPage />
+              <AppShellNav />
+              <div className="pb-28" />
+            </>
+          </PrivateRoute>
+        } />
+        <Route path="/rsvps" element={
+          <PrivateRoute>
+            <>
+              <div className="pt-11" />
+              <RSVPsPage />
+              <AppShellNav />
+              <div className="pb-28" />
+            </>
+          </PrivateRoute>
+        } />
+        <Route path="/rsvps/:id" element={
+          <PrivateRoute>
+            <>
+              <div className="pt-11" />
+              <RSVPDetailPage />
+              <AppShellNav />
+              <div className="pb-28" />
+            </>
+          </PrivateRoute>
+        } />
+        <Route path="/operations" element={
+          <PrivateRoute>
+            <>
+              <div className="pt-11" />
+              <OperationsPage />
               <AppShellNav />
               <div className="pb-28" />
             </>

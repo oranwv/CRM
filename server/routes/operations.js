@@ -1,0 +1,320 @@
+const router = require('express').Router();
+const pool   = require('../db/pool');
+
+// GET /api/operations/users — team member list for assignee pickers
+router.get('/users', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT id, display_name FROM users ORDER BY display_name');
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/operations/summary — dashboard stat cards
+router.get('/summary', async (req, res) => {
+  try {
+    const [tasksRes, maintenanceRes, faultsRes, runsRes] = await Promise.all([
+      pool.query(`SELECT COUNT(*) FROM op_tasks WHERE status != 'done'`),
+      pool.query(`SELECT COUNT(*) FROM op_maintenance WHERE next_due IS NOT NULL AND next_due < CURRENT_DATE`),
+      pool.query(`SELECT COUNT(*) FROM op_faults WHERE status != 'resolved'`),
+      pool.query(`SELECT items_state FROM op_checklist_runs WHERE completed_at IS NULL`),
+    ]);
+    let pendingMissing = 0;
+    for (const row of runsRes.rows) {
+      const items = Array.isArray(row.items_state) ? row.items_state : [];
+      for (const item of items) {
+        if ((item.missing_qty || 0) > 0) pendingMissing++;
+      }
+    }
+    res.json({
+      openTasks:         parseInt(tasksRes.rows[0].count),
+      pendingMissing,
+      overdueMaintenace: parseInt(maintenanceRes.rows[0].count),
+      openFaults:        parseInt(faultsRes.rows[0].count),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── OP TASKS ──────────────────────────────────────────────────────────
+router.get('/tasks', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT t.*, u1.display_name AS assigned_to_name, u2.display_name AS created_by_name
+      FROM op_tasks t
+      LEFT JOIN users u1 ON t.assigned_to = u1.id
+      LEFT JOIN users u2 ON t.created_by = u2.id
+      WHERE t.status != 'done'
+      ORDER BY
+        CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
+        t.due_date ASC NULLS LAST, t.created_at DESC
+    `);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/tasks', async (req, res) => {
+  const { title, description, assigned_to, priority, due_date } = req.body;
+  if (!title) return res.status(400).json({ error: 'כותרת חובה' });
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO op_tasks (title, description, assigned_to, created_by, priority, due_date)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [title, description || null, assigned_to || null, req.user.id, priority || 'normal', due_date || null]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/tasks/:id', async (req, res) => {
+  const { title, description, assigned_to, priority, due_date, status } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE op_tasks SET title=$1, description=$2, assigned_to=$3, priority=$4, due_date=$5, status=$6,
+       completed_at = CASE WHEN $6='done' THEN NOW() ELSE completed_at END
+       WHERE id=$7 RETURNING *`,
+      [title, description || null, assigned_to || null, priority || 'normal', due_date || null, status || 'open', req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/tasks/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM op_tasks WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── CHECKLISTS ────────────────────────────────────────────────────────
+router.get('/checklists', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT c.*,
+        (SELECT row_to_json(r) FROM (
+          SELECT * FROM op_checklist_runs
+          WHERE checklist_id = c.id
+          ORDER BY created_at DESC LIMIT 1
+        ) r) AS latest_run
+      FROM op_checklists c ORDER BY c.name
+    `);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/checklists', async (req, res) => {
+  const { name, items } = req.body;
+  if (!name) return res.status(400).json({ error: 'שם חובה' });
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO op_checklists (name, items, created_by) VALUES ($1, $2, $3) RETURNING *`,
+      [name, JSON.stringify(items || []), req.user.id]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/checklists/:id', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM op_checklists WHERE id=$1', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    const { rows: runs } = await pool.query(
+      `SELECT r.*, u.display_name AS created_by_name FROM op_checklist_runs r
+       LEFT JOIN users u ON r.created_by = u.id
+       WHERE r.checklist_id = $1 ORDER BY r.created_at DESC LIMIT 1`,
+      [req.params.id]
+    );
+    res.json({ ...rows[0], latest_run: runs[0] || null });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/checklists/:id', async (req, res) => {
+  const { name, items } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE op_checklists SET name=$1, items=$2 WHERE id=$3 RETURNING *`,
+      [name, JSON.stringify(items || []), req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/checklists/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM op_checklists WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── CHECKLIST RUNS ────────────────────────────────────────────────────
+router.post('/checklist-runs', async (req, res) => {
+  const { checklist_id } = req.body;
+  if (!checklist_id) return res.status(400).json({ error: 'checklist_id חובה' });
+  try {
+    const { rows: cl } = await pool.query('SELECT * FROM op_checklists WHERE id=$1', [checklist_id]);
+    if (!cl.length) return res.status(404).json({ error: 'Not found' });
+    const items_state = (cl[0].items || []).map(item => ({
+      name: item.name, unit: item.unit || '', expected_qty: item.expected_qty || 0,
+      actual_qty: null, missing_qty: 0, assigned_to: null,
+    }));
+    const { rows } = await pool.query(
+      `INSERT INTO op_checklist_runs (checklist_id, created_by, items_state) VALUES ($1, $2, $3) RETURNING *`,
+      [checklist_id, req.user.id, JSON.stringify(items_state)]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/checklist-runs/:id', async (req, res) => {
+  const { items_state, completed } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE op_checklist_runs SET items_state=$1,
+       completed_at = CASE WHEN $2 THEN NOW() ELSE NULL END
+       WHERE id=$3 RETURNING *`,
+      [JSON.stringify(items_state), !!completed, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── MAINTENANCE ───────────────────────────────────────────────────────
+router.get('/maintenance', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT m.*, u.display_name AS assignee_name
+       FROM op_maintenance m LEFT JOIN users u ON m.assignee_id = u.id
+       ORDER BY m.next_due ASC NULLS LAST`
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/maintenance', async (req, res) => {
+  const { name, interval_days, assignee_id } = req.body;
+  if (!name || !interval_days) return res.status(400).json({ error: 'שם ומרווח זמן חובה' });
+  const next_due = new Date();
+  next_due.setDate(next_due.getDate() + parseInt(interval_days));
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO op_maintenance (name, interval_days, assignee_id, next_due) VALUES ($1, $2, $3, $4) RETURNING *`,
+      [name, parseInt(interval_days), assignee_id || null, next_due.toISOString().split('T')[0]]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/maintenance/:id/complete', async (req, res) => {
+  try {
+    const { rows: existing } = await pool.query('SELECT * FROM op_maintenance WHERE id=$1', [req.params.id]);
+    if (!existing.length) return res.status(404).json({ error: 'Not found' });
+    const today = new Date();
+    const next  = new Date(today);
+    next.setDate(next.getDate() + existing[0].interval_days);
+    const { rows } = await pool.query(
+      `UPDATE op_maintenance SET last_done=$1, next_due=$2 WHERE id=$3 RETURNING *`,
+      [today.toISOString().split('T')[0], next.toISOString().split('T')[0], req.params.id]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/maintenance/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM op_maintenance WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── FAULTS ────────────────────────────────────────────────────────────
+router.get('/faults', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT f.*, u1.display_name AS reported_by_name, u2.display_name AS assignee_name
+       FROM op_faults f
+       LEFT JOIN users u1 ON f.reported_by = u1.id
+       LEFT JOIN users u2 ON f.assignee_id = u2.id
+       WHERE f.status != 'resolved'
+       ORDER BY f.created_at DESC`
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/faults', async (req, res) => {
+  const { title, description, assignee_id } = req.body;
+  if (!title) return res.status(400).json({ error: 'כותרת חובה' });
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO op_faults (title, description, reported_by, assignee_id) VALUES ($1, $2, $3, $4) RETURNING *`,
+      [title, description || null, req.user.id, assignee_id || null]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/faults/:id', async (req, res) => {
+  const { status, assignee_id, title, description } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE op_faults SET status=$1, assignee_id=$2, title=COALESCE($3, title), description=$4,
+       resolved_at = CASE WHEN $1='resolved' THEN NOW() ELSE NULL END
+       WHERE id=$5 RETURNING *`,
+      [status || 'open', assignee_id || null, title || null, description || null, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/faults/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM op_faults WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+module.exports = router;

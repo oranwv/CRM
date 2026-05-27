@@ -42,6 +42,8 @@ const driveRoutes               = require('./routes/drive');
 const { debugHandler: driveDebugHandler } = require('./routes/drive');
 const productionChecklistRoutes = require('./routes/productionChecklist');
 const eventBriefRoutes          = require('./routes/eventBrief');
+const rsvpRoutes                = require('./routes/rsvp');
+const operationsRoutes          = require('./routes/operations');
 
 const pool = require('./db/pool');
 
@@ -265,6 +267,93 @@ pool.query(`
   ALTER TABLE supplier_files ADD COLUMN IF NOT EXISTS source VARCHAR(50)
 `).catch(err => console.error('[DB] supplier interactions/files column migration error:', err.message));
 
+pool.query(`
+  CREATE TABLE IF NOT EXISTS op_tasks (
+    id SERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT,
+    assigned_to INT REFERENCES users(id) ON DELETE SET NULL,
+    created_by INT REFERENCES users(id) ON DELETE SET NULL,
+    priority TEXT DEFAULT 'normal',
+    status TEXT DEFAULT 'open',
+    due_date DATE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    completed_at TIMESTAMPTZ
+  );
+  CREATE TABLE IF NOT EXISTS op_checklists (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    items JSONB NOT NULL DEFAULT '[]',
+    created_by INT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS op_checklist_runs (
+    id SERIAL PRIMARY KEY,
+    checklist_id INT REFERENCES op_checklists(id) ON DELETE CASCADE,
+    run_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    created_by INT REFERENCES users(id) ON DELETE SET NULL,
+    items_state JSONB NOT NULL DEFAULT '[]',
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS op_maintenance (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    interval_days INT NOT NULL,
+    last_done DATE,
+    next_due DATE,
+    assignee_id INT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS op_faults (
+    id SERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT,
+    reported_by INT REFERENCES users(id) ON DELETE SET NULL,
+    assignee_id INT REFERENCES users(id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT 'open',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    resolved_at TIMESTAMPTZ
+  );
+`).catch(err => console.error('[DB] operations tables migration error:', err.message));
+
+pool.query(`
+  CREATE TABLE IF NOT EXISTS rsvp_campaigns (
+    id SERIAL PRIMARY KEY,
+    event_id INT REFERENCES leads(id) ON DELETE SET NULL,
+    name TEXT NOT NULL,
+    host_name TEXT,
+    event_date DATE,
+    event_time TEXT,
+    venue_address TEXT,
+    template_name TEXT DEFAULT 'rsvp_invitation',
+    reminder_template_name TEXT DEFAULT 'rsvp_reminder',
+    status TEXT DEFAULT 'draft' CHECK (status IN ('draft','active','closed')),
+    created_by INT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS rsvp_guests (
+    id SERIAL PRIMARY KEY,
+    campaign_id INT REFERENCES rsvp_campaigns(id) ON DELETE CASCADE,
+    name TEXT,
+    phone TEXT NOT NULL,
+    state TEXT DEFAULT 'not_sent' CHECK (state IN ('not_sent','invited','awaiting_count','confirmed','declined')),
+    guest_count INT,
+    invited_at TIMESTAMPTZ,
+    responded_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(campaign_id, phone)
+  );
+  CREATE TABLE IF NOT EXISTS rsvp_messages (
+    id SERIAL PRIMARY KEY,
+    campaign_id INT REFERENCES rsvp_campaigns(id) ON DELETE CASCADE,
+    guest_id INT REFERENCES rsvp_guests(id) ON DELETE SET NULL,
+    direction TEXT NOT NULL CHECK (direction IN ('inbound','outbound')),
+    body TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+`).catch(err => console.error('[DB] RSVP tables migration error:', err.message));
+
 const { pollGoogleCalendar } = require('./services/calendarPollService');
 pollGoogleCalendar();
 setInterval(pollGoogleCalendar, 5 * 60 * 1000);
@@ -276,6 +365,7 @@ app.use(express.json());
 // Public
 app.use('/api/auth',      authRoutes);
 app.use('/api/whatsapp',  whatsappRoutes);
+app.use('/api/rsvp',      rsvpRoutes);  // webhook endpoints inside are public; auth applied per-route
 app.use('/api/tasks',     require('./routes/tasks'));       // global task list (auth per-route)
 app.use('/api/tasks',     require('./routes/taskPostpone')); // public postpone links (WhatsApp)
 
@@ -294,6 +384,7 @@ app.use('/api/drive',               requireAuth, driveRoutes);
 app.use('/api/users',               requireAuth, usersRoutes);
 app.use('/api/analytics',           requireAuth, analyticsRoutes);
 app.use('/api/suppliers',           requireAuth, require('./routes/suppliers'));
+app.use('/api/operations',          requireAuth, operationsRoutes);
 app.use('/api/greeninvoice',        requireAuth, require('./routes/greeninvoice'));
 app.use('/api/ai',                  requireAuth, aiRoutes);
 app.use('/api/calendar', (req, res, next) => {
