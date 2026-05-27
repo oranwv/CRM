@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import LoginPage     from './pages/LoginPage';
 import LeadsPage     from './pages/LeadsPage';
 import EventsPage    from './pages/EventsPage';
@@ -29,6 +29,8 @@ function GlobalHeader() {
   const user               = JSON.parse(localStorage.getItem('crm_user') || '{}');
   const isManager          = ['admin', 'manager'].includes(user.role);
   const [pendingCount, setPendingCount] = useState(0);
+  const [dropOpen, setDropOpen] = useState(false);
+  const dropRef = useRef(null);
 
   useEffect(() => {
     if (!isManager || !localStorage.getItem('crm_token')) return;
@@ -38,11 +40,17 @@ function GlobalHeader() {
     return () => clearInterval(t);
   }, [isManager]);
 
+  useEffect(() => {
+    function handler(e) { if (dropRef.current && !dropRef.current.contains(e.target)) setDropOpen(false); }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
   if (isPublic) return null;
 
-  function handleModeChange(e) {
-    const m = e.target.value;
+  function selectMode(m) {
     setMode(m);
+    setDropOpen(false);
     if (m === 'הפקה') navigate('/events');
     else if (m === 'ספקים') navigate('/suppliers');
     else if (m === 'אישורי הגעה') navigate('/rsvps');
@@ -64,18 +72,36 @@ function GlobalHeader() {
           </span>
         )}
       </div>
-      <select
-        value={mode}
-        onChange={handleModeChange}
-        className="text-xs font-black px-3 py-1 rounded-lg border-0 focus:outline-none cursor-pointer"
-        style={{ background: 'rgba(255,255,255,0.18)', color: '#ffffff' }}
-      >
-        <option value="מכירות"      style={{ color: '#1e293b' }}>מכירות</option>
-        <option value="הפקה"        style={{ color: '#1e293b' }}>הפקה</option>
-        <option value="ספקים"       style={{ color: '#1e293b' }}>ספקים</option>
-        <option value="אישורי הגעה" style={{ color: '#1e293b' }}>אישורי הגעה</option>
-        <option value="תפעול"       style={{ color: '#1e293b' }}>תפעול</option>
-      </select>
+
+      <div ref={dropRef} className="relative">
+        <button
+          onClick={() => setDropOpen(o => !o)}
+          className="flex items-center gap-1.5 text-xs font-black px-3 py-1.5 rounded-xl cursor-pointer hover:bg-white/25 transition"
+          style={{ background: 'rgba(255,255,255,0.18)', color: '#fff' }}
+        >
+          {mode}
+          <span style={{ fontSize: 10, opacity: 0.8, display: 'inline-block', transition: 'transform 0.15s', transform: dropOpen ? 'rotate(180deg)' : 'none' }}>▾</span>
+        </button>
+
+        {dropOpen && (
+          <div
+            className="absolute left-0 mt-1.5 bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-100 z-50"
+            style={{ minWidth: 140, top: '100%' }}
+          >
+            {['מכירות','הפקה','ספקים','אישורי הגעה','תפעול'].map(m => (
+              <button
+                key={m}
+                onClick={() => selectMode(m)}
+                className={`block w-full text-right px-4 py-2.5 text-sm font-bold transition cursor-pointer border-b border-slate-50 last:border-0 ${
+                  m === mode ? 'bg-violet-50 text-violet-700' : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
