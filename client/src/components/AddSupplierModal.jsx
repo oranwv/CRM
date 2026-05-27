@@ -2,7 +2,7 @@ import { useState } from 'react';
 import api from '../api';
 
 export default function AddSupplierModal({ categories, onCreated, onClose }) {
-  const [form, setForm] = useState({ name: '', phone: '', email: '', description: '', category: categories[0]?.name || 'כללי' });
+  const [form, setForm] = useState({ name: '', phone: '', email: '', description: '', category: categories[0]?.name || 'כללי', sug: '', payment: '' });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
 
@@ -51,6 +51,18 @@ export default function AddSupplierModal({ categories, onCreated, onClose }) {
             <label className="block text-xs font-bold text-slate-600 mb-1">אימייל</label>
             <input value={form.email} onChange={e => set('email', e.target.value)} type="email"
               className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-400" dir="ltr" />
+          </div>
+          {form.category === 'כללי' && (
+            <div>
+              <label className="block text-xs font-bold text-slate-600 mb-1">סוג</label>
+              <input value={form.sug} onChange={e => set('sug', e.target.value)}
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
+            </div>
+          )}
+          <div>
+            <label className="block text-xs font-bold text-slate-600 mb-1">תשלום</label>
+            <input value={form.payment} onChange={e => set('payment', e.target.value)}
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
           </div>
           <div>
             <label className="block text-xs font-bold text-slate-600 mb-1">תיאור</label>

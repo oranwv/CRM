@@ -9,7 +9,14 @@ const CATEGORY_COLORS = {
   'שומרים':      { bg: '#e2e8f0', text: '#374151', border: '#cbd5e1' },
   'נקיון':       { bg: '#ccfbf1', text: '#134e4a', border: '#99f6e4' },
   'כללי':        { bg: '#f3f4f6', text: '#374151', border: '#d1d5db' },
+  'מפיקים':      { bg: '#fce7f3', text: '#9d174d', border: '#fbcfe8' },
 };
+
+function fmtPhone(p) {
+  if (!p) return p;
+  const d = p.replace(/\D/g, '');
+  return d.startsWith('972') ? '0' + d.slice(3) : p;
+}
 
 function categoryColor(cat) {
   return CATEGORY_COLORS[cat] || { bg: '#f3f4f6', text: '#374151', border: '#d1d5db' };
@@ -75,7 +82,7 @@ export default function SupplierCard({ supplierId, onClose, categories }) {
     ]).then(([sRes, iRes, eRes, fRes]) => {
       const s = sRes.data;
       setSupplier(s);
-      setEditForm({ name: s?.name || '', phone: s?.phone || '', email: s?.email || '', description: s?.description || '', category: s?.category || 'כללי' });
+      setEditForm({ name: s?.name || '', phone: s?.phone || '', email: s?.email || '', description: s?.description || '', category: s?.category || 'כללי', sug: s?.sug || '', payment: s?.payment || '' });
       setInteractions(iRes.data);
       setEvents(eRes.data);
       setFiles(fRes.data);
@@ -229,6 +236,14 @@ export default function SupplierCard({ supplierId, onClose, categories }) {
                 <textarea value={editForm.description} onChange={e => setEditForm(p => ({ ...p, description: e.target.value }))}
                   placeholder="תיאור" rows={2}
                   className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none resize-none" />
+                {editForm.category === 'כללי' && (
+                  <input value={editForm.sug} onChange={e => setEditForm(p => ({ ...p, sug: e.target.value }))}
+                    placeholder="סוג"
+                    className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none" />
+                )}
+                <input value={editForm.payment} onChange={e => setEditForm(p => ({ ...p, payment: e.target.value }))}
+                  placeholder="תשלום"
+                  className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none" />
                 <div className="flex gap-2">
                   <button onClick={saveEdit} disabled={saving}
                     className="px-3 py-1 rounded-lg text-xs font-bold text-white disabled:opacity-50"
@@ -251,14 +266,22 @@ export default function SupplierCard({ supplierId, onClose, categories }) {
                 </div>
                 <div className="flex items-center gap-3 mt-1 flex-wrap">
                   {supplier.phone && (
-                    <a href={`tel:${supplier.phone}`} className="text-xs text-slate-600 hover:text-violet-600 font-medium">
-                      📞 {supplier.phone}
+                    <a href={`tel:${supplier.phone}`} className="text-xs text-violet-600 hover:text-violet-800 font-medium underline">
+                      📞 {fmtPhone(supplier.phone)}
                     </a>
                   )}
                   {supplier.email && (
                     <a href={`mailto:${supplier.email}`} className="text-xs text-slate-600 hover:text-violet-600 font-medium" dir="ltr">
                       ✉️ {supplier.email}
                     </a>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                  {supplier.category === 'כללי' && supplier.sug && (
+                    <span className="text-xs text-slate-500">סוג: <span className="font-medium text-slate-700">{supplier.sug}</span></span>
+                  )}
+                  {supplier.payment && (
+                    <span className="text-xs text-slate-500">תשלום: <span className="font-medium text-slate-700">{supplier.payment}</span></span>
                   )}
                 </div>
                 {supplier.description && (
@@ -329,7 +352,7 @@ export default function SupplierCard({ supplierId, onClose, categories }) {
               <div className="bg-green-50 border border-green-200 rounded-xl p-3 space-y-2">
                 <p className="text-xs font-bold text-green-800">
                   WhatsApp —{' '}
-                  <a href={`tel:${supplier.phone}`} className="hover:underline">{supplier.phone}</a>
+                  <a href={`tel:${supplier.phone}`} className="hover:underline">{fmtPhone(supplier.phone)}</a>
                 </p>
                 <div className="flex gap-2">
                   <input value={waMsg} onChange={e => setWaMsg(e.target.value)}

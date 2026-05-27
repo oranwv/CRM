@@ -223,7 +223,7 @@ pool.query(`
   );
   INSERT INTO supplier_categories (name, sort_order) VALUES
     ('קייטרינג/שף', 0), ('צלמים', 1), ('מלצרים', 2), ('ברמנים', 3),
-    ('שומרים', 4), ('נקיון', 5), ('כללי', 6)
+    ('שומרים', 4), ('נקיון', 5), ('כללי', 6), ('מפיקים', 7)
   ON CONFLICT (name) DO NOTHING;
   CREATE TABLE IF NOT EXISTS suppliers (
     id SERIAL PRIMARY KEY,
@@ -266,6 +266,11 @@ pool.query(`
   ALTER TABLE supplier_interactions ADD COLUMN IF NOT EXISTS file_id INT REFERENCES supplier_files(id) ON DELETE SET NULL;
   ALTER TABLE supplier_files ADD COLUMN IF NOT EXISTS source VARCHAR(50)
 `).catch(err => console.error('[DB] supplier interactions/files column migration error:', err.message));
+
+pool.query(`
+  ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS sug VARCHAR(255);
+  ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS payment VARCHAR(255)
+`).catch(err => console.error('[DB] suppliers sug/payment column migration error:', err.message));
 
 pool.query(`
   CREATE TABLE IF NOT EXISTS op_tasks (

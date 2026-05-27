@@ -78,12 +78,12 @@ router.get('/:id', async (req, res) => {
 // POST /api/suppliers
 router.post('/', async (req, res) => {
   try {
-    const { name, phone, email, description, category } = req.body;
+    const { name, phone, email, description, category, sug, payment } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: 'שם ספק חסר' });
     const { rows } = await pool.query(
-      `INSERT INTO suppliers (name, phone, email, description, category, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [name.trim(), phone || null, email || null, description || null, category || 'כללי', req.user.id]
+      `INSERT INTO suppliers (name, phone, email, description, category, sug, payment, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [name.trim(), phone || null, email || null, description || null, category || 'כללי', sug || null, payment || null, req.user.id]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -94,11 +94,11 @@ router.post('/', async (req, res) => {
 // PUT /api/suppliers/:id
 router.put('/:id', async (req, res) => {
   try {
-    const { name, phone, email, description, category } = req.body;
+    const { name, phone, email, description, category, sug, payment } = req.body;
     const { rows } = await pool.query(
-      `UPDATE suppliers SET name=$1, phone=$2, email=$3, description=$4, category=$5, updated_at=NOW()
-       WHERE id=$6 RETURNING *`,
-      [name, phone || null, email || null, description || null, category || 'כללי', req.params.id]
+      `UPDATE suppliers SET name=$1, phone=$2, email=$3, description=$4, category=$5, sug=$6, payment=$7, updated_at=NOW()
+       WHERE id=$8 RETURNING *`,
+      [name, phone || null, email || null, description || null, category || 'כללי', sug || null, payment || null, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);

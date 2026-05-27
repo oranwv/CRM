@@ -11,7 +11,14 @@ const CATEGORY_COLORS = {
   'שומרים':      { bg: '#e2e8f0', text: '#374151', border: '#cbd5e1' },
   'נקיון':       { bg: '#ccfbf1', text: '#134e4a', border: '#99f6e4' },
   'כללי':        { bg: '#f3f4f6', text: '#374151', border: '#d1d5db' },
+  'מפיקים':      { bg: '#fce7f3', text: '#9d174d', border: '#fbcfe8' },
 };
+
+function fmtPhone(p) {
+  if (!p) return p;
+  const d = p.replace(/\D/g, '');
+  return d.startsWith('972') ? '0' + d.slice(3) : p;
+}
 
 function categoryColor(cat) {
   return CATEGORY_COLORS[cat] || { bg: '#f3f4f6', text: '#374151', border: '#d1d5db' };
@@ -165,8 +172,8 @@ export default function SuppliersPage() {
                 <h3 className="font-black text-slate-800 text-sm leading-tight mb-1 truncate">{s.name}</h3>
                 {s.phone && (
                   <a href={`tel:${s.phone}`} onClick={e => e.stopPropagation()}
-                    className="text-xs text-slate-500 truncate block hover:text-violet-600" dir="ltr">
-                    {s.phone}
+                    className="text-xs text-violet-600 underline truncate block hover:text-violet-800" dir="ltr">
+                    {fmtPhone(s.phone)}
                   </a>
                 )}
                 {s.email && <p className="text-xs text-slate-400 truncate" dir="ltr">{s.email}</p>}
