@@ -560,7 +560,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
                           href={`tel:${lead.phone}`}
                           className="text-violet-700 hover:underline font-medium"
                           dir="ltr"
-                          onClick={() => api.post(`/leads/${lead.id}/interactions`, { type: 'call', direction: 'outbound', body: '' }).then(load)}
+                          onClick={() => api.post(`/leads/${lead.id}/interactions`, { type: 'call', direction: 'outbound', body: '', source: 'dial' }).then(load)}
                         >{lead.phone}</a>
                       ) : '—'}
                     </InfoRow>

@@ -26,17 +26,21 @@ export default function ManagementPage() {
   }, [date]);
 
   const cols = [
-    { key: 'calls',           label: 'שיחות' },
-    { key: 'meetings',        label: 'פגישות' },
-    { key: 'notes',           label: 'הערות' },
-    { key: 'wa_sent',         label: 'WA נשלח' },
-    { key: 'tasks_created',   label: 'משימות נוצרו' },
-    { key: 'tasks_completed', label: 'משימות הושלמו' },
-    { key: 'leads_created',   label: 'לידים' },
-    { key: 'files_uploaded',  label: 'קבצים' },
+    { key: 'calls_made',          label: 'שיחות שבוצעו' },
+    { key: 'calls_documented',    label: 'שיחות שתועדו' },
+    { key: 'meetings_done',       label: 'פגישות שבוצעו' },
+    { key: 'meetings_documented', label: 'פגישות שתועדו' },
+    { key: 'notes',               label: 'הערות' },
+    { key: 'wa_sent',             label: 'WA נשלח' },
+    { key: 'tasks_created',       label: 'משימות נוצרו' },
+    { key: 'tasks_completed',     label: 'משימות הושלמו' },
+    { key: 'leads_created',       label: 'לידים' },
+    { key: 'files_uploaded',      label: 'קבצים' },
+    { key: 'first_activity',      label: 'כניסה ראשונה', noSum: true },
+    { key: 'last_activity',       label: 'פעילות אחרונה', noSum: true },
   ];
 
-  const total = row => cols.reduce((s, c) => s + Number(row[c.key] || 0), 0);
+  const total = row => cols.filter(c => !c.noSum).reduce((s, c) => s + Number(row[c.key] || 0), 0);
 
   const sortedRows = [...rows].sort((a, b) => total(b) - total(a));
 
@@ -88,6 +92,14 @@ export default function ManagementPage() {
                     {row.display_name}
                   </td>
                   {cols.map(c => {
+                    if (c.noSum) {
+                      const val = row[c.key];
+                      return (
+                        <td key={c.key} className={`text-center px-3 py-2.5 tabular-nums text-xs ${val ? 'text-slate-600' : 'text-slate-300'}`}>
+                          {val || '—'}
+                        </td>
+                      );
+                    }
                     const val = Number(row[c.key] || 0);
                     return (
                       <td

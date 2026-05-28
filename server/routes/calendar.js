@@ -89,8 +89,8 @@ router.post('/leads/:leadId/meeting', async (req, res) => {
     const fmtStart = startDt.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem', hour12: false });
     const fmtEnd   = endDt.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem', hour12: false });
     await pool.query(
-      `INSERT INTO lead_interactions (lead_id, type, direction, body, created_by)
-       VALUES ($1, 'meeting', 'outbound', $2, $3)`,
+      `INSERT INTO lead_interactions (lead_id, type, direction, body, created_by, source)
+       VALUES ($1, 'meeting', 'outbound', $2, $3, 'calendar')`,
       [lead.id, `📅 פגישה נקבעה: ${title} | ${fmtDate} ${fmtStart}–${fmtEnd}`, req.user?.id || null]
     );
 

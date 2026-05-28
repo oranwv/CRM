@@ -84,6 +84,7 @@ pool.query(`
   ALTER TABLE leads ADD COLUMN IF NOT EXISTS assigned_to INT REFERENCES users(id);
   ALTER TABLE leads ADD COLUMN IF NOT EXISTS created_by INT REFERENCES users(id);
   ALTER TABLE lead_interactions ADD COLUMN IF NOT EXISTS direction VARCHAR(10) DEFAULT 'outbound';
+  ALTER TABLE lead_interactions ADD COLUMN IF NOT EXISTS source VARCHAR(20);
   ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assigned_to INT REFERENCES users(id);
   ALTER TABLE tasks ADD COLUMN IF NOT EXISTS created_by INT REFERENCES users(id);
   ALTER TABLE tasks ADD COLUMN IF NOT EXISTS remind_via VARCHAR(20) DEFAULT 'app';

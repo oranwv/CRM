@@ -281,12 +281,12 @@ router.get('/:id/interactions', async (req, res) => {
 
 // POST /api/leads/:id/interactions
 router.post('/:id/interactions', async (req, res) => {
-  const { type, direction = 'outbound', body } = req.body;
+  const { type, direction = 'outbound', body, source } = req.body;
   try {
     const { rows } = await pool.query(
-      `INSERT INTO lead_interactions (lead_id, type, direction, body, created_by)
-       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-      [req.params.id, type, direction, body, req.user.id]
+      `INSERT INTO lead_interactions (lead_id, type, direction, body, created_by, source)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [req.params.id, type, direction, body, req.user.id, source || null]
     );
     await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [req.params.id]);
     // Auto-advance new → contacted on first outbound interaction (excluding meeting logs)

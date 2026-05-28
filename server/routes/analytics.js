@@ -103,11 +103,17 @@ router.get('/employee-activity', async (req, res) => {
       SELECT
         u.id, u.display_name, u.role,
         (SELECT COUNT(*) FROM lead_interactions
-         WHERE created_by = u.id AND type = 'call' AND direction = 'outbound'
-         AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS calls,
+         WHERE created_by = u.id AND type = 'call' AND direction = 'outbound' AND source = 'dial'
+         AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS calls_made,
         (SELECT COUNT(*) FROM lead_interactions
-         WHERE created_by = u.id AND type = 'meeting'
-         AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS meetings,
+         WHERE created_by = u.id AND type = 'call' AND direction = 'outbound' AND (source IS NULL OR source != 'dial')
+         AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS calls_documented,
+        (SELECT COUNT(*) FROM lead_interactions
+         WHERE created_by = u.id AND type = 'meeting' AND source = 'calendar'
+         AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS meetings_done,
+        (SELECT COUNT(*) FROM lead_interactions
+         WHERE created_by = u.id AND type = 'meeting' AND (source IS NULL OR source != 'calendar')
+         AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS meetings_documented,
         (SELECT COUNT(*) FROM lead_interactions
          WHERE created_by = u.id AND type = 'note'
          AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS notes,
@@ -125,7 +131,25 @@ router.get('/employee-activity', async (req, res) => {
          AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS leads_created,
         (SELECT COUNT(*) FROM files
          WHERE uploaded_by = u.id
-         AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS files_uploaded
+         AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS files_uploaded,
+        (SELECT TO_CHAR(MIN(ts) AT TIME ZONE 'Asia/Jerusalem', 'HH24:MI') FROM (
+          SELECT created_at AS ts FROM lead_interactions WHERE created_by = u.id AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date
+          UNION ALL
+          SELECT timestamp AS ts FROM messages WHERE sent_by = u.id AND direction = 'outbound' AND DATE(timestamp AT TIME ZONE 'Asia/Jerusalem') = $1::date
+          UNION ALL
+          SELECT created_at AS ts FROM tasks WHERE created_by = u.id AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date
+          UNION ALL
+          SELECT completed_at AS ts FROM tasks WHERE assigned_to = u.id AND completed_at IS NOT NULL AND DATE(completed_at AT TIME ZONE 'Asia/Jerusalem') = $1::date
+        ) t) AS first_activity,
+        (SELECT TO_CHAR(MAX(ts) AT TIME ZONE 'Asia/Jerusalem', 'HH24:MI') FROM (
+          SELECT created_at AS ts FROM lead_interactions WHERE created_by = u.id AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date
+          UNION ALL
+          SELECT timestamp AS ts FROM messages WHERE sent_by = u.id AND direction = 'outbound' AND DATE(timestamp AT TIME ZONE 'Asia/Jerusalem') = $1::date
+          UNION ALL
+          SELECT created_at AS ts FROM tasks WHERE created_by = u.id AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date
+          UNION ALL
+          SELECT completed_at AS ts FROM tasks WHERE assigned_to = u.id AND completed_at IS NOT NULL AND DATE(completed_at AT TIME ZONE 'Asia/Jerusalem') = $1::date
+        ) t) AS last_activity
       FROM users u
       WHERE u.role IN ('admin','manager','sales','production')
       ORDER BY u.display_name
