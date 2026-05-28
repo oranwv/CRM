@@ -698,7 +698,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
 
             {/* Interactions */}
             <Section title={`פעילות${timeline.length ? ` (${timeline.length})` : ''}`}>
-              <TimelineSection leadId={leadId} lead={lead} timeline={timeline} allPhones={allPhones} allEmails={allEmails} allPhoneLabels={allPhoneLabels} leadFiles={files} onAdded={load} />
+              <TimelineSection leadId={leadId} lead={lead} timeline={timeline} allPhones={allPhones} allEmails={allEmails} allPhoneLabels={allPhoneLabels} leadFiles={files} onAdded={load} onAddTask={() => setShowAddTask(true)} />
             </Section>
 
           </div>
@@ -2812,13 +2812,14 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, onClose, 
 }
 
 /* ── TIMELINE SECTION ── */
-function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, allPhoneLabels = {}, leadFiles = [], onAdded }) {
+function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, allPhoneLabels = {}, leadFiles = [], onAdded, onAddTask }) {
   const phone = allPhones[0] || null;
   const email = allEmails[0] || null;
-  const [adding, setAdding]     = useState(null); // 'call'|'meeting'|'note'
-  const [body, setBody]         = useState('');
-  const [dir, setDir]           = useState('outbound');
-  const [saving, setSaving]     = useState(false);
+  const [adding, setAdding]       = useState(null); // 'call'|'meeting'|'note'
+  const [body, setBody]           = useState('');
+  const [dir, setDir]             = useState('outbound');
+  const [saving, setSaving]       = useState(false);
+  const [showFollowUp, setShowFollowUp] = useState(false);
 
   const [translations, setTranslations]   = useState({}); // itemId → translated text
   const [translating, setTranslating]     = useState({}); // itemId → bool
@@ -2852,6 +2853,7 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, allPhon
   function openAdding(type) {
     setAdding(adding === type ? null : type);
     setBody(''); setDir('outbound');
+    setShowFollowUp(false);
   }
 
   async function saveLog() {
@@ -2861,6 +2863,7 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, allPhon
     setBody(''); setAdding(null);
     await onAdded();
     setSaving(false);
+    setShowFollowUp(true);
   }
 
   return (
@@ -2899,6 +2902,23 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, allPhon
             <button onClick={saveLog} disabled={saving || !body.trim()}
               className="flex-1 bg-violet-600 text-white text-base font-bold py-1.5 rounded-xl disabled:opacity-50">
               {saving ? '...' : 'שמור'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Follow-up task prompt */}
+      {showFollowUp && (
+        <div className="flex items-center justify-between gap-3 bg-violet-50 border border-violet-200 rounded-xl px-4 py-2.5">
+          <span className="text-sm text-violet-800 font-medium">הוסף משימת מעקב?</span>
+          <div className="flex gap-2">
+            <button onClick={() => { setShowFollowUp(false); onAddTask(); }}
+              className="px-3 py-1 rounded-lg text-xs font-bold text-white bg-violet-600 hover:bg-violet-700">
+              כן
+            </button>
+            <button onClick={() => setShowFollowUp(false)}
+              className="px-3 py-1 rounded-lg text-xs font-bold text-slate-500 border border-slate-200 hover:bg-slate-50">
+              לא
             </button>
           </div>
         </div>
