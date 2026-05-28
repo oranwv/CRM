@@ -85,6 +85,9 @@ pool.query(`
   ALTER TABLE leads ADD COLUMN IF NOT EXISTS created_by INT REFERENCES users(id);
   ALTER TABLE lead_interactions ADD COLUMN IF NOT EXISTS direction VARCHAR(10) DEFAULT 'outbound';
   ALTER TABLE lead_interactions ADD COLUMN IF NOT EXISTS source VARCHAR(20);
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS roles TEXT[] DEFAULT '{}';
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked BOOLEAN DEFAULT FALSE;
+  UPDATE users SET roles = ARRAY[role]::TEXT[] WHERE array_length(roles, 1) IS NULL;
   ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assigned_to INT REFERENCES users(id);
   ALTER TABLE tasks ADD COLUMN IF NOT EXISTS created_by INT REFERENCES users(id);
   ALTER TABLE tasks ADD COLUMN IF NOT EXISTS remind_via VARCHAR(20) DEFAULT 'app';
@@ -322,6 +325,9 @@ pool.query(`
     resolved_at TIMESTAMPTZ
   );
 `).catch(err => console.error('[DB] operations tables migration error:', err.message));
+
+pool.query(`ALTER TABLE op_maintenance ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'open'`)
+  .catch(err => console.error('[DB] op_maintenance status migration error:', err.message));
 
 pool.query(`
   CREATE TABLE IF NOT EXISTS rsvp_campaigns (

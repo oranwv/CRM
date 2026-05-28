@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api';
-import ChecklistDetail from '../components/ops/ChecklistDetail';
+import ChecklistDetail    from '../components/ops/ChecklistDetail';
+import FaultDetail        from '../components/ops/FaultDetail';
+import MaintenanceDetail  from '../components/ops/MaintenanceDetail';
 
 const PRIORITY_LABEL = { urgent: 'דחוף', high: 'גבוה', normal: 'רגיל', low: 'נמוך' };
 const PRIORITY_COLOR = { urgent: 'bg-red-100 text-red-700', high: 'bg-orange-100 text-orange-700', normal: 'bg-violet-100 text-violet-700', low: 'bg-slate-100 text-slate-500' };
-const FAULT_STATUS   = { open: { label: 'פתוחה', color: 'bg-red-100 text-red-700' }, in_progress: { label: 'בטיפול', color: 'bg-amber-100 text-amber-700' }, resolved: { label: 'טופל', color: 'bg-green-100 text-green-700' } };
-const FAULT_NEXT     = { open: 'in_progress', in_progress: 'resolved', resolved: 'open' };
+const TASK_STATUS    = { open: { label: 'חדש', color: 'bg-violet-100 text-violet-700' }, in_progress: { label: 'בביצוע', color: 'bg-amber-100 text-amber-700' }, done: { label: 'הסתיים', color: 'bg-green-100 text-green-700' } };
 
 function heDay() {
   const d = new Date();
@@ -40,6 +41,7 @@ export default function OperationsPage() {
   const [faults,          setFaults]          = useState([]);
   const [users,           setUsers]           = useState([]);
   const [activeChecklist, setActiveChecklist] = useState(null);
+  const [activeView,      setActiveView]      = useState(null); // 'faults' | 'maintenance'
   const [showFab,         setShowFab]         = useState(false);
   const [modal,           setModal]           = useState(null);
   const [loading,         setLoading]         = useState(true);
@@ -124,27 +126,16 @@ export default function OperationsPage() {
     }
   }
 
-  async function completeTask(task) {
+  async function cycleTaskStatus(task) {
+    const next = task.status === 'open' ? 'in_progress' : 'done';
     try {
-      await api.put(`/operations/tasks/${task.id}`, { ...task, status: 'done' });
-      setTasks(prev => prev.filter(t => t.id !== task.id));
-      setSummary(prev => ({ ...prev, openTasks: Math.max(0, prev.openTasks - 1) }));
-    } catch {}
-  }
-
-  async function completeMaintenance(item) {
-    try {
-      await api.put(`/operations/maintenance/${item.id}/complete`);
-      loadAll();
-    } catch {}
-  }
-
-  async function cycleFaultStatus(fault) {
-    const next = FAULT_NEXT[fault.status] || 'open';
-    try {
-      await api.put(`/operations/faults/${fault.id}`, { ...fault, status: next });
-      setFaults(prev => prev.map(f => f.id === fault.id ? { ...f, status: next } : f));
-      if (next === 'resolved') setSummary(prev => ({ ...prev, openFaults: Math.max(0, prev.openFaults - 1) }));
+      await api.put(`/operations/tasks/${task.id}`, { ...task, status: next });
+      if (next === 'done') {
+        setTasks(prev => prev.filter(t => t.id !== task.id));
+        setSummary(prev => ({ ...prev, openTasks: Math.max(0, prev.openTasks - 1) }));
+      } else {
+        setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: next } : t));
+      }
     } catch {}
   }
 
@@ -175,6 +166,22 @@ export default function OperationsPage() {
           users={users}
           onSummaryRefresh={refreshSummary}
         />
+      </div>
+    );
+  }
+
+  if (activeView === 'faults') {
+    return (
+      <div className="flex flex-col h-full" dir="rtl">
+        <FaultDetail onBack={() => { setActiveView(null); loadAll(); }} users={users} onRefresh={refreshSummary} />
+      </div>
+    );
+  }
+
+  if (activeView === 'maintenance') {
+    return (
+      <div className="flex flex-col h-full" dir="rtl">
+        <MaintenanceDetail onBack={() => { setActiveView(null); loadAll(); }} users={users} onRefresh={refreshSummary} />
       </div>
     );
   }
@@ -249,30 +256,34 @@ export default function OperationsPage() {
 
               {filteredTasks.length === 0 ? (
                 <p className="text-xs text-slate-400 text-center py-6">אין משימות</p>
-              ) : filteredTasks.map(task => (
-                <div key={task.id} className="flex items-start gap-2.5 px-3 py-2.5 border-b border-slate-50 bg-white hover:bg-violet-50 transition cursor-pointer">
-                  <button
-                    onClick={() => completeTask(task)}
-                    className="mt-0.5 w-4 h-4 rounded border-2 border-violet-300 flex-shrink-0 flex items-center justify-center hover:bg-violet-100 transition cursor-pointer"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-slate-800 leading-snug">{task.title}</p>
-                    <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                      {task.priority !== 'normal' && (
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${PRIORITY_COLOR[task.priority] || ''}`}>
-                          {PRIORITY_LABEL[task.priority]}
-                        </span>
-                      )}
-                      {task.assigned_to_name && (
-                        <span className="text-xs text-slate-500 font-semibold">{task.assigned_to_name}</span>
-                      )}
-                      {task.due_date && (
-                        <span className={`text-xs font-semibold ${isOverdue(task.due_date) ? 'text-red-500' : 'text-slate-400'}`}>{formatDate(task.due_date)}</span>
-                      )}
+              ) : filteredTasks.map(task => {
+                const ts = TASK_STATUS[task.status] || TASK_STATUS.open;
+                return (
+                  <div
+                    key={task.id}
+                    onClick={() => cycleTaskStatus(task)}
+                    className="flex items-start gap-2.5 px-3 py-2.5 border-b border-slate-50 bg-white hover:bg-violet-50 active:bg-violet-100 transition cursor-pointer"
+                  >
+                    <span className={`mt-0.5 text-[9px] font-black px-1.5 py-0.5 rounded-full flex-shrink-0 whitespace-nowrap ${ts.color}`}>{ts.label}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-slate-800 leading-snug">{task.title}</p>
+                      <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                        {task.priority !== 'normal' && (
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${PRIORITY_COLOR[task.priority] || ''}`}>
+                            {PRIORITY_LABEL[task.priority]}
+                          </span>
+                        )}
+                        {task.assigned_to_name && (
+                          <span className="text-xs text-slate-500 font-semibold">{task.assigned_to_name}</span>
+                        )}
+                        {task.due_date && (
+                          <span className={`text-xs font-semibold ${isOverdue(task.due_date) ? 'text-red-500' : 'text-slate-400'}`}>{formatDate(task.due_date)}</span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Left column */}
@@ -320,16 +331,22 @@ export default function OperationsPage() {
 
               {/* Maintenance */}
               <div ref={maintenanceRef} className="flex items-center justify-between px-3 py-2 bg-white border-b border-t border-slate-100 mt-2 sticky top-0 z-10">
-                <p className="text-xs font-black text-slate-700">תחזוקה</p>
+                <button onClick={() => setActiveView('maintenance')} className="text-xs font-black text-slate-700 cursor-pointer hover:text-violet-600 transition flex items-center gap-1">
+                  תחזוקה <span className="text-[10px] opacity-50">←</span>
+                </button>
                 <button onClick={() => openModal('maintenance')} className="text-xs text-violet-600 font-bold cursor-pointer">+ חדש</button>
               </div>
 
-              {maintenance.length === 0 ? (
-                <p className="text-xs text-slate-400 text-center py-4">אין משימות תחזוקה</p>
-              ) : maintenance.map(item => {
+              {maintenance.filter(i => (i.status || 'open') !== 'done').length === 0 ? (
+                <p className="text-xs text-slate-400 text-center py-4">אין משימות תחזוקה פעילות</p>
+              ) : maintenance.filter(i => (i.status || 'open') !== 'done').map(item => {
                 const overdue = isOverdue(item.next_due);
                 return (
-                  <div key={item.id} className={`flex items-center gap-2 px-3 py-2.5 border-b border-slate-50 ${overdue ? 'bg-red-50' : 'bg-white'} hover:bg-violet-50 transition cursor-pointer`}>
+                  <div
+                    key={item.id}
+                    onClick={() => setActiveView('maintenance')}
+                    className={`flex items-center gap-2 px-3 py-2.5 border-b border-slate-50 ${overdue ? 'bg-red-50' : 'bg-white'} hover:bg-violet-50 transition cursor-pointer`}
+                  >
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-bold text-slate-800 leading-snug">{item.name}</p>
                       <div className="flex items-center gap-1.5 mt-0.5">
@@ -343,30 +360,27 @@ export default function OperationsPage() {
                         )}
                       </div>
                     </div>
-                    <button
-                      onClick={e => { e.stopPropagation(); completeMaintenance(item); }}
-                      className="text-[10px] font-black px-2 py-1 rounded-lg bg-green-100 text-green-700 hover:bg-green-200 transition cursor-pointer whitespace-nowrap"
-                    >
-                      בוצע
-                    </button>
                   </div>
                 );
               })}
 
               {/* Faults */}
               <div ref={faultsRef} className="flex items-center justify-between px-3 py-2 bg-white border-b border-t border-slate-100 mt-2 sticky top-0 z-10">
-                <p className="text-xs font-black text-slate-700">תקלות</p>
+                <button onClick={() => setActiveView('faults')} className="text-xs font-black text-slate-700 cursor-pointer hover:text-violet-600 transition flex items-center gap-1">
+                  תקלות <span className="text-[10px] opacity-50">←</span>
+                </button>
                 <button onClick={() => openModal('fault')} className="text-xs text-violet-600 font-bold cursor-pointer">+ דווח</button>
               </div>
 
               {faults.filter(f => f.status !== 'resolved').length === 0 ? (
                 <p className="text-xs text-slate-400 text-center py-4">אין תקלות פתוחות</p>
               ) : faults.filter(f => f.status !== 'resolved').map(fault => {
-                const s = FAULT_STATUS[fault.status] || FAULT_STATUS.open;
+                const statusMap = { open: { label: 'חדש', color: 'bg-violet-100 text-violet-700' }, in_progress: { label: 'בביצוע', color: 'bg-amber-100 text-amber-700' } };
+                const s = statusMap[fault.status] || statusMap.open;
                 return (
                   <div
                     key={fault.id}
-                    onClick={() => cycleFaultStatus(fault)}
+                    onClick={() => setActiveView('faults')}
                     className="flex items-center gap-2 px-3 py-2.5 border-b border-slate-50 bg-white hover:bg-red-50 active:bg-red-100 transition cursor-pointer"
                   >
                     <div className="flex-1 min-w-0">

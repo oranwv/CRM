@@ -235,6 +235,21 @@ router.post('/maintenance', async (req, res) => {
   }
 });
 
+router.put('/maintenance/:id', async (req, res) => {
+  const { name, interval_days, assignee_id, status } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE op_maintenance SET name=COALESCE($1, name), interval_days=COALESCE($2, interval_days),
+       assignee_id=$3, status=COALESCE($4, status) WHERE id=$5 RETURNING *`,
+      [name || null, interval_days ? parseInt(interval_days) : null, assignee_id || null, status || null, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.put('/maintenance/:id/complete', async (req, res) => {
   try {
     const { rows: existing } = await pool.query('SELECT * FROM op_maintenance WHERE id=$1', [req.params.id]);
@@ -243,7 +258,7 @@ router.put('/maintenance/:id/complete', async (req, res) => {
     const next  = new Date(today);
     next.setDate(next.getDate() + existing[0].interval_days);
     const { rows } = await pool.query(
-      `UPDATE op_maintenance SET last_done=$1, next_due=$2 WHERE id=$3 RETURNING *`,
+      `UPDATE op_maintenance SET last_done=$1, next_due=$2, status='open' WHERE id=$3 RETURNING *`,
       [today.toISOString().split('T')[0], next.toISOString().split('T')[0], req.params.id]
     );
     res.json(rows[0]);
@@ -263,13 +278,14 @@ router.delete('/maintenance/:id', async (req, res) => {
 
 // ── FAULTS ────────────────────────────────────────────────────────────
 router.get('/faults', async (req, res) => {
+  const all = req.query.all === 'true';
   try {
     const { rows } = await pool.query(
       `SELECT f.*, u1.display_name AS reported_by_name, u2.display_name AS assignee_name
        FROM op_faults f
        LEFT JOIN users u1 ON f.reported_by = u1.id
        LEFT JOIN users u2 ON f.assignee_id = u2.id
-       WHERE f.status != 'resolved'
+       ${all ? '' : "WHERE f.status != 'resolved'"}
        ORDER BY f.created_at DESC`
     );
     res.json(rows);
