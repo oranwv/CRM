@@ -40,16 +40,17 @@ router.get('/summary', async (req, res) => {
 
 // ── OP TASKS ──────────────────────────────────────────────────────────
 router.get('/tasks', async (req, res) => {
+  const done = req.query.done === '1';
   try {
     const { rows } = await pool.query(`
       SELECT t.*, u1.display_name AS assigned_to_name, u2.display_name AS created_by_name
       FROM op_tasks t
       LEFT JOIN users u1 ON t.assigned_to = u1.id
       LEFT JOIN users u2 ON t.created_by = u2.id
-      WHERE t.status != 'done'
-      ORDER BY
-        CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
-        t.due_date ASC NULLS LAST, t.created_at DESC
+      WHERE ${done ? "t.status = 'done'" : "t.status != 'done'"}
+      ORDER BY ${done ? 't.completed_at DESC NULLS LAST' :
+        `CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
+        t.due_date ASC NULLS LAST, t.created_at DESC`}
     `);
     res.json(rows);
   } catch (err) {
@@ -73,13 +74,13 @@ router.post('/tasks', async (req, res) => {
 });
 
 router.put('/tasks/:id', async (req, res) => {
-  const { title, description, assigned_to, priority, due_date, status } = req.body;
+  const { title, description, assigned_to, priority, due_date, status, notes } = req.body;
   try {
     const { rows } = await pool.query(
       `UPDATE op_tasks SET title=$1, description=$2, assigned_to=$3, priority=$4, due_date=$5, status=$6,
-       completed_at = CASE WHEN $6='done' THEN NOW() ELSE completed_at END
-       WHERE id=$7 RETURNING *`,
-      [title, description || null, assigned_to || null, priority || 'normal', due_date || null, status || 'open', req.params.id]
+       notes=$7, completed_at = CASE WHEN $6='done' THEN COALESCE(completed_at, NOW()) ELSE NULL END
+       WHERE id=$8 RETURNING *`,
+      [title, description || null, assigned_to || null, priority || 'normal', due_date || null, status || 'open', notes || null, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);
@@ -219,6 +220,26 @@ router.get('/maintenance', async (req, res) => {
   }
 });
 
+router.get('/maintenance/:id', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT m.*, u.display_name AS assignee_name FROM op_maintenance m
+       LEFT JOIN users u ON m.assignee_id = u.id WHERE m.id = $1`,
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    const { rows: hist } = await pool.query(
+      `SELECT h.*, u.display_name AS done_by_name FROM op_maintenance_history h
+       LEFT JOIN users u ON h.done_by = u.id
+       WHERE h.maintenance_id = $1 ORDER BY h.done_date DESC`,
+      [req.params.id]
+    );
+    res.json({ ...rows[0], history: hist });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/maintenance', async (req, res) => {
   const { name, interval_days, assignee_id } = req.body;
   if (!name || !interval_days) return res.status(400).json({ error: 'שם ומרווח זמן חובה' });
@@ -251,15 +272,22 @@ router.put('/maintenance/:id', async (req, res) => {
 });
 
 router.put('/maintenance/:id/complete', async (req, res) => {
+  const { notes, done_by } = req.body;
   try {
     const { rows: existing } = await pool.query('SELECT * FROM op_maintenance WHERE id=$1', [req.params.id]);
     if (!existing.length) return res.status(404).json({ error: 'Not found' });
     const today = new Date();
     const next  = new Date(today);
     next.setDate(next.getDate() + existing[0].interval_days);
+    const todayStr = today.toISOString().split('T')[0];
+    const nextStr  = next.toISOString().split('T')[0];
+    await pool.query(
+      `INSERT INTO op_maintenance_history (maintenance_id, done_date, notes, done_by) VALUES ($1, $2, $3, $4)`,
+      [req.params.id, todayStr, notes || null, done_by || req.user.id]
+    );
     const { rows } = await pool.query(
       `UPDATE op_maintenance SET last_done=$1, next_due=$2, status='open' WHERE id=$3 RETURNING *`,
-      [today.toISOString().split('T')[0], next.toISOString().split('T')[0], req.params.id]
+      [todayStr, nextStr, req.params.id]
     );
     res.json(rows[0]);
   } catch (err) {
@@ -294,6 +322,23 @@ router.get('/faults', async (req, res) => {
   }
 });
 
+router.get('/faults/:id', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT f.*, u1.display_name AS reported_by_name, u2.display_name AS assignee_name
+       FROM op_faults f
+       LEFT JOIN users u1 ON f.reported_by = u1.id
+       LEFT JOIN users u2 ON f.assignee_id = u2.id
+       WHERE f.id = $1`,
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/faults', async (req, res) => {
   const { title, description, assignee_id } = req.body;
   if (!title) return res.status(400).json({ error: 'כותרת חובה' });
@@ -309,13 +354,13 @@ router.post('/faults', async (req, res) => {
 });
 
 router.put('/faults/:id', async (req, res) => {
-  const { status, assignee_id, title, description } = req.body;
+  const { status, assignee_id, title, description, notes } = req.body;
   try {
     const { rows } = await pool.query(
       `UPDATE op_faults SET status=$1, assignee_id=$2, title=COALESCE($3, title), description=$4,
-       resolved_at = CASE WHEN $1='resolved' THEN NOW() ELSE NULL END
-       WHERE id=$5 RETURNING *`,
-      [status || 'open', assignee_id || null, title || null, description || null, req.params.id]
+       notes=$5, resolved_at = CASE WHEN $1='resolved' THEN NOW() ELSE NULL END
+       WHERE id=$6 RETURNING *`,
+      [status || 'open', assignee_id || null, title || null, description || null, notes || null, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);

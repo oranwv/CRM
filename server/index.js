@@ -88,6 +88,16 @@ pool.query(`
   ALTER TABLE users ADD COLUMN IF NOT EXISTS roles TEXT[] DEFAULT '{}';
   ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked BOOLEAN DEFAULT FALSE;
   UPDATE users SET roles = ARRAY[role]::TEXT[] WHERE array_length(roles, 1) IS NULL;
+  ALTER TABLE op_tasks ADD COLUMN IF NOT EXISTS notes TEXT;
+  ALTER TABLE op_faults ADD COLUMN IF NOT EXISTS notes TEXT;
+  CREATE TABLE IF NOT EXISTS op_maintenance_history (
+    id SERIAL PRIMARY KEY,
+    maintenance_id INT REFERENCES op_maintenance(id) ON DELETE CASCADE,
+    done_date DATE DEFAULT CURRENT_DATE,
+    notes TEXT,
+    done_by INT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
   ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assigned_to INT REFERENCES users(id);
   ALTER TABLE tasks ADD COLUMN IF NOT EXISTS created_by INT REFERENCES users(id);
   ALTER TABLE tasks ADD COLUMN IF NOT EXISTS remind_via VARCHAR(20) DEFAULT 'app';
