@@ -25,6 +25,7 @@ const STAGE_TABS = {
   in_production: ['deposit','production'],
   event_done:    ['completed'],
   lost:          ['lost'],
+  all_active:    ['new','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent','deposit','production','completed'],
 };
 
 // GET /api/leads?tab=new|in_process|closed|lost  (tab omitted = search all stages)

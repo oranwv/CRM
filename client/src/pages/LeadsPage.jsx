@@ -179,9 +179,10 @@ export default function LeadsPage() {
     abortRef.current = new AbortController();
     if (!silent) setLoading(true);
     try {
+      // When searching: lost tab stays restricted; all other tabs search across all non-lost stages
       // When activeFilter is set on new/in_process: fetch the combined 'active' group
       const fetchTab = debouncedSearch
-        ? undefined
+        ? (tab === 'lost' ? 'lost' : 'all_active')
         : inActiveFilterMode ? 'active' : tab;
 
       const { data } = await api.get('/leads', {
