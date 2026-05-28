@@ -42,15 +42,177 @@ function checklistProgress(checklist) {
 
 const inputCls = 'w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-400';
 
-// ── Task Detail Modal ──────────────────────────────────────────────────
+function fmtTs(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+// ── Shared: Reminders + Activity Log sections ──────────────────────────
+function RemindersSection({ entityType, entityId, users }) {
+  const [reminders, setReminders] = useState([]);
+  const [newTitle, setNewTitle]   = useState('');
+  const [newDate,  setNewDate]    = useState('');
+  const [newAssignee, setNewAssignee] = useState('');
+  const [adding, setAdding] = useState(false);
+
+  useEffect(() => {
+    api.get(`/operations/reminders/${entityType}/${entityId}`)
+      .then(r => setReminders(r.data)).catch(() => {});
+  }, [entityType, entityId]);
+
+  async function add() {
+    if (!newTitle.trim()) return;
+    setAdding(true);
+    try {
+      const r = await api.post(`/operations/reminders/${entityType}/${entityId}`, {
+        title: newTitle, due_date: newDate || null, assigned_to: newAssignee || null,
+      });
+      setReminders(prev => [...prev, r.data]);
+      setNewTitle(''); setNewDate(''); setNewAssignee('');
+    } catch {} finally { setAdding(false); }
+  }
+
+  async function toggle(rem) {
+    try {
+      const r = await api.put(`/operations/reminders/${rem.id}`, { done: !rem.done });
+      setReminders(prev => prev.map(x => x.id === rem.id ? r.data : x)
+        .sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1)));
+    } catch {}
+  }
+
+  async function del(id) {
+    try {
+      await api.delete(`/operations/reminders/${id}`);
+      setReminders(prev => prev.filter(x => x.id !== id));
+    } catch {}
+  }
+
+  const openCount = reminders.filter(r => !r.done).length;
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <p className="text-sm font-black text-slate-700">תזכורות</p>
+        {openCount > 0 && (
+          <span className="text-[10px] font-black bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full">{openCount}</span>
+        )}
+      </div>
+      <div className="space-y-1.5 mb-3">
+        {reminders.map(rem => (
+          <div key={rem.id} className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${rem.done ? 'bg-slate-50 border-slate-100 opacity-60' : 'bg-white border-slate-200'}`}>
+            <button onClick={() => toggle(rem)}
+              className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition cursor-pointer ${rem.done ? 'bg-violet-500 border-violet-500 text-white' : 'border-slate-300'}`}>
+              {rem.done && <span className="text-[10px] leading-none">✓</span>}
+            </button>
+            <div className="flex-1 min-w-0">
+              <p className={`text-xs font-semibold ${rem.done ? 'line-through text-slate-400' : 'text-slate-800'}`}>{rem.title}</p>
+              {(rem.due_date || rem.assigned_to_name) && (
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  {rem.due_date && (
+                    <span className={`text-[10px] font-semibold ${isOverdue(rem.due_date) && !rem.done ? 'text-red-500' : 'text-slate-400'}`}>{formatDate(rem.due_date)}</span>
+                  )}
+                  {rem.assigned_to_name && (
+                    <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">{rem.assigned_to_name}</span>
+                  )}
+                </div>
+              )}
+            </div>
+            <button onClick={() => del(rem.id)} className="text-slate-300 hover:text-red-400 transition text-xs px-1 cursor-pointer">✕</button>
+          </div>
+        ))}
+        {reminders.length === 0 && (
+          <p className="text-xs text-slate-400 text-center py-2">אין תזכורות</p>
+        )}
+      </div>
+      <div className="flex gap-1.5">
+        <input value={newTitle} onChange={e => setNewTitle(e.target.value)}
+          placeholder="הוסף תזכורת..." onKeyDown={e => e.key === 'Enter' && add()}
+          className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-violet-400" />
+        <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)}
+          style={{ direction: 'ltr' }}
+          className="w-28 border border-slate-200 rounded-xl px-2 py-2 text-xs focus:outline-none focus:border-violet-400" />
+        <select value={newAssignee} onChange={e => setNewAssignee(e.target.value)}
+          className="w-24 border border-slate-200 rounded-xl px-2 py-2 text-xs focus:outline-none focus:border-violet-400">
+          <option value="">אחראי</option>
+          {users.map(u => <option key={u.id} value={u.id}>{u.display_name}</option>)}
+        </select>
+        <button onClick={add} disabled={adding || !newTitle.trim()}
+          className="px-3 py-2 rounded-xl bg-violet-600 text-white text-xs font-black disabled:opacity-40 cursor-pointer">
+          הוסף
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ActivityLogSection({ entityType, entityId, refreshTrigger }) {
+  const [log, setLog]       = useState([]);
+  const [note, setNote]     = useState('');
+  const [adding, setAdding] = useState(false);
+
+  const load = useCallback(() => {
+    api.get(`/operations/activity/${entityType}/${entityId}`)
+      .then(r => setLog(r.data)).catch(() => {});
+  }, [entityType, entityId]);
+
+  useEffect(() => { load(); }, [load, refreshTrigger]);
+
+  async function addNote() {
+    if (!note.trim()) return;
+    setAdding(true);
+    try {
+      const r = await api.post(`/operations/activity/${entityType}/${entityId}`, { body: note });
+      setLog(prev => [r.data, ...prev]);
+      setNote('');
+    } catch {} finally { setAdding(false); }
+  }
+
+  return (
+    <div>
+      <p className="text-sm font-black text-slate-700 mb-2">לוג פעילות</p>
+      <div className="flex gap-2 mb-3">
+        <textarea value={note} onChange={e => setNote(e.target.value)}
+          placeholder="הוסף הערה..."
+          rows={2}
+          className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-violet-400 resize-none" />
+        <button onClick={addNote} disabled={adding || !note.trim()}
+          className="px-3 rounded-xl bg-violet-600 text-white text-xs font-black disabled:opacity-40 cursor-pointer self-stretch">
+          הוסף
+        </button>
+      </div>
+      <div className="space-y-1.5">
+        {log.length === 0 && (
+          <p className="text-xs text-slate-400 text-center py-2">אין פעילות עדיין</p>
+        )}
+        {log.map(entry => (
+          <div key={entry.id} className={`px-3 py-2 rounded-xl text-xs ${entry.type === 'note' ? 'bg-white border border-slate-200' : 'bg-slate-50 border border-slate-100'}`}>
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <span className="text-slate-400">{fmtTs(entry.created_at)}</span>
+              {entry.created_by_name && <span className="font-bold text-slate-600">{entry.created_by_name}</span>}
+              {entry.type !== 'note' && (
+                <span className="text-[9px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full font-bold">אוטומטי</span>
+              )}
+            </div>
+            <p className={`text-slate-700 ${entry.type !== 'note' ? 'italic text-slate-500' : ''}`}>{entry.body}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Task Detail (full-screen) ──────────────────────────────────────────
 function TaskDetailModal({ task, users, onClose, onSaved, onDeleted }) {
-  const [form, setForm] = useState({ ...task });
-  const [saving, setSaving] = useState(false);
+  const [form, setForm]         = useState({ ...task });
+  const [saving, setSaving]     = useState(false);
+  const [actRefresh, setActRefresh] = useState(0);
 
   async function save() {
     setSaving(true);
     try {
       await api.put(`/operations/tasks/${form.id}`, form);
+      setActRefresh(n => n + 1);
       onSaved();
     } catch (err) {
       alert(err.response?.data?.error || err.message);
@@ -63,51 +225,63 @@ function TaskDetailModal({ task, users, onClose, onSaved, onDeleted }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end bg-black/40" onClick={onClose} dir="rtl">
-      <div className="w-full bg-white rounded-t-2xl shadow-2xl p-5 pb-8 max-h-[88vh] overflow-y-auto space-y-3" onClick={e => e.stopPropagation()}>
-        <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-1" />
-        <div className="flex items-center justify-between">
-          <h3 className="font-black text-slate-800 text-base">פרטי משימה</h3>
-          <button onClick={del} className="text-xs text-red-400 font-bold px-2 py-1 rounded-lg hover:bg-red-50">מחק</button>
-        </div>
+    <div className="fixed inset-0 z-50 bg-white overflow-y-auto" dir="rtl">
+      <div className="sticky top-0 bg-white border-b border-slate-200 flex items-center gap-3 px-4 py-3 z-10">
+        <button onClick={onClose} className="text-slate-500 font-bold text-sm cursor-pointer">← חזרה</button>
+        <h2 className="font-black text-slate-800 flex-1 text-sm truncate">{form.title}</h2>
+        <button onClick={del} className="text-xs text-red-400 font-bold px-2 py-1 rounded-lg hover:bg-red-50 cursor-pointer">מחק</button>
+      </div>
 
-        <input className={inputCls} placeholder="כותרת" value={form.title || ''}
-          onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+      <div className="p-4 pb-32 space-y-5">
+        <div className="space-y-3">
+          <input className={inputCls} placeholder="כותרת" value={form.title || ''}
+            onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
 
-        <textarea className={`${inputCls} resize-none`} rows={2} placeholder="תיאור (אופציונלי)" value={form.description || ''}
-          onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+          <textarea className={`${inputCls} resize-none`} rows={2} placeholder="תיאור (אופציונלי)" value={form.description || ''}
+            onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
 
-        <div className="flex gap-1.5">
-          {Object.entries(TASK_STATUS).map(([s, info]) => (
-            <button key={s} onClick={() => setForm(f => ({ ...f, status: s }))}
-              className={`flex-1 py-2 rounded-xl text-xs font-black transition border ${form.status === s ? info.color + ' border-current' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>
-              {info.label}
-            </button>
-          ))}
-        </div>
+          <div className="flex gap-1.5">
+            {Object.entries(TASK_STATUS).map(([s, info]) => (
+              <button key={s} onClick={() => setForm(f => ({ ...f, status: s }))}
+                className={`flex-1 py-2 rounded-xl text-xs font-black transition border cursor-pointer ${form.status === s ? info.color + ' border-current' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>
+                {info.label}
+              </button>
+            ))}
+          </div>
 
-        <select className={inputCls} value={form.priority || 'normal'}
-          onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}>
-          <option value="urgent">דחוף</option>
-          <option value="high">גבוה</option>
-          <option value="normal">רגיל</option>
-          <option value="low">נמוך</option>
-        </select>
-
-        <div className="flex gap-2">
-          <select className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
-            value={form.assigned_to || ''} onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))}>
-            <option value="">ללא אחראי</option>
-            {users.map(u => <option key={u.id} value={u.id}>{u.display_name}</option>)}
+          <select className={inputCls} value={form.priority || 'normal'}
+            onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}>
+            <option value="urgent">דחוף</option>
+            <option value="high">גבוה</option>
+            <option value="normal">רגיל</option>
+            <option value="low">נמוך</option>
           </select>
-          <input type="date" className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
-            style={{ direction: 'ltr' }} value={form.due_date ? String(form.due_date).slice(0,10) : ''}
-            onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} />
+
+          <div className="flex gap-2">
+            <select className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
+              value={form.assigned_to || ''} onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))}>
+              <option value="">ללא אחראי</option>
+              {users.map(u => <option key={u.id} value={u.id}>{u.display_name}</option>)}
+            </select>
+            <input type="date" className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
+              style={{ direction: 'ltr' }} value={form.due_date ? String(form.due_date).slice(0,10) : ''}
+              onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} />
+          </div>
+
+          <textarea className={`${inputCls} resize-none`} rows={3} placeholder="תיעוד / הערות לאחר ביצוע..." value={form.notes || ''}
+            onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
         </div>
 
-        <textarea className={`${inputCls} resize-none`} rows={3} placeholder="תיעוד / הערות לאחר ביצוע..." value={form.notes || ''}
-          onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+        <div className="border-t border-slate-100 pt-5">
+          <RemindersSection entityType="task" entityId={task.id} users={users} />
+        </div>
 
+        <div className="border-t border-slate-100 pt-5">
+          <ActivityLogSection entityType="task" entityId={task.id} refreshTrigger={actRefresh} />
+        </div>
+      </div>
+
+      <div className="fixed bottom-16 left-0 right-0 px-4 pb-4 bg-white border-t border-slate-100 pt-3">
         <button onClick={save} disabled={saving}
           className="w-full py-3 rounded-2xl text-white font-black text-sm disabled:opacity-50 cursor-pointer"
           style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
@@ -118,13 +292,14 @@ function TaskDetailModal({ task, users, onClose, onSaved, onDeleted }) {
   );
 }
 
-// ── Maintenance Detail Modal ───────────────────────────────────────────
+// ── Maintenance Detail (full-screen) ──────────────────────────────────
 function MaintenanceDetailModal({ item, users, onClose, onSaved }) {
-  const [form, setForm] = useState({ assignee_id: item.assignee_id || '' });
-  const [history, setHistory] = useState([]);
+  const [form, setForm]             = useState({ assignee_id: item.assignee_id || '' });
+  const [history, setHistory]       = useState([]);
   const [showComplete, setShowComplete] = useState(false);
   const [completeNotes, setCompleteNotes] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving]         = useState(false);
+  const [actRefresh, setActRefresh] = useState(0);
   const currentUser = JSON.parse(localStorage.getItem('crm_user') || '{}');
 
   useEffect(() => {
@@ -149,6 +324,9 @@ function MaintenanceDetailModal({ item, users, onClose, onSaved }) {
       await api.put(`/operations/maintenance/${item.id}/complete`, {
         notes: completeNotes, done_by: currentUser.id,
       });
+      setActRefresh(n => n + 1);
+      setShowComplete(false);
+      setCompleteNotes('');
       onSaved();
     } catch (err) {
       alert(err.response?.data?.error || err.message);
@@ -156,66 +334,83 @@ function MaintenanceDetailModal({ item, users, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end bg-black/40" onClick={onClose} dir="rtl">
-      <div className="w-full bg-white rounded-t-2xl shadow-2xl p-5 pb-8 max-h-[88vh] overflow-y-auto space-y-3" onClick={e => e.stopPropagation()}>
-        <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-1" />
-        <h3 className="font-black text-slate-800 text-base">{item.name}</h3>
+    <div className="fixed inset-0 z-50 bg-white overflow-y-auto" dir="rtl">
+      <div className="sticky top-0 bg-white border-b border-slate-200 flex items-center gap-3 px-4 py-3 z-10">
+        <button onClick={onClose} className="text-slate-500 font-bold text-sm cursor-pointer">← חזרה</button>
+        <h2 className="font-black text-slate-800 flex-1 text-sm truncate">{item.name}</h2>
+        {isOverdue(item.next_due) && (
+          <span className="text-[10px] font-black bg-red-100 text-red-600 px-2 py-0.5 rounded-full">באיחור</span>
+        )}
+      </div>
 
-        <div className="text-xs text-slate-500 space-y-0.5 bg-slate-50 rounded-xl px-3 py-2">
-          <p>מרווח: כל {item.interval_days} ימים</p>
-          {item.next_due && (
-            <p className={isOverdue(item.next_due) ? 'text-red-600 font-bold' : ''}>
-              מועד הבא: {formatDate(item.next_due)}{isOverdue(item.next_due) ? ' — באיחור!' : ''}
-            </p>
+      <div className="p-4 pb-32 space-y-5">
+        <div className="space-y-3">
+          <div className="text-xs text-slate-500 space-y-0.5 bg-slate-50 rounded-xl px-3 py-2">
+            <p>מרווח: כל {item.interval_days} ימים</p>
+            {item.next_due && (
+              <p className={isOverdue(item.next_due) ? 'text-red-600 font-bold' : ''}>
+                מועד הבא: {formatDate(item.next_due)}{isOverdue(item.next_due) ? ' — באיחור!' : ''}
+              </p>
+            )}
+            {item.last_done && <p>בוצע לאחרונה: {formatDate(item.last_done)}</p>}
+          </div>
+
+          <select className={inputCls} value={form.assignee_id || ''}
+            onChange={e => setForm(f => ({ ...f, assignee_id: e.target.value }))}>
+            <option value="">ללא אחראי</option>
+            {users.map(u => <option key={u.id} value={u.id}>{u.display_name}</option>)}
+          </select>
+
+          {!showComplete ? (
+            <button onClick={() => setShowComplete(true)}
+              className="w-full py-2.5 rounded-xl bg-green-50 text-green-700 font-black text-sm border border-green-200 cursor-pointer">
+              סמן כבוצע
+            </button>
+          ) : (
+            <div className="space-y-2 border border-green-200 rounded-xl p-3 bg-green-50">
+              <p className="text-xs font-bold text-green-700">הערות לביצוע (אופציונלי):</p>
+              <textarea value={completeNotes} onChange={e => setCompleteNotes(e.target.value)}
+                rows={2} placeholder="מה בוצע..."
+                className="w-full border border-green-200 bg-white rounded-lg px-2 py-1.5 text-sm focus:outline-none resize-none" />
+              <div className="flex gap-2">
+                <button onClick={markDone} disabled={saving}
+                  className="flex-1 py-2 rounded-xl bg-green-600 text-white font-black text-sm disabled:opacity-50 cursor-pointer">
+                  {saving ? 'שומר...' : 'אשר ביצוע'}
+                </button>
+                <button onClick={() => setShowComplete(false)}
+                  className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-sm cursor-pointer">
+                  ביטול
+                </button>
+              </div>
+            </div>
           )}
-          {item.last_done && <p>בוצע לאחרונה: {formatDate(item.last_done)}</p>}
+
+          {history.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-black text-slate-500">היסטוריית ביצוע</p>
+              {history.map(h => (
+                <div key={h.id} className="text-xs bg-slate-50 rounded-xl px-3 py-2">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="font-bold text-slate-700">{formatDate(h.done_date)}</span>
+                    {h.done_by_name && <span className="text-slate-500">{h.done_by_name}</span>}
+                  </div>
+                  {h.notes && <p className="text-slate-500">{h.notes}</p>}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        <select className={inputCls} value={form.assignee_id || ''}
-          onChange={e => setForm(f => ({ ...f, assignee_id: e.target.value }))}>
-          <option value="">ללא אחראי</option>
-          {users.map(u => <option key={u.id} value={u.id}>{u.display_name}</option>)}
-        </select>
+        <div className="border-t border-slate-100 pt-5">
+          <RemindersSection entityType="maintenance" entityId={item.id} users={users} />
+        </div>
 
-        {!showComplete ? (
-          <button onClick={() => setShowComplete(true)}
-            className="w-full py-2.5 rounded-xl bg-green-50 text-green-700 font-black text-sm border border-green-200 cursor-pointer">
-            סמן כבוצע
-          </button>
-        ) : (
-          <div className="space-y-2 border border-green-200 rounded-xl p-3 bg-green-50">
-            <p className="text-xs font-bold text-green-700">הערות לביצוע (אופציונלי):</p>
-            <textarea value={completeNotes} onChange={e => setCompleteNotes(e.target.value)}
-              rows={2} placeholder="מה בוצע..."
-              className="w-full border border-green-200 bg-white rounded-lg px-2 py-1.5 text-sm focus:outline-none resize-none" />
-            <div className="flex gap-2">
-              <button onClick={markDone} disabled={saving}
-                className="flex-1 py-2 rounded-xl bg-green-600 text-white font-black text-sm disabled:opacity-50 cursor-pointer">
-                {saving ? 'שומר...' : 'אשר ביצוע'}
-              </button>
-              <button onClick={() => setShowComplete(false)}
-                className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-sm cursor-pointer">
-                ביטול
-              </button>
-            </div>
-          </div>
-        )}
+        <div className="border-t border-slate-100 pt-5">
+          <ActivityLogSection entityType="maintenance" entityId={item.id} refreshTrigger={actRefresh} />
+        </div>
+      </div>
 
-        {history.length > 0 && (
-          <div className="space-y-1.5">
-            <p className="text-xs font-black text-slate-500">היסטוריית ביצוע</p>
-            {history.map(h => (
-              <div key={h.id} className="text-xs bg-slate-50 rounded-xl px-3 py-2">
-                <div className="flex items-center justify-between mb-0.5">
-                  <span className="font-bold text-slate-700">{formatDate(h.done_date)}</span>
-                  {h.done_by_name && <span className="text-slate-500">{h.done_by_name}</span>}
-                </div>
-                {h.notes && <p className="text-slate-500">{h.notes}</p>}
-              </div>
-            ))}
-          </div>
-        )}
-
+      <div className="fixed bottom-16 left-0 right-0 px-4 pb-4 bg-white border-t border-slate-100 pt-3">
         <button onClick={save} disabled={saving}
           className="w-full py-3 rounded-2xl text-white font-black text-sm disabled:opacity-50 cursor-pointer"
           style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
@@ -226,15 +421,17 @@ function MaintenanceDetailModal({ item, users, onClose, onSaved }) {
   );
 }
 
-// ── Fault Detail Modal ─────────────────────────────────────────────────
+// ── Fault Detail (full-screen) ─────────────────────────────────────────
 function FaultDetailModal({ fault, users, onClose, onSaved, onDeleted }) {
-  const [form, setForm] = useState({ ...fault });
-  const [saving, setSaving] = useState(false);
+  const [form, setForm]         = useState({ ...fault });
+  const [saving, setSaving]     = useState(false);
+  const [actRefresh, setActRefresh] = useState(0);
 
   async function save() {
     setSaving(true);
     try {
       await api.put(`/operations/faults/${form.id}`, form);
+      setActRefresh(n => n + 1);
       onSaved();
     } catch (err) {
       alert(err.response?.data?.error || err.message);
@@ -247,42 +444,54 @@ function FaultDetailModal({ fault, users, onClose, onSaved, onDeleted }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end bg-black/40" onClick={onClose} dir="rtl">
-      <div className="w-full bg-white rounded-t-2xl shadow-2xl p-5 pb-8 max-h-[88vh] overflow-y-auto space-y-3" onClick={e => e.stopPropagation()}>
-        <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-1" />
-        <div className="flex items-center justify-between">
-          <h3 className="font-black text-slate-800 text-base">פרטי תקלה</h3>
-          <button onClick={del} className="text-xs text-red-400 font-bold px-2 py-1 rounded-lg hover:bg-red-50">מחק</button>
+    <div className="fixed inset-0 z-50 bg-white overflow-y-auto" dir="rtl">
+      <div className="sticky top-0 bg-white border-b border-slate-200 flex items-center gap-3 px-4 py-3 z-10">
+        <button onClick={onClose} className="text-slate-500 font-bold text-sm cursor-pointer">← חזרה</button>
+        <h2 className="font-black text-slate-800 flex-1 text-sm truncate">{form.title}</h2>
+        <button onClick={del} className="text-xs text-red-400 font-bold px-2 py-1 rounded-lg hover:bg-red-50 cursor-pointer">מחק</button>
+      </div>
+
+      <div className="p-4 pb-32 space-y-5">
+        <div className="space-y-3">
+          <input className={inputCls} placeholder="תיאור התקלה" value={form.title || ''}
+            onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+
+          <textarea className={`${inputCls} resize-none`} rows={2} placeholder="פרטים נוספים" value={form.description || ''}
+            onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+
+          <div className="flex gap-1.5">
+            {Object.entries(FAULT_STATUS).map(([s, info]) => (
+              <button key={s} onClick={() => setForm(f => ({ ...f, status: s }))}
+                className={`flex-1 py-2 rounded-xl text-xs font-black transition border cursor-pointer ${form.status === s ? info.color + ' border-current' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>
+                {info.label}
+              </button>
+            ))}
+          </div>
+
+          <select className={inputCls} value={form.assignee_id || ''}
+            onChange={e => setForm(f => ({ ...f, assignee_id: e.target.value }))}>
+            <option value="">ללא אחראי</option>
+            {users.map(u => <option key={u.id} value={u.id}>{u.display_name}</option>)}
+          </select>
+
+          <textarea className={`${inputCls} resize-none`} rows={3} placeholder="תיעוד / הערות לאחר טיפול..." value={form.notes || ''}
+            onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+
+          {form.reported_by_name && (
+            <p className="text-xs text-slate-400">דווח על ידי: {form.reported_by_name}</p>
+          )}
         </div>
 
-        <input className={inputCls} placeholder="תיאור התקלה" value={form.title || ''}
-          onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
-
-        <textarea className={`${inputCls} resize-none`} rows={2} placeholder="פרטים נוספים" value={form.description || ''}
-          onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
-
-        <div className="flex gap-1.5">
-          {Object.entries(FAULT_STATUS).map(([s, info]) => (
-            <button key={s} onClick={() => setForm(f => ({ ...f, status: s }))}
-              className={`flex-1 py-2 rounded-xl text-xs font-black transition border ${form.status === s ? info.color + ' border-current' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>
-              {info.label}
-            </button>
-          ))}
+        <div className="border-t border-slate-100 pt-5">
+          <RemindersSection entityType="fault" entityId={fault.id} users={users} />
         </div>
 
-        <select className={inputCls} value={form.assignee_id || ''}
-          onChange={e => setForm(f => ({ ...f, assignee_id: e.target.value }))}>
-          <option value="">ללא אחראי</option>
-          {users.map(u => <option key={u.id} value={u.id}>{u.display_name}</option>)}
-        </select>
+        <div className="border-t border-slate-100 pt-5">
+          <ActivityLogSection entityType="fault" entityId={fault.id} refreshTrigger={actRefresh} />
+        </div>
+      </div>
 
-        <textarea className={`${inputCls} resize-none`} rows={3} placeholder="תיעוד / הערות לאחר טיפול..." value={form.notes || ''}
-          onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
-
-        {form.reported_by_name && (
-          <p className="text-xs text-slate-400">דווח על ידי: {form.reported_by_name}</p>
-        )}
-
+      <div className="fixed bottom-16 left-0 right-0 px-4 pb-4 bg-white border-t border-slate-100 pt-3">
         <button onClick={save} disabled={saving}
           className="w-full py-3 rounded-2xl text-white font-black text-sm disabled:opacity-50 cursor-pointer"
           style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
@@ -804,13 +1013,13 @@ export default function OperationsPage() {
         </div>
       )}
 
-      {/* Detail modals */}
+      {/* Detail views (full-screen) */}
       {taskDetail && (
         <TaskDetailModal
           task={taskDetail}
           users={users}
-          onClose={() => setTaskDetail(null)}
-          onSaved={() => { setTaskDetail(null); loadAll(); if (tasksTab === 'done') api.get('/operations/tasks?done=1').then(r => setDoneTasks(r.data)).catch(() => {}); }}
+          onClose={() => { setTaskDetail(null); loadAll(); if (tasksTab === 'done') api.get('/operations/tasks?done=1').then(r => setDoneTasks(r.data)).catch(() => {}); }}
+          onSaved={() => { loadAll(); if (tasksTab === 'done') api.get('/operations/tasks?done=1').then(r => setDoneTasks(r.data)).catch(() => {}); }}
           onDeleted={() => { setTaskDetail(null); loadAll(); }}
         />
       )}
@@ -819,8 +1028,8 @@ export default function OperationsPage() {
         <MaintenanceDetailModal
           item={maintDetail}
           users={users}
-          onClose={() => setMaintDetail(null)}
-          onSaved={() => { setMaintDetail(null); loadAll(); }}
+          onClose={() => { setMaintDetail(null); loadAll(); }}
+          onSaved={() => { loadAll(); }}
         />
       )}
 
@@ -828,8 +1037,8 @@ export default function OperationsPage() {
         <FaultDetailModal
           fault={faultDetail}
           users={users}
-          onClose={() => setFaultDetail(null)}
-          onSaved={() => { setFaultDetail(null); loadAll(); }}
+          onClose={() => { setFaultDetail(null); loadAll(); }}
+          onSaved={() => { loadAll(); }}
           onDeleted={() => { setFaultDetail(null); loadAll(); }}
         />
       )}

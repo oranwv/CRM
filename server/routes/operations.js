@@ -1,6 +1,15 @@
 const router = require('express').Router();
 const pool   = require('../db/pool');
 
+const STATUS_LABELS = { open: 'פתוח', in_progress: 'בטיפול', done: 'הושלם', resolved: 'נפתר' };
+
+async function logActivity(entityType, entityId, type, body, userId) {
+  await pool.query(
+    `INSERT INTO op_activity_log (entity_type, entity_id, type, body, created_by) VALUES ($1,$2,$3,$4,$5)`,
+    [entityType, entityId, type, body, userId || null]
+  );
+}
+
 // GET /api/operations/users — team member list for assignee pickers
 router.get('/users', async (req, res) => {
   try {
@@ -76,6 +85,9 @@ router.post('/tasks', async (req, res) => {
 router.put('/tasks/:id', async (req, res) => {
   const { title, description, assigned_to, priority, due_date, status, notes } = req.body;
   try {
+    const { rows: existing } = await pool.query('SELECT status FROM op_tasks WHERE id=$1', [req.params.id]);
+    if (!existing.length) return res.status(404).json({ error: 'Not found' });
+    const oldStatus = existing[0].status;
     const { rows } = await pool.query(
       `UPDATE op_tasks SET title=$1, description=$2, assigned_to=$3, priority=$4, due_date=$5, status=$6,
        notes=$7, completed_at = CASE WHEN $6='done' THEN COALESCE(completed_at, NOW()) ELSE NULL END
@@ -83,6 +95,10 @@ router.put('/tasks/:id', async (req, res) => {
       [title, description || null, assigned_to || null, priority || 'normal', due_date || null, status || 'open', notes || null, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    if (status && status !== oldStatus) {
+      await logActivity('task', req.params.id, 'status_change',
+        `סטטוס שונה ל-${STATUS_LABELS[status] || status}`, req.user.id);
+    }
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -289,6 +305,8 @@ router.put('/maintenance/:id/complete', async (req, res) => {
       `UPDATE op_maintenance SET last_done=$1, next_due=$2, status='open' WHERE id=$3 RETURNING *`,
       [todayStr, nextStr, req.params.id]
     );
+    await logActivity('maintenance', req.params.id, 'completion',
+      'תחזוקה בוצעה' + (notes ? ': ' + notes : ''), req.user.id);
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -356,6 +374,9 @@ router.post('/faults', async (req, res) => {
 router.put('/faults/:id', async (req, res) => {
   const { status, assignee_id, title, description, notes } = req.body;
   try {
+    const { rows: existing } = await pool.query('SELECT status FROM op_faults WHERE id=$1', [req.params.id]);
+    if (!existing.length) return res.status(404).json({ error: 'Not found' });
+    const oldStatus = existing[0].status;
     const { rows } = await pool.query(
       `UPDATE op_faults SET status=$1, assignee_id=$2, title=COALESCE($3, title), description=$4,
        notes=$5, resolved_at = CASE WHEN $1='resolved' THEN NOW() ELSE NULL END
@@ -363,6 +384,10 @@ router.put('/faults/:id', async (req, res) => {
       [status || 'open', assignee_id || null, title || null, description || null, notes || null, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    if (status && status !== oldStatus) {
+      await logActivity('fault', req.params.id, 'status_change',
+        `סטטוס שונה ל-${STATUS_LABELS[status] || status}`, req.user.id);
+    }
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -372,6 +397,99 @@ router.put('/faults/:id', async (req, res) => {
 router.delete('/faults/:id', async (req, res) => {
   try {
     await pool.query('DELETE FROM op_faults WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── ACTIVITY LOG ──────────────────────────────────────────────────────
+router.get('/activity/:entityType/:entityId', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT a.*, u.display_name AS created_by_name FROM op_activity_log a
+       LEFT JOIN users u ON a.created_by = u.id
+       WHERE a.entity_type=$1 AND a.entity_id=$2 ORDER BY a.created_at DESC`,
+      [req.params.entityType, req.params.entityId]
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/activity/:entityType/:entityId', async (req, res) => {
+  const { body } = req.body;
+  if (!body?.trim()) return res.status(400).json({ error: 'תוכן חובה' });
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO op_activity_log (entity_type, entity_id, type, body, created_by) VALUES ($1,$2,'note',$3,$4) RETURNING *`,
+      [req.params.entityType, req.params.entityId, body, req.user.id]
+    );
+    const { rows: full } = await pool.query(
+      `SELECT a.*, u.display_name AS created_by_name FROM op_activity_log a
+       LEFT JOIN users u ON a.created_by = u.id WHERE a.id=$1`,
+      [rows[0].id]
+    );
+    res.json(full[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── REMINDERS ─────────────────────────────────────────────────────────
+router.get('/reminders/:entityType/:entityId', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT r.*, u.display_name AS assigned_to_name FROM op_reminders r
+       LEFT JOIN users u ON r.assigned_to = u.id
+       WHERE r.entity_type=$1 AND r.entity_id=$2
+       ORDER BY r.done ASC, r.due_date ASC NULLS LAST, r.created_at ASC`,
+      [req.params.entityType, req.params.entityId]
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/reminders/:entityType/:entityId', async (req, res) => {
+  const { title, due_date, assigned_to } = req.body;
+  if (!title?.trim()) return res.status(400).json({ error: 'כותרת חובה' });
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO op_reminders (entity_type, entity_id, title, due_date, assigned_to, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [req.params.entityType, req.params.entityId, title, due_date || null, assigned_to || null, req.user.id]
+    );
+    const { rows: full } = await pool.query(
+      `SELECT r.*, u.display_name AS assigned_to_name FROM op_reminders r
+       LEFT JOIN users u ON r.assigned_to = u.id WHERE r.id=$1`,
+      [rows[0].id]
+    );
+    res.json(full[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/reminders/:id', async (req, res) => {
+  const { done } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE op_reminders SET done=$1, done_at = CASE WHEN $1 THEN NOW() ELSE NULL END WHERE id=$2 RETURNING *`,
+      [!!done, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/reminders/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM op_reminders WHERE id=$1', [req.params.id]);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

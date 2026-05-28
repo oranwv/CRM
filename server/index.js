@@ -340,6 +340,30 @@ pool.query(`ALTER TABLE op_maintenance ADD COLUMN IF NOT EXISTS status TEXT DEFA
   .catch(err => console.error('[DB] op_maintenance status migration error:', err.message));
 
 pool.query(`
+  CREATE TABLE IF NOT EXISTS op_activity_log (
+    id SERIAL PRIMARY KEY,
+    entity_type VARCHAR(20) NOT NULL,
+    entity_id INT NOT NULL,
+    type VARCHAR(30) NOT NULL DEFAULT 'note',
+    body TEXT,
+    created_by INT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS op_reminders (
+    id SERIAL PRIMARY KEY,
+    entity_type VARCHAR(20) NOT NULL,
+    entity_id INT NOT NULL,
+    title TEXT NOT NULL,
+    due_date DATE,
+    assigned_to INT REFERENCES users(id) ON DELETE SET NULL,
+    done BOOLEAN DEFAULT FALSE,
+    done_at TIMESTAMPTZ,
+    created_by INT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+`).catch(err => console.error('[DB] op_activity_log/reminders migration error:', err.message));
+
+pool.query(`
   CREATE TABLE IF NOT EXISTS rsvp_campaigns (
     id SERIAL PRIMARY KEY,
     event_id INT REFERENCES leads(id) ON DELETE SET NULL,
