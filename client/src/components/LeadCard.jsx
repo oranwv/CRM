@@ -160,6 +160,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
   const [showLostModal, setShowLostModal]       = useState(false);
   const [showDeleteModal, setShowDeleteModal]   = useState(false);
   const [showAddTask, setShowAddTask]           = useState(false);
+  const [taskDefaultAssignee, setTaskDefaultAssignee] = useState(null);
   const [taskAction, setTaskAction]             = useState(null); // { task, mode: 'complete'|'reschedule'|'followup' }
   const [editing, setEditing]           = useState(false);
   const [editForm, setEditForm]         = useState({});
@@ -698,7 +699,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
 
             {/* Interactions */}
             <Section title={`פעילות${timeline.length ? ` (${timeline.length})` : ''}`}>
-              <TimelineSection leadId={leadId} lead={lead} timeline={timeline} allPhones={allPhones} allEmails={allEmails} allPhoneLabels={allPhoneLabels} leadFiles={files} onAdded={load} onAddTask={() => setShowAddTask(true)} />
+              <TimelineSection leadId={leadId} lead={lead} timeline={timeline} allPhones={allPhones} allEmails={allEmails} allPhoneLabels={allPhoneLabels} leadFiles={files} onAdded={load} onAddTask={(defaultAssigneeId) => { setTaskDefaultAssignee(defaultAssigneeId || null); setShowAddTask(true); }} />
             </Section>
 
           </div>
@@ -827,8 +828,9 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
       {showAddTask && (
         <AddTaskModal
           leadId={leadId} users={users}
-          onClose={() => setShowAddTask(false)}
-          onSaved={() => { setShowAddTask(false); load(); onUpdated(); }}
+          defaultAssignedTo={taskDefaultAssignee}
+          onClose={() => { setShowAddTask(false); setTaskDefaultAssignee(null); }}
+          onSaved={() => { setShowAddTask(false); setTaskDefaultAssignee(null); load(); onUpdated(); }}
         />
       )}
 
@@ -2909,17 +2911,22 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, allPhon
 
       {/* Follow-up task prompt */}
       {showFollowUp && (
-        <div className="flex items-center justify-between gap-3 bg-violet-50 border border-violet-200 rounded-xl px-4 py-2.5">
-          <span className="text-sm text-violet-800 font-medium">הוסף משימת מעקב?</span>
-          <div className="flex gap-2">
-            <button onClick={() => { setShowFollowUp(false); onAddTask(); }}
-              className="px-3 py-1 rounded-lg text-xs font-bold text-white bg-violet-600 hover:bg-violet-700">
-              כן
-            </button>
-            <button onClick={() => setShowFollowUp(false)}
-              className="px-3 py-1 rounded-lg text-xs font-bold text-slate-500 border border-slate-200 hover:bg-slate-50">
-              לא
-            </button>
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50" dir="rtl"
+          onClick={() => setShowFollowUp(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-80 mx-4 space-y-4"
+            onClick={e => e.stopPropagation()}>
+            <p className="text-lg font-black text-slate-800 text-center">הוסף משימת מעקב?</p>
+            <p className="text-sm text-slate-500 text-center">האחראי יוגדר אוטומטית אליך</p>
+            <div className="flex gap-3">
+              <button onClick={() => { setShowFollowUp(false); const cu = JSON.parse(localStorage.getItem('crm_user') || '{}'); onAddTask(cu.id); }}
+                className="flex-1 py-3 rounded-2xl font-bold text-white text-base bg-violet-600 hover:bg-violet-700">
+                כן, הוסף משימה
+              </button>
+              <button onClick={() => setShowFollowUp(false)}
+                className="flex-1 py-3 rounded-2xl font-bold text-slate-600 text-base border-2 border-slate-200">
+                לא תודה
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -3765,8 +3772,8 @@ function CalendarSection({ lead, leadId, editForm, calStatus, onUpdated }) {
 }
 
 /* ── ADD TASK MODAL ── */
-function AddTaskModal({ leadId, users, onClose, onSaved }) {
-  const [form, setForm] = useState({ title: '', due_date: '', due_time: '', assigned_to: '', remind_via: 'whatsapp' });
+function AddTaskModal({ leadId, users, onClose, onSaved, defaultAssignedTo }) {
+  const [form, setForm] = useState({ title: '', due_date: '', due_time: '', assigned_to: defaultAssignedTo ? String(defaultAssignedTo) : '', remind_via: 'whatsapp' });
   const [saving, setSaving] = useState(false);
   const cls = 'w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-violet-400 bg-white';
 
