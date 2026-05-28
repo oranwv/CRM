@@ -454,13 +454,13 @@ router.get('/reminders/:entityType/:entityId', async (req, res) => {
 });
 
 router.post('/reminders/:entityType/:entityId', async (req, res) => {
-  const { title, due_date, assigned_to } = req.body;
+  const { title, due_date, due_time, assigned_to } = req.body;
   if (!title?.trim()) return res.status(400).json({ error: 'כותרת חובה' });
   try {
     const { rows } = await pool.query(
-      `INSERT INTO op_reminders (entity_type, entity_id, title, due_date, assigned_to, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [req.params.entityType, req.params.entityId, title, due_date || null, assigned_to || null, req.user.id]
+      `INSERT INTO op_reminders (entity_type, entity_id, title, due_date, due_time, assigned_to, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [req.params.entityType, req.params.entityId, title, due_date || null, due_time || null, assigned_to || null, req.user.id]
     );
     const { rows: full } = await pool.query(
       `SELECT r.*, u.display_name AS assigned_to_name FROM op_reminders r

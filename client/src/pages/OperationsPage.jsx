@@ -51,8 +51,9 @@ function fmtTs(ts) {
 // ── Shared: Reminders + Activity Log sections ──────────────────────────
 function RemindersSection({ entityType, entityId, users }) {
   const [reminders, setReminders] = useState([]);
-  const [newTitle, setNewTitle]   = useState('');
-  const [newDate,  setNewDate]    = useState('');
+  const [newTitle, setNewTitle]       = useState('');
+  const [newDate,  setNewDate]        = useState('');
+  const [newTime,  setNewTime]        = useState('');
   const [newAssignee, setNewAssignee] = useState('');
   const [adding, setAdding] = useState(false);
 
@@ -66,10 +67,10 @@ function RemindersSection({ entityType, entityId, users }) {
     setAdding(true);
     try {
       const r = await api.post(`/operations/reminders/${entityType}/${entityId}`, {
-        title: newTitle, due_date: newDate || null, assigned_to: newAssignee || null,
+        title: newTitle, due_date: newDate || null, due_time: newTime || null, assigned_to: newAssignee || null,
       });
       setReminders(prev => [...prev, r.data]);
-      setNewTitle(''); setNewDate(''); setNewAssignee('');
+      setNewTitle(''); setNewDate(''); setNewTime(''); setNewAssignee('');
     } catch {} finally { setAdding(false); }
   }
 
@@ -110,7 +111,9 @@ function RemindersSection({ entityType, entityId, users }) {
               {(rem.due_date || rem.assigned_to_name) && (
                 <div className="flex items-center gap-1.5 mt-0.5">
                   {rem.due_date && (
-                    <span className={`text-[10px] font-semibold ${isOverdue(rem.due_date) && !rem.done ? 'text-red-500' : 'text-slate-400'}`}>{formatDate(rem.due_date)}</span>
+                    <span className={`text-[10px] font-semibold ${isOverdue(rem.due_date) && !rem.done ? 'text-red-500' : 'text-slate-400'}`}>
+                      {formatDate(rem.due_date)}{rem.due_time ? ' ' + String(rem.due_time).slice(0,5) : ''}
+                    </span>
                   )}
                   {rem.assigned_to_name && (
                     <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">{rem.assigned_to_name}</span>
@@ -132,6 +135,9 @@ function RemindersSection({ entityType, entityId, users }) {
         <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)}
           style={{ direction: 'ltr' }}
           className="w-28 border border-slate-200 rounded-xl px-2 py-2 text-xs focus:outline-none focus:border-violet-400" />
+        <input type="time" value={newTime} onChange={e => setNewTime(e.target.value)}
+          style={{ direction: 'ltr' }}
+          className="w-20 border border-slate-200 rounded-xl px-2 py-2 text-xs focus:outline-none focus:border-violet-400" />
         <select value={newAssignee} onChange={e => setNewAssignee(e.target.value)}
           className="w-24 border border-slate-200 rounded-xl px-2 py-2 text-xs focus:outline-none focus:border-violet-400">
           <option value="">אחראי</option>
