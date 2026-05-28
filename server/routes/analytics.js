@@ -94,4 +94,46 @@ router.get('/overview', async (req, res) => {
   }
 });
 
+// GET /api/analytics/employee-activity?date=YYYY-MM-DD
+router.get('/employee-activity', async (req, res) => {
+  if (!['admin', 'manager'].includes(req.user.role)) return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const date = req.query.date || new Date().toISOString().slice(0, 10);
+    const { rows } = await pool.query(`
+      SELECT
+        u.id, u.display_name, u.role,
+        (SELECT COUNT(*) FROM lead_interactions
+         WHERE created_by = u.id AND type = 'call' AND direction = 'outbound'
+         AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS calls,
+        (SELECT COUNT(*) FROM lead_interactions
+         WHERE created_by = u.id AND type = 'meeting'
+         AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS meetings,
+        (SELECT COUNT(*) FROM lead_interactions
+         WHERE created_by = u.id AND type = 'note'
+         AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS notes,
+        (SELECT COUNT(*) FROM messages
+         WHERE sent_by = u.id AND direction = 'outbound'
+         AND DATE(timestamp AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS wa_sent,
+        (SELECT COUNT(*) FROM tasks
+         WHERE created_by = u.id
+         AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS tasks_created,
+        (SELECT COUNT(*) FROM tasks
+         WHERE assigned_to = u.id AND completed_at IS NOT NULL
+         AND DATE(completed_at AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS tasks_completed,
+        (SELECT COUNT(*) FROM leads
+         WHERE created_by = u.id
+         AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS leads_created,
+        (SELECT COUNT(*) FROM files
+         WHERE uploaded_by = u.id
+         AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS files_uploaded
+      FROM users u
+      WHERE u.role IN ('admin','manager','sales','production')
+      ORDER BY u.display_name
+    `, [date]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

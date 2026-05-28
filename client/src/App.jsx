@@ -13,7 +13,8 @@ import SignaturePage   from './pages/SignaturePage';
 import SuppliersPage  from './pages/SuppliersPage';
 import RSVPsPage        from './pages/RSVPs/RSVPsPage';
 import RSVPDetailPage   from './pages/RSVPs/RSVPDetailPage';
-import OperationsPage   from './pages/OperationsPage';
+import OperationsPage    from './pages/OperationsPage';
+import ManagementPage   from './pages/ManagementPage';
 import { AppModeProvider, useAppMode } from './context/AppModeContext';
 import api from './api';
 
@@ -55,6 +56,7 @@ function GlobalHeader() {
     else if (m === 'ספקים') navigate('/suppliers');
     else if (m === 'אישורי הגעה') navigate('/rsvps');
     else if (m === 'תפעול') navigate('/operations');
+    else if (m === 'ניהול') navigate('/management');
     else navigate('/');
   }
 
@@ -88,7 +90,7 @@ function GlobalHeader() {
             className="absolute left-0 mt-1.5 bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-100 z-50"
             style={{ minWidth: 140, top: '100%' }}
           >
-            {['מכירות','הפקה','ספקים','אישורי הגעה','תפעול'].map(m => (
+            {['מכירות','הפקה','ספקים','אישורי הגעה','תפעול',...(isManager ? ['ניהול'] : [])].map(m => (
               <button
                 key={m}
                 onClick={() => selectMode(m)}
@@ -122,12 +124,15 @@ function AppShellNav() {
     return () => clearInterval(t);
   }, [mode]);
 
-  const isProduction  = mode === 'הפקה';
-  const isSuppliers   = mode === 'ספקים';
-  const isRSVP        = mode === 'אישורי הגעה';
-  const isOperations  = mode === 'תפעול';
+  const isProduction   = mode === 'הפקה';
+  const isSuppliers    = mode === 'ספקים';
+  const isRSVP         = mode === 'אישורי הגעה';
+  const isOperations   = mode === 'תפעול';
+  const isManagement   = mode === 'ניהול';
 
-  const tabs = isRSVP
+  const tabs = isManagement
+    ? [{ path: '/management', icon: '📈', label: 'ניהול' }]
+    : isRSVP
     ? [{ path: '/rsvps', icon: '📋', label: 'אישורי הגעה', prefix: '/rsvps' }]
     : isSuppliers
     ? [{ path: '/suppliers', icon: '🏢', label: 'ספקים' }]
@@ -293,6 +298,16 @@ function AppRoutes() {
             <>
               <div className="pt-11" />
               <OperationsPage />
+              <AppShellNav />
+              <div className="pb-28" />
+            </>
+          </PrivateRoute>
+        } />
+        <Route path="/management" element={
+          <PrivateRoute>
+            <>
+              <div className="pt-11" />
+              <ManagementPage />
               <AppShellNav />
               <div className="pb-28" />
             </>
