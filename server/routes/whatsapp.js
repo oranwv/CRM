@@ -206,11 +206,6 @@ router.post('/send', requireAuth, async (req, res) => {
         [leadId, message, phone, req.user?.id || null]
       );
       await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [leadId]);
-      // Auto-advance new → contacted on first outbound WhatsApp
-      await pool.query(
-        `UPDATE leads SET stage = 'contacted', updated_at = NOW() WHERE id = $1 AND stage = 'new'`,
-        [leadId]
-      );
     } catch (dbErr) {
       console.error('[WhatsApp] DB log error (message was sent):', dbErr.message);
     }
@@ -283,10 +278,6 @@ router.post('/send-file', requireAuth, upload.single('file'), async (req, res) =
           [leadId, logBody, phone, req.user?.id || null]
         );
         await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [leadId]);
-        await pool.query(
-          `UPDATE leads SET stage = 'contacted', updated_at = NOW() WHERE id = $1 AND stage = 'new'`,
-          [leadId]
-        );
       } catch (dbErr) {
         console.error('[WhatsApp] DB log error (file was sent):', dbErr.message);
       }
@@ -343,11 +334,6 @@ router.post('/send-file', requireAuth, upload.single('file'), async (req, res) =
         [leadId, logBody, phone, req.user?.id || null]
       );
       await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [leadId]);
-      // Auto-advance new → contacted on first outbound WhatsApp
-      await pool.query(
-        `UPDATE leads SET stage = 'contacted', updated_at = NOW() WHERE id = $1 AND stage = 'new'`,
-        [leadId]
-      );
     } catch (dbErr) {
       console.error('[WhatsApp] DB log error (file was sent):', dbErr.message);
     }
