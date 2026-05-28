@@ -153,9 +153,12 @@ function RemindersSection({ entityType, entityId, users }) {
 }
 
 function ActivityLogSection({ entityType, entityId, refreshTrigger }) {
-  const [log, setLog]       = useState([]);
-  const [note, setNote]     = useState('');
-  const [adding, setAdding] = useState(false);
+  const [log, setLog]           = useState([]);
+  const [note, setNote]         = useState('');
+  const [adding, setAdding]     = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const cameraRef = useRef(null);
+  const fileRef   = useRef(null);
 
   const load = useCallback(() => {
     api.get(`/operations/activity/${entityType}/${entityId}`)
@@ -174,10 +177,50 @@ function ActivityLogSection({ entityType, entityId, refreshTrigger }) {
     } catch {} finally { setAdding(false); }
   }
 
+  async function uploadAttachment(file) {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const r = await api.post(`/operations/activity/${entityType}/${entityId}/file`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setLog(prev => [r.data, ...prev]);
+    } catch (err) {
+      alert(err.response?.data?.error || err.message);
+    } finally { setUploading(false); }
+  }
+
+  function renderEntry(entry) {
+    if (entry.type === 'file') {
+      let meta = {};
+      try { meta = JSON.parse(entry.body); } catch {}
+      const isImage = meta.mime_type?.startsWith('image/');
+      return (
+        <div>
+          {isImage ? (
+            <a href={meta.url} target="_blank" rel="noopener noreferrer">
+              <img src={meta.url} alt={meta.filename} className="max-h-40 rounded-lg border border-slate-200 mt-1 object-contain" />
+            </a>
+          ) : (
+            <a href={meta.url} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-violet-600 font-semibold hover:underline mt-0.5">
+              <span>📎</span> {meta.filename}
+            </a>
+          )}
+        </div>
+      );
+    }
+    return (
+      <p className={`text-slate-700 ${entry.type !== 'note' ? 'italic text-slate-500' : ''}`}>{entry.body}</p>
+    );
+  }
+
   return (
     <div>
       <p className="text-sm font-black text-slate-700 mb-2">לוג פעילות</p>
-      <div className="flex gap-2 mb-3">
+      <div className="flex gap-2 mb-2">
         <textarea value={note} onChange={e => setNote(e.target.value)}
           placeholder="הוסף הערה..."
           rows={2}
@@ -187,20 +230,34 @@ function ActivityLogSection({ entityType, entityId, refreshTrigger }) {
           הוסף
         </button>
       </div>
+      <div className="flex gap-2 mb-3">
+        <input ref={cameraRef} type="file" accept="image/*" capture="environment"
+          className="hidden" onChange={e => { uploadAttachment(e.target.files[0]); e.target.value = ''; }} />
+        <input ref={fileRef} type="file"
+          className="hidden" onChange={e => { uploadAttachment(e.target.files[0]); e.target.value = ''; }} />
+        <button onClick={() => cameraRef.current?.click()} disabled={uploading}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-40 cursor-pointer">
+          {uploading ? '...' : '📷 צלם'}
+        </button>
+        <button onClick={() => fileRef.current?.click()} disabled={uploading}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-40 cursor-pointer">
+          {uploading ? '...' : '📎 קובץ'}
+        </button>
+      </div>
       <div className="space-y-1.5">
         {log.length === 0 && (
           <p className="text-xs text-slate-400 text-center py-2">אין פעילות עדיין</p>
         )}
         {log.map(entry => (
-          <div key={entry.id} className={`px-3 py-2 rounded-xl text-xs ${entry.type === 'note' ? 'bg-white border border-slate-200' : 'bg-slate-50 border border-slate-100'}`}>
+          <div key={entry.id} className={`px-3 py-2 rounded-xl text-xs ${entry.type === 'note' || entry.type === 'file' ? 'bg-white border border-slate-200' : 'bg-slate-50 border border-slate-100'}`}>
             <div className="flex items-center gap-1.5 mb-0.5">
               <span className="text-slate-400">{fmtTs(entry.created_at)}</span>
               {entry.created_by_name && <span className="font-bold text-slate-600">{entry.created_by_name}</span>}
-              {entry.type !== 'note' && (
+              {entry.type !== 'note' && entry.type !== 'file' && (
                 <span className="text-[9px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full font-bold">אוטומטי</span>
               )}
             </div>
-            <p className={`text-slate-700 ${entry.type !== 'note' ? 'italic text-slate-500' : ''}`}>{entry.body}</p>
+            {renderEntry(entry)}
           </div>
         ))}
       </div>

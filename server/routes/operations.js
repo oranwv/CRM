@@ -1,5 +1,10 @@
-const router = require('express').Router();
-const pool   = require('../db/pool');
+const router  = require('express').Router();
+const pool    = require('../db/pool');
+const multer  = require('multer');
+const os      = require('os');
+const fs      = require('fs');
+const { uploadFile } = require('../services/storageService');
+const upload = multer({ dest: os.tmpdir(), limits: { fileSize: 20 * 1024 * 1024 } });
 
 const STATUS_LABELS = { open: 'פתוח', in_progress: 'בטיפול', done: 'הושלם', resolved: 'נפתר' };
 
@@ -433,6 +438,29 @@ router.post('/activity/:entityType/:entityId', async (req, res) => {
     );
     res.json(full[0]);
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/activity/:entityType/:entityId/file', upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'לא נשלח קובץ' });
+  const originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+  try {
+    const { url } = await uploadFile(req.file.path, originalName, req.file.mimetype);
+    fs.unlinkSync(req.file.path);
+    const body = JSON.stringify({ url, filename: originalName, mime_type: req.file.mimetype });
+    const { rows } = await pool.query(
+      `INSERT INTO op_activity_log (entity_type, entity_id, type, body, created_by) VALUES ($1,$2,'file',$3,$4) RETURNING *`,
+      [req.params.entityType, req.params.entityId, body, req.user.id]
+    );
+    const { rows: full } = await pool.query(
+      `SELECT a.*, u.display_name AS created_by_name FROM op_activity_log a
+       LEFT JOIN users u ON a.created_by = u.id WHERE a.id=$1`,
+      [rows[0].id]
+    );
+    res.json(full[0]);
+  } catch (err) {
+    if (req.file?.path) { try { fs.unlinkSync(req.file.path); } catch {} }
     res.status(500).json({ error: err.message });
   }
 });
