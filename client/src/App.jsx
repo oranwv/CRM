@@ -28,7 +28,9 @@ function GlobalHeader() {
   const location           = useLocation();
   const isPublic           = ['/login','/postpone','/task-action','/sign'].some(p => location.pathname.startsWith(p));
   const user               = JSON.parse(localStorage.getItem('crm_user') || '{}');
-  const isManager          = ['admin', 'manager'].includes(user.role);
+  const userRoles          = user.roles?.length ? user.roles : [user.role];
+  const isAdmin            = userRoles.includes('admin');
+  const isManager          = isAdmin || userRoles.includes('manager');
   const [pendingCount, setPendingCount] = useState(0);
   const [dropOpen, setDropOpen] = useState(false);
   const dropRef = useRef(null);
@@ -90,7 +92,14 @@ function GlobalHeader() {
             className="absolute left-0 mt-1.5 bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-100 z-50"
             style={{ minWidth: 140, top: '100%' }}
           >
-            {['מכירות','הפקה','ספקים','אישורי הגעה','תפעול',...(isManager ? ['ניהול'] : [])].map(m => (
+            {(isAdmin ? ['מכירות','הפקה','ספקים','אישורי הגעה','תפעול','ניהול'] : [
+              ...(userRoles.includes('sales')      ? ['מכירות']      : []),
+              ...(userRoles.includes('production') ? ['הפקה']         : []),
+              ...(userRoles.includes('suppliers')  ? ['ספקים']        : []),
+              ...(userRoles.includes('rsvp')       ? ['אישורי הגעה']  : []),
+              ...(userRoles.includes('operations') ? ['תפעול']        : []),
+              ...(isManager                        ? ['ניהול']        : []),
+            ]).map(m => (
               <button
                 key={m}
                 onClick={() => selectMode(m)}
@@ -113,7 +122,8 @@ function AppShellNav() {
   const navigate  = useNavigate();
   const { mode }  = useAppMode();
   const user      = JSON.parse(localStorage.getItem('crm_user') || '{}');
-  const isAdmin   = user.role === 'admin';
+  const userRolesNav = user.roles?.length ? user.roles : [user.role];
+  const isAdmin   = userRolesNav.includes('admin');
   const [overdueCount, setOverdueCount] = useState(0);
 
   useEffect(() => {

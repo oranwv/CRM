@@ -96,7 +96,8 @@ router.get('/overview', async (req, res) => {
 
 // GET /api/analytics/employee-activity?date=YYYY-MM-DD
 router.get('/employee-activity', async (req, res) => {
-  if (!['admin', 'manager'].includes(req.user.role)) return res.status(403).json({ error: 'Forbidden' });
+  const roles = req.user.roles || [req.user.role];
+  if (!roles.some(r => ['admin', 'manager'].includes(r))) return res.status(403).json({ error: 'Forbidden' });
   try {
     const date = req.query.date || new Date().toISOString().slice(0, 10);
     const { rows } = await pool.query(`

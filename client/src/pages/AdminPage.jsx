@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../api';
 
-const ROLE_LABELS = { admin: 'מנהל', sales: 'מכירות', production: 'הפקה' };
+const ROLE_LABELS = { admin: 'מנהל מערכת', manager: 'מנהל', sales: 'מכירות', production: 'הפקה', suppliers: 'ספקים', rsvp: 'אישורי הגעה', operations: 'תפעול' };
+const ALL_PERMISSIONS = ['admin','manager','sales','production','suppliers','rsvp','operations'];
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 
@@ -296,8 +297,8 @@ function ItemEditorModal({ overrides, customItems, onSave, onClose }) {
   );
 }
 
-const ROLE_COLORS = { admin: 'bg-violet-100 text-violet-700', sales: 'bg-indigo-100 text-indigo-700', production: 'bg-slate-100 text-slate-600' };
-const emptyUser = { username: '', display_name: '', email: '', phone: '', role: 'sales', password: '' };
+const ROLE_COLORS = { admin: 'bg-violet-100 text-violet-700', manager: 'bg-purple-100 text-purple-700', sales: 'bg-indigo-100 text-indigo-700', production: 'bg-slate-100 text-slate-600', suppliers: 'bg-emerald-100 text-emerald-700', rsvp: 'bg-pink-100 text-pink-700', operations: 'bg-orange-100 text-orange-700' };
+const emptyUser = { username: '', display_name: '', email: '', phone: '', roles: ['sales'], blocked: false, password: '' };
 
 export default function AdminPage() {
   const [aiInstructions, setAiInstructions] = useState('');
@@ -570,11 +571,16 @@ export default function AdminPage() {
                   <p className="text-sm font-bold text-slate-800 truncate">{u.display_name || u.username}</p>
                   <p className="text-xs text-slate-400 truncate">{u.username}{u.phone ? ` · ${u.phone}` : ''}{u.email ? ` · ${u.email}` : ''}</p>
                 </div>
-                <div className="flex items-center gap-2 shrink-0 mr-2">
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${ROLE_COLORS[u.role] || 'bg-slate-100 text-slate-600'}`}>
-                    {ROLE_LABELS[u.role] || u.role}
-                  </span>
-                  <button onClick={() => { setEditingUser({ ...u, password: '' }); setUserError(''); }} className="text-slate-400 hover:text-violet-600 text-sm">✏️</button>
+                <div className="flex items-center gap-1.5 shrink-0 mr-2 flex-wrap justify-end">
+                  {u.blocked && (
+                    <span className="text-xs font-black px-2 py-0.5 rounded-full bg-red-100 text-red-600">חסום</span>
+                  )}
+                  {(u.roles?.length ? u.roles : [u.role]).map(r => (
+                    <span key={r} className={`text-xs font-bold px-2 py-0.5 rounded-full ${ROLE_COLORS[r] || 'bg-slate-100 text-slate-600'}`}>
+                      {ROLE_LABELS[r] || r}
+                    </span>
+                  ))}
+                  <button onClick={() => { setEditingUser({ ...u, roles: u.roles?.length ? u.roles : [u.role], blocked: u.blocked || false, password: '' }); setUserError(''); }} className="text-slate-400 hover:text-violet-600 text-sm">✏️</button>
                   <button onClick={() => handleUserDelete(u.id)} className="text-slate-400 hover:text-red-500 text-sm">🗑</button>
                 </div>
               </div>
@@ -921,13 +927,36 @@ export default function AdminPage() {
               onChange={e => setEditingUser(u => ({ ...u, email: e.target.value }))} />
             <input className={inputCls} placeholder="טלפון" value={editingUser.phone}
               onChange={e => setEditingUser(u => ({ ...u, phone: e.target.value }))} />
-            <select className={inputCls} value={editingUser.role}
-              onChange={e => setEditingUser(u => ({ ...u, role: e.target.value }))}>
-              <option value="sales">מכירות</option>
-              <option value="manager">מנהל</option>
-              <option value="admin">מנהל מערכת</option>
-              <option value="production">הפקה</option>
-            </select>
+            <div className="border border-slate-200 rounded-xl p-3 space-y-2">
+              <p className="text-xs font-black text-slate-500 mb-1">הרשאות</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                {ALL_PERMISSIONS.map(perm => (
+                  <label key={perm} className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4 accent-violet-600"
+                      checked={(editingUser.roles || []).includes(perm)}
+                      onChange={e => setEditingUser(u => {
+                        const cur = u.roles || [];
+                        return { ...u, roles: e.target.checked ? [...cur, perm] : cur.filter(r => r !== perm) };
+                      })}
+                    />
+                    <span className="text-sm text-slate-700">{ROLE_LABELS[perm]}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <label className="flex items-center gap-3 cursor-pointer select-none px-1">
+              <div
+                className={`relative w-10 h-5 rounded-full transition-colors ${editingUser.blocked ? 'bg-red-500' : 'bg-slate-200'}`}
+                onClick={() => setEditingUser(u => ({ ...u, blocked: !u.blocked }))}
+              >
+                <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${editingUser.blocked ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              </div>
+              <span className={`text-sm font-bold ${editingUser.blocked ? 'text-red-600' : 'text-slate-500'}`}>
+                {editingUser.blocked ? 'חסום — לא יכול להיכנס למערכת' : 'פעיל'}
+              </span>
+            </label>
             <input className={inputCls} placeholder={editingUser.id ? 'סיסמה חדשה (השאר ריק לשמירה)' : 'סיסמה *'}
               type="password" value={editingUser.password}
               onChange={e => setEditingUser(u => ({ ...u, password: e.target.value }))} />

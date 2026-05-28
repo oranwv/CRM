@@ -10,8 +10,14 @@ const { uploadFile, getSignedUrl } = require('../services/storageService');
 
 const sigUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
 
+const ROLE_PRIORITY = ['admin','sales','production'];
+function deriveRole(roles) {
+  return ROLE_PRIORITY.find(r => roles.includes(r)) || 'sales';
+}
+
 function adminOnly(req, res, next) {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'אין הרשאה' });
+  const isAdmin = req.user.roles?.includes('admin') || req.user.role === 'admin';
+  if (!isAdmin) return res.status(403).json({ error: 'אין הרשאה' });
   next();
 }
 
@@ -61,7 +67,7 @@ router.get('/whatsapp-status', adminOnly, async (req, res) => {
 router.get('/users', adminOnly, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT id, username, display_name, email, phone, role, created_at FROM users ORDER BY display_name'
+      'SELECT id, username, display_name, email, phone, role, roles, blocked, created_at FROM users ORDER BY display_name'
     );
     res.json(rows);
   } catch (err) {
@@ -71,14 +77,16 @@ router.get('/users', adminOnly, async (req, res) => {
 
 // POST /api/admin/users
 router.post('/users', adminOnly, async (req, res) => {
-  const { username, display_name, email, phone, role, password } = req.body;
+  const { username, display_name, email, phone, roles, blocked, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'שם משתמש וסיסמה הם שדות חובה' });
+  const rolesArr = Array.isArray(roles) && roles.length ? roles : ['sales'];
+  const primaryRole = deriveRole(rolesArr);
   try {
     const hash = await bcrypt.hash(password, 10);
     const { rows } = await pool.query(
-      `INSERT INTO users (username, display_name, email, phone, role, password_hash)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, username, display_name, email, phone, role, created_at`,
-      [username, display_name || null, email || null, phone || null, role || 'sales', hash]
+      `INSERT INTO users (username, display_name, email, phone, role, roles, blocked, password_hash)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, username, display_name, email, phone, role, roles, blocked, created_at`,
+      [username, display_name || null, email || null, phone || null, primaryRole, rolesArr, blocked || false, hash]
     );
     res.json(rows[0]);
   } catch (err) {
@@ -89,22 +97,24 @@ router.post('/users', adminOnly, async (req, res) => {
 
 // PUT /api/admin/users/:id
 router.put('/users/:id', adminOnly, async (req, res) => {
-  const { username, display_name, email, phone, role, password } = req.body;
+  const { username, display_name, email, phone, roles, blocked, password } = req.body;
+  const rolesArr = Array.isArray(roles) && roles.length ? roles : ['sales'];
+  const primaryRole = deriveRole(rolesArr);
   try {
     if (password && password.trim()) {
       const hash = await bcrypt.hash(password, 10);
       await pool.query(
-        `UPDATE users SET username=$1, display_name=$2, email=$3, phone=$4, role=$5, password_hash=$6 WHERE id=$7`,
-        [username, display_name || null, email || null, phone || null, role || 'sales', hash, req.params.id]
+        `UPDATE users SET username=$1, display_name=$2, email=$3, phone=$4, role=$5, roles=$6, blocked=$7, password_hash=$8 WHERE id=$9`,
+        [username, display_name || null, email || null, phone || null, primaryRole, rolesArr, blocked || false, hash, req.params.id]
       );
     } else {
       await pool.query(
-        `UPDATE users SET username=$1, display_name=$2, email=$3, phone=$4, role=$5 WHERE id=$6`,
-        [username, display_name || null, email || null, phone || null, role || 'sales', req.params.id]
+        `UPDATE users SET username=$1, display_name=$2, email=$3, phone=$4, role=$5, roles=$6, blocked=$7 WHERE id=$8`,
+        [username, display_name || null, email || null, phone || null, primaryRole, rolesArr, blocked || false, req.params.id]
       );
     }
     const { rows } = await pool.query(
-      'SELECT id, username, display_name, email, phone, role, created_at FROM users WHERE id=$1',
+      'SELECT id, username, display_name, email, phone, role, roles, blocked, created_at FROM users WHERE id=$1',
       [req.params.id]
     );
     res.json(rows[0]);
