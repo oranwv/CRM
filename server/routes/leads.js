@@ -87,7 +87,7 @@ router.get('/', async (req, res) => {
           END LIKE $${normIdx}
         )`;
       }
-      conditions.push(`(l.name ILIKE $${likeIdx} OR l.phone ILIKE $${likeIdx} OR l.email ILIKE $${likeIdx}${phoneNormCondition})`);
+      conditions.push(`(l.name ILIKE $${likeIdx} OR l.phone ILIKE $${likeIdx} OR l.email ILIKE $${likeIdx} OR l.event_name ILIKE $${likeIdx} OR l.event_type ILIKE $${likeIdx} OR l.notes ILIKE $${likeIdx}${phoneNormCondition})`);
     }
   }
 
