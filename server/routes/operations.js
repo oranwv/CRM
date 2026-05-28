@@ -3,7 +3,7 @@ const pool    = require('../db/pool');
 const multer  = require('multer');
 const os      = require('os');
 const fs      = require('fs');
-const { uploadFile } = require('../services/storageService');
+const { uploadFile, getSignedUrl } = require('../services/storageService');
 const upload = multer({ dest: os.tmpdir(), limits: { fileSize: 20 * 1024 * 1024 } });
 
 const STATUS_LABELS = { open: 'פתוח', in_progress: 'בטיפול', done: 'הושלם', resolved: 'נפתר' };
@@ -417,6 +417,17 @@ router.get('/activity/:entityType/:entityId', async (req, res) => {
        WHERE a.entity_type=$1 AND a.entity_id=$2 ORDER BY a.created_at DESC`,
       [req.params.entityType, req.params.entityId]
     );
+    for (const row of rows) {
+      if (row.type === 'file') {
+        try {
+          const meta = JSON.parse(row.body);
+          if (meta.storedName) {
+            meta.signed_url = await getSignedUrl(meta.storedName, 3600);
+            row.body = JSON.stringify(meta);
+          }
+        } catch {}
+      }
+    }
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -446,9 +457,9 @@ router.post('/activity/:entityType/:entityId/file', upload.single('file'), async
   if (!req.file) return res.status(400).json({ error: 'לא נשלח קובץ' });
   const originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
   try {
-    const { url } = await uploadFile(req.file.path, originalName, req.file.mimetype);
+    const { url, storedName } = await uploadFile(req.file.path, originalName, req.file.mimetype);
     fs.unlinkSync(req.file.path);
-    const body = JSON.stringify({ url, filename: originalName, mime_type: req.file.mimetype });
+    const body = JSON.stringify({ url, storedName, filename: originalName, mime_type: req.file.mimetype });
     const { rows } = await pool.query(
       `INSERT INTO op_activity_log (entity_type, entity_id, type, body, created_by) VALUES ($1,$2,'file',$3,$4) RETURNING *`,
       [req.params.entityType, req.params.entityId, body, req.user.id]

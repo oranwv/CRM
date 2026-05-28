@@ -196,15 +196,16 @@ function ActivityLogSection({ entityType, entityId, refreshTrigger }) {
     if (entry.type === 'file') {
       let meta = {};
       try { meta = JSON.parse(entry.body); } catch {}
+      const displayUrl = meta.signed_url || meta.url;
       const isImage = meta.mime_type?.startsWith('image/');
       return (
         <div>
           {isImage ? (
-            <a href={meta.url} target="_blank" rel="noopener noreferrer">
-              <img src={meta.url} alt={meta.filename} className="max-h-40 rounded-lg border border-slate-200 mt-1 object-contain" />
+            <a href={displayUrl} target="_blank" rel="noopener noreferrer">
+              <img src={displayUrl} alt={meta.filename} className="max-h-40 rounded-lg border border-slate-200 mt-1 object-contain" />
             </a>
           ) : (
-            <a href={meta.url} target="_blank" rel="noopener noreferrer"
+            <a href={displayUrl} target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 text-violet-600 font-semibold hover:underline mt-0.5">
               <span>📎</span> {meta.filename}
             </a>
