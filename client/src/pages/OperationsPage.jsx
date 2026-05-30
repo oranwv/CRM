@@ -714,9 +714,10 @@ export default function OperationsPage() {
   const showInv   = filterCategories.includes('inventory');
 
   const activeTasks = tasks.filter(t => {
-    const matchSearch   = !taskSearch   || t.title.toLowerCase().includes(taskSearch.toLowerCase());
-    const matchPerson   = !filterPerson || String(t.assigned_to) === String(filterPerson);
-    return matchSearch && matchPerson;
+    const matchSearch  = !taskSearch  || t.title.toLowerCase().includes(taskSearch.toLowerCase());
+    const matchPerson  = !filterPerson || String(t.assigned_to) === String(filterPerson);
+    const matchStatus  = tasksTab === 'done' || t.status === tasksTab;
+    return matchSearch && matchPerson && matchStatus;
   });
 
   const filteredMaint = maintenance
@@ -792,16 +793,16 @@ export default function OperationsPage() {
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-1.5">
                       <p className="text-xs font-black text-slate-700">משימות כלליות</p>
-                      <div className="flex text-[10px] font-bold rounded-lg overflow-hidden border border-slate-200">
-                        <button onClick={() => setTasksTab('open')}
-                          className={`px-2 py-0.5 cursor-pointer ${tasksTab === 'open' ? 'bg-violet-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
-                          פתוחות
-                        </button>
-                        <button onClick={() => setTasksTab('done')}
-                          className={`px-2 py-0.5 cursor-pointer ${tasksTab === 'done' ? 'bg-green-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
-                          הושלמו
-                        </button>
-                      </div>
+                      <select
+                        value={tasksTab}
+                        onChange={e => setTasksTab(e.target.value)}
+                        className="text-xs font-bold rounded-lg border border-slate-200 px-2 py-1 bg-white text-slate-700 cursor-pointer focus:outline-none focus:border-violet-400"
+                        dir="rtl"
+                      >
+                        <option value="open">פתוחות</option>
+                        <option value="in_progress">בתהליך</option>
+                        <option value="done">הושלמו</option>
+                      </select>
                     </div>
                     <button onClick={() => openModal('task')} className="text-xs text-violet-600 font-bold cursor-pointer">+ חדש</button>
                   </div>
@@ -810,9 +811,11 @@ export default function OperationsPage() {
                     className="w-full border border-slate-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-violet-400" />
                 </div>
 
-                {tasksTab === 'open' ? (
+                {tasksTab !== 'done' ? (
                   activeTasks.length === 0 ? (
-                    <p className="text-xs text-slate-400 text-center py-6">אין משימות פתוחות</p>
+                    <p className="text-xs text-slate-400 text-center py-6">
+                      {tasksTab === 'in_progress' ? 'אין משימות בתהליך' : 'אין משימות פתוחות'}
+                    </p>
                   ) : activeTasks.map(task => {
                     const ts = TASK_STATUS[task.status] || TASK_STATUS.open;
                     return (
