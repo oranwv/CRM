@@ -6,6 +6,7 @@ export function AppModeProvider({ children }) {
   const [mode, setModeState] = useState(
     () => localStorage.getItem('crm_mode') || 'מכירות'
   );
+  const [openLeadId, setOpenLeadId] = useState(null);
 
   function setMode(m) {
     localStorage.setItem('crm_mode', m);
@@ -13,7 +14,7 @@ export function AppModeProvider({ children }) {
   }
 
   return (
-    <AppModeContext.Provider value={{ mode, setMode }}>
+    <AppModeContext.Provider value={{ mode, setMode, openLeadId, setOpenLeadId }}>
       {children}
     </AppModeContext.Provider>
   );

@@ -4,6 +4,7 @@ import api from '../api';
 import LeadCard from '../components/LeadCard';
 import AddLeadModal from '../components/AddLeadModal';
 import FilterPanel from '../components/FilterPanel';
+import { useAppMode } from '../context/AppModeContext';
 
 const TABS = [
   { key: 'new',        label: 'חדשים' },
@@ -107,6 +108,7 @@ function DateTimeCell({ value }) {
 }
 
 export default function LeadsPage() {
+  const { setOpenLeadId } = useAppMode();
   const [tab, setTab]           = useState('new');
   const [leads, setLeads]       = useState([]);
   const [loading, setLoading]   = useState(true);
@@ -147,7 +149,9 @@ export default function LeadsPage() {
   useEffect(() => {
     const leadParam = searchParams.get('lead');
     if (leadParam) {
-      setSelectedId(Number(leadParam));
+      const id = Number(leadParam);
+      setSelectedId(id);
+      setOpenLeadId(id);
       setSearchParams({}, { replace: true });
     }
   }, [searchParams]);
@@ -405,7 +409,7 @@ export default function LeadsPage() {
                 {sortedLeads.map((lead, idx) => (
                   <tr
                     key={lead.id}
-                    onClick={() => setSelectedId(lead.id)}
+                    onClick={() => { setSelectedId(lead.id); setOpenLeadId(lead.id); }}
                     className="hover:bg-violet-50/40 cursor-pointer transition"
                   >
                     <td className="px-2 py-3 text-slate-400 font-medium">{idx + 1}</td>
@@ -473,7 +477,7 @@ export default function LeadsPage() {
       </div>
 
       {selectedId && (
-        <LeadCard leadId={selectedId} onClose={() => setSelectedId(null)} onUpdated={loadLeads} />
+        <LeadCard leadId={selectedId} onClose={() => { setSelectedId(null); setOpenLeadId(null); }} onUpdated={loadLeads} />
       )}
       {showAdd && (
         <AddLeadModal onClose={() => setShowAdd(false)} onSaved={() => { setShowAdd(false); loadLeads(); }} />

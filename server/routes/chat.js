@@ -52,10 +52,11 @@ const TOOL_DEFS = {
       parameters: {
         type: 'object',
         properties: {
-          stage:    { type: 'string', description: 'שלב: new, contact, proposal, signed, cancelled' },
-          priority: { type: 'string', description: 'עדיפות: דחוף, גבוה, רגיל' },
-          search:   { type: 'string', description: 'חיפוש לפי שם' },
-          limit:    { type: 'number', description: 'מספר תוצאות (ברירת מחדל 15, מקסימום 30)' }
+          stage:         { type: 'string', description: 'שלב ספציפי לסנן לפיו' },
+          priority:      { type: 'string', description: 'עדיפות: דחוף, גבוה, רגיל' },
+          search:        { type: 'string', description: 'חיפוש לפי שם' },
+          limit:         { type: 'number', description: 'מספר תוצאות (ברירת מחדל 15, מקסימום 30)' },
+          include_closed: { type: 'boolean', description: 'true רק אם המשתמש מבקש לידים שלא סגרו או הסתיימו. ברירת מחדל: false' }
         },
         required: []
       }
@@ -195,9 +196,12 @@ async function executeTool(name, args, user) {
     }
 
     case 'get_leads': {
-      const { stage, priority, search, limit = 15 } = args;
+      const { stage, priority, search, limit = 15, include_closed = false } = args;
       const params = [isAM, uid];
       let cond = '($1 = true OR assigned_to = $2)';
+      if (!include_closed && !stage) {
+        cond += ` AND stage NOT IN ('deposit','production','completed','lost')`;
+      }
       if (stage)    { cond += ` AND stage = $${params.push(stage)}`; }
       if (priority) { cond += ` AND priority = $${params.push(priority)}`; }
       if (search)   { cond += ` AND name ILIKE $${params.push('%' + search + '%')}`; }
@@ -245,7 +249,7 @@ async function executeTool(name, args, user) {
         FROM leads l
         LEFT JOIN lead_interactions li ON li.lead_id = l.id
         WHERE ($1 = true OR l.assigned_to = $2)
-          AND l.stage NOT IN ('signed', 'cancelled')
+          AND l.stage NOT IN ('deposit','production','completed','lost')
         GROUP BY l.id
         HAVING MAX(li.created_at) < NOW() - ($3::int * INTERVAL '1 day')
             OR MAX(li.created_at) IS NULL
@@ -430,6 +434,11 @@ router.post('/', requireAuth, async (req, res) => {
 
     const today = new Date().toLocaleDateString('he-IL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     const modeHint = context.mode ? `\nהמשתמש נמצא כרגע במסך: ${context.mode}` : '';
+    let leadContext = '';
+    if (context.leadId) {
+      const leadDetails = await executeTool('get_lead_details', { lead_id: Number(context.leadId) }, user);
+      leadContext = `\n\nפרטי הליד שהמשתמש מסתכל עליו כרגע:\n${formatToolResult('get_lead_details', leadDetails)}`;
+    }
 
     // Load knowledge base from DB
     const [{ rows: [knowledgeRow] }, { rows: kbFiles }] = await Promise.all([
@@ -443,7 +452,7 @@ router.post('/', requireAuth, async (req, res) => {
     const knowledgeSection = knowledgeParts.length ? '\n\n' + knowledgeParts.join('\n\n') : '';
 
     const systemPrompt = `אתה עוזר AI של מערכת CRM שרביה.
-אתה מסייע ל-${user.display_name || user.username} (תפקיד: ${userRoles.join(', ')}).${modeHint}
+אתה מסייע ל-${user.display_name || user.username} (תפקיד: ${userRoles.join(', ')}).${modeHint}${leadContext}
 תאריך היום: ${today}
 
 כללים:

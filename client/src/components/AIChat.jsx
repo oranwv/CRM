@@ -86,7 +86,7 @@ function Message({ msg }) {
 
 export default function AIChat() {
   const location = useLocation();
-  const { mode }  = useAppMode();
+  const { mode, openLeadId } = useAppMode();
 
   // All hooks must come before any conditional return
   const [open, setOpen]           = useState(false);
@@ -128,7 +128,7 @@ export default function AIChat() {
       const resp = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ message: text, history, context: { mode } }),
+        body: JSON.stringify({ message: text, history, context: { mode, leadId: openLeadId || undefined } }),
         signal: ctrl.signal,
       });
 
@@ -219,7 +219,7 @@ export default function AIChat() {
   if (isPublic || !isLoggedIn) return null;
 
   return (
-    <div className="fixed bottom-28 right-4 z-40 flex flex-col items-end gap-2">
+    <div className="fixed bottom-28 right-4 z-[60] flex flex-col items-end gap-2">
       {open && (
         <div
           className="w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
