@@ -337,6 +337,69 @@ async function alertManagers(user, question) {
   }
 }
 
+function formatLeads(rows) {
+  if (!rows?.length) return 'לא נמצאו לידים.';
+  return rows.map(r =>
+    `- [${r.name}](/?lead=${r.id})` +
+    (r.phone ? ` | [${r.phone}](tel:${r.phone})` : '') +
+    (r.event_type ? ` | ${r.event_type}` : '') +
+    (r.event_date ? ` | ${r.event_date}` : '') +
+    (r.stage ? ` | שלב: ${r.stage}` : '') +
+    (r.priority && r.priority !== 'רגיל' ? ` | עדיפות: ${r.priority}` : '')
+  ).join('\n');
+}
+
+function formatToolResult(name, result) {
+  if (result?.error) return `שגיאה: ${result.error}`;
+
+  switch (name) {
+    case 'get_leads':
+    case 'get_urgent_leads':
+      return formatLeads(result);
+
+    case 'get_lead_details': {
+      if (!result || result.error) return result?.error || 'לא נמצא';
+      const lines = [
+        `[${result.name}](/?lead=${result.id})` +
+          (result.phone ? ` | [${result.phone}](tel:${result.phone})` : ''),
+        result.event_type   ? `סוג אירוע: ${result.event_type}`   : '',
+        result.event_date   ? `תאריך: ${result.event_date}`        : '',
+        result.guest_count  ? `מוזמנים: ${result.guest_count}`     : '',
+        result.stage        ? `שלב: ${result.stage}`               : '',
+        result.notes        ? `הערות: ${result.notes}`             : '',
+      ].filter(Boolean);
+      if (result.recent_interactions?.length) {
+        lines.push('אינטראקציות אחרונות:');
+        result.recent_interactions.forEach(i =>
+          lines.push(`  - ${i.type}: ${(i.body || '').slice(0, 80)}`)
+        );
+      }
+      if (result.open_tasks?.length) {
+        lines.push('משימות פתוחות:');
+        result.open_tasks.forEach(t => lines.push(`  - ${t.title}`));
+      }
+      return lines.join('\n');
+    }
+
+    case 'get_today_schedule': {
+      if (!result?.length) return 'אין פגישות או משימות להיום.';
+      return result.map(item => {
+        const time = item.time
+          ? new Date(item.time).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+          : '';
+        const leadPart = item.lead_name && item.lead_id
+          ? ` | [${item.lead_name}](/?lead=${item.lead_id})` +
+            (item.lead_phone ? ` [${item.lead_phone}](tel:${item.lead_phone})` : '')
+          : '';
+        return `- ${time} ${item.type === 'meeting' ? 'פגישה' : 'משימה'}: ${item.title}${leadPart}`;
+      }).join('\n');
+    }
+
+    default:
+      return JSON.stringify(result, null, 2);
+  }
+}
+
 // POST /api/chat
 router.post('/', requireAuth, async (req, res) => {
   const { message, history = [], context = {} } = req.body;
@@ -460,7 +523,7 @@ router.post('/', requireAuth, async (req, res) => {
           currentMessages.push({
             role: 'tool',
             tool_call_id: tc.id,
-            content: JSON.stringify(result)
+            content: formatToolResult(tc.function.name, result)
           });
         }
         continue;
