@@ -401,6 +401,16 @@ pool.query(`
   );
 `).catch(err => console.error('[DB] RSVP tables migration error:', err.message));
 
+pool.query(`
+  CREATE TABLE IF NOT EXISTS ai_knowledge_files (
+    id SERIAL PRIMARY KEY,
+    filename VARCHAR(255) NOT NULL,
+    content_text TEXT NOT NULL,
+    uploaded_by INT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+`).catch(err => console.error('[DB] ai_knowledge_files migration error:', err.message));
+
 const { pollGoogleCalendar } = require('./services/calendarPollService');
 pollGoogleCalendar();
 setInterval(pollGoogleCalendar, 5 * 60 * 1000);

@@ -150,7 +150,7 @@ export default function LeadsPage() {
       setSelectedId(Number(leadParam));
       setSearchParams({}, { replace: true });
     }
-  }, []);
+  }, [searchParams]);
 
   // Fetch users for the filter panel
   useEffect(() => {

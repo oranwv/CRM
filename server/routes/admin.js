@@ -8,7 +8,10 @@ const fs     = require('fs');
 const os     = require('os');
 const { uploadFile, getSignedUrl } = require('../services/storageService');
 
+const pdfParse  = require('pdf-parse');
+
 const sigUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
+const kbUpload  = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 const ROLE_PRIORITY = ['admin','sales','production'];
 function deriveRole(roles) {
@@ -313,6 +316,60 @@ router.post('/google-token', adminOnly, async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     res.status(400).json({ error: 'Invalid token JSON' });
+  }
+});
+
+// GET /api/admin/knowledge-files
+router.get('/knowledge-files', adminOnly, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, filename, created_at FROM ai_knowledge_files ORDER BY created_at DESC'
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/knowledge-files — upload + extract text
+router.post('/knowledge-files', adminOnly, kbUpload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'קובץ חסר' });
+
+  const ext = path.extname(req.file.originalname).toLowerCase();
+  let contentText = '';
+
+  try {
+    if (ext === '.txt') {
+      contentText = req.file.buffer.toString('utf-8');
+    } else if (ext === '.pdf') {
+      const data = await pdfParse(req.file.buffer);
+      contentText = data.text;
+    } else {
+      return res.status(400).json({ error: 'סוג קובץ לא נתמך. העלה .txt או .pdf' });
+    }
+
+    if (!contentText.trim()) {
+      return res.status(400).json({ error: 'לא ניתן לחלץ טקסט מהקובץ' });
+    }
+
+    const { rows: [row] } = await pool.query(
+      `INSERT INTO ai_knowledge_files (filename, content_text, uploaded_by)
+       VALUES ($1, $2, $3) RETURNING id, filename, created_at`,
+      [req.file.originalname, contentText, req.user.id]
+    );
+    res.json(row);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/admin/knowledge-files/:id
+router.delete('/knowledge-files/:id', adminOnly, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM ai_knowledge_files WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

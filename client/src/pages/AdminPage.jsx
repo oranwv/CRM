@@ -338,11 +338,18 @@ export default function AdminPage() {
   const [showItemEditor, setShowItemEditor]   = useState(false);
   const [elemOverrides,  setElemOverrides]    = useState({});
   const [customItems,    setCustomItems]      = useState([]);
+  const [aiKnowledge,    setAiKnowledge]      = useState('');
+  const [knowledgeFiles, setKnowledgeFiles]   = useState([]);
+  const [kbSaving,       setKbSaving]         = useState(false);
+  const [kbSaved,        setKbSaved]          = useState(false);
+  const [kbUploading,    setKbUploading]      = useState(false);
+  const kbFileRef = useRef(null);
 
   useEffect(() => {
     api.get('/admin/settings')
       .then(r => {
         setAiInstructions(r.data.ai_instructions || '');
+        setAiKnowledge(r.data.ai_knowledge_text || '');
         setStaffSig(r.data.staff_signature || '');
         setDriveFolders(r.data.drive_folders ? JSON.parse(r.data.drive_folders) : []);
         setContractEmailBody(r.data.contract_email_body || '');
@@ -370,6 +377,7 @@ export default function AdminPage() {
     checkWaStatus();
     loadUsers();
     loadCalAcl();
+    loadKnowledgeFiles();
   }, []);
 
   async function loadUsers() {
@@ -495,6 +503,45 @@ export default function AdminPage() {
     finally { setCalAclLoading(false); }
   }
 
+  async function loadKnowledgeFiles() {
+    try { const { data } = await api.get('/admin/knowledge-files'); setKnowledgeFiles(data); } catch {}
+  }
+
+  async function handleKbSave() {
+    setKbSaving(true); setKbSaved(false);
+    try {
+      await api.put('/admin/settings/ai_knowledge_text', { value: aiKnowledge });
+      setKbSaved(true); setTimeout(() => setKbSaved(false), 3000);
+    } finally { setKbSaving(false); }
+  }
+
+  async function handleKbFileUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setKbUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const { data } = await api.post('/admin/knowledge-files', fd);
+      setKnowledgeFiles(prev => [data, ...prev]);
+    } catch (err) {
+      alert(err.response?.data?.error || 'שגיאה בהעלאת הקובץ');
+    } finally {
+      setKbUploading(false);
+      if (kbFileRef.current) kbFileRef.current.value = '';
+    }
+  }
+
+  async function handleKbFileDelete(id) {
+    if (!confirm('למחוק את הקובץ?')) return;
+    try {
+      await api.delete(`/admin/knowledge-files/${id}`);
+      setKnowledgeFiles(prev => prev.filter(f => f.id !== id));
+    } catch (err) {
+      alert(err.response?.data?.error || 'שגיאה');
+    }
+  }
+
   async function handleCalAclAdd() {
     const email = calAclNewEmail.trim();
     if (!email) return;
@@ -617,6 +664,55 @@ export default function AdminPage() {
               </button>
             </>
           )}
+        </div>
+
+        {/* ── AI Knowledge Base ── */}
+        <div className="rounded-2xl p-4 bg-white border border-violet-100 shadow-sm">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-lg">📚</span>
+            <h2 className="font-black text-base text-slate-800">בסיס ידע לעוזר AI</h2>
+          </div>
+          <p className="text-xs mb-3 text-slate-400" dir="rtl">
+            מידע שה-AI יקרא תמיד — קודי גישה, מיקומים, נהלים, פרטי ציוד וכו'. ניתן לכתוב טקסט חופשי ולהעלות קבצי .txt או .pdf.
+          </p>
+
+          <textarea
+            value={aiKnowledge}
+            onChange={e => setAiKnowledge(e.target.value)}
+            rows={8}
+            dir="rtl"
+            placeholder={`לדוגמה:\nקוד כספת: 1234\nקוד טלפון מוזיקה: 5678\nהטלפון של המוזיקה נמצא בארון הסגור בצד ימין של הבמה`}
+            className="w-full rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none border border-violet-200 focus:border-violet-400 text-slate-700 mb-3"
+            style={{ fontFamily: 'inherit', lineHeight: '1.6' }}
+          />
+          <button onClick={handleKbSave} disabled={kbSaving}
+            className="w-full py-2.5 rounded-xl font-black text-sm transition disabled:opacity-50 text-white mb-4"
+            style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+            {kbSaving ? 'שומר...' : kbSaved ? '✅ נשמר' : 'שמור טקסט'}
+          </button>
+
+          <div className="border-t border-slate-100 pt-3">
+            <p className="text-xs font-bold text-slate-600 mb-2">קבצים מצורפים (.txt / .pdf)</p>
+            <label className={`block w-full py-2 rounded-xl font-bold text-sm text-center cursor-pointer border-2 border-dashed border-violet-300 text-violet-600 hover:bg-violet-50 transition mb-3 ${kbUploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+              {kbUploading ? 'מעלה...' : '+ העלה קובץ'}
+              <input ref={kbFileRef} type="file" accept=".txt,.pdf" className="hidden" onChange={handleKbFileUpload} disabled={kbUploading} />
+            </label>
+            {knowledgeFiles.length === 0 ? (
+              <p className="text-xs text-slate-400 text-center py-2">אין קבצים עדיין</p>
+            ) : (
+              <div className="space-y-1.5">
+                {knowledgeFiles.map(f => (
+                  <div key={f.id} className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 border border-slate-100" dir="rtl">
+                    <div>
+                      <p className="text-sm font-medium text-slate-700">{f.filename}</p>
+                      <p className="text-xs text-slate-400">{new Date(f.created_at).toLocaleDateString('he-IL')}</p>
+                    </div>
+                    <button onClick={() => handleKbFileDelete(f.id)} className="text-red-400 hover:text-red-600 text-lg leading-none transition px-1">×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ── Staff signature ── */}

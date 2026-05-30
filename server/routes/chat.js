@@ -368,6 +368,17 @@ router.post('/', requireAuth, async (req, res) => {
     const today = new Date().toLocaleDateString('he-IL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     const modeHint = context.mode ? `\nהמשתמש נמצא כרגע במסך: ${context.mode}` : '';
 
+    // Load knowledge base from DB
+    const [{ rows: [knowledgeRow] }, { rows: kbFiles }] = await Promise.all([
+      pool.query("SELECT value FROM settings WHERE key = 'ai_knowledge_text'"),
+      pool.query("SELECT filename, content_text FROM ai_knowledge_files ORDER BY created_at DESC")
+    ]);
+    const knowledgeParts = [
+      knowledgeRow?.value?.trim() ? `## מידע כללי על שרביה:\n${knowledgeRow.value.trim()}` : '',
+      ...kbFiles.map(f => `## מסמך: ${f.filename}\n${f.content_text}`)
+    ].filter(Boolean);
+    const knowledgeSection = knowledgeParts.length ? '\n\n' + knowledgeParts.join('\n\n') : '';
+
     const systemPrompt = `אתה עוזר AI של מערכת CRM שרביה.
 אתה מסייע ל-${user.display_name || user.username} (תפקיד: ${userRoles.join(', ')}).${modeHint}
 תאריך היום: ${today}
@@ -375,8 +386,8 @@ router.post('/', requireAuth, async (req, res) => {
 כללים:
 - ענה תמיד בעברית, בצורה תמציתית ומועילה
 - אתה קורא נתונים בלבד — לא יכול לשנות, למחוק, או ליצור כלום
-- כשמציין ליד, צרף: [שם](/leads?id=ID) וטלפון: [מספר](tel:מספר)
-- כשמציין ספק, צרף: [שם](/suppliers?id=ID) וטלפון: [מספר](tel:מספר)`;
+- כשמציין ליד, צרף: [שם](/?lead=ID) וטלפון: [מספר](tel:מספר)
+- כשמציין ספק, צרף: [שם](/suppliers?id=ID) וטלפון: [מספר](tel:מספר)${knowledgeSection}`;
 
     const messages = [
       { role: 'system', content: systemPrompt },
