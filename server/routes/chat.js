@@ -44,6 +44,22 @@ const TOOL_DEFS = {
       parameters: { type: 'object', properties: {}, required: [] }
     }
   },
+  get_schedule: {
+    type: 'function',
+    function: {
+      name: 'get_schedule',
+      description: 'מחזיר פגישות, אירועים וחתונות לכל טווח תאריכים. GPT מחשב from_date/to_date לפי השאלה ("השבוע", "החודש", "השנה", "בקיץ", "במרץ" וכו\'). ניתן לבקש רק ספירה (count_only=true).',
+      parameters: {
+        type: 'object',
+        properties: {
+          from_date:  { type: 'string',  description: 'תאריך התחלה YYYY-MM-DD' },
+          to_date:    { type: 'string',  description: 'תאריך סיום YYYY-MM-DD (כולל)' },
+          count_only: { type: 'boolean', description: 'true אם המשתמש שואל רק כמה (ספירה, ללא רשימה)' }
+        },
+        required: ['from_date', 'to_date']
+      }
+    }
+  },
   get_leads: {
     type: 'function',
     function: {
@@ -139,7 +155,7 @@ const TOOL_DEFS = {
 
 function getToolsForUser(userRoles) {
   const tools = [TOOL_DEFS.get_my_tasks];
-  if (hasRole(userRoles, LEAD_SET))   tools.push(TOOL_DEFS.get_today_schedule);
+  if (hasRole(userRoles, LEAD_SET))   tools.push(TOOL_DEFS.get_today_schedule, TOOL_DEFS.get_schedule);
   if (hasRole(userRoles, LEAD_SET))   tools.push(TOOL_DEFS.get_leads, TOOL_DEFS.get_lead_details);
   if (hasRole(userRoles, SALES_SET))  tools.push(TOOL_DEFS.get_urgent_leads);
   if (hasRole(userRoles, OPS_SET))    tools.push(TOOL_DEFS.get_op_tasks, TOOL_DEFS.get_maintenance);
@@ -189,6 +205,51 @@ async function executeTool(name, args, user) {
       `, [isAM, uid]);
 
       return [...tasks, ...meetings].sort((a, b) => {
+        if (!a.time) return 1;
+        if (!b.time) return -1;
+        return new Date(a.time) - new Date(b.time);
+      });
+    }
+
+    case 'get_schedule': {
+      const { from_date, to_date, count_only = false } = args;
+
+      const { rows: meetings } = await pool.query(`
+        SELECT 'meeting' AS type, m.id, m.title, m.start_time AS time,
+               l.name AS lead_name, l.id AS lead_id, l.phone AS lead_phone
+        FROM meetings m
+        JOIN leads l ON l.id = m.lead_id
+        WHERE m.start_time::date >= $1::date AND m.start_time::date <= $2::date
+          AND ($3 = true OR l.assigned_to = $4)
+        ORDER BY m.start_time ASC LIMIT 100
+      `, [from_date, to_date, isAM, uid]);
+
+      const { rows: events } = await pool.query(`
+        SELECT 'event' AS type, l.id, l.event_date::text AS time,
+               l.event_type, l.guest_count, l.event_time,
+               l.name AS lead_name, l.id AS lead_id, l.phone AS lead_phone
+        FROM leads l
+        WHERE l.event_date >= $1::date AND l.event_date <= $2::date
+          AND l.stage NOT IN ('cancelled','lost')
+          AND ($3 = true OR l.assigned_to = $4)
+        ORDER BY l.event_date ASC LIMIT 100
+      `, [from_date, to_date, isAM, uid]);
+
+      const { rows: tasks } = await pool.query(`
+        SELECT 'task' AS type, t.id, t.title, t.due_at AS time,
+               l.name AS lead_name, l.id AS lead_id, l.phone AS lead_phone
+        FROM tasks t
+        LEFT JOIN leads l ON l.id = t.lead_id
+        WHERE t.assigned_to = $1 AND t.completed_at IS NULL
+          AND t.due_at::date >= $2::date AND t.due_at::date <= $3::date
+        ORDER BY t.due_at ASC LIMIT 100
+      `, [uid, from_date, to_date]);
+
+      if (count_only) {
+        return { meetings: meetings.length, events: events.length, tasks: tasks.length, total: meetings.length + events.length + tasks.length };
+      }
+
+      return [...meetings, ...events, ...tasks].sort((a, b) => {
         if (!a.time) return 1;
         if (!b.time) return -1;
         return new Date(a.time) - new Date(b.time);
@@ -396,6 +457,27 @@ function formatToolResult(name, result) {
             (item.lead_phone ? ` [${item.lead_phone}](tel:${item.lead_phone})` : '')
           : '';
         return `- ${time} ${item.type === 'meeting' ? 'פגישה' : 'משימה'}: ${item.title}${leadPart}`;
+      }).join('\n');
+    }
+
+    case 'get_schedule': {
+      if (result && !Array.isArray(result) && 'total' in result) {
+        return `סה"כ ${result.total} פריטים: ${result.events} אירועים, ${result.meetings} פגישות, ${result.tasks} משימות.`;
+      }
+      if (!result?.length) return 'אין פגישות, אירועים או משימות בתקופה זו.';
+      return result.map(item => {
+        const d = item.time ? new Date(item.time) : null;
+        const dateStr = d
+          ? d.toLocaleDateString('he-IL', { weekday: 'short', day: '2-digit', month: '2-digit', year: '2-digit' })
+          : '';
+        const timeStr = item.type !== 'event' && d
+          ? ` ${d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}` : '';
+        const typeLabel = item.type === 'event' ? 'אירוע' : item.type === 'meeting' ? 'פגישה' : 'משימה';
+        const leadPart = item.lead_name && item.lead_id ? ` | [${item.lead_name}](/?lead=${item.lead_id})` : '';
+        const extra = item.event_type ? ` ${item.event_type}` : '';
+        const guests = item.guest_count ? ` (${item.guest_count} אורחים)` : '';
+        const eventTime = item.event_time ? ` ${item.event_time}` : '';
+        return `- ${dateStr}${timeStr}${eventTime} ${typeLabel}${extra}${guests}${leadPart}`;
       }).join('\n');
     }
 
