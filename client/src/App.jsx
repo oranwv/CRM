@@ -15,6 +15,7 @@ import RSVPsPage        from './pages/RSVPs/RSVPsPage';
 import RSVPDetailPage   from './pages/RSVPs/RSVPDetailPage';
 import OperationsPage    from './pages/OperationsPage';
 import ManagementPage   from './pages/ManagementPage';
+import AIChat           from './components/AIChat';
 import { AppModeProvider, useAppMode } from './context/AppModeContext';
 import api from './api';
 
@@ -211,6 +212,7 @@ function AppRoutes() {
   return (
     <>
       <GlobalHeader />
+      <AIChat />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/" element={

@@ -44,6 +44,7 @@ const productionChecklistRoutes = require('./routes/productionChecklist');
 const eventBriefRoutes          = require('./routes/eventBrief');
 const rsvpRoutes                = require('./routes/rsvp');
 const operationsRoutes          = require('./routes/operations');
+const chatRoutes                = require('./routes/chat');
 
 const pool = require('./db/pool');
 
@@ -433,6 +434,7 @@ app.use('/api/suppliers',           requireAuth, require('./routes/suppliers'));
 app.use('/api/operations',          requireAuth, operationsRoutes);
 app.use('/api/greeninvoice',        requireAuth, require('./routes/greeninvoice'));
 app.use('/api/ai',                  requireAuth, aiRoutes);
+app.use('/api/chat',               chatRoutes);  // auth applied inside route
 app.use('/api/calendar', (req, res, next) => {
   // ICS download and lead confirmation are public — no auth required
   if (/^\/meetings\/[^/]+\/(ics|confirm)$/.test(req.path)) return next();
