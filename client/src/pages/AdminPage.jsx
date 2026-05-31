@@ -627,7 +627,7 @@ export default function AdminPage() {
   const inputCls = 'w-full rounded-xl px-3 py-2 text-sm border border-violet-200 focus:border-violet-400 focus:outline-none text-slate-700';
 
   return (
-    <div className="min-h-screen pb-20 bg-gradient-to-br from-violet-50 to-indigo-50" dir="rtl">
+    <div className="min-h-screen pb-20 bg-gradient-to-br from-violet-50 to-indigo-50 overflow-x-hidden" dir="rtl">
       <div className="sticky top-0 z-20 px-4 pt-5 pb-3 bg-white border-b border-violet-100 shadow-sm">
         <h1 className="text-xl font-black text-violet-700">הגדרות מערכת</h1>
       </div>
