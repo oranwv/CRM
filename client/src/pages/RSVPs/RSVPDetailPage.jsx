@@ -239,8 +239,10 @@ function GuestsTab({ campaignId, campaign, onStatsChange }) {
           {visible.map(g => (
             <div key={g.id} className="bg-white rounded-xl border border-slate-100 px-3 py-2.5 flex items-center gap-2">
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-black text-slate-800 truncate">{g.name || g.phone}</p>
-                {g.name && <p className="text-[11px] text-slate-400 truncate">{g.phone}</p>}
+                <p className="text-sm font-black text-slate-800 truncate">
+                  {g.name || <a href={`tel:${g.phone}`} className="text-violet-600">{g.phone}</a>}
+                </p>
+                {g.name && <a href={`tel:${g.phone}`} className="text-[11px] text-slate-400 truncate block">{g.phone}</a>}
                 {g.invited_at && (
                   <p className="text-[10px] text-slate-300 mt-0.5">נשלח {fmt(g.invited_at)}</p>
                 )}

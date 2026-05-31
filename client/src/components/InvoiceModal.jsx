@@ -232,7 +232,7 @@ export default function InvoiceModal({ lead, allPhones, allPhoneLabels, onClose,
               <div className="bg-slate-50 rounded-xl p-3 space-y-1 text-xs text-slate-600">
                 <p className="font-bold text-slate-700 mb-1">פרטי לקוח</p>
                 <p>שם: {lead.name}</p>
-                {lead.phone && <p>טלפון: {lead.phone}</p>}
+                {lead.phone && <p>טלפון: <a href={`tel:${lead.phone}`} className="text-violet-600">{lead.phone}</a></p>}
                 {lead.email && <p>אימייל: {lead.email}</p>}
               </div>
 

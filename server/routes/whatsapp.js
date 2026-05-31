@@ -95,6 +95,13 @@ async function findOrCreateLead(phone, name, messageBody, chatId) {
   return rows[0].id;
 }
 
+async function sendWhatsAppRaw(phone, message) {
+  if (!phone || !message) return;
+  const url = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/sendMessage/${process.env.GREEN_API_TOKEN}`;
+  await waitForWaSlot();
+  await axios.post(url, { chatId: `${phone}@c.us`, message });
+}
+
 // POST /api/whatsapp/webhook — Green API incoming messages (public)
 router.post('/webhook', async (req, res) => {
   try {
@@ -137,6 +144,29 @@ router.post('/webhook', async (req, res) => {
       [leadId, text, externalId, senderPhone]
     );
     await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [leadId]);
+
+    // Chatbot auto-reply (non-blocking)
+    ;(async () => {
+      try {
+        const { rows: cfgRows } = await pool.query(
+          "SELECT key, value FROM settings WHERE key IN ('wa_chatbot_enabled','wa_chatbot_greeting','wa_chatbot_followup')"
+        );
+        const cfg = Object.fromEntries(cfgRows.map(r => [r.key, r.value]));
+        if (cfg.wa_chatbot_enabled !== 'true') return;
+        const { rows: cntRows } = await pool.query(
+          "SELECT COUNT(*) FROM messages WHERE lead_id=$1 AND direction='inbound'",
+          [leadId]
+        );
+        const count = parseInt(cntRows[0].count);
+        if (count === 1 && cfg.wa_chatbot_greeting) {
+          await sendWhatsAppRaw(senderPhone, cfg.wa_chatbot_greeting);
+        } else if (count === 2 && cfg.wa_chatbot_followup) {
+          await sendWhatsAppRaw(senderPhone, cfg.wa_chatbot_followup);
+        }
+      } catch (e) {
+        console.error('[WhatsApp] chatbot error:', e.message);
+      }
+    })();
 
     // Notify assigned user about inbound message (non-blocking)
     const _notifyText = text;

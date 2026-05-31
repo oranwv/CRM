@@ -298,6 +298,18 @@ function ItemEditorModal({ overrides, customItems, onSave, onClose }) {
 }
 
 const ROLE_COLORS = { admin: 'bg-violet-100 text-violet-700', manager: 'bg-purple-100 text-purple-700', sales: 'bg-indigo-100 text-indigo-700', production: 'bg-slate-100 text-slate-600', suppliers: 'bg-emerald-100 text-emerald-700', rsvp: 'bg-pink-100 text-pink-700', operations: 'bg-orange-100 text-orange-700' };
+
+const DEFAULT_CHATBOT_GREETING = `היי תודה שפנית לשרביה
+נשמח לעזור לך לתכנן אירוע מיוחד ובלתי נשכח באווירה הייחודית של יפו העתיקה.
+כדי שנוכל לסייע לכם בצורה הטובה ביותר נשמח להכיר קצת יותר את האירוע שאתם חולמים עליו
+
+שם מלא
+סוג האירוע (חברה\\ חתונה\\ מסיבה וכו')
+מחפשים עם אוכל ובר או רק השכרה?
+מה התאריך המבוקש?
+מספר האורחים המשוער?`;
+
+const DEFAULT_CHATBOT_FOLLOWUP = `תודה רבה! ניצור אתכם קשר בהקדם`;
 const emptyUser = { username: '', display_name: '', email: '', phone: '', roles: ['sales'], blocked: false, password: '' };
 
 export default function AdminPage() {
@@ -344,6 +356,11 @@ export default function AdminPage() {
   const [kbSaved,        setKbSaved]          = useState(false);
   const [kbUploading,    setKbUploading]      = useState(false);
   const kbFileRef = useRef(null);
+  const [chatbotEnabled,  setChatbotEnabled]  = useState(false);
+  const [chatbotGreeting, setChatbotGreeting] = useState('');
+  const [chatbotFollowup, setChatbotFollowup] = useState('');
+  const [chatbotSaving,   setChatbotSaving]   = useState(false);
+  const [chatbotSaved,    setChatbotSaved]    = useState(false);
 
   useEffect(() => {
     api.get('/admin/settings')
@@ -358,6 +375,9 @@ export default function AdminPage() {
         setGoogleReviewMessage(r.data.google_review_message || '');
         try { setElemOverrides(r.data.seating_element_overrides ? JSON.parse(r.data.seating_element_overrides) : {}); } catch {}
         try { setCustomItems(r.data.seating_custom_items ? JSON.parse(r.data.seating_custom_items) : []); } catch {}
+        setChatbotEnabled(r.data.wa_chatbot_enabled === 'true');
+        setChatbotGreeting(r.data.wa_chatbot_greeting || DEFAULT_CHATBOT_GREETING);
+        setChatbotFollowup(r.data.wa_chatbot_followup || DEFAULT_CHATBOT_FOLLOWUP);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -422,6 +442,23 @@ export default function AdminPage() {
       setStaffSig('');
     } catch (err) {
       alert(err.response?.data?.error || err.message);
+    }
+  }
+
+  async function handleChatbotSave() {
+    setChatbotSaving(true); setChatbotSaved(false);
+    try {
+      await Promise.all([
+        api.put('/admin/settings/wa_chatbot_enabled',  { value: chatbotEnabled ? 'true' : 'false' }),
+        api.put('/admin/settings/wa_chatbot_greeting', { value: chatbotGreeting }),
+        api.put('/admin/settings/wa_chatbot_followup', { value: chatbotFollowup }),
+      ]);
+      setChatbotSaved(true);
+      setTimeout(() => setChatbotSaved(false), 3000);
+    } catch (err) {
+      alert(err.response?.data?.error || err.message);
+    } finally {
+      setChatbotSaving(false);
     }
   }
 
@@ -616,7 +653,11 @@ export default function AdminPage() {
               <div key={u.id} className="flex items-center justify-between rounded-xl border border-violet-50 bg-violet-50/40 px-3 py-2">
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-slate-800 truncate">{u.display_name || u.username}</p>
-                  <p className="text-xs text-slate-400 truncate">{u.username}{u.phone ? ` · ${u.phone}` : ''}{u.email ? ` · ${u.email}` : ''}</p>
+                  <p className="text-xs text-slate-400 truncate">
+                    {u.username}
+                    {u.phone && <> · <a href={`tel:${u.phone}`} className="text-violet-500">{u.phone}</a></>}
+                    {u.email && ` · ${u.email}`}
+                  </p>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0 mr-2 flex-wrap justify-end">
                   {u.blocked && (
@@ -829,6 +870,50 @@ export default function AdminPage() {
             className="mt-3 w-full py-2 rounded-xl font-bold text-sm transition disabled:opacity-50 text-white"
             style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
             {waChecking ? '⏳ בודק...' : 'רענן סטטוס'}
+          </button>
+        </div>
+
+        {/* ── WhatsApp chatbot ── */}
+        <div className="rounded-2xl p-4 bg-white border border-violet-100 shadow-sm">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-lg">🤖</span>
+            <h2 className="font-black text-base text-slate-800">בוט WhatsApp — תשובה אוטומטית</h2>
+          </div>
+          <p className="text-xs mb-3 text-slate-400">כשליד חדש שולח הודעה ראשונה, הבוט שולח הודעת פתיחה. כשהוא עונה (הודעה 2), הבוט שולח הודעת סגירה.</p>
+          <label className="flex items-center gap-2 cursor-pointer mb-4">
+            <div
+              onClick={() => setChatbotEnabled(v => !v)}
+              className={`relative w-10 h-6 rounded-full transition-colors cursor-pointer ${chatbotEnabled ? 'bg-violet-600' : 'bg-slate-200'}`}>
+              <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${chatbotEnabled ? 'right-1' : 'right-5'}`} />
+            </div>
+            <span className="text-sm font-bold text-slate-700">{chatbotEnabled ? 'פעיל' : 'כבוי'}</span>
+          </label>
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs font-bold text-slate-600 mb-1">הודעה ראשונה (שאלות)</p>
+              <textarea
+                value={chatbotGreeting}
+                onChange={e => setChatbotGreeting(e.target.value)}
+                rows={10}
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-violet-400 resize-none"
+                dir="rtl"
+              />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-600 mb-1">הודעה שנייה (תודה)</p>
+              <textarea
+                value={chatbotFollowup}
+                onChange={e => setChatbotFollowup(e.target.value)}
+                rows={3}
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-violet-400 resize-none"
+                dir="rtl"
+              />
+            </div>
+          </div>
+          <button onClick={handleChatbotSave} disabled={chatbotSaving}
+            className="mt-3 w-full py-2.5 rounded-xl font-black text-sm transition disabled:opacity-50 text-white"
+            style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+            {chatbotSaving ? 'שומר...' : chatbotSaved ? 'נשמר' : 'שמור'}
           </button>
         </div>
 
