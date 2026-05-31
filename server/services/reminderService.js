@@ -188,15 +188,29 @@ async function runReminders() {
       );
     }
 
-    // Op-reminders: send WhatsApp for due/overdue reminders
+    if (noContact.rows.length + offerStale.rows.length + contractStale.rows.length + dueTasks.rows.length > 0) {
+      console.log(`[Reminders] Sent: ${noContact.rows.length} no-contact, ${offerStale.rows.length} offer, ${contractStale.rows.length} contract, ${dueTasks.rows.length} task reminders`);
+    }
+  } catch (err) {
+    console.error('[Reminders] Error:', err.message);
+  }
+
+  // Op-reminders: separate try/catch so errors here don't block the main flow
+  try {
+    // Ensure columns exist (idempotent, runs once per server lifetime via flag)
+    await pool.query(`ALTER TABLE op_reminders ADD COLUMN IF NOT EXISTS due_time TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE op_reminders ADD COLUMN IF NOT EXISTS remind_sent_at TIMESTAMPTZ`).catch(() => {});
+
     const dueOpReminders = await pool.query(`
       SELECT r.id, r.title, r.entity_type, r.due_date, r.due_time,
-             u.phone AS user_phone, u.display_name
+             COALESCE(ua.phone, uc.phone)               AS user_phone,
+             COALESCE(ua.display_name, uc.display_name) AS display_name
       FROM op_reminders r
-      LEFT JOIN users u ON u.id = r.assigned_to
+      LEFT JOIN users ua ON ua.id = r.assigned_to
+      LEFT JOIN users uc ON uc.id = r.created_by
       WHERE r.done = false
         AND r.remind_sent_at IS NULL
-        AND u.phone IS NOT NULL
+        AND COALESCE(ua.phone, uc.phone) IS NOT NULL
         AND r.due_date IS NOT NULL
         AND (
           r.due_date < CURRENT_DATE
@@ -226,11 +240,11 @@ async function runReminders() {
       );
     }
 
-    if (noContact.rows.length + offerStale.rows.length + contractStale.rows.length + dueTasks.rows.length + dueOpReminders.rows.length > 0) {
-      console.log(`[Reminders] Sent: ${noContact.rows.length} no-contact, ${offerStale.rows.length} offer, ${contractStale.rows.length} contract, ${dueTasks.rows.length} task, ${dueOpReminders.rows.length} op reminders`);
+    if (dueOpReminders.rows.length > 0) {
+      console.log(`[Reminders] Sent: ${dueOpReminders.rows.length} op reminders`);
     }
   } catch (err) {
-    console.error('[Reminders] Error:', err.message);
+    console.error('[Reminders] Op-reminders error:', err.message);
   }
 }
 
