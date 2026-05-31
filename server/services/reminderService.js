@@ -188,8 +188,46 @@ async function runReminders() {
       );
     }
 
-    if (noContact.rows.length + offerStale.rows.length + contractStale.rows.length + dueTasks.rows.length > 0) {
-      console.log(`[Reminders] Sent: ${noContact.rows.length} no-contact, ${offerStale.rows.length} offer, ${contractStale.rows.length} contract, ${dueTasks.rows.length} task reminders`);
+    // Op-reminders: send WhatsApp for due/overdue reminders
+    const dueOpReminders = await pool.query(`
+      SELECT r.id, r.title, r.entity_type, r.due_date, r.due_time,
+             u.phone AS user_phone, u.display_name
+      FROM op_reminders r
+      LEFT JOIN users u ON u.id = r.assigned_to
+      WHERE r.done = false
+        AND r.remind_sent_at IS NULL
+        AND u.phone IS NOT NULL
+        AND r.due_date IS NOT NULL
+        AND (
+          r.due_date < CURRENT_DATE
+          OR (
+            r.due_date = CURRENT_DATE
+            AND (
+              r.due_time IS NULL
+              OR r.due_time <= TO_CHAR(NOW() AT TIME ZONE 'Asia/Jerusalem', 'HH24:MI')
+            )
+          )
+        )
+    `);
+
+    for (const rem of dueOpReminders.rows) {
+      const claim = await pool.query(
+        `UPDATE op_reminders SET remind_sent_at = NOW()
+         WHERE id = $1 AND remind_sent_at IS NULL RETURNING id`,
+        [rem.id]
+      );
+      if (!claim.rows.length) continue;
+
+      const typeLabel = rem.entity_type === 'task' ? 'משימה' : rem.entity_type === 'fault' ? 'תקלה' : 'תחזוקה';
+      const timeStr = rem.due_time ? ` בשעה ${rem.due_time}` : '';
+      await sendWhatsApp(
+        rem.user_phone,
+        `⏰ תזכורת תפעול: "${rem.title}"\n${typeLabel}${timeStr}`
+      );
+    }
+
+    if (noContact.rows.length + offerStale.rows.length + contractStale.rows.length + dueTasks.rows.length + dueOpReminders.rows.length > 0) {
+      console.log(`[Reminders] Sent: ${noContact.rows.length} no-contact, ${offerStale.rows.length} offer, ${contractStale.rows.length} contract, ${dueTasks.rows.length} task, ${dueOpReminders.rows.length} op reminders`);
     }
   } catch (err) {
     console.error('[Reminders] Error:', err.message);

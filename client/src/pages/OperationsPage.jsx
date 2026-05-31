@@ -804,7 +804,6 @@ export default function OperationsPage() {
                         <option value="done">הושלמו</option>
                       </select>
                     </div>
-                    <button onClick={() => openModal('task')} className="text-xs text-violet-600 font-bold cursor-pointer">+ חדש</button>
                   </div>
                   <input type="text" placeholder="חיפוש..." value={taskSearch}
                     onChange={e => setTaskSearch(e.target.value)}
@@ -864,7 +863,6 @@ export default function OperationsPage() {
                 <>
                   <div ref={checklistsRef} className="flex items-center justify-between px-3 py-2 bg-white border-b border-slate-100 sticky top-0 z-10">
                     <p className="text-xs font-black text-slate-700">מלאי</p>
-                    <button onClick={() => openModal('checklist')} className="text-xs text-violet-600 font-bold cursor-pointer">+ חדש</button>
                   </div>
                   {checklists.length === 0 ? (
                     <p className="text-xs text-slate-400 text-center py-4">אין רשימות</p>
@@ -903,7 +901,6 @@ export default function OperationsPage() {
                     <button onClick={() => setActiveView('maintenance')} className="text-xs font-black text-slate-700 cursor-pointer hover:text-violet-600 transition flex items-center gap-1">
                       תחזוקה <span className="text-[10px] opacity-50">←</span>
                     </button>
-                    <button onClick={() => openModal('maintenance')} className="text-xs text-violet-600 font-bold cursor-pointer">+ חדש</button>
                   </div>
                   {filteredMaint.length === 0 ? (
                     <p className="text-xs text-slate-400 text-center py-4">אין משימות תחזוקה פעילות</p>
@@ -936,7 +933,6 @@ export default function OperationsPage() {
                     <button onClick={() => setActiveView('faults')} className="text-xs font-black text-slate-700 cursor-pointer hover:text-violet-600 transition flex items-center gap-1">
                       תקלות <span className="text-[10px] opacity-50">←</span>
                     </button>
-                    <button onClick={() => openModal('fault')} className="text-xs text-violet-600 font-bold cursor-pointer">+ דווח</button>
                   </div>
                   {filteredFaults.length === 0 ? (
                     <p className="text-xs text-slate-400 text-center py-4">אין תקלות פתוחות</p>

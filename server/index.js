@@ -402,6 +402,11 @@ pool.query(`
 `).catch(err => console.error('[DB] RSVP tables migration error:', err.message));
 
 pool.query(`
+  ALTER TABLE op_reminders ADD COLUMN IF NOT EXISTS due_time TEXT;
+  ALTER TABLE op_reminders ADD COLUMN IF NOT EXISTS remind_sent_at TIMESTAMPTZ;
+`).catch(err => console.error('[DB] op_reminders migration error:', err.message));
+
+pool.query(`
   CREATE TABLE IF NOT EXISTS ai_knowledge_files (
     id SERIAL PRIMARY KEY,
     filename VARCHAR(255) NOT NULL,
