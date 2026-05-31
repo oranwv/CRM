@@ -9,6 +9,53 @@ const path = require('path');
 const FormData = require('form-data');
 const { uploadFile } = require('../services/storageService');
 const { normalizePhone, findLeadByPhone } = require('../utils/phoneUtils');
+const OpenAI = require('openai');
+
+let _oaiClient;
+function getOAI() {
+  if (!_oaiClient) _oaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  return _oaiClient;
+}
+
+async function extractLeadDetails(text) {
+  const completion = await getOAI().chat.completions.create({
+    model: 'gpt-4o-mini',
+    max_tokens: 300,
+    response_format: { type: 'json_object' },
+    messages: [
+      {
+        role: 'system',
+        content: 'אתה עוזר שמחלץ פרטי אירוע מהודעות וואטסאפ בעברית. החזר JSON עם: name (שם מלא), event_type (סוג האירוע, לדוגמה: חתונה/מסיבה/חברה/בר מצווה), event_date_text (תאריך כטקסט, לדוגמה: "סוף אוגוסט 2026"), guest_count (מספר אורחים, לדוגמה: "60-80"). השתמש ב-null עבור שדות שלא הוזכרו.'
+      },
+      { role: 'user', content: text }
+    ]
+  });
+  return JSON.parse(completion.choices[0].message.content);
+}
+
+async function updateLeadFromChatbot(leadId, extracted, fullText) {
+  const { rows: [lead] } = await pool.query('SELECT * FROM leads WHERE id=$1', [leadId]);
+  if (!lead) return;
+
+  const sets = [];
+  const vals = [];
+  let i = 1;
+
+  if (extracted.name) {
+    sets.push(`name=$${i++}`, `event_name=$${i++}`);
+    vals.push(extracted.name, extracted.name);
+  }
+  if (extracted.event_type && !lead.event_type)           { sets.push(`event_type=$${i++}`);       vals.push(extracted.event_type); }
+  if (extracted.event_date_text && !lead.event_date_text) { sets.push(`event_date_text=$${i++}`);  vals.push(extracted.event_date_text); }
+  if (extracted.guest_count && !lead.guest_count)         { sets.push(`guest_count=$${i++}`);      vals.push(String(extracted.guest_count)); }
+
+  sets.push(`notes=$${i++}`);
+  vals.push(fullText);
+
+  vals.push(leadId);
+  await pool.query(`UPDATE leads SET ${sets.join(', ')} WHERE id=$${i}`, vals);
+  console.log(`[WhatsApp] AI extracted lead ${leadId}:`, extracted);
+}
 
 const upload = multer({ dest: os.tmpdir() });
 
@@ -162,6 +209,12 @@ router.post('/webhook', async (req, res) => {
           await sendWhatsAppRaw(senderPhone, cfg.wa_chatbot_greeting);
         } else if (count === 2 && cfg.wa_chatbot_followup) {
           await sendWhatsAppRaw(senderPhone, cfg.wa_chatbot_followup);
+          try {
+            const extracted = await extractLeadDetails(text);
+            await updateLeadFromChatbot(leadId, extracted, text);
+          } catch (e) {
+            console.error('[WhatsApp] AI extraction error:', e.message);
+          }
         }
       } catch (e) {
         console.error('[WhatsApp] chatbot error:', e.message);
