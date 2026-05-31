@@ -526,7 +526,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
             </Section>
 
             {/* Calendar */}
-            <CalendarSection lead={lead} leadId={leadId} editForm={editForm} calStatus={calStatus} onUpdated={load} />
+            <CalendarSection lead={lead} leadId={leadId} editForm={editForm} calStatus={calStatus} onUpdated={load} allPhones={allPhones} allPhoneLabels={allPhoneLabels} />
 
             {/* Event brief button — visible on closed leads */}
             {(lead.stage === 'deposit' || lead.stage === 'production' || lead.stage === 'completed') && (
@@ -3635,7 +3635,7 @@ function formatMeetingDateTime(isoStr) {
   return `${date} ${time}`;
 }
 
-function CalendarSection({ lead, leadId, editForm, calStatus, onUpdated }) {
+function CalendarSection({ lead, leadId, editForm, calStatus, onUpdated, allPhones = [], allPhoneLabels = {} }) {
   const [marking, setMarking] = useState(false);
   const [syncWarning, setSyncWarning] = useState(false);
   const [syncError, setSyncError] = useState('');
