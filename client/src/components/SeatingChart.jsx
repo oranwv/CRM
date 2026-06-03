@@ -240,7 +240,7 @@ export default function SeatingChart({ leadId, onClose }) {
           x: Math.max(0, mx - wPx / 2),
           y: Math.max(0, my - hPx / 2),
           rotation: 0,
-          ...(ds.type === 'custom' ? { wM: ds.wM, hM: ds.hM, shape: ds.shape, label: ds.label } : {}),
+          ...(ds.type === 'custom' ? { wM: ds.wM, hM: ds.hM, shape: ds.shape, label: ds.label, guests: ds.guests || 0, image: ds.image || null } : {}),
         };
         setLayouts(prev => {
           const sec = sectionRef.current;
