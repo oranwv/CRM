@@ -1126,7 +1126,10 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, onClose, on
     packageExtraGuestPrice: '',
   });
   const [contractType, setContractType] = useState(null); // null | 'regular' | 'package'
-  const [newInclude, setNewInclude]   = useState('');
+  const [newInclude, setNewInclude]       = useState('');
+  const [newCancellation, setNewCancellation] = useState('');
+  const [newObligation, setNewObligation]     = useState('');
+  const [newPaymentExtra, setNewPaymentExtra] = useState('');
   const [rows, setRows]               = useState(DEFAULT_ROWS);
   const [loadingImport, setLoadingImport] = useState(false);
   const [latestContract,   setLatestContract]   = useState(undefined);
@@ -1192,12 +1195,34 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, onClose, on
       'הצדדים מצהירים במפורש כי אין בהסכם זה כדי ליצור בין הצדדים יחסי סוכנות ו/או שליחות ו/או שותפות מכל מין וסוג שהוא.',
       'שום ויתור, הנחה, היימנעות מפעולה בזמנה, או מתן ארכה, לא יחשבו כוויתור של צד מהצדדים להסכם זה על זכות מזכויותיו.',
     ],
+    paymentExtras: [],
   });
   const setTxt = (key, val) => setContractTexts(t => ({ ...t, [key]: val }));
   const setInc = (i, val) => setContractTexts(t => ({ ...t, includes: t.includes.map((v,j) => j===i ? val : v) }));
   const setCancelItem = (i, val) => setContractTexts(t => ({ ...t, cancellationItems: t.cancellationItems.map((v,j) => j===i ? val : v) }));
   const setObligation = (i, val) => setContractTexts(t => ({ ...t, obligations: t.obligations.map((v,j) => j===i ? val : v) }));
   const setLegalPara = (i, val) => setContractTexts(t => ({ ...t, legalParagraphs: t.legalParagraphs.map((v,j) => j===i ? val : v) }));
+
+  function addContractInclude() {
+    if (!newInclude.trim()) return;
+    setContractTexts(t => ({ ...t, includes: [...t.includes, newInclude.trim()] }));
+    setNewInclude('');
+  }
+  function addCancellationItem() {
+    if (!newCancellation.trim()) return;
+    setContractTexts(t => ({ ...t, cancellationItems: [...t.cancellationItems, newCancellation.trim()] }));
+    setNewCancellation('');
+  }
+  function addObligationItem() {
+    if (!newObligation.trim()) return;
+    setContractTexts(t => ({ ...t, obligations: [...t.obligations, newObligation.trim()] }));
+    setNewObligation('');
+  }
+  function addPaymentExtra() {
+    if (!newPaymentExtra.trim()) return;
+    setContractTexts(t => ({ ...t, paymentExtras: [...(t.paymentExtras || []), newPaymentExtra.trim()] }));
+    setNewPaymentExtra('');
+  }
 
   const setField = (k, v) => setFields(f => ({ ...f, [k]: v }));
 
@@ -1670,9 +1695,27 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, onClose, on
                 </h3>
                 <ul style={{ paddingRight: 16, lineHeight: 1.8 }}>
                   {contractTexts.includes.map((item, i) => (
-                    <li key={i}><EditableCell value={item} onChange={v => setInc(i, v)} multiline /></li>
+                    <li key={i}>
+                      {i === 5 ? (
+                        <><EditableCell value={item} onChange={v => setInc(i, v)} />{fields.chefMenu ? <>{' '}<EditableCell value={fields.chefMenu} onChange={v => setField('chefMenu', v)} /></> : null}</>
+                      ) : i === 6 ? (
+                        <><EditableCell value={item} onChange={v => setInc(i, v)} />{fields.barMenu ? <>{' '}<EditableCell value={fields.barMenu} onChange={v => setField('barMenu', v)} /></> : null}</>
+                      ) : (
+                        <EditableCell value={item} onChange={v => setInc(i, v)} multiline />
+                      )}
+                    </li>
                   ))}
                 </ul>
+                <div data-html2canvas-ignore="true" style={{ marginTop: '4pt', display: 'flex', gap: '6px' }}>
+                  <input value={newInclude} onChange={e => setNewInclude(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addContractInclude()}
+                    placeholder="הוסף פריט..."
+                    style={{ flex: 1, border: '1px solid #ccc', borderRadius: '6px', padding: '2px 6px', fontSize: '9pt', direction: 'rtl' }} />
+                  <button onClick={addContractInclude} disabled={!newInclude.trim()}
+                    style={{ border: '1px solid #f59e0b', color: '#b45309', borderRadius: '6px', padding: '2px 8px', fontSize: '9pt', background: 'none', cursor: 'pointer', opacity: newInclude.trim() ? 1 : 0.4 }}>
+                    + הוסף
+                  </button>
+                </div>
 
                 <h3 style={{ fontWeight: 'bold', marginTop: 10, marginBottom: 4 }}>
                   <EditableCell value={contractTexts.paymentHeader} onChange={v => setTxt('paymentHeader', v)} />
@@ -1689,6 +1732,19 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, onClose, on
                 </p>
                 <p><EditableCell value={contractTexts.checkNote} onChange={v => setTxt('checkNote', v)} multiline /></p>
                 <p><EditableCell value={contractTexts.paymentNote} onChange={v => setTxt('paymentNote', v)} multiline /></p>
+                {(contractTexts.paymentExtras || []).map((line, i) => (
+                  <p key={i}><EditableCell value={line} onChange={v => setContractTexts(t => ({ ...t, paymentExtras: t.paymentExtras.map((x, j) => j === i ? v : x) }))} multiline /></p>
+                ))}
+                <div data-html2canvas-ignore="true" style={{ marginTop: '4pt', display: 'flex', gap: '6px' }}>
+                  <input value={newPaymentExtra} onChange={e => setNewPaymentExtra(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addPaymentExtra()}
+                    placeholder="הוסף שורה..."
+                    style={{ flex: 1, border: '1px solid #ccc', borderRadius: '6px', padding: '2px 6px', fontSize: '9pt', direction: 'rtl' }} />
+                  <button onClick={addPaymentExtra} disabled={!newPaymentExtra.trim()}
+                    style={{ border: '1px solid #f59e0b', color: '#b45309', borderRadius: '6px', padding: '2px 8px', fontSize: '9pt', background: 'none', cursor: 'pointer', opacity: newPaymentExtra.trim() ? 1 : 0.4 }}>
+                    + הוסף
+                  </button>
+                </div>
 
                 <h3 style={{ fontWeight: 'bold', marginTop: 10, marginBottom: 4 }}>
                   <EditableCell value={contractTexts.cancellationHeader} onChange={v => setTxt('cancellationHeader', v)} />
@@ -1701,6 +1757,16 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, onClose, on
                     </li>
                   ))}
                 </ul>
+                <div data-html2canvas-ignore="true" style={{ marginTop: '4pt', display: 'flex', gap: '6px' }}>
+                  <input value={newCancellation} onChange={e => setNewCancellation(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addCancellationItem()}
+                    placeholder="הוסף שורה..."
+                    style={{ flex: 1, border: '1px solid #ccc', borderRadius: '6px', padding: '2px 6px', fontSize: '9pt', direction: 'rtl' }} />
+                  <button onClick={addCancellationItem} disabled={!newCancellation.trim()}
+                    style={{ border: '1px solid #f59e0b', color: '#b45309', borderRadius: '6px', padding: '2px 8px', fontSize: '9pt', background: 'none', cursor: 'pointer', opacity: newCancellation.trim() ? 1 : 0.4 }}>
+                    + הוסף
+                  </button>
+                </div>
 
                 <h3 style={{ fontWeight: 'bold', marginTop: 10, marginBottom: 4 }}>
                   <EditableCell value={contractTexts.obligationsHeader} onChange={v => setTxt('obligationsHeader', v)} />
@@ -1710,6 +1776,16 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, onClose, on
                     <li key={i}><EditableCell value={item} onChange={v => setObligation(i, v)} multiline /></li>
                   ))}
                 </ul>
+                <div data-html2canvas-ignore="true" style={{ marginTop: '4pt', display: 'flex', gap: '6px' }}>
+                  <input value={newObligation} onChange={e => setNewObligation(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addObligationItem()}
+                    placeholder="הוסף שורה..."
+                    style={{ flex: 1, border: '1px solid #ccc', borderRadius: '6px', padding: '2px 6px', fontSize: '9pt', direction: 'rtl' }} />
+                  <button onClick={addObligationItem} disabled={!newObligation.trim()}
+                    style={{ border: '1px solid #f59e0b', color: '#b45309', borderRadius: '6px', padding: '2px 8px', fontSize: '9pt', background: 'none', cursor: 'pointer', opacity: newObligation.trim() ? 1 : 0.4 }}>
+                    + הוסף
+                  </button>
+                </div>
 
                 {contractTexts.legalParagraphs.map((para, i) => (
                   <p key={i} style={{ marginTop: 6 }}>
