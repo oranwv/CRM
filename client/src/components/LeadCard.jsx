@@ -1888,6 +1888,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, onClose, 
   ]);
   const [newRow, setNewRow]         = useState({ label: '', desc: '', qty: 1, price: 0, isPct: false, pct: 0 });
   const [newInclude, setNewInclude] = useState('');
+  const [newExtra, setNewExtra]     = useState('');
   const [newPkgLine, setNewPkgLine] = useState('');
   const [saving, setSaving]     = useState(false);
   const [sending, setSending]   = useState(false);
@@ -2004,6 +2005,12 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, onClose, 
     if (!newInclude.trim()) return;
     setTexts(t => ({ ...t, includes: [...t.includes, newInclude.trim()] }));
     setNewInclude('');
+  }
+
+  function addExtrasItem() {
+    if (!newExtra.trim()) return;
+    setTexts(t => ({ ...t, extras: [...t.extras, newExtra.trim()] }));
+    setNewExtra('');
   }
 
   function addPkgLine() {
@@ -2203,7 +2210,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, onClose, 
           {/* ── Extra guest cost step ── */}
           {isExtraGuestStep && (
             <div className="space-y-5">
-              <p className="text-slate-400 text-sm font-semibold">עלות אורח נוסף (לפני מע"מ)</p>
+              <p className="text-slate-400 text-sm font-semibold">עלות אורח נוסף</p>
               <input
                 autoFocus type="number" value={fields.extraGuestPrice}
                 onChange={e => setFields(f => ({ ...f, extraGuestPrice: e.target.value }))}
@@ -2211,6 +2218,9 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, onClose, 
                 placeholder="לדוגמה: 400"
                 className="w-full border-2 border-amber-300 rounded-xl px-4 py-3 text-lg focus:outline-none focus:border-amber-500"
               />
+              {withVat && fields.extraGuestPrice && Number(fields.extraGuestPrice) > 0 && (
+                <p className="text-xs text-slate-400">= {Math.round(Number(fields.extraGuestPrice) / 1.18).toLocaleString()} ש"ח לפני מע"מ</p>
+              )}
               <p className="text-xs text-slate-400">אופציונלי — אם לא רלוונטי, השאר ריק</p>
               <div className="flex gap-2">
                 <button onClick={back} className="border-2 border-slate-200 text-slate-500 font-bold py-2.5 px-4 rounded-xl">חזור</button>
@@ -2612,7 +2622,12 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, onClose, 
                     </p>
                     {fields.extraGuestPrice && Number(fields.extraGuestPrice) > 0 && (
                       <p style={{ marginTop: '4pt' }}>
-                        {`עלות כל אורח נוסף מעל ${fields.guests || ''} אורחים הינה ${Number(fields.extraGuestPrice).toLocaleString()} ש"ח ${withVat ? 'כולל מע"מ' : 'לא כולל מע"מ'}`}
+                        {'עלות כל אורח נוסף מעל '}
+                        <EditableCell value={fields.guests || ''} onChange={v => setFields(f => ({ ...f, guests: v }))} />
+                        {' אורחים הינה '}
+                        <EditableCell value={Number(fields.extraGuestPrice).toLocaleString()} onChange={v => setFields(f => ({ ...f, extraGuestPrice: v.replace(/,/g, '') }))} />
+                        {' ש"ח'}
+                        {withVat && <>{' '}<EditableCell value={texts.extraGuestSuffix ?? 'כולל מע"מ'} onChange={v => setTxt('extraGuestSuffix', v)} /></>}
                       </p>
                     )}
                   </>
@@ -2669,6 +2684,16 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, onClose, 
                     });
                   })()}
                 </div>
+                <div data-html2canvas-ignore="true" style={{ marginTop: '4pt', display: 'flex', gap: '6px' }}>
+                  <input value={newInclude} onChange={e => setNewInclude(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addIncludeItem()}
+                    placeholder="הוסף פריט..."
+                    style={{ flex: 1, border: '1px solid #ccc', borderRadius: '6px', padding: '2px 6px', fontSize: '9pt', direction: 'rtl' }} />
+                  <button onClick={addIncludeItem} disabled={!newInclude.trim()}
+                    style={{ border: '1px solid #f59e0b', color: '#b45309', borderRadius: '6px', padding: '2px 8px', fontSize: '9pt', background: 'none', cursor: 'pointer', opacity: newInclude.trim() ? 1 : 0.4 }}>
+                    + הוסף
+                  </button>
+                </div>
 
                 {/* Optional extras */}
                 <p style={{ marginTop: '10pt', fontWeight: 'bold' }}>
@@ -2683,6 +2708,16 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, onClose, 
                       </div>
                     );
                   })}
+                </div>
+                <div data-html2canvas-ignore="true" style={{ marginTop: '4pt', display: 'flex', gap: '6px' }}>
+                  <input value={newExtra} onChange={e => setNewExtra(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addExtrasItem()}
+                    placeholder="הוסף תוספת..."
+                    style={{ flex: 1, border: '1px solid #ccc', borderRadius: '6px', padding: '2px 6px', fontSize: '9pt', direction: 'rtl' }} />
+                  <button onClick={addExtrasItem} disabled={!newExtra.trim()}
+                    style={{ border: '1px solid #f59e0b', color: '#b45309', borderRadius: '6px', padding: '2px 8px', fontSize: '9pt', background: 'none', cursor: 'pointer', opacity: newExtra.trim() ? 1 : 0.4 }}>
+                    + הוסף
+                  </button>
                 </div>
 
                 {fields.notes && (
