@@ -76,7 +76,8 @@ const TOOL_DEFS = {
           priority:      { type: 'string', enum: ['דחוף','גבוה','רגיל'], description: 'עדיפות: דחוף, גבוה, רגיל' },
           search:        { type: 'string', description: 'חיפוש לפי שם' },
           limit:         { type: 'number', description: 'מספר תוצאות (ברירת מחדל 15, מקסימום 30)' },
-          include_closed: { type: 'boolean', description: 'true כאשר שואלים על שלבים סגורים: deposit, production, completed, lost. ברירת מחדל: false' }
+          include_closed: { type: 'boolean', description: 'true כאשר שואלים על שלבים סגורים: deposit, production, completed, lost. ברירת מחדל: false' },
+          no_open_tasks:  { type: 'boolean', description: 'true — החזר רק לידים שאין להם אף משימה פתוחה' }
         },
         required: []
       }
@@ -100,7 +101,7 @@ const TOOL_DEFS = {
     type: 'function',
     function: {
       name: 'get_urgent_leads',
-      description: 'מחזיר לידים שלא טופלו מעל N ימים או שסומנו דחופים',
+      description: 'מחזיר לידים פעילים שהאינטראקציה האחרונה איתם הייתה לפני יותר מ-N ימים, או שאין אינטראקציה בכלל. השתמש בכלי זה כשמבקשים: "לידים שלא דיברנו איתם", "לידים שצריך לחזור אליהם", "לידים ללא מענה מעל X ימים".',
       parameters: {
         type: 'object',
         properties: {
@@ -261,15 +262,16 @@ async function executeTool(name, args, user) {
     }
 
     case 'get_leads': {
-      const { stage, priority, search, limit = 15, include_closed = false } = args;
+      const { stage, priority, search, limit = 15, include_closed = false, no_open_tasks = false } = args;
       const params = [isAM, uid];
       let cond = '($1 = true OR assigned_to = $2)';
       if (!include_closed && !stage) {
         cond += ` AND stage NOT IN ('deposit','production','completed','lost')`;
       }
-      if (stage)    { cond += ` AND stage = $${params.push(stage)}`; }
-      if (priority) { cond += ` AND priority = $${params.push(priority)}`; }
-      if (search)   { cond += ` AND name ILIKE $${params.push('%' + search + '%')}`; }
+      if (stage)         { cond += ` AND stage = $${params.push(stage)}`; }
+      if (priority)      { cond += ` AND priority = $${params.push(priority)}`; }
+      if (search)        { cond += ` AND name ILIKE $${params.push('%' + search + '%')}`; }
+      if (no_open_tasks) { cond += ` AND NOT EXISTS (SELECT 1 FROM tasks WHERE lead_id = leads.id AND completed_at IS NULL)`; }
       const cap = Math.min(Number(limit) || 15, 30);
       const { rows } = await pool.query(`
         SELECT id, name, phone, event_type, event_date, stage, priority, guest_count, budget
