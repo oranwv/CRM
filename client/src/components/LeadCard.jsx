@@ -2344,7 +2344,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, onClose, 
           {/* ── Package: package price step ── */}
           {isPkgPriceStep && (
             <div className="space-y-5">
-              <p className="text-slate-400 text-sm font-semibold">עלות החבילה (כולל מע"מ)</p>
+              <p className="text-slate-400 text-sm font-semibold">עלות החבילה ({withVat ? 'כולל מע"מ' : 'לא כולל מע"מ'})</p>
               <input
                 autoFocus type="number" value={fields.packagePrice}
                 onChange={e => setFields(f => ({ ...f, packagePrice: e.target.value }))}
@@ -2380,7 +2380,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, onClose, 
           {/* ── Package: extra guest cost step ── */}
           {isPkgExtraStep && (
             <div className="space-y-5">
-              <p className="text-slate-400 text-sm font-semibold">עלות אורח נוסף (כולל מע"מ)</p>
+              <p className="text-slate-400 text-sm font-semibold">עלות אורח נוסף ({withVat ? 'כולל מע"מ' : 'לא כולל מע"מ'})</p>
               <input
                 autoFocus type="number" value={fields.packageExtraGuestPrice}
                 onChange={e => setFields(f => ({ ...f, packageExtraGuestPrice: e.target.value }))}
