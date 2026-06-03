@@ -68,11 +68,15 @@ const TOOL_DEFS = {
       parameters: {
         type: 'object',
         properties: {
-          stage:         { type: 'string', description: 'שלב ספציפי לסנן לפיו' },
-          priority:      { type: 'string', description: 'עדיפות: דחוף, גבוה, רגיל' },
+          stage: {
+            type: 'string',
+            enum: ['new','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent','deposit','production','completed','lost'],
+            description: 'שלב לסינון — מפה עברית לערך DB: חדש=new, שיחה ראשונית=contacted, נקבעה פגישה=meeting_scheduled, בוצעה פגישה=meeting, הצעת מחיר נשלחה=offer_sent, מו"מ=negotiation, חוזה נשלח=contract_sent, מקדמה=deposit, הפקה=production, הסתיים=completed, לא סגרו=lost'
+          },
+          priority:      { type: 'string', enum: ['דחוף','גבוה','רגיל'], description: 'עדיפות: דחוף, גבוה, רגיל' },
           search:        { type: 'string', description: 'חיפוש לפי שם' },
           limit:         { type: 'number', description: 'מספר תוצאות (ברירת מחדל 15, מקסימום 30)' },
-          include_closed: { type: 'boolean', description: 'true רק אם המשתמש מבקש לידים שלא סגרו או הסתיימו. ברירת מחדל: false' }
+          include_closed: { type: 'boolean', description: 'true כאשר שואלים על שלבים סגורים: deposit, production, completed, lost. ברירת מחדל: false' }
         },
         required: []
       }
