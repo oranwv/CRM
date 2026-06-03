@@ -95,6 +95,8 @@ async function syncDriveFolders() {
           );
           if (existing[0]?.drive_modified_time === f.modifiedTime) continue;
 
+          if (f.mimeType?.startsWith('application/vnd.google-apps.') && !EXPORT_MIME[f.mimeType]) continue;
+
           const { buffer, mimeType } = await downloadFile(f.id);
           const { url, storedName } = await uploadBuffer(buffer, f.name, mimeType);
 
