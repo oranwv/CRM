@@ -94,9 +94,16 @@ export default function AIChat() {
   const [input, setInput]         = useState('');
   const [loading, setLoading]     = useState(false);
   const [toolLabel, setToolLabel] = useState('');
-  const bottomRef = useRef(null);
-  const inputRef  = useRef(null);
-  const abortRef  = useRef(null);
+  const [btnPos, setBtnPos] = useState(() => {
+    try { const s = localStorage.getItem('ai-btn-pos'); return s ? JSON.parse(s) : { right: 16, bottom: 112 }; } catch { return { right: 16, bottom: 112 }; }
+  });
+  const bottomRef  = useRef(null);
+  const inputRef   = useRef(null);
+  const abortRef   = useRef(null);
+  const posRef     = useRef(btnPos);
+  const didDragRef = useRef(false);
+
+  useEffect(() => { posRef.current = btnPos; }, [btnPos]);
 
   useEffect(() => {
     if (open) {
@@ -213,13 +220,52 @@ export default function AIChat() {
     setToolLabel('');
   }
 
+  function handleDragStart(e) {
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    didDragRef.current = false;
+    const startPos = posRef.current;
+    const startX = clientX;
+    const startY = clientY;
+
+    function onMove(ev) {
+      const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
+      const cy = ev.touches ? ev.touches[0].clientY : ev.clientY;
+      const dx = startX - cx;
+      const dy = startY - cy;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) didDragRef.current = true;
+      const next = {
+        right:  Math.max(0, Math.min(window.innerWidth  - 56, startPos.right  + dx)),
+        bottom: Math.max(0, Math.min(window.innerHeight - 56, startPos.bottom + dy)),
+      };
+      posRef.current = next;
+      setBtnPos(next);
+    }
+    function onUp() {
+      localStorage.setItem('ai-btn-pos', JSON.stringify(posRef.current));
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup',   onUp);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend',  onUp);
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup',   onUp);
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('touchend',  onUp);
+  }
+
   // Guard: don't render on public pages or when logged out
   const isPublic   = ['/login', '/postpone', '/task-action', '/sign'].some(p => location.pathname.startsWith(p));
   const isLoggedIn = !!localStorage.getItem('crm_token');
   if (isPublic || !isLoggedIn) return null;
 
   return (
-    <div className="fixed bottom-28 right-4 z-[60] flex flex-col items-end gap-2">
+    <div
+      style={{ position: 'fixed', bottom: btnPos.bottom, right: btnPos.right, zIndex: 60, cursor: 'grab', touchAction: 'none' }}
+      className="flex flex-col items-end gap-2"
+      onMouseDown={handleDragStart}
+      onTouchStart={handleDragStart}
+    >
       {open && (
         <div
           className="w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
@@ -295,9 +341,9 @@ export default function AIChat() {
       )}
 
       <button
-        onClick={() => setOpen(o => !o)}
+        onClick={() => { if (!didDragRef.current) setOpen(o => !o); }}
         className="w-12 h-12 rounded-full text-white text-sm font-black shadow-lg hover:shadow-xl transition-all active:scale-95"
-        style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', boxShadow: open ? '0 0 0 3px rgba(124,58,237,0.3)' : undefined }}
+        style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', boxShadow: open ? '0 0 0 3px rgba(124,58,237,0.3)' : undefined, cursor: 'grab' }}
       >
         AI
       </button>

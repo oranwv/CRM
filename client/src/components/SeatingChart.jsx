@@ -48,7 +48,7 @@ function uid() {
 
 function getElDef(el, overrides = {}) {
   if (el.type === 'custom') {
-    return { wM: el.wM, hM: el.hM, shape: el.shape, label: el.label, guests: 0, fill: '#e2e8f0', stroke: '#64748b' };
+    return { wM: el.wM, hM: el.hM, shape: el.shape, label: el.label, guests: el.guests || 0, image: el.image || null, fill: '#e2e8f0', stroke: '#64748b' };
   }
   const d = DEFS[el.type];
   if (!d) return { wM: 1, hM: 1, shape: 'rect', label: el.type, guests: 0, fill: '#e2e8f0', stroke: '#64748b' };
@@ -97,7 +97,8 @@ export default function SeatingChart({ leadId, onClose }) {
   const [saved,       setSaved]       = useState(false);
   const [pdfBusy,     setPdfBusy]     = useState(false);
   const [addingCustom, setAddingCustom] = useState(false);
-  const [newItem,     setNewItem]     = useState({ label: '', wM: '', hM: '', shape: 'rect' });
+  const [newItem,     setNewItem]     = useState({ label: '', wM: '', hM: '', shape: 'rect', guests: '', image: null });
+  const imgInputRef = useRef(null);
   const [ghost,       setGhost]       = useState(null);
   const [elemOverrides, setElemOverrides] = useState({});
   const [templates,    setTemplates]    = useState([]);
@@ -397,10 +398,16 @@ export default function SeatingChart({ leadId, onClose }) {
 
   async function addCustomItem() {
     if (!newItem.label || !newItem.wM || !newItem.hM) return;
-    const item = { id: uid(), label: newItem.label, wM: parseFloat(newItem.wM), hM: parseFloat(newItem.hM), shape: newItem.shape };
+    const item = {
+      id: uid(), label: newItem.label,
+      wM: parseFloat(newItem.wM), hM: parseFloat(newItem.hM),
+      shape: newItem.shape,
+      guests: newItem.guests ? parseInt(newItem.guests, 10) : 0,
+      image: newItem.image || null,
+    };
     const next = [...customItems, item];
     setCustomItems(next);
-    setNewItem({ label: '', wM: '', hM: '', shape: 'rect' });
+    setNewItem({ label: '', wM: '', hM: '', shape: 'rect', guests: '', image: null });
     setAddingCustom(false);
     await api.put('/admin/seating/custom-items', { items: next }).catch(() => {});
   }
@@ -608,38 +615,10 @@ export default function SeatingChart({ leadId, onClose }) {
             </div>
           )}
 
-          {addingCustom ? (
-            <div className="space-y-1.5 bg-white border border-violet-200 rounded-xl p-2">
-              <input value={newItem.label} onChange={e => setNewItem(p => ({ ...p, label: e.target.value }))}
-                placeholder="שם פריט"
-                className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-violet-400" />
-              <div className="flex gap-1">
-                <input value={newItem.wM} onChange={e => setNewItem(p => ({ ...p, wM: e.target.value }))}
-                  placeholder="רוחב m" type="number" min="0.1" step="0.1"
-                  className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-violet-400" />
-                <input value={newItem.hM} onChange={e => setNewItem(p => ({ ...p, hM: e.target.value }))}
-                  placeholder="גובה m" type="number" min="0.1" step="0.1"
-                  className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-violet-400" />
-              </div>
-              <select value={newItem.shape} onChange={e => setNewItem(p => ({ ...p, shape: e.target.value }))}
-                className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none">
-                <option value="rect">מלבן</option>
-                <option value="circle">עיגול</option>
-              </select>
-              <div className="flex gap-1">
-                <button onClick={addCustomItem}
-                  className="flex-1 text-xs py-1 rounded-lg font-bold text-white"
-                  style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>הוסף</button>
-                <button onClick={() => setAddingCustom(false)}
-                  className="flex-1 text-xs py-1 rounded-lg font-bold text-slate-500 border border-slate-200">בטל</button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setAddingCustom(true)}
-              className="w-full text-xs py-1.5 rounded-xl border-2 border-dashed border-violet-300 text-violet-600 font-bold hover:bg-violet-50 transition">
-              + הוסף פריט
-            </button>
-          )}
+          <button onClick={() => setAddingCustom(true)}
+            className="w-full text-xs py-1.5 rounded-xl border-2 border-dashed border-violet-300 text-violet-600 font-bold hover:bg-violet-50 transition">
+            + הוסף פריט
+          </button>
         </div>
 
         {/* Canvas */}
@@ -719,6 +698,68 @@ export default function SeatingChart({ leadId, onClose }) {
           onClose={() => setShowGallery(false)}
           onDelete={deleteTemplate}
         />
+      )}
+
+      {/* Add custom item modal */}
+      {addingCustom && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50"
+             onClick={() => setAddingCustom(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-5 w-80 space-y-3" dir="rtl"
+               onClick={e => e.stopPropagation()}>
+            <p className="font-bold text-slate-700 text-base">הוספת פריט מותאם</p>
+
+            <input autoFocus value={newItem.label} onChange={e => setNewItem(p => ({ ...p, label: e.target.value }))}
+              placeholder="שם הפריט *"
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
+
+            <div className="flex gap-2">
+              <input value={newItem.wM} onChange={e => setNewItem(p => ({ ...p, wM: e.target.value }))}
+                placeholder="רוחב (m) *" type="number" min="0.1" step="0.1"
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
+              <input value={newItem.hM} onChange={e => setNewItem(p => ({ ...p, hM: e.target.value }))}
+                placeholder="גובה (m) *" type="number" min="0.1" step="0.1"
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
+            </div>
+
+            <select value={newItem.shape} onChange={e => setNewItem(p => ({ ...p, shape: e.target.value }))}
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none">
+              <option value="rect">מלבן</option>
+              <option value="circle">עיגול</option>
+            </select>
+
+            <input value={newItem.guests} onChange={e => setNewItem(p => ({ ...p, guests: e.target.value }))}
+              placeholder="כמות אנשים (אופציונלי)" type="number" min="0"
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
+
+            <input ref={imgInputRef} type="file" accept="image/*" className="hidden"
+              onChange={e => {
+                const f = e.target.files[0];
+                if (!f) return;
+                const r = new FileReader();
+                r.onload = ev => setNewItem(p => ({ ...p, image: ev.target.result }));
+                r.readAsDataURL(f);
+              }} />
+            <button onClick={() => imgInputRef.current?.click()}
+              className="w-full border-2 border-dashed border-slate-200 rounded-xl py-2 text-sm text-slate-500 hover:border-violet-300 hover:text-violet-600 transition overflow-hidden">
+              {newItem.image
+                ? <img src={newItem.image} alt="" className="h-16 mx-auto object-contain rounded" />
+                : 'הוסף תמונה (אופציונלי)'}
+            </button>
+
+            <div className="flex gap-2 pt-1">
+              <button onClick={addCustomItem}
+                disabled={!newItem.label || !newItem.wM || !newItem.hM}
+                className="flex-1 py-2 rounded-xl font-bold text-white text-sm disabled:opacity-40"
+                style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+                הוסף
+              </button>
+              <button onClick={() => setAddingCustom(false)}
+                className="flex-1 py-2 rounded-xl font-bold text-slate-500 border border-slate-200 text-sm">
+                בטל
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Ghost during palette drag */}
