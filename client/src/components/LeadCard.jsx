@@ -351,6 +351,9 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
   const allPhoneLabels = Object.fromEntries(
     contacts.filter(c => c.type === 'phone' && c.label).map(c => [c.value, c.label])
   );
+  const allEmailLabels = Object.fromEntries(
+    contacts.filter(c => c.type === 'email' && c.label).map(c => [c.value, c.label])
+  );
 
   const timeline = [
     ...interactions.map(i => ({
@@ -789,6 +792,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
           allEmails={allEmails}
           allPhones={allPhones}
           allPhoneLabels={allPhoneLabels}
+          allEmailLabels={allEmailLabels}
           onClose={() => setShowPriceOffer(false)}
           onSaved={() => { setShowPriceOffer(false); load(); }}
         />
@@ -800,6 +804,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
           allEmails={allEmails}
           allPhones={allPhones}
           allPhoneLabels={allPhoneLabels}
+          allEmailLabels={allEmailLabels}
           onClose={() => setShowContract(false)}
           onSaved={() => { setShowContract(false); load(); }}
         />
@@ -1066,7 +1071,7 @@ function EditableCell({ value, onChange, multiline, dir: cellDir }) {
 }
 
 
-function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, onClose, onSaved }) {
+function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLabels = {}, onClose, onSaved }) {
   const fmtNum = n => Number(n || 0).toLocaleString('he-IL');
 
   const FIELD_DEFS = [
@@ -1846,6 +1851,18 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, onClose, on
                   ))}
                 </div>
               )}
+              {contractSendStep === 'email' && allEmails?.length > 1 && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 block">שלח לאימייל:</label>
+                  {allEmails.map(e => (
+                    <label key={e} className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
+                      <input type="radio" name="contractEmail" value={e}
+                        checked={fields.clientEmail === e} onChange={() => setFields(f => ({ ...f, clientEmail: e }))} />
+                      {allEmailLabels?.[e] ? `${allEmailLabels[e]} (${e})` : e}
+                    </label>
+                  ))}
+                </div>
+              )}
               <p className="text-sm font-bold text-slate-700">קבצים נוספים (אופציונלי)</p>
               <input ref={contractFileRef} type="file" className="hidden" onChange={e => { const f = e.target.files[0]; if (f) { setContractExtraFiles(a => [...a, { type: 'local', file: f }]); e.target.value = ''; } }} />
               <div className="flex gap-2">
@@ -1918,7 +1935,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, onClose, on
   );
 }
 
-function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, onClose, onSaved }) {
+function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLabels = {}, onClose, onSaved }) {
   const FIELD_STEPS = 10;
   const FIELD_DEFS = [
     { key: 'name',      label: 'לכבוד',                type: 'text' },
@@ -2866,8 +2883,17 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, onClose, 
               </div>
             ) : showEmailForm ? (
               <div className="space-y-2">
-                <input value={emailTo} onChange={e => setEmailTo(e.target.value)}
-                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400" placeholder="אימייל נמען" dir="ltr" />
+                {allEmails.length > 1 ? (
+                  <select value={emailTo} onChange={e => setEmailTo(e.target.value)}
+                    className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400" dir="ltr">
+                    {allEmails.map(e => (
+                      <option key={e} value={e}>{allEmailLabels[e] ? `${allEmailLabels[e]} (${e})` : e}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input value={emailTo} onChange={e => setEmailTo(e.target.value)}
+                    className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400" placeholder="אימייל נמען" dir="ltr" />
+                )}
                 <input value={emailSubject} onChange={e => setEmailSubject(e.target.value)}
                   className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400" placeholder="נושא" />
                 <textarea value={emailBody} onChange={e => setEmailBody(e.target.value)} rows={3}
