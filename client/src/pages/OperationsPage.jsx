@@ -968,7 +968,7 @@ export default function OperationsPage() {
           <div className="absolute bottom-40 left-4 bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-100" onClick={e => e.stopPropagation()}>
             {[
               { label: 'משימה חדשה',    type: 'task' },
-              { label: 'פריט מלאי',     type: 'checklist' },
+              { label: 'רשימת מלאי חדשה', type: 'checklist' },
               { label: 'תחזוקה חוזרת',  type: 'maintenance' },
               { label: 'דווח על תקלה',  type: 'fault' },
             ].map(({ label, type }) => (
@@ -1014,7 +1014,7 @@ export default function OperationsPage() {
 
             {modal === 'checklist' && (
               <>
-                <h3 className="font-black text-slate-800 text-base">פריט מלאי חדש</h3>
+                <h3 className="font-black text-slate-800 text-base">רשימת מלאי חדשה</h3>
                 <input autoFocus placeholder="שם הרשימה (למשל: בר משקאות)" value={form.name || ''}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} />
                 <div className="space-y-2 max-h-48 overflow-auto">
