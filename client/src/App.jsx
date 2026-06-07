@@ -206,6 +206,19 @@ function AppShellNav() {
   );
 }
 
+function RootRedirect() {
+  const { mode } = useAppMode();
+  const navigate  = useNavigate();
+  useEffect(() => {
+    if      (mode === 'הפקה')        navigate('/events',     { replace: true });
+    else if (mode === 'ספקים')       navigate('/suppliers',  { replace: true });
+    else if (mode === 'אישורי הגעה') navigate('/rsvps',      { replace: true });
+    else if (mode === 'תפעול')       navigate('/operations', { replace: true });
+    else if (mode === 'ניהול')       navigate('/management', { replace: true });
+  }, []);
+  return <LeadsPage />;
+}
+
 function AppRoutes() {
   const [calendarOpenLead, setCalendarOpenLead] = useState(null);
 
@@ -219,7 +232,7 @@ function AppRoutes() {
           <PrivateRoute>
             <>
               <div className="pt-11" />
-              <LeadsPage />
+              <RootRedirect />
               <AppShellNav />
               <div className="pb-28" />
             </>
