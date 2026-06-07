@@ -28,6 +28,12 @@ export default function ChecklistDetail({ checklist, onBack, users, onSummaryRef
 
   useEffect(() => { load(); }, [checklist.id]);
 
+  async function createRun() {
+    const { data } = await api.post('/operations/checklist-runs', { checklist_id: checklist.id });
+    setRun(data);
+    setItems(Array.isArray(data.items_state) ? data.items_state : []);
+  }
+
   async function load() {
     setLoading(true);
     try {
@@ -37,30 +43,21 @@ export default function ChecklistDetail({ checklist, onBack, users, onSummaryRef
         setRun(r);
         setItems(Array.isArray(r.items_state) ? r.items_state : []);
       } else {
-        setRun(null);
-        setItems([]);
+        await createRun();
       }
-    } catch {}
-    setLoading(false);
-  }
-
-  async function startRun() {
-    try {
-      const { data } = await api.post('/operations/checklist-runs', { checklist_id: checklist.id });
-      setRun(data);
-      setItems(Array.isArray(data.items_state) ? data.items_state : []);
     } catch (err) {
       alert(err.response?.data?.error || err.message);
     }
+    setLoading(false);
   }
 
-  const scheduleSave = useCallback((newItems, completed = false) => {
+  const scheduleSave = useCallback((newItems) => {
     if (!run) return;
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       setSaving(true);
       try {
-        await api.put(`/operations/checklist-runs/${run.id}`, { items_state: newItems, completed });
+        await api.put(`/operations/checklist-runs/${run.id}`, { items_state: newItems });
         if (onSummaryRefresh) onSummaryRefresh();
       } catch {}
       setSaving(false);
@@ -137,20 +134,6 @@ export default function ChecklistDetail({ checklist, onBack, users, onSummaryRef
     setAddingItem(false);
   }
 
-  async function completeRun() {
-    if (!run) return;
-    clearTimeout(saveTimer.current);
-    setSaving(true);
-    try {
-      await api.put(`/operations/checklist-runs/${run.id}`, { items_state: items, completed: true });
-      if (onSummaryRefresh) onSummaryRefresh();
-      onBack();
-    } catch (err) {
-      alert(err.response?.data?.error || err.message);
-      setSaving(false);
-    }
-  }
-
   const filled  = items.filter(i => i.actual_qty !== null).length;
   const missing = items.filter(i => (i.missing_qty || 0) > 0);
 
@@ -166,175 +149,149 @@ export default function ChecklistDetail({ checklist, onBack, users, onSummaryRef
           <span>→</span> חזרה
         </button>
         <p className="font-black text-slate-800 text-base">{checklist.name}</p>
-        {run ? (
-          <button onClick={completeRun} disabled={saving}
-            className="text-xs font-bold px-3 py-1.5 rounded-xl text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 transition">
-            {saving ? '...' : 'סיים'}
-          </button>
-        ) : <div className="w-16" />}
+        <div className="w-16" />
       </div>
 
-      {!run ? (
-        <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6">
-          <p className="text-slate-500 text-sm text-center">אין רשימה פעילה כרגע</p>
-          <button onClick={startRun}
-            className="px-6 py-3 rounded-2xl text-white font-black text-sm shadow-lg"
-            style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
-            הפעל רשימה
-          </button>
-          {(checklist.items || []).length > 0 && (
-            <div className="w-full mt-4 space-y-1">
-              {(checklist.items || []).map((item, i) => (
-                <div key={i} className="flex items-center justify-between px-4 py-2 bg-slate-50 rounded-xl text-sm text-slate-600">
-                  <span>{item.name}</span>
-                  <span className="text-xs text-slate-400">{item.unit} × {item.expected_qty}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="flex-1 overflow-auto">
-          {/* Progress bar */}
-          <div className="px-4 py-2 bg-violet-50 border-b border-violet-100">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-xs text-violet-700 font-semibold">מילוי: {filled}/{items.length}</p>
-              {saving && <p className="text-xs text-slate-400">שומר...</p>}
-            </div>
-            <div className="h-1.5 bg-violet-100 rounded-full overflow-hidden">
-              <div className="h-full bg-violet-500 rounded-full transition-all"
-                style={{ width: items.length ? `${(filled / items.length) * 100}%` : '0%' }} />
-            </div>
+      <div className="flex-1 overflow-auto">
+        {/* Progress bar */}
+        <div className="px-4 py-2 bg-violet-50 border-b border-violet-100">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs text-violet-700 font-semibold">מילוי: {filled}/{items.length}</p>
+            {saving && <p className="text-xs text-slate-400">שומר...</p>}
           </div>
+          <div className="h-1.5 bg-violet-100 rounded-full overflow-hidden">
+            <div className="h-full bg-violet-500 rounded-full transition-all"
+              style={{ width: items.length ? `${(filled / items.length) * 100}%` : '0%' }} />
+          </div>
+        </div>
 
-          {/* Items */}
-          <div className="divide-y divide-slate-100">
-            {items.map((item, idx) => {
-              const isMissing = (item.missing_qty || 0) > 0;
-              const isEditing = editingIdx === idx;
-              const filledByName = item.filled_by
-                ? (users.find(u => u.id === item.filled_by)?.display_name || currentUser.display_name || '')
-                : '';
+        {/* Items */}
+        <div className="divide-y divide-slate-100">
+          {items.map((item, idx) => {
+            const isMissing = (item.missing_qty || 0) > 0;
+            const isEditing = editingIdx === idx;
+            const filledByName = item.filled_by
+              ? (users.find(u => u.id === item.filled_by)?.display_name || currentUser.display_name || '')
+              : '';
 
-              return (
-                <div key={idx} className={`px-4 py-3 ${isMissing ? 'bg-red-50' : 'bg-white'}`}>
-                  {isEditing ? (
-                    <div className="space-y-2">
-                      <div className="flex gap-2">
-                        <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
-                          placeholder="שם פריט" className={`flex-1 ${inputCls}`} />
-                        <input value={editForm.unit} onChange={e => setEditForm(f => ({ ...f, unit: e.target.value }))}
-                          placeholder="יחידה" className={`w-20 ${inputCls}`} />
-                        <input type="number" min="0" value={editForm.expected_qty}
-                          onChange={e => setEditForm(f => ({ ...f, expected_qty: e.target.value }))}
-                          placeholder="כמות" className={`w-16 ${inputCls} text-center`} />
+            return (
+              <div key={idx} className={`px-4 py-3 ${isMissing ? 'bg-red-50' : 'bg-white'}`}>
+                {isEditing ? (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                        placeholder="שם פריט" className={`flex-1 ${inputCls}`} />
+                      <input value={editForm.unit} onChange={e => setEditForm(f => ({ ...f, unit: e.target.value }))}
+                        placeholder="יחידה" className={`w-20 ${inputCls}`} />
+                      <input type="number" min="0" value={editForm.expected_qty}
+                        onChange={e => setEditForm(f => ({ ...f, expected_qty: e.target.value }))}
+                        placeholder="כמות" className={`w-16 ${inputCls} text-center`} />
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={saveEdit}
+                        className="flex-1 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-bold">שמור</button>
+                      <button onClick={() => setEditingIdx(null)}
+                        className="flex-1 py-1.5 rounded-lg border border-slate-200 text-slate-500 text-xs font-bold">ביטול</button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-3 mb-1">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-bold text-slate-800">{item.name}</p>
+                          {item.unit && <span className="text-xs text-slate-400">{item.unit}</span>}
+                          <button onClick={() => openEdit(idx)}
+                            className="text-slate-300 hover:text-violet-500 transition text-xs px-1">✏️</button>
+                        </div>
+                        <p className="text-xs text-slate-400">צפוי: {item.expected_qty || 0}</p>
+                        {item.actual_qty !== null && (filledByName || item.filled_at) && (
+                          <p className="text-[10px] text-slate-400 mt-0.5">
+                            {filledByName}{filledByName && item.filled_at ? ' · ' : ''}{fmtFilledAt(item.filled_at)}
+                          </p>
+                        )}
                       </div>
-                      <div className="flex gap-2">
-                        <button onClick={saveEdit}
-                          className="flex-1 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-bold">שמור</button>
-                        <button onClick={() => setEditingIdx(null)}
-                          className="flex-1 py-1.5 rounded-lg border border-slate-200 text-slate-500 text-xs font-bold">ביטול</button>
+                      <div className="flex items-center gap-1">
+                        <label className="text-xs text-slate-500">בפועל:</label>
+                        <input type="number" min="0" value={item.actual_qty ?? ''}
+                          onChange={e => handleQtyChange(idx, e.target.value)}
+                          className={`w-16 border rounded-lg px-2 py-1 text-sm text-center font-bold focus:outline-none focus:ring-2 ${
+                            isMissing
+                              ? 'border-red-300 text-red-700 focus:ring-red-200'
+                              : 'border-slate-200 text-slate-800 focus:ring-violet-200'
+                          }`} />
                       </div>
                     </div>
-                  ) : (
-                    <>
-                      <div className="flex items-center gap-3 mb-1">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <p className="text-sm font-bold text-slate-800">{item.name}</p>
-                            {item.unit && <span className="text-xs text-slate-400">{item.unit}</span>}
-                            <button onClick={() => openEdit(idx)}
-                              className="text-slate-300 hover:text-violet-500 transition text-xs px-1">✏️</button>
-                          </div>
-                          <p className="text-xs text-slate-400">צפוי: {item.expected_qty || 0}</p>
-                          {item.actual_qty !== null && (filledByName || item.filled_at) && (
-                            <p className="text-[10px] text-slate-400 mt-0.5">
-                              {filledByName}{filledByName && item.filled_at ? ' · ' : ''}{fmtFilledAt(item.filled_at)}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <label className="text-xs text-slate-500">בפועל:</label>
-                          <input type="number" min="0" value={item.actual_qty ?? ''}
-                            onChange={e => handleQtyChange(idx, e.target.value)}
-                            className={`w-16 border rounded-lg px-2 py-1 text-sm text-center font-bold focus:outline-none focus:ring-2 ${
-                              isMissing
-                                ? 'border-red-300 text-red-700 focus:ring-red-200'
-                                : 'border-slate-200 text-slate-800 focus:ring-violet-200'
-                            }`} />
-                        </div>
-                      </div>
 
-                      {isMissing && (
-                        <div className="flex items-center gap-2 mt-2 pr-1">
-                          <span className="text-xs font-bold text-red-600">חסרים {item.missing_qty}</span>
-                          <span className="text-xs text-slate-400">—</span>
-                          <select value={item.assigned_to ?? ''} onChange={e => handleAssign(idx, e.target.value)}
-                            className="flex-1 text-xs border border-red-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-red-200 text-slate-700">
-                            <option value="">הקצה לאחראי...</option>
-                            {users.map(u => (
-                              <option key={u.id} value={u.id}>{u.display_name || u.id}</option>
-                            ))}
-                          </select>
-                          {item.assigned_to && (
-                            <span className="text-xs bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
-                              {users.find(u => u.id === item.assigned_to)?.display_name || '?'}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
+                    {isMissing && (
+                      <div className="flex items-center gap-2 mt-2 pr-1">
+                        <span className="text-xs font-bold text-red-600">חסרים {item.missing_qty}</span>
+                        <span className="text-xs text-slate-400">—</span>
+                        <select value={item.assigned_to ?? ''} onChange={e => handleAssign(idx, e.target.value)}
+                          className="flex-1 text-xs border border-red-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-red-200 text-slate-700">
+                          <option value="">הקצה לאחראי...</option>
+                          {users.map(u => (
+                            <option key={u.id} value={u.id}>{u.display_name || u.id}</option>
+                          ))}
+                        </select>
+                        {item.assigned_to && (
+                          <span className="text-xs bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
+                            {users.find(u => u.id === item.assigned_to)?.display_name || '?'}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Add item */}
+        <div className="px-4 py-3 border-t border-slate-100">
+          {addingItem ? (
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <input autoFocus value={addForm.name} onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="שם פריט" className={`flex-1 ${inputCls}`} />
+                <input value={addForm.unit} onChange={e => setAddForm(f => ({ ...f, unit: e.target.value }))}
+                  placeholder="יחידה" className={`w-20 ${inputCls}`} />
+                <input type="number" min="0" value={addForm.expected_qty}
+                  onChange={e => setAddForm(f => ({ ...f, expected_qty: e.target.value }))}
+                  placeholder="כמות" className={`w-16 ${inputCls} text-center`} />
+              </div>
+              <div className="flex gap-2">
+                <button onClick={confirmAddItem}
+                  className="flex-1 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-bold">הוסף</button>
+                <button onClick={() => { setAddingItem(false); setAddForm({ name: '', unit: '', expected_qty: '' }); }}
+                  className="flex-1 py-1.5 rounded-lg border border-slate-200 text-slate-500 text-xs font-bold">ביטול</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => { setAddingItem(true); setEditingIdx(null); }}
+              className="w-full py-2 rounded-xl border-2 border-dashed border-violet-200 text-violet-600 text-xs font-bold hover:border-violet-400 hover:bg-violet-50 transition">
+              + הוסף פריט
+            </button>
+          )}
+        </div>
+
+        {/* Missing summary */}
+        {missing.length > 0 && (
+          <div className="mx-4 mb-3 p-3 bg-red-50 border border-red-200 rounded-xl">
+            <p className="text-xs font-black text-red-700 mb-1">סיכום חוסרים ({missing.length})</p>
+            {missing.map((item, i) => {
+              const assignee = users.find(u => u.id === item.assigned_to);
+              return (
+                <p key={i} className="text-xs text-red-600">
+                  {item.name}: חסרים {item.missing_qty}
+                  {assignee ? ` — ${assignee.display_name}` : ' — לא הוקצה'}
+                </p>
               );
             })}
           </div>
-
-          {/* Add item */}
-          <div className="px-4 py-3 border-t border-slate-100">
-            {addingItem ? (
-              <div className="space-y-2">
-                <div className="flex gap-2">
-                  <input autoFocus value={addForm.name} onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))}
-                    placeholder="שם פריט" className={`flex-1 ${inputCls}`} />
-                  <input value={addForm.unit} onChange={e => setAddForm(f => ({ ...f, unit: e.target.value }))}
-                    placeholder="יחידה" className={`w-20 ${inputCls}`} />
-                  <input type="number" min="0" value={addForm.expected_qty}
-                    onChange={e => setAddForm(f => ({ ...f, expected_qty: e.target.value }))}
-                    placeholder="כמות" className={`w-16 ${inputCls} text-center`} />
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={confirmAddItem}
-                    className="flex-1 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-bold">הוסף</button>
-                  <button onClick={() => { setAddingItem(false); setAddForm({ name: '', unit: '', expected_qty: '' }); }}
-                    className="flex-1 py-1.5 rounded-lg border border-slate-200 text-slate-500 text-xs font-bold">ביטול</button>
-                </div>
-              </div>
-            ) : (
-              <button onClick={() => { setAddingItem(true); setEditingIdx(null); }}
-                className="w-full py-2 rounded-xl border-2 border-dashed border-violet-200 text-violet-600 text-xs font-bold hover:border-violet-400 hover:bg-violet-50 transition">
-                + הוסף פריט
-              </button>
-            )}
-          </div>
-
-          {/* Missing summary */}
-          {missing.length > 0 && (
-            <div className="mx-4 mb-3 p-3 bg-red-50 border border-red-200 rounded-xl">
-              <p className="text-xs font-black text-red-700 mb-1">סיכום חוסרים ({missing.length})</p>
-              {missing.map((item, i) => {
-                const assignee = users.find(u => u.id === item.assigned_to);
-                return (
-                  <p key={i} className="text-xs text-red-600">
-                    {item.name}: חסרים {item.missing_qty}
-                    {assignee ? ` — ${assignee.display_name}` : ' — לא הוקצה'}
-                  </p>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
