@@ -1263,9 +1263,9 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
   const vat                = isPackage ? pkgTotal - subtotal : Math.round(subtotal * 0.18);
   const total              = isPackage ? pkgTotal : subtotal + vat;
   const depositPct       = Number(fields.depositPercent) || 0;
-  const depositAmount    = Math.round(total * depositPct / 100);
+  const depositAmount    = Math.round(subtotal * depositPct / 100);
   const depositAmountVat = Math.round(depositAmount * 1.18);
-  const remainingBalance = total - depositAmount;
+  const remainingBalance = total - depositAmountVat;
   const cancellationDate = fields.eventDate
     ? (() => { const d = new Date(fields.eventDate + 'T12:00:00'); d.setMonth(d.getMonth() + 6); return d.toLocaleDateString('he-IL'); })()
     : '';
