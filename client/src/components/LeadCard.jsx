@@ -1169,8 +1169,11 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
     ],
     paymentHeader: 'תנאי תשלום:',
     depositLine: 'במעמד חתימת הסכם זה תינתן מקדמה על-סך',
+    depositPctLabel:    null,
     depositSuffix: 'לא כולל מע"מ. סה"כ כולל מע"מ',
+    depositAmtVatLabel: null,
     remainderLine: 'ביום האירוע, לפני תחילת האירוע יש לשלם את יתרת הסכום על סך',
+    remainderAmtLabel:  null,
     remainderSuffix: 'כולל מע"מ',
     checkNote: "לחלופין - ניתן להביא צ'ק ביטחון של הסכום הנ\"ל בתחילת האירוע.",
     paymentNote: 'חשוב לציין כי ללא הנ"ל מנהל האירוע לא יתחיל ויקיים את האירוע!',
@@ -1727,13 +1730,21 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                 </h3>
                 <p>
                   <EditableCell value={contractTexts.depositLine} onChange={v => setTxt('depositLine', v)} multiline />{' '}
-                  <strong>{fmtNum(depositAmount)} ש"ח ({fields.depositPercent}%)</strong>{' '}
+                  <strong>
+                    {fmtNum(depositAmount)} ש"ח{' '}
+                    <EditableCell value={contractTexts.depositPctLabel ?? `(${fields.depositPercent}%)`} onChange={v => setTxt('depositPctLabel', v)} />
+                  </strong>{' '}
                   <EditableCell value={contractTexts.depositSuffix} onChange={v => setTxt('depositSuffix', v)} />{' '}
-                  <strong>{fmtNum(depositAmountVat)} ש"ח</strong>
+                  <strong>
+                    <EditableCell value={contractTexts.depositAmtVatLabel ?? `${fmtNum(depositAmountVat)} ש"ח`} onChange={v => setTxt('depositAmtVatLabel', v)} />
+                  </strong>
                 </p>
                 <p>
                   <EditableCell value={contractTexts.remainderLine} onChange={v => setTxt('remainderLine', v)} multiline />{' '}
-                  <strong>{fmtNum(remainingBalance)} ש"ח{' '}<EditableCell value={contractTexts.remainderSuffix} onChange={v => setTxt('remainderSuffix', v)} /></strong>
+                  <strong>
+                    <EditableCell value={contractTexts.remainderAmtLabel ?? `${fmtNum(remainingBalance)} ש"ח`} onChange={v => setTxt('remainderAmtLabel', v)} />{' '}
+                    <EditableCell value={contractTexts.remainderSuffix} onChange={v => setTxt('remainderSuffix', v)} />
+                  </strong>
                 </p>
                 <p><EditableCell value={contractTexts.checkNote} onChange={v => setTxt('checkNote', v)} multiline /></p>
                 <p><EditableCell value={contractTexts.paymentNote} onChange={v => setTxt('paymentNote', v)} multiline /></p>
