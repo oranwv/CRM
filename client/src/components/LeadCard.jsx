@@ -1169,6 +1169,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
     ],
     paymentHeader: 'תנאי תשלום:',
     depositLine: 'במעמד חתימת הסכם זה תינתן מקדמה על-סך',
+    depositAmtLabel:    null,
     depositPctLabel:    null,
     depositSuffix: 'לא כולל מע"מ. סה"כ כולל מע"מ',
     depositAmtVatLabel: null,
@@ -1731,7 +1732,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                 <p>
                   <EditableCell value={contractTexts.depositLine} onChange={v => setTxt('depositLine', v)} multiline />{' '}
                   <strong>
-                    {fmtNum(depositAmount)} ש"ח{' '}
+                    <EditableCell value={contractTexts.depositAmtLabel ?? `${fmtNum(depositAmount)} ש"ח`} onChange={v => setTxt('depositAmtLabel', v)} />{' '}
                     <EditableCell value={contractTexts.depositPctLabel ?? `(${fields.depositPercent}%)`} onChange={v => setTxt('depositPctLabel', v)} />
                   </strong>{' '}
                   <EditableCell value={contractTexts.depositSuffix} onChange={v => setTxt('depositSuffix', v)} />{' '}
