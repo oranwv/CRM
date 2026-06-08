@@ -307,6 +307,7 @@ pool.query(`
     created_by INT REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
   );
+  ALTER TABLE op_checklists ADD COLUMN IF NOT EXISTS item_notes JSONB DEFAULT '{}';
   CREATE TABLE IF NOT EXISTS op_checklist_runs (
     id SERIAL PRIMARY KEY,
     checklist_id INT REFERENCES op_checklists(id) ON DELETE CASCADE,

@@ -190,6 +190,37 @@ router.delete('/checklists/:id', async (req, res) => {
   }
 });
 
+router.post('/checklists/:id/item-notes/:itemIndex', async (req, res) => {
+  const { body } = req.body;
+  const { id, itemIndex } = req.params;
+  try {
+    const { rows } = await pool.query('SELECT item_notes FROM op_checklists WHERE id=$1', [id]);
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    const notes = rows[0].item_notes || {};
+    if (!notes[itemIndex]) notes[itemIndex] = [];
+    const note = { text: body, author: req.user?.display_name || req.user?.username || '', created_at: new Date().toISOString() };
+    notes[itemIndex].push(note);
+    await pool.query('UPDATE op_checklists SET item_notes=$1 WHERE id=$2', [JSON.stringify(notes), id]);
+    res.json(note);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/checklists/:id/item-notes/:itemIndex/:noteIndex', async (req, res) => {
+  const { id, itemIndex, noteIndex } = req.params;
+  try {
+    const { rows } = await pool.query('SELECT item_notes FROM op_checklists WHERE id=$1', [id]);
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    const notes = rows[0].item_notes || {};
+    if (notes[itemIndex]) notes[itemIndex].splice(Number(noteIndex), 1);
+    await pool.query('UPDATE op_checklists SET item_notes=$1 WHERE id=$2', [JSON.stringify(notes), id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── CHECKLIST RUNS ────────────────────────────────────────────────────
 router.post('/checklist-runs', async (req, res) => {
   const { checklist_id } = req.body;

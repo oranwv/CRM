@@ -18,10 +18,14 @@ export default function ChecklistDetail({ checklist, onBack, users, onSummaryRef
   const [items,      setItems]      = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [saving,     setSaving]     = useState(false);
-  const [editingIdx, setEditingIdx] = useState(null);
-  const [editForm,   setEditForm]   = useState({ name: '', unit: '', expected_qty: '' });
-  const [addingItem, setAddingItem] = useState(false);
-  const [addForm,    setAddForm]    = useState({ name: '', unit: '', expected_qty: '' });
+  const [editingIdx,    setEditingIdx]    = useState(null);
+  const [editForm,      setEditForm]      = useState({ name: '', unit: '', expected_qty: '' });
+  const [addingItem,    setAddingItem]    = useState(false);
+  const [addForm,       setAddForm]       = useState({ name: '', unit: '', expected_qty: '' });
+  const [itemNotes,     setItemNotes]     = useState({});
+  const [expandedNotes, setExpandedNotes] = useState({});
+  const [noteInputs,    setNoteInputs]    = useState({});
+  const [savingNote,    setSavingNote]    = useState(null);
   const saveTimer = useRef(null);
 
   const currentUser = (() => { try { return JSON.parse(localStorage.getItem('crm_user') || '{}'); } catch { return {}; } })();
@@ -38,6 +42,7 @@ export default function ChecklistDetail({ checklist, onBack, users, onSummaryRef
     setLoading(true);
     try {
       const { data } = await api.get(`/operations/checklists/${checklist.id}`);
+      setItemNotes(data.item_notes || {});
       const r = data.latest_run;
       if (r && !r.completed_at) {
         setRun(r);
@@ -132,6 +137,32 @@ export default function ChecklistDetail({ checklist, onBack, users, onSummaryRef
     scheduleSave(updated);
     setAddForm({ name: '', unit: '', expected_qty: '' });
     setAddingItem(false);
+  }
+
+  async function addNote(itemIndex) {
+    const text = noteInputs[itemIndex]?.trim();
+    if (!text) return;
+    setSavingNote(itemIndex);
+    try {
+      const { data } = await api.post(`/operations/checklists/${checklist.id}/item-notes/${itemIndex}`, { body: text });
+      setItemNotes(p => {
+        const next = { ...p };
+        if (!next[itemIndex]) next[itemIndex] = [];
+        next[itemIndex] = [...next[itemIndex], data];
+        return next;
+      });
+      setNoteInputs(p => ({ ...p, [itemIndex]: '' }));
+    } catch {}
+    setSavingNote(null);
+  }
+
+  async function deleteNote(itemIndex, noteIndex) {
+    await api.delete(`/operations/checklists/${checklist.id}/item-notes/${itemIndex}/${noteIndex}`).catch(() => {});
+    setItemNotes(p => {
+      const next = { ...p };
+      next[itemIndex] = (next[itemIndex] || []).filter((_, j) => j !== noteIndex);
+      return next;
+    });
   }
 
   const filled  = items.filter(i => i.actual_qty !== null).length;
@@ -241,6 +272,47 @@ export default function ChecklistDetail({ checklist, onBack, users, onSummaryRef
                         )}
                       </div>
                     )}
+
+                    {/* Notes */}
+                    <div className="mt-2">
+                      <button
+                        onClick={() => setExpandedNotes(p => ({ ...p, [idx]: !p[idx] }))}
+                        className="text-[11px] text-violet-500 hover:text-violet-700 font-semibold transition">
+                        {(itemNotes[idx]?.length || 0) > 0
+                          ? `הערות (${itemNotes[idx].length}) ${expandedNotes[idx] ? '▲' : '▼'}`
+                          : '+ הערה'}
+                      </button>
+                      {expandedNotes[idx] && (
+                        <div className="mt-1.5 space-y-1.5">
+                          {(itemNotes[idx] || []).map((n, j) => (
+                            <div key={j} className="flex items-start gap-2 bg-violet-50 rounded-lg px-2.5 py-1.5">
+                              <div className="flex-1">
+                                <p className="text-xs text-slate-800">{n.text}</p>
+                                <p className="text-[10px] text-slate-400 mt-0.5">{n.author} · {fmtFilledAt(n.created_at)}</p>
+                              </div>
+                              <button onClick={() => deleteNote(idx, j)}
+                                className="text-slate-300 hover:text-red-500 text-sm leading-none transition flex-shrink-0 mt-0.5">×</button>
+                            </div>
+                          ))}
+                          <div className="flex gap-1.5">
+                            <input
+                              value={noteInputs[idx] || ''}
+                              onChange={e => setNoteInputs(p => ({ ...p, [idx]: e.target.value }))}
+                              onKeyDown={e => e.key === 'Enter' && addNote(idx)}
+                              placeholder="כתוב הערה..."
+                              className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-400"
+                            />
+                            <button
+                              onClick={() => addNote(idx)}
+                              disabled={savingNote === idx || !noteInputs[idx]?.trim()}
+                              className="text-xs px-2.5 py-1.5 rounded-lg font-bold text-white disabled:opacity-40 transition"
+                              style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+                              שמור
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </>
                 )}
               </div>
