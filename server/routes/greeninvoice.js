@@ -82,6 +82,8 @@ function buildDocPayload(params, lead) {
   const docType  = Number(type);
   const needsPmt = [400, 320].includes(docType);
   const total    = (items || []).reduce((sum, it) => sum + Number(it.price) * Number(it.quantity), 0);
+  // Editable per-document override; falls back to the signed contract's value.
+  const taxId    = params.taxId || lead.signer_id_number;
 
   return {
     type:     docType,
@@ -92,7 +94,7 @@ function buildDocPayload(params, lead) {
     client: {
       name: lead.orderer_name || lead.name,
       add:  false,
-      ...(lead.signer_id_number ? { taxId:  lead.signer_id_number } : {}),
+      ...(taxId ? { taxId } : {}),
       ...(lead.phone            ? { phone:  lead.phone }             : {}),
       ...(lead.email            ? { emails: [lead.email] }           : {}),
     },
@@ -191,7 +193,7 @@ async function notifyCreator(createdBy, docType, leadName, status, comment) {
 router.post('/document', async (req, res) => {
   const {
     leadId, type, items, docDate, dueDate, paymentDate,
-    paymentMethod, sendByEmail, sendByWhatsApp, whatsappMessage, whatsappPhone,
+    paymentMethod, sendByEmail, sendByWhatsApp, whatsappMessage, whatsappPhone, taxId,
   } = req.body;
 
   try {
@@ -215,7 +217,7 @@ router.post('/document', async (req, res) => {
 
     if (!isManagerOrAdmin) {
       // Save as pending and notify managers
-      const payload = { type, items, docDate, dueDate, paymentDate, paymentMethod, sendByEmail, sendByWhatsApp, whatsappMessage, whatsappPhone };
+      const payload = { type, items, docDate, dueDate, paymentDate, paymentMethod, sendByEmail, sendByWhatsApp, whatsappMessage, whatsappPhone, taxId };
       await pool.query(
         `INSERT INTO pending_documents (lead_id, created_by, payload) VALUES ($1, $2, $3)`,
         [leadId, req.user.id, JSON.stringify(payload)]
@@ -225,7 +227,7 @@ router.post('/document', async (req, res) => {
     }
 
     // Manager/admin — create immediately
-    const docPayload = buildDocPayload({ type, items, docDate, dueDate, paymentDate, paymentMethod }, lead);
+    const docPayload = buildDocPayload({ type, items, docDate, dueDate, paymentDate, paymentMethod, taxId }, lead);
     const { docId, docUrl, filename } = await createAndSaveDoc(docPayload, leadId, req.user.id);
 
     // Send via WhatsApp if requested
@@ -326,6 +328,8 @@ router.post('/pending/:id/approve', managerOnly, async (req, res) => {
 
     const pending = rows[0];
     const params  = pending.payload;
+    // Manager may correct the ח.פ/ת.ז at approval time (per-document override).
+    if (req.body.taxId !== undefined) params.taxId = req.body.taxId;
     const lead    = { name: pending.name, phone: pending.phone, email: pending.email, signer_id_number: pending.signer_id_number, orderer_name: pending.orderer_name };
     const docPayload = buildDocPayload(params, lead);
 

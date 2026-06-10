@@ -107,11 +107,17 @@ router.get('/:id', async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT l.*, u.display_name AS assigned_name, c.display_name AS created_by_name,
-              ob.display_name AS remaining_balance_override_name
+              ob.display_name AS remaining_balance_override_name,
+              sc.signer_id_number, sc.orderer_name
        FROM leads l
        LEFT JOIN users u  ON u.id  = l.assigned_to
        LEFT JOIN users c  ON c.id  = l.created_by
        LEFT JOIN users ob ON ob.id = l.remaining_balance_override_by
+       LEFT JOIN LATERAL (
+         SELECT signer_id_number, orderer_name FROM contracts
+         WHERE lead_id = l.id AND status = 'signed'
+         ORDER BY signed_at DESC LIMIT 1
+       ) sc ON true
        WHERE l.id = $1`,
       [req.params.id]
     );

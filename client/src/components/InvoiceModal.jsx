@@ -14,6 +14,7 @@ export default function InvoiceModal({ lead, allPhones, allPhoneLabels, onClose,
   const [sendByWa,      setSendByWa]      = useState(false);
   const [waMessage,     setWaMessage]     = useState('');
   const [waPhone,       setWaPhone]       = useState(allPhones?.[0] || lead?.phone || '');
+  const [taxId,         setTaxId]         = useState(lead?.signer_id_number || '');
   const [submitting,    setSubmitting]    = useState(false);
   const [error,         setError]         = useState(null);
   const [created,       setCreated]       = useState(null);
@@ -45,6 +46,7 @@ export default function InvoiceModal({ lead, allPhones, allPhoneLabels, onClose,
         dueDate:         needsPmt ? undefined : secondDate,
         paymentDate:     needsPmt ? secondDate : undefined,
         paymentMethod,
+        taxId:           taxId.trim() || undefined,
         sendByEmail,
         sendByWhatsApp:  sendByWa,
         whatsappMessage: waMessage,
@@ -210,9 +212,16 @@ export default function InvoiceModal({ lead, allPhones, allPhoneLabels, onClose,
               {/* Client info */}
               <div className="bg-slate-50 rounded-xl p-3 space-y-1 text-xs text-slate-600">
                 <p className="font-bold text-slate-700 mb-1">פרטי לקוח</p>
-                <p>שם: {lead.name}</p>
+                <p>שם: {lead.orderer_name || lead.name}</p>
                 {lead.phone && <p>טלפון: <a href={`tel:${lead.phone}`} className="text-violet-600">{lead.phone}</a></p>}
                 {lead.email && <p>אימייל: {lead.email}</p>}
+                <div className="pt-1">
+                  <label className="block font-bold text-slate-600 mb-0.5">ח.פ / ת.ז (מספר עוסק)</label>
+                  <input value={taxId} onChange={e => setTaxId(e.target.value)}
+                    placeholder="נשלף מהחוזה החתום — ניתן לעריכה"
+                    className="w-full text-sm bg-white border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-400" />
+                  {!taxId.trim() && <p className="text-amber-600 mt-0.5">לא הוזן — GreenInvoice עלול לדחות מסמך ללא מספר תקין</p>}
+                </div>
               </div>
 
               {/* Sending options */}

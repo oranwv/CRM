@@ -10,6 +10,9 @@ export default function PendingDocDetail({ doc, isManager, onClose, onActionDone
   const [comment,   setComment]   = useState('');
   const [busy,      setBusy]      = useState(false);
   const [error,     setError]     = useState(null);
+  const [taxId,     setTaxId]     = useState(doc.client_tax_id || doc.payload?.taxId || '');
+
+  const editable = doc.status === 'pending' && isManager;
 
   const p     = doc.payload || {};
   const items = p.items || [];
@@ -20,7 +23,7 @@ export default function PendingDocDetail({ doc, isManager, onClose, onActionDone
   async function approve() {
     setBusy(true); setError(null);
     try {
-      await api.post(`/greeninvoice/pending/${doc.id}/approve`);
+      await api.post(`/greeninvoice/pending/${doc.id}/approve`, { taxId: taxId.trim() });
       onActionDone?.();
       onClose?.();
     } catch (err) {
@@ -69,9 +72,19 @@ export default function PendingDocDetail({ doc, isManager, onClose, onActionDone
           <div className="bg-slate-50 rounded-xl p-3 space-y-0.5 text-xs text-slate-600">
             <p className="font-bold text-slate-700 mb-1">פרטי לקוח</p>
             <p>שם: {doc.orderer_name || doc.lead_name || '—'}</p>
-            <p className={doc.client_tax_id ? '' : 'text-red-600 font-bold'}>
-              ח.פ / עוסק: {doc.client_tax_id || 'חסר — לא הוזן בחוזה החתום'}
-            </p>
+            {editable ? (
+              <div className="pt-0.5">
+                <label className="block font-bold text-slate-600 mb-0.5">ח.פ / עוסק</label>
+                <input value={taxId} onChange={e => setTaxId(e.target.value)}
+                  placeholder="נשלף מהחוזה — ניתן לעריכה לפני אישור"
+                  className="w-full text-sm bg-white border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-400" />
+                {!taxId.trim() && <p className="text-amber-600 mt-0.5">לא הוזן — GreenInvoice עלול לדחות</p>}
+              </div>
+            ) : (
+              <p className={taxId ? '' : 'text-red-600 font-bold'}>
+                ח.פ / עוסק: {taxId || 'חסר — לא הוזן בחוזה החתום'}
+              </p>
+            )}
             {doc.client_phone && <p>טלפון: {doc.client_phone}</p>}
             {doc.client_email && <p>אימייל: {doc.client_email}</p>}
           </div>
