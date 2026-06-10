@@ -133,19 +133,21 @@ async function createAndSaveDoc(docPayload, leadId, userId) {
   const filename  = `${DOC_NAMES[docPayload.type] || 'מסמך'}-${docNumber}.pdf`;
 
   try {
-    const pdfRes = await axios.get(`${GI_BASE}/documents/${docId}/download`, {
-      headers,
-      params:       { format: 'pdf' },
+    // Download from the pre-signed docUrl (the token is in the query string, no auth header).
+    // GreenInvoice has no GET /documents/:id/download endpoint — that returns 404.
+    const pdfRes = await axios.get(docUrl, {
       responseType: 'arraybuffer',
       timeout:      20000,
       maxRedirects: 5,
     });
+    const contentType = pdfRes.headers['content-type'] || '';
+    if (!contentType.includes('pdf')) throw new Error(`unexpected content-type: ${contentType}`);
     const buffer = Buffer.from(pdfRes.data);
-    const { storedName } = await uploadBuffer(buffer, filename, 'application/pdf');
+    const { url: publicUrl, storedName } = await uploadBuffer(buffer, filename, 'application/pdf');
     await pool.query(
       `INSERT INTO files (lead_id, filename, url, stored_name, file_type, uploaded_by)
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [leadId, filename, '', storedName, 'application/pdf', userId]
+      [leadId, filename, publicUrl, storedName, 'application/pdf', userId]
     );
     console.log('[GreenInvoice] PDF saved to files:', filename);
   } catch (pdfErr) {
