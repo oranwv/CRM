@@ -10,7 +10,7 @@ export default function PendingDocDetail({ doc, isManager, onClose, onActionDone
   const [comment,   setComment]   = useState('');
   const [busy,      setBusy]      = useState(false);
   const [error,     setError]     = useState(null);
-  const [taxId,     setTaxId]     = useState(doc.client_tax_id || doc.payload?.taxId || '');
+  const [taxId,     setTaxId]     = useState(String(doc.client_tax_id || doc.payload?.taxId || '').replace(/\D/g, ''));
 
   const editable = doc.status === 'pending' && isManager;
 

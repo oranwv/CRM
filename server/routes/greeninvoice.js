@@ -83,7 +83,9 @@ function buildDocPayload(params, lead) {
   const needsPmt = [400, 320].includes(docType);
   const total    = (items || []).reduce((sum, it) => sum + Number(it.price) * Number(it.quantity), 0);
   // Editable per-document override; falls back to the signed contract's value.
-  const taxId    = params.taxId || lead.signer_id_number;
+  // Strip to digits only — the signing form is RTL free text and may carry
+  // invisible direction marks / spaces / prefixes that GreenInvoice rejects (error 1111).
+  const taxId    = String(params.taxId || lead.signer_id_number || '').replace(/\D/g, '') || undefined;
 
   return {
     type:     docType,

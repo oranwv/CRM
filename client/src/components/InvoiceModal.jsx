@@ -14,7 +14,7 @@ export default function InvoiceModal({ lead, allPhones, allPhoneLabels, onClose,
   const [sendByWa,      setSendByWa]      = useState(false);
   const [waMessage,     setWaMessage]     = useState('');
   const [waPhone,       setWaPhone]       = useState(allPhones?.[0] || lead?.phone || '');
-  const [taxId,         setTaxId]         = useState(lead?.signer_id_number || '');
+  const [taxId,         setTaxId]         = useState((lead?.signer_id_number || '').replace(/\D/g, ''));
   const [submitting,    setSubmitting]    = useState(false);
   const [error,         setError]         = useState(null);
   const [created,       setCreated]       = useState(null);
