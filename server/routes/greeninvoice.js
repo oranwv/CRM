@@ -271,27 +271,36 @@ router.get('/pending/count', managerOnly, async (req, res) => {
 router.get('/pending', async (req, res) => {
   const { leadId } = req.query;
   try {
+    // Client fields mirror what buildDocPayload() sends to GreenInvoice on approval,
+    // so the detail view shows exactly what will be submitted (incl. taxId / ח.פ).
+    const clientSelect = `
+      u.display_name AS creator_name,
+      l.name  AS lead_name,
+      l.phone AS client_phone,
+      l.email AS client_email,
+      c.orderer_name      AS orderer_name,
+      c.signer_id_number  AS client_tax_id`;
+    const clientJoins = `
+      LEFT JOIN users u ON u.id = pd.created_by
+      LEFT JOIN leads l ON l.id = pd.lead_id
+      LEFT JOIN LATERAL (
+        SELECT signer_id_number, orderer_name FROM contracts
+        WHERE lead_id = pd.lead_id AND status = 'signed'
+        ORDER BY signed_at DESC LIMIT 1
+      ) c ON true`;
+
     if (leadId) {
-      const { rows } = await pool.query(`
-        SELECT pd.*, u.display_name AS creator_name
-        FROM pending_documents pd
-        LEFT JOIN users u ON u.id = pd.created_by
-        WHERE pd.lead_id = $1
-        ORDER BY pd.created_at DESC
-      `, [leadId]);
+      const { rows } = await pool.query(
+        `SELECT pd.*, ${clientSelect} FROM pending_documents pd ${clientJoins}
+         WHERE pd.lead_id = $1 ORDER BY pd.created_at DESC`, [leadId]);
       return res.json(rows);
     }
     // No leadId — manager only
     if (!['admin', 'manager'].includes(req.user.role))
       return res.status(403).json({ error: 'אין הרשאה' });
-    const { rows } = await pool.query(`
-      SELECT pd.*, u.display_name AS creator_name, l.name AS lead_name
-      FROM pending_documents pd
-      LEFT JOIN users u ON u.id = pd.created_by
-      LEFT JOIN leads l ON l.id = pd.lead_id
-      WHERE pd.status = 'pending'
-      ORDER BY pd.created_at DESC
-    `);
+    const { rows } = await pool.query(
+      `SELECT pd.*, ${clientSelect} FROM pending_documents pd ${clientJoins}
+       WHERE pd.status = 'pending' ORDER BY pd.created_at DESC`);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });

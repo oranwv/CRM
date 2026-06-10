@@ -65,6 +65,17 @@ export default function PendingDocDetail({ doc, isManager, onClose, onActionDone
             {doc.created_at ? ` · ${new Date(doc.created_at).toLocaleDateString('he-IL')}` : ''}
           </div>
 
+          {/* Client details — exactly what is sent to GreenInvoice (incl. taxId) */}
+          <div className="bg-slate-50 rounded-xl p-3 space-y-0.5 text-xs text-slate-600">
+            <p className="font-bold text-slate-700 mb-1">פרטי לקוח</p>
+            <p>שם: {doc.orderer_name || doc.lead_name || '—'}</p>
+            <p className={doc.client_tax_id ? '' : 'text-red-600 font-bold'}>
+              ח.פ / עוסק: {doc.client_tax_id || 'חסר — לא הוזן בחוזה החתום'}
+            </p>
+            {doc.client_phone && <p>טלפון: {doc.client_phone}</p>}
+            {doc.client_email && <p>אימייל: {doc.client_email}</p>}
+          </div>
+
           {/* Items */}
           <div>
             <p className="text-xs font-bold text-slate-500 mb-1">פריטים</p>
