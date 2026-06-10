@@ -6,6 +6,8 @@ import ProductionChecklist from './ProductionChecklist';
 import EventBriefModal from './EventBriefModal';
 import SeatingChart from './SeatingChart';
 import InvoiceModal from './InvoiceModal';
+import PendingDocDetail from './PendingDocDetail';
+import { docTypeLabel } from '../utils/docTypes';
 
 const STAGES = [
   { key: 'new',               label: 'חדש',                 active: 'bg-sky-500 text-white border-sky-500',          past: 'bg-sky-100 text-sky-600 border-sky-200',            future: 'bg-white text-slate-400 border-slate-200 hover:border-sky-300 hover:text-sky-500' },
@@ -175,8 +177,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
   const [hasSketch,    setHasSketch]    = useState(false);
   const [showInvoice,    setShowInvoice]    = useState(false);
   const [pendingDocs,    setPendingDocs]    = useState([]);
-  const [rejectingDocId, setRejectingDocId] = useState(null);
-  const [rejectComment,  setRejectComment]  = useState('');
+  const [selectedDoc,    setSelectedDoc]    = useState(null);
   const [leadSuppliers,      setLeadSuppliers]      = useState([]);
   const [allSuppliers,       setAllSuppliers]       = useState([]);
   const [showSupplierPicker, setShowSupplierPicker] = useState(false);
@@ -240,24 +241,8 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
       .catch(() => {});
   }, [lead?.stage, leadId]);
 
-  async function approveDoc(id) {
-    try {
-      await api.post(`/greeninvoice/pending/${id}/approve`);
-      api.get(`/greeninvoice/pending?leadId=${leadId}`).then(r => setPendingDocs(r.data)).catch(() => {});
-    } catch (err) {
-      alert(err.response?.data?.error || 'שגיאה באישור המסמך');
-    }
-  }
-
-  async function rejectDoc(id) {
-    try {
-      await api.post(`/greeninvoice/pending/${id}/reject`, { comment: rejectComment });
-      setRejectingDocId(null);
-      setRejectComment('');
-      api.get(`/greeninvoice/pending?leadId=${leadId}`).then(r => setPendingDocs(r.data)).catch(() => {});
-    } catch (err) {
-      alert(err.response?.data?.error || 'שגיאה בדחיית המסמך');
-    }
+  function refreshPendingDocs() {
+    api.get(`/greeninvoice/pending?leadId=${leadId}`).then(r => setPendingDocs(r.data)).catch(() => {});
   }
 
   async function linkSupplier(supplierId) {
@@ -641,61 +626,36 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
             <Section title="מסמכים פיננסיים">
               {pendingDocs.length > 0 && (
                 <div className="space-y-2 mb-3">
-                  {pendingDocs.map(doc => {
-                    const typeLabel = { 300:'דרישת תשלום', 305:'חשבון עסקה', 400:'קבלה', 320:'חשבונית מס קבלה' }[doc.payload?.type] || 'מסמך';
-                    const isRejecting = rejectingDocId === doc.id;
-                    return (
-                      <div key={doc.id} className="border border-slate-200 rounded-xl p-3 text-xs space-y-1.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-bold text-slate-700">{typeLabel}</span>
-                          {doc.status === 'pending' && (
-                            <span className="bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded-full">ממתין לאישור</span>
-                          )}
-                          {doc.status === 'approved' && (
-                            <span className="bg-emerald-100 text-emerald-700 font-bold px-2 py-0.5 rounded-full">אושר</span>
-                          )}
-                          {doc.status === 'rejected' && (
-                            <span className="bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-full">נדחה</span>
-                          )}
-                        </div>
-                        <p className="text-slate-500">יצר: {doc.creator_name || 'לא ידוע'} · {new Date(doc.created_at).toLocaleDateString('he-IL')}</p>
-                        {doc.status === 'rejected' && doc.rejection_comment && (
-                          <p className="text-red-600">סיבה: {doc.rejection_comment}</p>
+                  {pendingDocs.map(doc => (
+                    <button key={doc.id} onClick={() => setSelectedDoc(doc)}
+                      className="w-full text-right border border-slate-200 rounded-xl p-3 text-xs space-y-1.5 hover:border-violet-300 hover:bg-violet-50 transition">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-slate-700">{docTypeLabel(doc.payload?.type)}</span>
+                        {doc.status === 'pending' && (
+                          <span className="bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded-full">ממתין לאישור</span>
                         )}
-                        {doc.status === 'approved' && doc.doc_url && (
-                          <a href={doc.doc_url} target="_blank" rel="noreferrer" className="text-violet-600 underline">פתח מסמך</a>
+                        {doc.status === 'approved' && (
+                          <span className="bg-emerald-100 text-emerald-700 font-bold px-2 py-0.5 rounded-full">אושר</span>
                         )}
-                        {doc.status === 'pending' && isManager && !isRejecting && (
-                          <div className="flex gap-2 pt-1">
-                            <button onClick={() => approveDoc(doc.id)}
-                              className="flex-1 py-1 rounded-lg bg-emerald-500 text-white font-bold hover:bg-emerald-600 transition">אשר</button>
-                            <button onClick={() => { setRejectingDocId(doc.id); setRejectComment(''); }}
-                              className="flex-1 py-1 rounded-lg bg-red-100 text-red-600 font-bold hover:bg-red-200 transition">דחה</button>
-                          </div>
-                        )}
-                        {isRejecting && (
-                          <div className="space-y-1.5 pt-1">
-                            <textarea value={rejectComment} onChange={e => setRejectComment(e.target.value)}
-                              placeholder="סיבת הדחייה (אופציונלי)"
-                              rows={2}
-                              className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-red-400 resize-none" />
-                            <div className="flex gap-2">
-                              <button onClick={() => rejectDoc(doc.id)}
-                                className="flex-1 py-1 rounded-lg bg-red-500 text-white font-bold hover:bg-red-600 transition">אשר דחייה</button>
-                              <button onClick={() => setRejectingDocId(null)}
-                                className="flex-1 py-1 rounded-lg border border-slate-300 text-slate-600 font-bold hover:bg-slate-50 transition">ביטול</button>
-                            </div>
-                          </div>
+                        {doc.status === 'rejected' && (
+                          <span className="bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-full">נדחה</span>
                         )}
                       </div>
-                    );
-                  })}
+                      <p className="text-slate-500">יצר: {doc.creator_name || 'לא ידוע'} · {new Date(doc.created_at).toLocaleDateString('he-IL')}</p>
+                      {doc.status === 'rejected' && doc.rejection_comment && (
+                        <p className="text-red-600">סיבה: {doc.rejection_comment}</p>
+                      )}
+                      {doc.status === 'pending' && isManager && (
+                        <p className="text-violet-600 font-bold pt-0.5">לחץ לצפייה ואישור ←</p>
+                      )}
+                    </button>
+                  ))}
                 </div>
               )}
               {mode !== 'הפקה' && (
                 <button onClick={() => setShowInvoice(true)}
                   className="w-full border-2 border-dashed border-emerald-200 rounded-xl py-3 text-sm font-semibold text-center text-emerald-600 hover:border-emerald-400 hover:bg-emerald-50 transition">
-                  + צור מסמך (חשבונית / קבלה / דרישת תשלום)
+                  + צור מסמך (חשבונית מס / קבלה / חשבונית עסקה)
                 </button>
               )}
             </Section>
@@ -826,7 +786,16 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
           allPhones={allPhones}
           allPhoneLabels={allPhoneLabels}
           onClose={() => setShowInvoice(false)}
-          onCreated={() => { load(); api.get(`/greeninvoice/pending?leadId=${leadId}`).then(r => setPendingDocs(r.data)).catch(() => {}); }}
+          onCreated={() => { load(); refreshPendingDocs(); }}
+        />
+      )}
+
+      {selectedDoc && (
+        <PendingDocDetail
+          doc={selectedDoc}
+          isManager={isManager}
+          onClose={() => setSelectedDoc(null)}
+          onActionDone={refreshPendingDocs}
         />
       )}
 

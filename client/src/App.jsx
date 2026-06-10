@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import LoginPage     from './pages/LoginPage';
 import LeadsPage     from './pages/LeadsPage';
 import EventsPage    from './pages/EventsPage';
@@ -16,6 +16,8 @@ import RSVPDetailPage   from './pages/RSVPs/RSVPDetailPage';
 import OperationsPage    from './pages/OperationsPage';
 import ManagementPage   from './pages/ManagementPage';
 import AIChat           from './components/AIChat';
+import PendingDocsModal  from './components/PendingDocsModal';
+import { docTypeLabel }   from './utils/docTypes';
 import { AppModeProvider, useAppMode } from './context/AppModeContext';
 import api from './api';
 
@@ -33,16 +35,36 @@ function GlobalHeader() {
   const isAdmin            = userRoles.includes('admin');
   const isManager          = isAdmin || userRoles.includes('manager');
   const [pendingCount, setPendingCount] = useState(0);
+  const [showPending, setShowPending]   = useState(false);
   const [dropOpen, setDropOpen] = useState(false);
   const dropRef = useRef(null);
 
+  const loadPendingCount = useCallback(() => {
+    if (!isManager || !localStorage.getItem('crm_token')) return;
+    api.get('/greeninvoice/pending/count').then(r => setPendingCount(r.data.count)).catch(() => {});
+  }, [isManager]);
+
   useEffect(() => {
     if (!isManager || !localStorage.getItem('crm_token')) return;
-    const load = () => api.get('/greeninvoice/pending/count').then(r => setPendingCount(r.data.count)).catch(() => {});
+    loadPendingCount();
+    const t = setInterval(loadPendingCount, 60_000);
+    return () => clearInterval(t);
+  }, [isManager, loadPendingCount]);
+
+  // Creator banner — notify the user when a doc they submitted was approved/rejected.
+  const [reviewedDocs, setReviewedDocs] = useState([]);
+  useEffect(() => {
+    if (!localStorage.getItem('crm_token')) return;
+    const load = () => api.get('/greeninvoice/reviewed-for-me').then(r => setReviewedDocs(r.data)).catch(() => {});
     load();
     const t = setInterval(load, 60_000);
     return () => clearInterval(t);
-  }, [isManager]);
+  }, []);
+
+  function dismissReviewed() {
+    setReviewedDocs([]);
+    api.post('/greeninvoice/reviewed-for-me/seen').catch(() => {});
+  }
 
   useEffect(() => {
     function handler(e) { if (dropRef.current && !dropRef.current.contains(e.target)) setDropOpen(false); }
@@ -72,11 +94,38 @@ function GlobalHeader() {
       <div className="flex items-center gap-2">
         <span className="text-white font-black text-sm opacity-90">שרביה CRM</span>
         {isManager && pendingCount > 0 && (
-          <span className="bg-red-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
+          <button
+            onClick={() => setShowPending(true)}
+            className="bg-red-500 text-white text-[10px] font-black rounded-full px-2 py-0.5 leading-none hover:bg-red-600 transition cursor-pointer">
             {pendingCount > 99 ? '99+' : pendingCount} ממתינים
-          </span>
+          </button>
         )}
       </div>
+
+      {showPending && (
+        <PendingDocsModal
+          onClose={() => setShowPending(false)}
+          onChanged={loadPendingCount}
+        />
+      )}
+
+      {reviewedDocs.length > 0 && (
+        <div className="fixed left-1/2 -translate-x-1/2 z-[70] w-[92%] max-w-md" style={{ top: 52 }}>
+          {reviewedDocs.map(d => {
+            const ok = d.status === 'approved';
+            return (
+              <div key={d.id}
+                className={`flex items-start gap-2 rounded-2xl shadow-lg px-4 py-3 mb-2 text-sm font-bold ${ok ? 'bg-emerald-500' : 'bg-red-500'} text-white`}>
+                <span className="flex-1">
+                  המסמך שלך ({docTypeLabel(d.payload?.type)}{d.lead_name ? `, ${d.lead_name}` : ''}) {ok ? 'אושר ✓' : 'נדחה ✗'}
+                  {!ok && d.rejection_comment && <span className="block font-normal text-white/90 mt-0.5">סיבה: {d.rejection_comment}</span>}
+                </span>
+                <button onClick={dismissReviewed} className="text-white/80 hover:text-white text-lg leading-none">&times;</button>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div ref={dropRef} className="relative">
         <button

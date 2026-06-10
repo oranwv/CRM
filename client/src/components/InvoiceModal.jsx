@@ -1,27 +1,6 @@
 import { useState } from 'react';
 import api from '../api';
-
-const DOC_TYPES = [
-  { type: 300, label: 'דרישת תשלום' },
-  { type: 305, label: 'חשבון עסקה' },
-  { type: 400, label: 'קבלה' },
-  { type: 320, label: 'חשבונית מס קבלה' },
-];
-
-const PAYMENT_METHODS = [
-  { value: 4,  label: 'העברה בנקאית' },
-  { value: 3,  label: 'כרטיס אשראי' },
-  { value: 1,  label: 'מזומן' },
-  { value: 2,  label: "צ'ק" },
-  { value: 10, label: 'ביט / אפליקציה' },
-  { value: 11, label: 'אחר' },
-];
-
-const VAT_OPTIONS = [
-  { value: 1, label: 'כולל מע"מ' },
-  { value: 0, label: 'הוסף מע"מ' },
-  { value: 2, label: 'פטור' },
-];
+import { DOC_TYPES, PAYMENT_METHODS, VAT_OPTIONS, PAYMENT_DOC_TYPES } from '../utils/docTypes';
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -49,7 +28,7 @@ export default function InvoiceModal({ lead, allPhones, allPhoneLabels, onClose,
     setItems(prev => prev.filter((_, idx) => idx !== i));
   }
 
-  const needsPmt    = [400, 320].includes(docType);
+  const needsPmt    = PAYMENT_DOC_TYPES.includes(docType);
   const secondLabel = needsPmt ? 'תאריך תשלום' : 'לתשלום עד';
 
   async function submit() {

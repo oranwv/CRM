@@ -8,14 +8,14 @@ const router  = express.Router();
 const GI_BASE = 'https://api.greeninvoice.co.il/api/v1';
 
 const DOC_NAMES = {
-  300: 'דרישת-תשלום',
-  305: 'חשבון-עסקה',
+  300: 'חשבונית-עסקה',
+  305: 'חשבונית-מס',
   400: 'קבלה',
   320: 'חשבונית-מס-קבלה',
 };
 const DOC_LABELS = {
-  300: 'דרישת תשלום',
-  305: 'חשבון עסקה',
+  300: 'חשבונית עסקה',
+  305: 'חשבונית מס',
   400: 'קבלה',
   320: 'חשבונית מס קבלה',
 };
@@ -37,6 +37,10 @@ pool.query(`
     created_at        TIMESTAMPTZ DEFAULT NOW()
   )
 `).catch(err => console.error('[GreenInvoice] pending_documents init error:', err.message));
+
+// creator_seen: whether the doc creator has seen the approve/reject result (drives the creator banner)
+pool.query(`ALTER TABLE pending_documents ADD COLUMN IF NOT EXISTS creator_seen BOOLEAN DEFAULT false`)
+  .catch(err => console.error('[GreenInvoice] creator_seen column init error:', err.message));
 
 pool.query(`
   DO $$
@@ -162,6 +166,24 @@ async function notifyManagers(lead, docType, creatorName) {
     console.log(`[GreenInvoice] Notified ${mgrs.length} manager(s) of pending document`);
   } catch (e) {
     console.error('[GreenInvoice] Manager notification failed:', e.message);
+  }
+}
+
+// Notify the document creator (via WhatsApp) that their pending document was approved/rejected.
+async function notifyCreator(createdBy, docType, leadName, status, comment) {
+  try {
+    const { rows } = await pool.query(`SELECT phone FROM users WHERE id = $1 AND phone IS NOT NULL`, [createdBy]);
+    if (!rows.length) return;
+    const label  = DOC_LABELS[Number(docType)] || 'מסמך';
+    const verb   = status === 'approved' ? 'אושר' : 'נדחה';
+    let msg = `המסמך שלך (${label}, ${leadName}) ${verb}`;
+    if (status === 'rejected' && comment) msg += `\nסיבה: ${comment}`;
+    const waUrl  = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/sendMessage/${process.env.GREEN_API_TOKEN}`;
+    const normalized = normalizePhone(rows[0].phone);
+    if (normalized) await axios.post(waUrl, { chatId: `${normalized}@c.us`, message: msg }).catch(() => {});
+    console.log(`[GreenInvoice] Notified creator ${createdBy} that document was ${status}`);
+  } catch (e) {
+    console.error('[GreenInvoice] Creator notification failed:', e.message);
   }
 }
 
@@ -301,9 +323,11 @@ router.post('/pending/:id/approve', managerOnly, async (req, res) => {
     const { docId, docUrl, filename } = await createAndSaveDoc(docPayload, pending.lead_id, req.user.id);
 
     await pool.query(
-      `UPDATE pending_documents SET status='approved', doc_id=$1, doc_url=$2, filename=$3, reviewed_by=$4, reviewed_at=NOW() WHERE id=$5`,
+      `UPDATE pending_documents SET status='approved', doc_id=$1, doc_url=$2, filename=$3, reviewed_by=$4, reviewed_at=NOW(), creator_seen=false WHERE id=$5`,
       [docId, docUrl, filename, req.user.id, req.params.id]
     );
+
+    notifyCreator(pending.created_by, params.type, pending.name, 'approved');
 
     // Honour original WhatsApp send preference
     if (params.sendByWhatsApp && (params.whatsappPhone || pending.phone)) {
@@ -338,12 +362,49 @@ router.post('/pending/:id/approve', managerOnly, async (req, res) => {
 router.post('/pending/:id/reject', managerOnly, async (req, res) => {
   const { comment } = req.body;
   try {
-    const { rowCount } = await pool.query(
-      `UPDATE pending_documents SET status='rejected', rejection_comment=$1, reviewed_by=$2, reviewed_at=NOW()
-       WHERE id=$3 AND status='pending'`,
+    const { rows } = await pool.query(
+      `UPDATE pending_documents SET status='rejected', rejection_comment=$1, reviewed_by=$2, reviewed_at=NOW(), creator_seen=false
+       WHERE id=$3 AND status='pending'
+       RETURNING created_by, payload, lead_id`,
       [comment || null, req.user.id, req.params.id]
     );
-    if (!rowCount) return res.status(404).json({ error: 'Pending document not found' });
+    if (!rows.length) return res.status(404).json({ error: 'Pending document not found' });
+
+    const rej = rows[0];
+    const { rows: leadRows } = await pool.query(`SELECT name FROM leads WHERE id = $1`, [rej.lead_id]);
+    notifyCreator(rej.created_by, rej.payload?.type, leadRows[0]?.name || '', 'rejected', comment);
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/greeninvoice/reviewed-for-me — docs the current user created that were
+// approved/rejected and not yet acknowledged (drives the creator banner).
+router.get('/reviewed-for-me', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT pd.id, pd.payload, pd.status, pd.rejection_comment, pd.lead_id, l.name AS lead_name
+      FROM pending_documents pd
+      LEFT JOIN leads l ON l.id = pd.lead_id
+      WHERE pd.created_by = $1 AND pd.status IN ('approved','rejected') AND pd.creator_seen = false
+      ORDER BY pd.reviewed_at DESC
+    `, [req.user.id]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/greeninvoice/reviewed-for-me/seen — acknowledge all reviewed docs for current user.
+router.post('/reviewed-for-me/seen', async (req, res) => {
+  try {
+    await pool.query(
+      `UPDATE pending_documents SET creator_seen = true
+       WHERE created_by = $1 AND status IN ('approved','rejected') AND creator_seen = false`,
+      [req.user.id]
+    );
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
