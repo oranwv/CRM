@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api';
+import useBackGuard from '../hooks/useBackGuard';
 import DriveFilePicker from './DriveFilePicker';
 import { useAppMode } from '../context/AppModeContext';
 import ProductionChecklist from './ProductionChecklist';
@@ -189,17 +190,26 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
   const [reviewSending,      setReviewSending]     = useState(false);
   const { mode } = useAppMode();
 
-  const load = useCallback(async () => {
+  // Back gesture (Windows back / trackpad swipe) closes the topmost overlay
+  // instead of navigating away; editors warn before discarding unsaved work.
+  useBackGuard(true, onClose, { isDirty: editing || editingName });
+  useBackGuard(showContract,   () => setShowContract(false),   { isDirty: true });
+  useBackGuard(showPriceOffer, () => setShowPriceOffer(false), { isDirty: true });
+  useBackGuard(showInvoice,    () => setShowInvoice(false),    { isDirty: true });
+  useBackGuard(showBrief,      () => setShowBrief(false),      { isDirty: true });
+  useBackGuard(showSeating,    () => setShowSeating(false),    { isDirty: true });
+
+  const load = useCallback(async (signal) => {
     try {
       const [leadRes, intRes, msgRes, fileRes, taskRes, userRes, calRes, contactsRes] = await Promise.all([
-        api.get(`/leads/${leadId}`),
-        api.get(`/leads/${leadId}/interactions`),
-        api.get(`/leads/${leadId}/messages`),
-        api.get(`/leads/${leadId}/files`),
-        api.get(`/leads/${leadId}/tasks`),
-        api.get('/users'),
-        api.get(`/calendar/leads/${leadId}/status`).catch(() => ({ data: { type: null } })),
-        api.get(`/leads/${leadId}/contacts`),
+        api.get(`/leads/${leadId}`, { signal }),
+        api.get(`/leads/${leadId}/interactions`, { signal }),
+        api.get(`/leads/${leadId}/messages`, { signal }),
+        api.get(`/leads/${leadId}/files`, { signal }),
+        api.get(`/leads/${leadId}/tasks`, { signal }),
+        api.get('/users', { signal }),
+        api.get(`/calendar/leads/${leadId}/status`, { signal }).catch(() => ({ data: { type: null } })),
+        api.get(`/leads/${leadId}/contacts`, { signal }),
       ]);
       setLead(leadRes.data);
       const _d = leadRes.data;
@@ -212,17 +222,23 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
       setTasks(taskRes.data);
       setUsers(userRes.data);
       setContacts(contactsRes.data);
-    } catch { }
-    api.get(`/greeninvoice/pending?leadId=${leadId}`).then(r => setPendingDocs(r.data)).catch(() => {});
+    } catch (err) {
+      if (err?.code === 'ERR_CANCELED') return; // ignore aborts on unmount
+    }
+    api.get(`/greeninvoice/pending?leadId=${leadId}`, { signal }).then(r => setPendingDocs(r.data)).catch(() => {});
     setLoading(false);
   }, [leadId]);
 
   useEffect(() => {
-    load();
+    const ctrl = new AbortController();
+    load(ctrl.signal);
     api.post(`/leads/${leadId}/read`).catch(() => {});
-    const onVisible = () => { if (document.visibilityState === 'visible') load(); };
+    const onVisible = () => { if (document.visibilityState === 'visible') load(ctrl.signal); };
     document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
+    return () => {
+      ctrl.abort();
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [load, leadId]);
 
   useEffect(() => {
@@ -390,6 +406,34 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
               {' · '}התקבל {formatFull(lead.created_at)}
               {lastActivity && ` · פעילות אחרונה ${formatFull(lastActivity)}`}
             </p>
+          </div>
+          <div className="flex flex-col gap-1 shrink-0">
+            <button
+              onClick={async () => {
+                const next = lead.priority === 'hot' ? 'normal' : 'hot';
+                const { data } = await api.patch(`/leads/${leadId}`, { priority: next });
+                setLead(data);
+              }}
+              title="ליד חם"
+              className={`text-xs font-bold px-2 py-1 rounded-lg transition ${
+                lead.priority === 'hot' ? 'bg-orange-500 text-white' : 'bg-white/15 text-white/80 hover:bg-white/25'
+              }`}
+            >
+              🔥 חם{lead.priority === 'hot' ? ' ✓' : ''}
+            </button>
+            <button
+              onClick={async () => {
+                const next = lead.priority === 'urgent' ? 'normal' : 'urgent';
+                const { data } = await api.patch(`/leads/${leadId}`, { priority: next });
+                setLead(data);
+              }}
+              title="ליד דחוף"
+              className={`text-xs font-bold px-2 py-1 rounded-lg transition ${
+                lead.priority === 'urgent' ? 'bg-red-500 text-white' : 'bg-white/15 text-white/80 hover:bg-white/25'
+              }`}
+            >
+              ⚡ דחוף{lead.priority === 'urgent' ? ' ✓' : ''}
+            </button>
           </div>
           {lead.avatar_url
             ? <img src={lead.avatar_url} onClick={() => setAvatarZoom(true)}

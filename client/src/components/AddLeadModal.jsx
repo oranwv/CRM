@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../api';
+import useBackGuard from '../hooks/useBackGuard';
 
 function parseDateIL(str) {
   if (!str || !str.trim()) return null;
@@ -50,21 +51,27 @@ const SOURCE_OPTIONS = [
 const EVENT_TYPES = ['חתונה', 'בר/בת מצווה', 'אירוסין', 'יום הולדת', 'כנס', 'אירוע חברה', 'חינה', 'אחר'];
 
 export default function AddLeadModal({ onClose, onSaved }) {
+  const currentUser = JSON.parse(localStorage.getItem('crm_user') || '{}');
   const [users, setUsers] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [touched, setTouched] = useState(false);
   const [customEventType, setCustomEventType] = useState('');
   const [form, setForm] = useState({
     name: '', phone: '', email: '', event_name: '',
     event_date: '', event_time: '', event_end_time: '', event_type: '', guest_count: '', budget: '',
-    source: 'manual', priority: 'normal', assigned_to: '',
+    source: 'manual', priority: 'normal', assigned_to: currentUser.id || '',
     notes: '',
   });
+
+  // Back gesture closes the modal; warn first if the user already typed something.
+  useBackGuard(true, onClose, { isDirty: touched });
 
   useEffect(() => {
     api.get('/users').then(r => setUsers(r.data)).catch(() => {});
   }, []);
 
   function set(field, value) {
+    setTouched(true);
     setForm(f => ({ ...f, [field]: value }));
   }
 

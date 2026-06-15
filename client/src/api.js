@@ -11,10 +11,17 @@ api.interceptors.request.use(config => {
 api.interceptors.response.use(
   res => res,
   err => {
+    // Never log out on a canceled/aborted request (e.g. in-flight during back navigation or unmount).
+    if (axios.isCancel(err) || err.code === 'ERR_CANCELED') return Promise.reject(err);
+
     if (err.response?.status === 401) {
       localStorage.removeItem('crm_token');
       localStorage.removeItem('crm_user');
-      window.location.href = '/login';
+      // Controlled redirect, and avoid a loop when already on the login page.
+      if (!window.location.pathname.startsWith('/login')) {
+        sessionStorage.setItem('crm_session_expired', '1');
+        window.location.assign('/login');
+      }
     }
     return Promise.reject(err);
   }

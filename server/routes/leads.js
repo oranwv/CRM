@@ -294,7 +294,11 @@ router.post('/:id/interactions', async (req, res) => {
        VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
       [req.params.id, type, direction, body, req.user.id, source || null]
     );
-    await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [req.params.id]);
+    // First staff activity claims the lead if it has no owner yet (never overwrite an existing owner).
+    await pool.query(
+      `UPDATE leads SET updated_at = NOW(), assigned_to = COALESCE(assigned_to, $2) WHERE id = $1`,
+      [req.params.id, req.user.id]
+    );
     res.status(201).json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
