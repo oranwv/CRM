@@ -69,10 +69,35 @@ export default function ManagementPage() {
     { label: '30 ימים', from: shiftDays(-29), to: todayStr },
   ];
 
+  // Page the selected window backward/forward by its own length (one day when a
+  // single day is selected). dir = -1 (older) / +1 (newer). Forward is clamped to today.
+  function shiftRange(dir) {
+    const f = new Date(from + 'T12:00:00'), t = new Date(to + 'T12:00:00');
+    const span = Math.round((t - f) / 86400000) + 1;
+    const step = span * dir;
+    f.setDate(f.getDate() + step);
+    t.setDate(t.getDate() + step);
+    const fmt = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    let nf = fmt(f), nt = fmt(t);
+    if (nt > todayStr) { // clamp so the window never passes today, keeping its length
+      const t2 = new Date(todayStr + 'T12:00:00'), f2 = new Date(t2);
+      f2.setDate(f2.getDate() - (span - 1));
+      nf = fmt(f2); nt = todayStr;
+    }
+    setFrom(nf); setTo(nt);
+  }
+  const atToday = to >= todayStr;
+
   return (
     <div className="min-h-screen bg-slate-50 pb-32" dir="rtl">
       <div className="px-4 pt-4 pb-3 flex items-center gap-2 flex-wrap sticky top-11 bg-slate-50 z-10 border-b border-slate-200">
         <span className="font-black text-slate-700 text-sm">פעילות עובדים</span>
+        <div className="flex items-center gap-1">
+          <button onClick={() => shiftRange(-1)} title="טווח קודם" aria-label="טווח קודם"
+            className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-slate-300 text-slate-600 hover:bg-slate-100 font-bold">▶</button>
+          <button onClick={() => shiftRange(1)} disabled={atToday} title="טווח הבא" aria-label="טווח הבא"
+            className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-slate-300 text-slate-600 hover:bg-slate-100 font-bold disabled:opacity-40 disabled:hover:bg-white">◀</button>
+        </div>
         <div className="flex items-center gap-1 text-xs text-slate-500">
           <span>מ-</span>
           <input type="date" value={from} max={to}
@@ -101,13 +126,15 @@ export default function ManagementPage() {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-sm border-collapse" style={{ minWidth: 720 }}>
+        <table className="w-full text-sm border-collapse" style={{ minWidth: 820 }}>
           <thead>
             <tr className="bg-violet-50 text-violet-700">
               <th className="text-right px-4 py-2.5 font-black border-b border-violet-100 sticky right-0 bg-violet-50">שם</th>
               {METRIC_COLS.map(c => (
                 <th key={c.key} className="text-center px-3 py-2.5 font-bold border-b border-violet-100 whitespace-nowrap">{c.label}</th>
               ))}
+              <th className="text-center px-3 py-2.5 font-bold border-b border-violet-100 whitespace-nowrap">כניסה ראשונה</th>
+              <th className="text-center px-3 py-2.5 font-bold border-b border-violet-100 whitespace-nowrap">פעילות אחרונה</th>
               <th className="text-center px-3 py-2.5 font-black border-b border-violet-100 bg-sky-100 text-sky-800 whitespace-nowrap">שעות</th>
               <th className="text-center px-3 py-2.5 font-black border-b border-violet-100 bg-violet-100">סה״כ</th>
             </tr>
@@ -115,7 +142,7 @@ export default function ManagementPage() {
           <tbody>
             {sortedRows.length === 0 && !loading && (
               <tr>
-                <td colSpan={METRIC_COLS.length + 3} className="text-center py-10 text-slate-400 text-sm">אין נתונים לטווח זה</td>
+                <td colSpan={METRIC_COLS.length + 5} className="text-center py-10 text-slate-400 text-sm">אין נתונים לטווח זה</td>
               </tr>
             )}
             {sortedRows.map(row => {
@@ -139,6 +166,8 @@ export default function ManagementPage() {
                         </td>
                       );
                     })}
+                    <td className="text-center px-3 py-2.5 tabular-nums text-xs text-slate-600" title={isRange && row.days[0] ? `ביום ${row.days[0].date}` : undefined}>{row.days[0]?.first_activity || '—'}</td>
+                    <td className="text-center px-3 py-2.5 tabular-nums text-xs text-slate-600" title={isRange && row.days[0] ? `ביום ${row.days[0].date}` : undefined}>{row.days[0]?.last_activity || '—'}</td>
                     <td className="text-center px-3 py-2.5 tabular-nums font-bold text-sky-700">{fmtHours(row.totals.hours)}</td>
                     <td className={`text-center px-3 py-2.5 font-black tabular-nums ${inactive ? 'text-red-400' : 'text-violet-700'}`}>{tot || '—'}</td>
                   </tr>
@@ -149,9 +178,6 @@ export default function ManagementPage() {
                       <tr key={`${row.id}-${d.date}`} className="border-b border-slate-100 bg-slate-50/60 text-xs">
                         <td className="px-4 py-2 sticky right-0 bg-slate-50/60 text-slate-500">
                           <span className="font-semibold text-slate-600">{d.date}</span>
-                          {(d.first_activity || d.last_activity) && (
-                            <span className="text-slate-400"> · {d.first_activity || '—'}–{d.last_activity || '—'}</span>
-                          )}
                         </td>
                         {METRIC_COLS.map(c => {
                           const val = Number(d[c.key] || 0);
@@ -159,6 +185,8 @@ export default function ManagementPage() {
                             <td key={c.key} className={`text-center px-3 py-2 tabular-nums ${val > 0 ? 'text-slate-700' : 'text-slate-300'}`}>{val || '—'}</td>
                           );
                         })}
+                        <td className="text-center px-3 py-2 tabular-nums text-slate-500">{d.first_activity || '—'}</td>
+                        <td className="text-center px-3 py-2 tabular-nums text-slate-500">{d.last_activity || '—'}</td>
                         <td className="text-center px-3 py-2 tabular-nums text-sky-700"
                           title={d.hours_source === 'estimated' ? 'מחושב לפי פעילות, ללא מעקב נוכחות' : 'נמדד לפי נוכחות בפועל'}>
                           {d.hours_source === 'estimated' && d.hours ? '≈' : ''}{fmtHours(d.hours)}
