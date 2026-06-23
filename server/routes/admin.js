@@ -8,7 +8,7 @@ const fs     = require('fs');
 const os     = require('os');
 const { uploadFile, getSignedUrl } = require('../services/storageService');
 
-const pdfParse  = require('pdf-parse');
+const { PDFParse } = require('pdf-parse'); // v2 API: class, not a callable default
 
 const sigUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
 const kbUpload  = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -342,8 +342,13 @@ router.post('/knowledge-files', adminOnly, kbUpload.single('file'), async (req, 
     if (ext === '.txt') {
       contentText = req.file.buffer.toString('utf-8');
     } else if (ext === '.pdf') {
-      const data = await pdfParse(req.file.buffer);
-      contentText = data.text;
+      const parser = new PDFParse({ data: req.file.buffer });
+      try {
+        const result = await parser.getText();
+        contentText = result.text || '';
+      } finally {
+        await parser.destroy(); // free pdfjs resources
+      }
     } else {
       return res.status(400).json({ error: 'סוג קובץ לא נתמך. העלה .txt או .pdf' });
     }
