@@ -205,10 +205,24 @@ pool.query(`
 pool.query(`
   ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_stage_check;
   ALTER TABLE leads ADD CONSTRAINT leads_stage_check
-    CHECK (stage IN ('new','contacted','meeting_scheduled','meeting',
-                     'offer_sent','negotiation','contract_sent',
+    CHECK (stage IN ('new','new_no_answer','contacted','meeting_scheduled','meeting',
+                     'offer_sent','negotiation','contract_sent','process_no_answer',
                      'deposit','production','completed','lost'));
 `).catch(err => console.error('[DB] stage constraint migration error:', err.message));
+
+// Allow the 'cold' priority (snowflake) alongside hot/urgent.
+pool.query(`
+  ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_priority_check;
+  ALTER TABLE leads ADD CONSTRAINT leads_priority_check
+    CHECK (priority IN ('normal','hot','urgent','cold'));
+`).catch(err => console.error('[DB] priority constraint migration error:', err.message));
+
+// Allow logging a dial attempt ('call_attempt') as an interaction type.
+pool.query(`
+  ALTER TABLE lead_interactions DROP CONSTRAINT IF EXISTS lead_interactions_type_check;
+  ALTER TABLE lead_interactions ADD CONSTRAINT lead_interactions_type_check
+    CHECK (type IN ('call','call_attempt','meeting','note','email','whatsapp','facebook','instagram'));
+`).catch(err => console.error('[DB] interaction type constraint migration error:', err.message));
 
 pool.query(`
   ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_source_check;

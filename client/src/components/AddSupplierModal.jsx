@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import api from '../api';
 
-export default function AddSupplierModal({ categories, onCreated, onClose }) {
-  const [form, setForm] = useState({ name: '', phone: '', email: '', description: '', category: categories[0]?.name || 'כללי', sug: '', payment: '' });
+export default function AddSupplierModal({ categories, onCreated, onClose, initial = {} }) {
+  const [form, setForm] = useState({ name: '', phone: '', email: '', description: '', category: categories[0]?.name || 'כללי', sug: '', payment: '', ...initial });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
 

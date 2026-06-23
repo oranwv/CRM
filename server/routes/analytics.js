@@ -18,8 +18,8 @@ router.get('/overview', async (req, res) => {
       // Total leads by status group
       pool.query(`
         SELECT
-          COUNT(*) FILTER (WHERE stage = 'new') AS new_leads,
-          COUNT(*) FILTER (WHERE stage IN ('contacted','meeting','offer_sent','negotiation','contract_sent')) AS in_process,
+          COUNT(*) FILTER (WHERE stage IN ('new','new_no_answer')) AS new_leads,
+          COUNT(*) FILTER (WHERE stage IN ('contacted','meeting','offer_sent','negotiation','contract_sent','process_no_answer')) AS in_process,
           COUNT(*) FILTER (WHERE stage IN ('deposit','production')) AS closed,
           COUNT(*) FILTER (WHERE stage = 'lost') AS lost,
           COUNT(*) AS total

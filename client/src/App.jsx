@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from
 import { useState, useEffect, useRef, useCallback } from 'react';
 import LoginPage     from './pages/LoginPage';
 import LeadsPage     from './pages/LeadsPage';
+import LeadDetailPage from './pages/LeadDetailPage';
 import EventsPage    from './pages/EventsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import CalendarPage  from './pages/CalendarPage';
@@ -385,6 +386,11 @@ function AppRoutes() {
               <AppShellNav />
               <div className="pb-28" />
             </>
+          </PrivateRoute>
+        } />
+        <Route path="/leads/:id" element={
+          <PrivateRoute>
+            <LeadDetailPage />
           </PrivateRoute>
         } />
         <Route path="/postpone/:taskId"    element={<PostponePage />} />

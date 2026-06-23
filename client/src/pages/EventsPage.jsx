@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../api';
 import LeadCard from '../components/LeadCard';
+import { isDesktop } from '../utils/device';
 
 const TABS = [
   { key: 'in_production', label: 'בהפקה' },
@@ -135,7 +136,11 @@ export default function EventsPage() {
         )}
 
         {!loading && filteredLeads.map(lead => (
-          <EventCard key={lead.id} lead={lead} onClick={() => setOpenLeadId(lead.id)} />
+          <EventCard key={lead.id} lead={lead} onClick={() => {
+            // Desktop: open the lead in its own browser tab; mobile: in-page overlay.
+            if (isDesktop()) window.open(`/leads/${lead.id}`, '_blank');
+            else setOpenLeadId(lead.id);
+          }} />
         ))}
       </div>
 

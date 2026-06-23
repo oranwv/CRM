@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api';
-import useBackGuard from '../hooks/useBackGuard';
+import useBackGuard, { DIRTY_MSG } from '../hooks/useBackGuard';
 import DriveFilePicker from './DriveFilePicker';
 import { useAppMode } from '../context/AppModeContext';
 import ProductionChecklist from './ProductionChecklist';
@@ -8,16 +8,19 @@ import EventBriefModal from './EventBriefModal';
 import SeatingChart from './SeatingChart';
 import InvoiceModal from './InvoiceModal';
 import PendingDocDetail from './PendingDocDetail';
+import AddSupplierModal from './AddSupplierModal';
 import { docTypeLabel } from '../utils/docTypes';
 
 const STAGES = [
   { key: 'new',               label: 'חדש',                 active: 'bg-sky-500 text-white border-sky-500',          past: 'bg-sky-100 text-sky-600 border-sky-200',            future: 'bg-white text-slate-400 border-slate-200 hover:border-sky-300 hover:text-sky-500' },
+  { key: 'new_no_answer',     label: 'חדש ולא עונה',        active: 'bg-slate-500 text-white border-slate-500',      past: 'bg-slate-100 text-slate-600 border-slate-200',      future: 'bg-white text-slate-400 border-slate-200 hover:border-slate-400 hover:text-slate-600' },
   { key: 'contacted',         label: 'בוצעה שיחה ראשונית', active: 'bg-amber-500 text-white border-amber-500',      past: 'bg-amber-100 text-amber-600 border-amber-200',      future: 'bg-white text-slate-400 border-slate-200 hover:border-amber-300 hover:text-amber-500' },
   { key: 'meeting_scheduled', label: 'נקבעה פגישה',        active: 'bg-fuchsia-500 text-white border-fuchsia-500',  past: 'bg-fuchsia-100 text-fuchsia-600 border-fuchsia-200', future: 'bg-white text-slate-400 border-slate-200 hover:border-fuchsia-300 hover:text-fuchsia-500' },
   { key: 'meeting',           label: 'בוצעה פגישה',        active: 'bg-violet-500 text-white border-violet-500',    past: 'bg-violet-100 text-violet-600 border-violet-200',   future: 'bg-white text-slate-400 border-slate-200 hover:border-violet-300 hover:text-violet-500' },
   { key: 'offer_sent',        label: 'נשלחה הצעת מחיר',    active: 'bg-blue-500 text-white border-blue-500',        past: 'bg-blue-100 text-blue-600 border-blue-200',         future: 'bg-white text-slate-400 border-slate-200 hover:border-blue-300 hover:text-blue-500' },
   { key: 'negotiation',       label: 'מו"מ',               active: 'bg-orange-500 text-white border-orange-500',    past: 'bg-orange-100 text-orange-600 border-orange-200',   future: 'bg-white text-slate-400 border-slate-200 hover:border-orange-300 hover:text-orange-500' },
   { key: 'contract_sent',     label: 'נשלח חוזה',           active: 'bg-indigo-500 text-white border-indigo-500',    past: 'bg-indigo-100 text-indigo-600 border-indigo-200',   future: 'bg-white text-slate-400 border-slate-200 hover:border-indigo-300 hover:text-indigo-500' },
+  { key: 'process_no_answer', label: 'בתהליך ונעלם / לא עונה', active: 'bg-zinc-500 text-white border-zinc-500',    past: 'bg-zinc-100 text-zinc-600 border-zinc-200',         future: 'bg-white text-slate-400 border-slate-200 hover:border-zinc-400 hover:text-zinc-600' },
   { key: 'deposit',           label: 'התקבלה מקדמה',       active: 'bg-emerald-500 text-white border-emerald-500',  past: 'bg-emerald-100 text-emerald-600 border-emerald-200', future: 'bg-white text-slate-400 border-slate-200 hover:border-amber-300 hover:text-emerald-500' },
   { key: 'production',        label: 'הפקה',               active: 'bg-teal-500 text-white border-teal-500',        past: 'bg-teal-100 text-teal-600 border-teal-200',         future: 'bg-white text-slate-400 border-slate-200 hover:border-teal-300 hover:text-teal-500' },
   { key: 'completed',         label: 'אירוע הסתיים והתקבל תשלום', active: 'bg-slate-700 text-white border-slate-700', past: 'bg-slate-100 text-slate-600 border-slate-200',      future: 'bg-white text-slate-400 border-slate-200 hover:border-slate-400 hover:text-slate-600' },
@@ -40,7 +43,8 @@ const SOURCE_LABELS = {
 };
 
 const TYPE_META = {
-  call:      { icon: '📞', label: 'שיחה',      bg: 'bg-blue-100',    text: 'text-blue-700' },
+  call:         { icon: '📞', label: 'שיחה',       bg: 'bg-blue-100',    text: 'text-blue-700' },
+  call_attempt: { icon: '📲', label: 'ניסיון חיוג', bg: 'bg-cyan-100',    text: 'text-cyan-700' },
   meeting:   { icon: '🤝', label: 'פגישה',     bg: 'bg-purple-100',  text: 'text-purple-700' },
   note:      { icon: '📝', label: 'הערה',      bg: 'bg-amber-100',   text: 'text-amber-700' },
   email:     { icon: '✉️', label: 'אימייל',    bg: 'bg-sky-100',     text: 'text-sky-700' },
@@ -183,6 +187,10 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
   const [allSuppliers,       setAllSuppliers]       = useState([]);
   const [showSupplierPicker, setShowSupplierPicker] = useState(false);
   const [supplierSearch,     setSupplierSearch]     = useState('');
+  const [showPlusMenu,       setShowPlusMenu]       = useState(false);
+  const [showAddSupplier,    setShowAddSupplier]    = useState(false);
+  const [supplierCategories, setSupplierCategories] = useState([]);
+  const [addSupplierMsg,     setAddSupplierMsg]     = useState('');
   const [showActionMenu,     setShowActionMenu]     = useState(false);
   const [showReviewModal,    setShowReviewModal]    = useState(false);
   const [reviewSettings,     setReviewSettings]    = useState(null);
@@ -272,6 +280,17 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
   async function unlinkSupplier(supplierId) {
     await api.delete(`/leads/${leadId}/suppliers/${supplierId}`).catch(() => {});
     setLeadSuppliers(prev => prev.filter(s => s.id !== supplierId));
+  }
+
+  // "+" header action: add this lead (e.g. a producer who messaged) to the suppliers
+  // list. Loads categories on demand, then opens the create-supplier modal prefilled.
+  async function openAddToSuppliers() {
+    setShowPlusMenu(false);
+    try {
+      const { data } = await api.get('/suppliers/categories');
+      setSupplierCategories(data || []);
+    } catch { setSupplierCategories([]); }
+    setShowAddSupplier(true);
   }
 
   async function openReviewModal() {
@@ -377,6 +396,21 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
       {/* Header */}
       <div className="px-4 py-3 flex items-center gap-3 shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
         <button onClick={onClose} className="text-white/80 hover:text-white text-2xl leading-none">&times;</button>
+        <div className="relative">
+          <button onClick={() => setShowPlusMenu(p => !p)} title="הוספה"
+            className="text-white/90 hover:text-white text-2xl leading-none w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/15 transition">+</button>
+          {showPlusMenu && (
+            <>
+              <div className="fixed inset-0 z-[59]" onClick={() => setShowPlusMenu(false)} />
+              <div className="absolute top-9 left-0 z-[60] bg-white rounded-xl shadow-2xl border border-slate-100 py-1 min-w-[150px]" dir="rtl">
+                <button onClick={openAddToSuppliers}
+                  className="w-full text-right px-4 py-2 text-sm font-bold text-slate-700 hover:bg-violet-50 transition whitespace-nowrap">
+                  הוסף לספקים
+                </button>
+              </div>
+            </>
+          )}
+        </div>
         {currentUser.role === 'admin' && (
           <button onClick={() => setShowDeleteModal(true)} className="text-sm font-bold px-2 py-1 rounded-lg bg-red-600/40 hover:bg-red-600 text-red-200 hover:text-white transition">
             🗑 מחק ליד
@@ -397,6 +431,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
                   onClick={() => { setNameDraft(lead.name || ''); setEditingName(true); }}>
                 {lead.priority === 'hot' && '🔥 '}
                 {lead.priority === 'urgent' && '⚡ '}
+                {lead.priority === 'cold' && '❄️ '}
                 {lead.name}
                 <span className="text-sm font-normal text-white/40 group-hover:text-white/70 mr-1">✏️</span>
               </h2>
@@ -433,6 +468,19 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
               }`}
             >
               ⚡ דחוף{lead.priority === 'urgent' ? ' ✓' : ''}
+            </button>
+            <button
+              onClick={async () => {
+                const next = lead.priority === 'cold' ? 'normal' : 'cold';
+                const { data } = await api.patch(`/leads/${leadId}`, { priority: next });
+                setLead(data);
+              }}
+              title="ליד קר"
+              className={`text-xs font-bold px-2 py-1 rounded-lg transition ${
+                lead.priority === 'cold' ? 'bg-sky-500 text-white' : 'bg-white/15 text-white/80 hover:bg-white/25'
+              }`}
+            >
+              ❄️ קר{lead.priority === 'cold' ? ' ✓' : ''}
             </button>
           </div>
           {lead.avatar_url
@@ -592,7 +640,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
                           href={`tel:${lead.phone}`}
                           className="text-violet-700 hover:underline font-medium"
                           dir="ltr"
-                          onClick={() => api.post(`/leads/${lead.id}/interactions`, { type: 'call', direction: 'outbound', body: '', source: 'dial' }).then(load)}
+                          onClick={() => api.post(`/leads/${lead.id}/interactions`, { type: 'call_attempt', direction: 'outbound', body: '', source: 'dial' }).then(load)}
                         >{lead.phone}</a>
                       ) : '—'}
                     </InfoRow>
@@ -602,7 +650,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
                     <InfoRow label="מוזמנים">{lead.guest_count || '—'}</InfoRow>
                     <InfoRow label="תקציב">{lead.budget || '—'}</InfoRow>
                     <InfoRow label="אחראי">{lead.assigned_name || '—'}</InfoRow>
-                    <InfoRow label="עדיפות">{lead.priority === 'hot' ? '🔥 חם' : lead.priority === 'urgent' ? '⚡ דחוף' : 'רגיל'}</InfoRow>
+                    <InfoRow label="עדיפות">{lead.priority === 'hot' ? '🔥 חם' : lead.priority === 'urgent' ? '⚡ דחוף' : lead.priority === 'cold' ? '❄️ קר' : 'רגיל'}</InfoRow>
                     <InfoRow label="התקבל ב">{formatFull(lead.created_at)}</InfoRow>
                     <InfoRow label="פעילות אחרונה">{lastActivity ? formatFull(lastActivity) : '—'}</InfoRow>
                   </div>
@@ -816,6 +864,28 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
 
       {showLostModal && <LostModal onClose={() => setShowLostModal(false)} onConfirm={markLost} />}
 
+      {showAddSupplier && (
+        <AddSupplierModal
+          categories={supplierCategories}
+          initial={{ name: lead?.name || '', phone: lead?.phone || '', email: allEmails[0] || lead?.email || '' }}
+          onClose={() => setShowAddSupplier(false)}
+          onCreated={(s) => { setShowAddSupplier(false); setAddSupplierMsg(`"${s?.name || ''}" נוסף לרשימת הספקים`); }}
+        />
+      )}
+
+      {addSupplierMsg && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4" dir="rtl"
+          onClick={() => setAddSupplierMsg('')}>
+          <div className="bg-white rounded-2xl shadow-2xl px-6 py-5 max-w-xs text-center" onClick={e => e.stopPropagation()}>
+            <div className="text-3xl mb-2">✅</div>
+            <p className="text-sm font-bold text-slate-700 mb-4">{addSupplierMsg}</p>
+            <button onClick={() => setAddSupplierMsg('')}
+              className="w-full py-2 rounded-xl font-bold text-white text-sm"
+              style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>סגור</button>
+          </div>
+        </div>
+      )}
+
       {showBrief && (
         <EventBriefModal leadId={leadId} onClose={() => setShowBrief(false)} />
       )}
@@ -904,6 +974,10 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
 function NotesInlineEdit({ leadId, value, onSaved }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft]     = useState(value || '');
+
+  // While editing the note, a back gesture should confirm/cancel the note edit
+  // instead of silently closing the whole lead card and losing the draft.
+  useBackGuard(editing, () => setEditing(false), { isDirty: draft !== (value || '') });
 
   async function save() {
     await api.patch(`/leads/${leadId}`, { notes: draft });
@@ -1402,8 +1476,9 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
   const cls = 'w-full rounded-xl px-3 py-3 text-sm border border-violet-200 focus:border-violet-400 focus:outline-none text-slate-700 bg-white';
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4" dir="rtl">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4" dir="rtl"
+      onClick={() => { if (window.confirm(DIRTY_MSG)) onClose(); }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
 
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">✕</button>
@@ -2245,7 +2320,8 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
   const progressPct = isPreviewStep ? 100 : offerType === '' ? 0 : Math.round((step / totalSteps) * 100);
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4" dir="rtl">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4" dir="rtl"
+      onClick={() => { if (window.confirm(DIRTY_MSG)) onClose(); }}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
 
         {/* Header */}
@@ -3647,7 +3723,7 @@ function EditForm({ form, setForm, users, onSave, onCancel }) {
         <div><label className="text-sm text-slate-500">תקציב</label><input type="text" value={form.budget || ''} onChange={e => set('budget', e.target.value)} className={cls} /></div>
         <div><label className="text-sm text-slate-500">עדיפות</label>
           <select value={form.priority || 'normal'} onChange={e => set('priority', e.target.value)} className={cls}>
-            <option value="normal">רגיל</option><option value="hot">🔥 חם</option><option value="urgent">⚡ דחוף</option>
+            <option value="normal">רגיל</option><option value="hot">🔥 חם</option><option value="urgent">⚡ דחוף</option><option value="cold">❄️ קר</option>
           </select></div>
         <div className="col-span-2"><label className="text-sm text-slate-500">אחראי</label>
           <select value={form.assigned_to || ''} onChange={e => set('assigned_to', e.target.value)} className={cls}>

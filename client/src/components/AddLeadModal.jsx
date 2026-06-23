@@ -192,6 +192,7 @@ export default function AddLeadModal({ onClose, onSaved }) {
                 <option value="normal">רגיל</option>
                 <option value="hot">🔥 חם</option>
                 <option value="urgent">⚡ דחוף</option>
+                <option value="cold">❄️ קר</option>
               </select>
             </Field>
           </div>

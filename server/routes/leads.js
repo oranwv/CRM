@@ -18,14 +18,14 @@ function syncCalendar(leadId, type = 'option', userId = null) {
 }
 
 const STAGE_TABS = {
-  new:           ['new'],
-  in_process:    ['contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent'],
-  active:        ['new','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent'],
+  new:           ['new','new_no_answer'],
+  in_process:    ['contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent','process_no_answer'],
+  active:        ['new','new_no_answer','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent','process_no_answer'],
   closed:        ['deposit','production','completed'],
   in_production: ['deposit','production'],
   event_done:    ['completed'],
   lost:          ['lost'],
-  all_active:    ['new','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent','deposit','production','completed'],
+  all_active:    ['new','new_no_answer','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent','process_no_answer','deposit','production','completed'],
 };
 
 // GET /api/leads?tab=new|in_process|closed|lost  (tab omitted = search all stages)
@@ -33,29 +33,11 @@ router.get('/', async (req, res) => {
   const { tab, search } = req.query;
   const stages = tab ? (STAGE_TABS[tab] || STAGE_TABS.new) : null;
 
-  let query = `
-    SELECT l.*, u.display_name AS assigned_name,
-           (SELECT COUNT(*) FROM tasks t WHERE t.lead_id = l.id AND t.completed_at IS NULL) AS open_tasks,
-           (SELECT COUNT(*) FROM tasks t WHERE t.lead_id = l.id AND t.completed_at IS NULL AND t.due_at IS NOT NULL AND t.due_at <= NOW()) AS overdue_tasks,
-           GREATEST(
-             (SELECT MAX(created_at) FROM lead_interactions WHERE lead_id = l.id),
-             (SELECT MAX(timestamp)  FROM messages           WHERE lead_id = l.id)
-           ) AS last_interaction_at,
-           COALESCE(
-             LEAST(
-               (SELECT MIN(timestamp)  FROM messages           WHERE lead_id = l.id AND direction='inbound'),
-               (SELECT MIN(created_at) FROM lead_interactions  WHERE lead_id = l.id AND direction='inbound')
-             ),
-             l.created_at
-           ) AS received_at,
-           (SELECT COUNT(*) FROM messages WHERE lead_id = l.id AND direction='inbound' AND is_read=false) +
-           (SELECT COUNT(*) FROM lead_interactions WHERE lead_id = l.id AND direction='inbound' AND is_read=false) AS unread_count
-    FROM leads l
-    LEFT JOIN users u ON u.id = l.assigned_to
-  `;
-
   const conditions = [];
   const params = [];
+  // Relevance score expression, populated for a free-text (non-date) search so the
+  // most likely lead floats to the top. 0 otherwise (falls back to date ordering).
+  let rankSelect = '0 AS search_rank';
 
   if (stages) {
     const placeholders = stages.map((_, i) => `$${i + 1}`).join(',');
@@ -89,11 +71,43 @@ router.get('/', async (req, res) => {
         )`;
       }
       conditions.push(`(l.name ILIKE $${likeIdx} OR l.phone ILIKE $${likeIdx} OR l.email ILIKE $${likeIdx} OR l.event_name ILIKE $${likeIdx} OR l.event_type ILIKE $${likeIdx} OR l.notes ILIKE $${likeIdx}${phoneNormCondition})`);
+      // Rank: a hit on the lead/event name is the most likely intended lead; a hit
+      // only in the free-text notes is the least likely. Contact fields sit between.
+      rankSelect = `(
+        (CASE WHEN l.name       ILIKE $${likeIdx} THEN 100 ELSE 0 END) +
+        (CASE WHEN l.event_name ILIKE $${likeIdx} THEN 80  ELSE 0 END) +
+        (CASE WHEN l.phone      ILIKE $${likeIdx} THEN 60  ELSE 0 END) +
+        (CASE WHEN l.email      ILIKE $${likeIdx} THEN 50  ELSE 0 END) +
+        (CASE WHEN l.event_type ILIKE $${likeIdx} THEN 40  ELSE 0 END) +
+        (CASE WHEN l.notes      ILIKE $${likeIdx} THEN 20  ELSE 0 END)
+      ) AS search_rank`;
     }
   }
 
+  let query = `
+    SELECT l.*, u.display_name AS assigned_name,
+           (SELECT COUNT(*) FROM tasks t WHERE t.lead_id = l.id AND t.completed_at IS NULL) AS open_tasks,
+           (SELECT COUNT(*) FROM tasks t WHERE t.lead_id = l.id AND t.completed_at IS NULL AND t.due_at IS NOT NULL AND t.due_at <= NOW()) AS overdue_tasks,
+           GREATEST(
+             (SELECT MAX(created_at) FROM lead_interactions WHERE lead_id = l.id),
+             (SELECT MAX(timestamp)  FROM messages           WHERE lead_id = l.id)
+           ) AS last_interaction_at,
+           COALESCE(
+             LEAST(
+               (SELECT MIN(timestamp)  FROM messages           WHERE lead_id = l.id AND direction='inbound'),
+               (SELECT MIN(created_at) FROM lead_interactions  WHERE lead_id = l.id AND direction='inbound')
+             ),
+             l.created_at
+           ) AS received_at,
+           (SELECT COUNT(*) FROM messages WHERE lead_id = l.id AND direction='inbound' AND is_read=false) +
+           (SELECT COUNT(*) FROM lead_interactions WHERE lead_id = l.id AND direction='inbound' AND is_read=false) AS unread_count,
+           ${rankSelect}
+    FROM leads l
+    LEFT JOIN users u ON u.id = l.assigned_to
+  `;
+
   if (conditions.length) query += ' WHERE ' + conditions.join(' AND ');
-  query += ' ORDER BY received_at DESC';
+  query += ' ORDER BY search_rank DESC, received_at DESC';
   try {
     const { rows } = await pool.query(query, params);
     res.json(rows);
@@ -130,12 +144,12 @@ router.get('/:id', async (req, res) => {
 
 // POST /api/leads — manual creation
 router.post('/', async (req, res) => {
-  const { name, phone, email, event_name, event_date, event_time, event_end_time, event_type, guest_count, budget, source = 'manual', notes, assigned_to, priority = 'normal' } = req.body;
+  const { name, phone, email, event_name, event_date, event_date_text, event_time, event_end_time, event_type, guest_count, budget, source = 'manual', notes, assigned_to, priority = 'normal' } = req.body;
   try {
     const { rows } = await pool.query(
-      `INSERT INTO leads (name, phone, email, event_name, event_date, event_time, event_end_time, event_type, guest_count, budget, source, notes, assigned_to, priority, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
-      [name, phone, email, event_name || name, event_date || null, event_time || null, event_end_time || null, event_type, guest_count, budget, source, notes, assigned_to || null, priority, req.user.id]
+      `INSERT INTO leads (name, phone, email, event_name, event_date, event_date_text, event_time, event_end_time, event_type, guest_count, budget, source, notes, assigned_to, priority, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
+      [name, phone, email, event_name || name, event_date || null, event_date_text || null, event_time || null, event_end_time || null, event_type, guest_count, budget, source, notes, assigned_to || null, priority, req.user.id]
     );
     const lead = rows[0];
     // Auto-create Google Calendar event as "option" if event_date set
@@ -178,10 +192,11 @@ router.patch('/:id', async (req, res) => {
     // Log stage change to timeline
     if (oldStage && lead.stage !== oldStage) {
       const STAGE_NAMES = {
-        new:'חדש', contacted:'בוצעה שיחה ראשונית',
+        new:'חדש', new_no_answer:'חדש ולא עונה', contacted:'בוצעה שיחה ראשונית',
         meeting_scheduled:'נקבעה פגישה', meeting:'בוצעה פגישה',
         offer_sent:'נשלחה הצעת מחיר', negotiation:'מו"מ',
-        contract_sent:'נשלח חוזה', deposit:'התקבלה מקדמה', production:'הפקה', completed:'אירוע הסתיים והתקבל תשלום', lost:'אבוד'
+        contract_sent:'נשלח חוזה', process_no_answer:'בתהליך ונעלם / לא עונה',
+        deposit:'התקבלה מקדמה', production:'הפקה', completed:'אירוע הסתיים והתקבל תשלום', lost:'אבוד'
       };
       const from = STAGE_NAMES[oldStage]  || oldStage;
       const to   = STAGE_NAMES[lead.stage] || lead.stage;

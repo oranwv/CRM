@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 
-// Confirm message shown when a dirty overlay is about to be closed by a back gesture.
-const DIRTY_MSG = 'יש שינויים לא שמורים, לצאת?';
+// Confirm message shown when a dirty overlay is about to be closed (back gesture or
+// clicking outside the window). Exported so close buttons / backdrops use the same text.
+export const DIRTY_MSG = 'האם אתה בטוח שאתה רוצה לסגור את החלון?';
 
 // Module-level stack of currently-armed guards (LIFO). Only the topmost guard
 // reacts to a real "back" gesture, so nested overlays close one at a time.

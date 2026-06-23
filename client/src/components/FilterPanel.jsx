@@ -1,10 +1,11 @@
 import { useState } from 'react';
 
 const STAGE_LABELS = {
-  new: 'חדש', contacted: 'בוצעה שיחה ראשונית',
+  new: 'חדש', new_no_answer: 'חדש ולא עונה', contacted: 'בוצעה שיחה ראשונית',
   meeting_scheduled: 'נקבעה פגישה', meeting: 'בוצעה פגישה',
   offer_sent: 'נשלחה הצעת מחיר', negotiation: 'מו"מ',
-  contract_sent: 'חוזה נשלח', deposit: 'התקבלה מקדמה',
+  contract_sent: 'חוזה נשלח', process_no_answer: 'בתהליך ונעלם / לא עונה',
+  deposit: 'התקבלה מקדמה',
   production: 'הפקה', lost: 'לא סגרו',
 };
 

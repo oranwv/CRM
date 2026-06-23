@@ -157,8 +157,8 @@ ${extraGuestPrice && Number(extraGuestPrice) > 0
 <h3>${t('includesHeader')}</h3>
 <ul>
   ${tArr('includes').map((item, i) => {
-    const chefIdx = isPackage ? 5 : 3;
-    const barIdx  = isPackage ? 6 : 4;
+    const chefIdx = 5; // 'תפריט שף' line in both regular and package includes arrays
+    const barIdx  = 6; // 'תפריט בר' line
     let text = item;
     if (i === chefIdx && fields.chefMenu) text += ' ' + fields.chefMenu;
     if (i === barIdx  && fields.barMenu)  text += ' ' + fields.barMenu;

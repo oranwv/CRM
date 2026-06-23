@@ -5,6 +5,7 @@ import LeadCard from '../components/LeadCard';
 import AddLeadModal from '../components/AddLeadModal';
 import FilterPanel from '../components/FilterPanel';
 import { useAppMode } from '../context/AppModeContext';
+import { isDesktop } from '../utils/device';
 
 const TABS = [
   { key: 'new',        label: 'חדשים' },
@@ -15,7 +16,7 @@ const TABS = [
 
 // Stage options available in each filter context
 const FILTER_STAGES = {
-  active: ['new','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent'],
+  active: ['new','new_no_answer','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent','process_no_answer'],
   closed: ['deposit','production'],
   lost:   ['lost'],
 };
@@ -29,19 +30,21 @@ const SOURCE_LABELS = {
 
 const STAGE_STYLES = {
   new:               { label: 'חדש',                 cls: 'bg-sky-100 text-sky-700 border border-sky-200' },
+  new_no_answer:     { label: 'חדש ולא עונה',        cls: 'bg-slate-100 text-slate-600 border border-slate-200' },
   contacted:         { label: 'בוצעה שיחה ראשונית', cls: 'bg-amber-100 text-amber-700 border border-amber-200' },
   meeting_scheduled: { label: 'נקבעה פגישה',        cls: 'bg-fuchsia-100 text-fuchsia-700 border border-fuchsia-200' },
   meeting:           { label: 'בוצעה פגישה',         cls: 'bg-violet-100 text-violet-700 border border-violet-200' },
   offer_sent:        { label: 'נשלחה הצעת מחיר',    cls: 'bg-blue-100 text-blue-700 border border-blue-200' },
   negotiation:       { label: 'מו"מ',                cls: 'bg-orange-100 text-orange-700 border border-orange-200' },
   contract_sent:     { label: 'חוזה נשלח',           cls: 'bg-indigo-100 text-indigo-700 border border-indigo-200' },
+  process_no_answer: { label: 'בתהליך ונעלם / לא עונה', cls: 'bg-zinc-100 text-zinc-600 border border-zinc-200' },
   deposit:           { label: 'התקבלה מקדמה',        cls: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
   production:        { label: 'הפקה',                cls: 'bg-teal-100 text-teal-700 border border-teal-200' },
   lost:              { label: 'לא סגרו',             cls: 'bg-red-100 text-red-600 border border-red-200' },
 };
 
-const PRIORITY_ICONS = { normal: '', hot: '🔥', urgent: '⚡' };
-const PRIORITY_ORDER = { urgent: 0, hot: 1, normal: 2 };
+const PRIORITY_ICONS = { normal: '', hot: '🔥', urgent: '⚡', cold: '❄️' };
+const PRIORITY_ORDER = { urgent: 0, hot: 1, normal: 2, cold: 3 };
 
 const SOURCE_COLORS = {
   website_popup: 'bg-violet-100 text-violet-700',
@@ -222,6 +225,9 @@ export default function LeadsPage() {
   }, [leads, tab, activeFilter, closedFilter, lostFilter, debouncedSearch]);
 
   const sortedLeads = useMemo(() => {
+    // In search mode keep the server's relevance order (most likely match first);
+    // don't re-sort by priority/column or the best match could sink down the list.
+    if (debouncedSearch) return filteredLeads;
     return [...filteredLeads].sort((a, b) => {
       const pa = PRIORITY_ORDER[a.priority] ?? 2;
       const pb = PRIORITY_ORDER[b.priority] ?? 2;
@@ -234,7 +240,7 @@ export default function LeadsPage() {
       const cmp = av < bv ? -1 : av > bv ? 1 : 0;
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [filteredLeads, sortCol, sortDir]);
+  }, [filteredLeads, sortCol, sortDir, debouncedSearch]);
 
   function SortIcon({ col }) {
     if (sortCol !== col) return <span className="opacity-30 ml-0.5">↕</span>;
@@ -304,7 +310,7 @@ export default function LeadsPage() {
       <div className={`px-4 pb-2 ${!debouncedSearch && !inActiveFilterMode ? '' : 'pt-4'}`}>
         <input
           type="text"
-          placeholder="חיפוש לפי שם, טלפון, אימייל או תאריך אירוע (DD.MM.YYYY)..."
+          placeholder="חיפוש לפי שם, טלפון, אימייל, הערות בכרטיס או תאריך (DD.MM.YYYY)..."
           value={search}
           onChange={e => setSearch(e.target.value)}
           className="w-full border border-violet-200 bg-violet-50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 transition"
@@ -409,7 +415,11 @@ export default function LeadsPage() {
                 {sortedLeads.map((lead, idx) => (
                   <tr
                     key={lead.id}
-                    onClick={() => { setSelectedId(lead.id); setOpenLeadId(lead.id); }}
+                    onClick={() => {
+                      // Desktop: open the lead in its own browser tab; mobile: in-page overlay.
+                      if (isDesktop()) window.open(`/leads/${lead.id}`, '_blank');
+                      else { setSelectedId(lead.id); setOpenLeadId(lead.id); }
+                    }}
                     className="hover:bg-violet-50/40 cursor-pointer transition"
                   >
                     <td className="px-2 py-3 text-slate-400 font-medium">{idx + 1}</td>
@@ -441,7 +451,12 @@ export default function LeadsPage() {
                     <td className="px-2 py-3 text-slate-500"><DateTimeCell value={lead.received_at} /></td>
                     <td className="px-2 py-3 text-slate-600" dir="ltr" style={{ textAlign: 'left' }}>
                       {lead.phone ? (
-                        <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()}
+                        <a href={`tel:${lead.phone}`}
+                           onClick={e => {
+                             e.stopPropagation();
+                             // Log a dial attempt in the lead's activity timeline.
+                             api.post(`/leads/${lead.id}/interactions`, { type: 'call_attempt', direction: 'outbound', source: 'dial' }).catch(() => {});
+                           }}
                            className="text-violet-700 hover:underline font-medium">
                           {lead.phone}
                         </a>
