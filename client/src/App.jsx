@@ -20,6 +20,7 @@ import AIChat           from './components/AIChat';
 import PendingDocsModal  from './components/PendingDocsModal';
 import { docTypeLabel }   from './utils/docTypes';
 import { AppModeProvider, useAppMode } from './context/AppModeContext';
+import usePresencePing from './hooks/usePresencePing';
 import api from './api';
 
 function PrivateRoute({ children }) {
@@ -271,6 +272,7 @@ function RootRedirect() {
 
 function AppRoutes() {
   const [calendarOpenLead, setCalendarOpenLead] = useState(null);
+  usePresencePing(); // track connected-hours heartbeat (no-op on public routes)
 
   return (
     <>

@@ -224,6 +224,17 @@ pool.query(`
     CHECK (type IN ('call','call_attempt','meeting','note','email','whatsapp','facebook','instagram'));
 `).catch(err => console.error('[DB] interaction type constraint migration error:', err.message));
 
+// Presence sessions for "connected hours" tracking (heartbeat pings).
+pool.query(`
+  CREATE TABLE IF NOT EXISTS user_sessions (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    started_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_ping_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS idx_user_sessions_user_time ON user_sessions(user_id, last_ping_at);
+`).catch(err => console.error('[DB] user_sessions migration error:', err.message));
+
 pool.query(`
   ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_source_check;
   ALTER TABLE leads ADD CONSTRAINT leads_source_check
@@ -460,6 +471,7 @@ app.get('/api/drive/debug',         driveDebugHandler);
 app.use('/api/drive',               requireAuth, driveRoutes);
 app.use('/api/users',               requireAuth, usersRoutes);
 app.use('/api/analytics',           requireAuth, analyticsRoutes);
+app.use('/api/presence',            requireAuth, require('./routes/presence'));
 app.use('/api/suppliers',           requireAuth, require('./routes/suppliers'));
 app.use('/api/operations',          requireAuth, operationsRoutes);
 app.use('/api/greeninvoice',        requireAuth, require('./routes/greeninvoice'));

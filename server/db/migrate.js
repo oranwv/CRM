@@ -139,6 +139,14 @@ CREATE TABLE IF NOT EXISTS drive_cached_files (
   public_url TEXT,
   synced_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS user_sessions (
+  id SERIAL PRIMARY KEY,
+  user_id INT REFERENCES users(id) ON DELETE CASCADE,
+  started_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_ping_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user_time ON user_sessions(user_id, last_ping_at);
 `;
 
 (async () => {

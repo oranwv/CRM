@@ -94,68 +94,181 @@ router.get('/overview', async (req, res) => {
   }
 });
 
-// GET /api/analytics/employee-activity?date=YYYY-MM-DD
+const METRIC_KEYS = [
+  'calls_made', 'calls_documented', 'meetings_done', 'meetings_documented',
+  'notes', 'wa_sent', 'tasks_created', 'tasks_completed', 'leads_created', 'files_uploaded',
+];
+const SESSION_GAP_SEC = 2 * 60 * 60; // a gap > 2h ends a work session
+
+// Sum the spans (last−first) of each session, splitting on idle gaps > 2h.
+function sessionSeconds(epochs) {
+  if (!epochs.length) return 0;
+  epochs.sort((a, b) => a - b);
+  let total = 0, start = epochs[0], prev = epochs[0];
+  for (let i = 1; i < epochs.length; i++) {
+    if (epochs[i] - prev > SESSION_GAP_SEC) { total += prev - start; start = epochs[i]; }
+    prev = epochs[i];
+  }
+  return total + (prev - start);
+}
+
+// GET /api/analytics/employee-activity?from=YYYY-MM-DD&to=YYYY-MM-DD  (date= also accepted)
+// Returns per-user range summary + per-day breakdown, including "connected hours"
+// computed from presence heartbeats (tracked) or, for days without heartbeat data,
+// estimated from action timestamps with 2h session-gap splitting.
 router.get('/employee-activity', async (req, res) => {
   const roles = req.user.roles || [req.user.role];
   if (!roles.some(r => ['admin', 'manager'].includes(r))) return res.status(403).json({ error: 'Forbidden' });
   try {
-    const date = req.query.date || new Date().toISOString().slice(0, 10);
-    const { rows } = await pool.query(`
-      SELECT
-        u.id, u.display_name, u.role,
-        (SELECT COUNT(*) FROM lead_interactions
-         WHERE created_by = u.id AND type = 'call' AND direction = 'outbound' AND source = 'dial'
-         AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS calls_made,
-        (SELECT COUNT(*) FROM lead_interactions
-         WHERE created_by = u.id AND type = 'call' AND direction = 'outbound' AND (source IS NULL OR source != 'dial')
-         AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS calls_documented,
-        (SELECT COUNT(*) FROM lead_interactions
-         WHERE created_by = u.id AND type = 'meeting' AND source = 'calendar'
-         AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS meetings_done,
-        (SELECT COUNT(*) FROM lead_interactions
-         WHERE created_by = u.id AND type = 'meeting' AND (source IS NULL OR source != 'calendar')
-         AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS meetings_documented,
-        (SELECT COUNT(*) FROM lead_interactions
-         WHERE created_by = u.id AND type = 'note'
-         AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS notes,
-        (SELECT COUNT(*) FROM messages
-         WHERE sent_by = u.id AND direction = 'outbound'
-         AND DATE(timestamp AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS wa_sent,
-        (SELECT COUNT(*) FROM tasks
-         WHERE created_by = u.id
-         AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS tasks_created,
-        (SELECT COUNT(*) FROM tasks
-         WHERE assigned_to = u.id AND completed_at IS NOT NULL
-         AND DATE(completed_at AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS tasks_completed,
-        (SELECT COUNT(*) FROM leads
-         WHERE created_by = u.id
-         AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS leads_created,
-        (SELECT COUNT(*) FROM files
-         WHERE uploaded_by = u.id
-         AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date) AS files_uploaded,
-        (SELECT TO_CHAR(MIN(ts) AT TIME ZONE 'Asia/Jerusalem', 'HH24:MI') FROM (
-          SELECT created_at AS ts FROM lead_interactions WHERE created_by = u.id AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date
-          UNION ALL
-          SELECT timestamp AS ts FROM messages WHERE sent_by = u.id AND direction = 'outbound' AND DATE(timestamp AT TIME ZONE 'Asia/Jerusalem') = $1::date
-          UNION ALL
-          SELECT created_at AS ts FROM tasks WHERE created_by = u.id AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date
-          UNION ALL
-          SELECT completed_at AS ts FROM tasks WHERE assigned_to = u.id AND completed_at IS NOT NULL AND DATE(completed_at AT TIME ZONE 'Asia/Jerusalem') = $1::date
-        ) t) AS first_activity,
-        (SELECT TO_CHAR(MAX(ts) AT TIME ZONE 'Asia/Jerusalem', 'HH24:MI') FROM (
-          SELECT created_at AS ts FROM lead_interactions WHERE created_by = u.id AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date
-          UNION ALL
-          SELECT timestamp AS ts FROM messages WHERE sent_by = u.id AND direction = 'outbound' AND DATE(timestamp AT TIME ZONE 'Asia/Jerusalem') = $1::date
-          UNION ALL
-          SELECT created_at AS ts FROM tasks WHERE created_by = u.id AND DATE(created_at AT TIME ZONE 'Asia/Jerusalem') = $1::date
-          UNION ALL
-          SELECT completed_at AS ts FROM tasks WHERE assigned_to = u.id AND completed_at IS NOT NULL AND DATE(completed_at AT TIME ZONE 'Asia/Jerusalem') = $1::date
-        ) t) AS last_activity
-      FROM users u
-      WHERE u.role IN ('admin','manager','sales','production')
-      ORDER BY u.display_name
-    `, [date]);
-    res.json(rows);
+    const today = new Date().toISOString().slice(0, 10);
+    const from = req.query.from || req.query.date || today;
+    const to   = req.query.to   || req.query.date || from;
+    const params = [from, to];
+
+    // Per (user, day, metric) counts.
+    const metricsQ = pool.query(`
+      SELECT uid, to_char(d, 'YYYY-MM-DD') AS day, metric, COUNT(*)::int AS cnt
+      FROM (
+        SELECT created_by AS uid, (created_at AT TIME ZONE 'Asia/Jerusalem')::date AS d, 'calls_made'::text AS metric
+          FROM lead_interactions WHERE created_by IS NOT NULL AND type='call' AND direction='outbound' AND source='dial'
+        UNION ALL
+        SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'calls_documented'
+          FROM lead_interactions WHERE created_by IS NOT NULL AND type='call' AND direction='outbound' AND (source IS NULL OR source<>'dial')
+        UNION ALL
+        SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'meetings_done'
+          FROM lead_interactions WHERE created_by IS NOT NULL AND type='meeting' AND source='calendar'
+        UNION ALL
+        SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'meetings_documented'
+          FROM lead_interactions WHERE created_by IS NOT NULL AND type='meeting' AND (source IS NULL OR source<>'calendar')
+        UNION ALL
+        SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'notes'
+          FROM lead_interactions WHERE created_by IS NOT NULL AND type='note'
+        UNION ALL
+        SELECT sent_by, (timestamp AT TIME ZONE 'Asia/Jerusalem')::date, 'wa_sent'
+          FROM messages WHERE sent_by IS NOT NULL AND direction='outbound'
+        UNION ALL
+        SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'tasks_created'
+          FROM tasks WHERE created_by IS NOT NULL
+        UNION ALL
+        SELECT assigned_to, (completed_at AT TIME ZONE 'Asia/Jerusalem')::date, 'tasks_completed'
+          FROM tasks WHERE assigned_to IS NOT NULL AND completed_at IS NOT NULL
+        UNION ALL
+        SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'leads_created'
+          FROM leads WHERE created_by IS NOT NULL
+        UNION ALL
+        SELECT uploaded_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'files_uploaded'
+          FROM files WHERE uploaded_by IS NOT NULL
+      ) ev
+      WHERE d BETWEEN $1::date AND $2::date
+      GROUP BY uid, d, metric
+    `, params);
+
+    // All per-user action timestamps in range → first/last activity + estimated hours.
+    const actionsQ = pool.query(`
+      SELECT uid,
+             to_char((ts AT TIME ZONE 'Asia/Jerusalem')::date, 'YYYY-MM-DD') AS day,
+             to_char(ts AT TIME ZONE 'Asia/Jerusalem', 'HH24:MI') AS hhmm,
+             EXTRACT(EPOCH FROM ts)::bigint AS epoch
+      FROM (
+        SELECT created_by AS uid, created_at AS ts FROM lead_interactions WHERE created_by IS NOT NULL
+        UNION ALL SELECT sent_by, timestamp FROM messages WHERE sent_by IS NOT NULL AND direction='outbound'
+        UNION ALL SELECT created_by, created_at FROM tasks WHERE created_by IS NOT NULL
+        UNION ALL SELECT assigned_to, completed_at FROM tasks WHERE assigned_to IS NOT NULL AND completed_at IS NOT NULL
+        UNION ALL SELECT uploaded_by, created_at FROM files WHERE uploaded_by IS NOT NULL
+        UNION ALL SELECT created_by, created_at FROM leads WHERE created_by IS NOT NULL
+        UNION ALL SELECT created_by, created_at FROM supplier_interactions WHERE created_by IS NOT NULL
+        UNION ALL SELECT created_by, created_at FROM op_activity_log WHERE created_by IS NOT NULL
+        UNION ALL SELECT created_by, created_at FROM calendar_events WHERE created_by IS NOT NULL
+        UNION ALL SELECT checked_by, checked_at FROM production_checklist WHERE checked_by IS NOT NULL
+        UNION ALL SELECT updated_by, updated_at FROM event_briefs WHERE updated_by IS NOT NULL
+        UNION ALL SELECT created_by, created_at FROM contracts WHERE created_by IS NOT NULL
+      ) e
+      WHERE ts IS NOT NULL AND (ts AT TIME ZONE 'Asia/Jerusalem')::date BETWEEN $1::date AND $2::date
+      ORDER BY uid, epoch
+    `, params);
+
+    // Presence heartbeat sessions overlapping range (bucketed by start day).
+    const sessionsQ = pool.query(`
+      SELECT user_id AS uid,
+             to_char((started_at AT TIME ZONE 'Asia/Jerusalem')::date, 'YYYY-MM-DD') AS day,
+             EXTRACT(EPOCH FROM started_at)::bigint   AS start_epoch,
+             EXTRACT(EPOCH FROM last_ping_at)::bigint AS end_epoch
+      FROM user_sessions
+      WHERE (started_at AT TIME ZONE 'Asia/Jerusalem')::date BETWEEN $1::date AND $2::date
+    `, params);
+
+    const usersQ = pool.query(`
+      SELECT id, display_name, role FROM users
+      WHERE role IN ('admin','manager','sales','production') ORDER BY display_name
+    `);
+
+    const [metrics, actions, sessions, users] = await Promise.all([metricsQ, actionsQ, sessionsQ, usersQ]);
+
+    // day map per user: uid -> day -> { metrics..., first_activity, last_activity, hours, hours_source }
+    const byUser = new Map();
+    const dayOf = (uid, day) => {
+      if (!byUser.has(uid)) byUser.set(uid, new Map());
+      const days = byUser.get(uid);
+      if (!days.has(day)) {
+        const o = { date: day, first_activity: null, last_activity: null, hours: 0, hours_source: null };
+        METRIC_KEYS.forEach(k => { o[k] = 0; });
+        days.set(day, o);
+      }
+      return days.get(day);
+    };
+
+    metrics.rows.forEach(r => { dayOf(r.uid, r.day)[r.metric] = r.cnt; });
+
+    // first/last activity + estimated session hours from action timestamps.
+    const actByUserDay = new Map(); // "uid|day" -> { epochs:[], first, last }
+    actions.rows.forEach(r => {
+      const key = `${r.uid}|${r.day}`;
+      if (!actByUserDay.has(key)) actByUserDay.set(key, { uid: r.uid, day: r.day, epochs: [], first: r.hhmm, last: r.hhmm });
+      const a = actByUserDay.get(key);
+      a.epochs.push(Number(r.epoch));
+      a.last = r.hhmm; // rows ordered by epoch asc
+    });
+    actByUserDay.forEach(a => {
+      const d = dayOf(a.uid, a.day);
+      d.first_activity = a.first;
+      d.last_activity  = a.last;
+      d.estimated_hours = sessionSeconds(a.epochs) / 3600;
+    });
+
+    // tracked hours from heartbeat sessions (also create the day so presence-only
+    // days — user connected but logged no actions — still show up).
+    const hbByUserDay = new Map(); // "uid|day" -> seconds
+    sessions.rows.forEach(r => {
+      dayOf(r.uid, r.day);
+      const key = `${r.uid}|${r.day}`;
+      hbByUserDay.set(key, (hbByUserDay.get(key) || 0) + (Number(r.end_epoch) - Number(r.start_epoch)));
+    });
+
+    // resolve hours per (user, day): tracked if heartbeat exists, else estimated.
+    byUser.forEach((days, uid) => {
+      days.forEach((d, day) => {
+        const tracked = hbByUserDay.get(`${uid}|${day}`);
+        if (tracked != null) { d.hours = +(tracked / 3600).toFixed(2); d.hours_source = 'tracked'; }
+        else { d.hours = +((d.estimated_hours || 0)).toFixed(2); d.hours_source = (d.estimated_hours ? 'estimated' : null); }
+        delete d.estimated_hours;
+      });
+    });
+
+    // assemble per-user response with totals.
+    const result = users.rows.map(u => {
+      const days = byUser.has(u.id) ? Array.from(byUser.get(u.id).values()) : [];
+      days.sort((a, b) => (a.date < b.date ? 1 : -1)); // newest first
+      const totals = { hours: 0 };
+      METRIC_KEYS.forEach(k => { totals[k] = 0; });
+      days.forEach(d => {
+        METRIC_KEYS.forEach(k => { totals[k] += d[k]; });
+        totals.hours += d.hours;
+      });
+      totals.hours = +totals.hours.toFixed(2);
+      return { id: u.id, display_name: u.display_name, role: u.role, totals, days };
+    });
+
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
