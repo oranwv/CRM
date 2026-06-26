@@ -1158,6 +1158,71 @@ function EditableCell({ value, onChange, multiline, dir: cellDir }) {
 }
 
 
+// English contract defaults. Legal clauses are curated PLACEHOLDERS — replace the
+// covered ones with the owner's official English wording (editable in the preview).
+const CONTRACT_TEXTS_EN = {
+  title: 'Event Booking Agreement',
+  whereas1: 'Whereas: the Vendor is the exclusive holder and operator of the "Sharabiya" events venue located in Tel Aviv–Yafo (hereinafter: "the events hall");',
+  whereas2: 'And whereas: the Orderer wishes to order from the Vendor its services, all as detailed in this agreement;',
+  therefore: 'Therefore it has been agreed between the parties as follows:',
+  preamble: 'The preamble to this agreement and all appendices, whether attached at the time of signing this agreement or attached to it in the future, form an integral part hereof.',
+  includesHeader: 'The price includes:',
+  includes: [
+    'Setup crew', 'Operations crew', 'Event manager and accompaniment throughout the process',
+    'Waiters', 'Bartenders + bar manager',
+    'Chef menu', 'Bar menu',
+    'Security', 'Cleaning crew',
+    'Projector for wall projection (computer and HDMI cable not included)',
+    'Stage and DJ booth setup', 'Microphone',
+    'Sound and lighting system including operation throughout the event',
+    'Venue styling — knights’ tables with white tablecloths, decorative vases, alternative seating areas including sofas, high bar tables, low tables, antique wine barrels',
+  ],
+  paymentHeader: 'Payment terms:',
+  depositLine: 'Upon signing this agreement, a deposit shall be paid in the amount of',
+  depositAmtLabel: null, depositPctLabel: null,
+  depositSuffix: 'excl. VAT. Total incl. VAT',
+  depositAmtVatLabel: null,
+  remainderLine: 'On the event day, before the event begins, the balance shall be paid in the amount of',
+  remainderAmtLabel: null,
+  remainderSuffix: 'incl. VAT',
+  checkNote: 'Alternatively — a security cheque for the above amount may be brought at the start of the event.',
+  paymentNote: 'Please note that without the above, the event manager will not begin or hold the event!',
+  cancellationHeader: 'Event cancellation:',
+  cancellationItems: [
+    'In the event of a Home Front Command / force majeure prohibition that prevents holding the event — the parties agreed to postpone the event to another date no later than',
+    'In case of cancellation less than two months before the event date — the Orderer will be charged a cancellation fee of 50% of the total amount.',
+    'In case of cancellation less than one month and up to one week before the event date — the Orderer will be charged a cancellation fee of 75% of the total amount.',
+    'In case of cancellation less than one week before the event date — the Orderer will be charged the full cancellation fee.',
+  ],
+  obligationsHeader: 'Obligations and declarations of the parties:',
+  obligations: [
+    'The hall and its parts shall serve the client for holding the event. The Vendor undertakes to allow the Orderer to hold the event at the hall on the date detailed above.',
+    'The Vendor shall provide the hall to the Orderer clean and tidy.',
+    'The Orderer declares that the event hours have been brought to their knowledge and agrees that the event will be held only within the activity hours detailed above.',
+    'The Orderer declares that they are solely responsible for their actions and/or the actions of service providers ordered by them, except for service providers on the Vendor’s recommended list.',
+    'In addition, the Orderer is responsible by law for the actions of their guests and shall compensate the Vendor, following a final judgment, for any damage caused by an act or omission of any of the above.',
+    'It is hereby clarified that the Vendor is not responsible for any equipment and/or personal belongings left by anyone on the Orderer’s behalf on the hall premises.',
+    'The Orderer is aware that fireworks of any kind may not be used anywhere on the site, including parking, and that scattering decorations such as confetti may not be used.',
+    'The volume of the music played at the event shall not exceed what is permitted by law.',
+    'The Orderer knows, agrees, confirms and understands that the events hall has an unequivocal instruction prohibiting smoking inside it under the law prohibiting smoking in public places, and that there are designated smoking areas.',
+    'It is the client’s responsibility to pay ACUM at the venue.',
+  ],
+  legalParagraphs: [
+    'For the avoidance of doubt, if the Orderer fails to appear for settlement as stated in this section, the Vendor may act by all means available to it under the law to collect the event amount.',
+    'The Orderer has reviewed and examined all the terms specified in this agreement and agreed to all its sections. Any change, addition or deletion from this agreement shall have no force or effect unless made in writing and signed by both parties to this agreement.',
+    'The parties expressly declare that this agreement does not create between the parties any agency and/or mandate and/or partnership relationship of any kind.',
+    'No waiver, discount, failure to act in time, or grant of extension shall be deemed a waiver by any party to this agreement of any of its rights.',
+  ],
+  paymentExtras: [],
+};
+const CONTRACT_ROWS_EN = [
+  { id: 1, label: 'Per-guest price', desc: 'Includes venue rental, catering menu, bar menu', qty: 0, price: 395 },
+  { id: 2, label: 'Waiter service', desc: '', qty: 1, price: 500 },
+  { id: 3, label: 'Bartender service', desc: '', qty: 1, price: 550 },
+  { id: 4, label: 'Event manager / catering service', desc: 'service', qty: 1, price: 900 },
+  { id: 5, label: 'Lighting & sound + operation throughout the event', desc: '', qty: 1, price: 0 },
+];
+
 function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLabels = {}, onClose, onSaved }) {
   const fmtNum = n => Number(n || 0).toLocaleString('he-IL');
 
@@ -1218,6 +1283,10 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
     packageExtraGuestPrice: '',
   });
   const [contractType, setContractType] = useState(null); // null | 'regular' | 'package'
+  const [language, setLanguage]               = useState('he'); // 'he' | 'en'
+  const [languageSelected, setLanguageSelected] = useState(false);
+  const [translating, setTranslating]         = useState(false);
+  const translatedRef = useRef(false);
   const [newInclude, setNewInclude]       = useState('');
   const [newCancellation, setNewCancellation] = useState('');
   const [newObligation, setNewObligation]     = useState('');
@@ -1358,8 +1427,67 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
   const depositAmountVat = Math.round(depositAmount * 1.18);
   const remainingBalance = total - depositAmountVat;
   const cancellationDate = fields.eventDate
-    ? (() => { const d = new Date(fields.eventDate + 'T12:00:00'); d.setMonth(d.getMonth() + 6); return d.toLocaleDateString('he-IL'); })()
+    ? (() => { const d = new Date(fields.eventDate + 'T12:00:00'); d.setMonth(d.getMonth() + 6); return d.toLocaleDateString(language === 'en' ? 'en-GB' : 'he-IL'); })()
     : '';
+
+  // English/Hebrew document presentation helpers.
+  const en  = language === 'en';
+  const cur = en ? 'NIS' : 'ש"ח';
+  const docDir = en ? 'ltr' : 'rtl';
+  const mark = (s) => en ? s : ('‫' + s + '‬');
+  const CL = en ? {
+    eventH: 'The Event:', eventDateL: 'Event date:', venueL: 'Venue: Sharabiya, 3 Rabbi Pinchas Ben Yair St., Tel Aviv–Yafo',
+    startL: 'Start time:', endL: 'End time:', costsH: 'Costs:',
+    thItem: 'Item', thDesc: 'Description', thQty: 'Qty', thPrice: 'Price', thTotal: 'Total before VAT',
+    subtotal: 'Total subject to VAT:', vat: 'VAT (18%):', total: 'Total to pay:',
+    signConfirm: 'In witness whereof the parties have signed:', ordererNameL: 'Orderer name:', signerNameL: 'Signer name:',
+    ordererSig: 'The Orderer', vendorSig: 'The Vendor',
+    between: 'Between:', idL: 'ID/Company No.:', ordererParen: '(jointly and severally, hereinafter: "the Orderer")',
+    firstParty: 'First party;', andBetween: 'And between:', vendorName: 'Sharabiya, partnership no. 558450383',
+    vendorAddr: 'Marche, 18 Shimon HaTzadik St., Tel Aviv.', vendorParen: '(hereinafter: "the Vendor")', secondParty: 'Second party;',
+    signedOnPre: 'Entered into and signed on ', signedOnMid: ' for an event on ',
+    minGuestsPre: 'This agreement is for holding an event with a minimum of ', minGuestsSuf: ' guests',
+  } : {
+    eventH: 'האירוע:', eventDateL: 'תאריך אירוע:', venueL: 'אולם אירועים: שרביה ברחוב רבי פנחס בן יאיר 3 תל-אביב יפו',
+    startL: 'שעת התחלה:', endL: 'שעת סיום האירוע:', costsH: 'עלויות:',
+    thItem: 'שם הפריט', thDesc: 'תיאור', thQty: 'כמות', thPrice: 'מחיר', thTotal: 'סה"כ לפני מע"מ',
+    subtotal: 'סה"כ חייב במע"מ:', vat: 'מע"מ (18%):', total: 'סה"כ לתשלום:',
+    signConfirm: 'לראיה באו הצדדים על החתום:', ordererNameL: 'שם המזמין:', signerNameL: 'שם החותם:',
+    ordererSig: 'המזמין', vendorSig: 'הספק',
+    between: 'בין:', idL: 'ת.ז/ח.פ:', ordererParen: '(ביחד ולחוד להלן: "המזמין")',
+    firstParty: 'מצד אחד;', andBetween: 'לבין:', vendorName: 'שרביה, מספר שותפות 558450383',
+    vendorAddr: 'מרח\' שמעון הצדיק 18 תל אביב.', vendorParen: '(להלן: "הספק")', secondParty: 'מצד שני;',
+    signedOnPre: 'נערך ונחתם ביום ', signedOnMid: ' לאירוע בתאריך ',
+    minGuestsPre: 'הסכם זה עבור קיום אירוע עם מינימום ', minGuestsSuf: ' אורחים',
+  };
+  const money = (n) => `${fmtNum(n)} ${cur}`;
+
+  function chooseLanguage(lng) {
+    setLanguage(lng);
+    setLanguageSelected(true);
+    if (lng === 'en') {
+      setContractTexts(JSON.parse(JSON.stringify(CONTRACT_TEXTS_EN)));
+      setRows(CONTRACT_ROWS_EN.map(r => ({ ...r })));
+    }
+  }
+
+  // On reaching the English preview, translate free-text inputs (chef/bar menu) to English.
+  useEffect(() => {
+    if (!isPreviewStep || !en || translatedRef.current) return;
+    translatedRef.current = true;
+    const keys = ['chefMenu', 'barMenu'];
+    const isAsciiish = v => /^[\x00-\x7F]*$/.test(v);
+    const todo = keys.filter(k => (fields[k] || '').trim() && !isAsciiish(fields[k]));
+    if (!todo.length) return;
+    setTranslating(true);
+    Promise.all(todo.map(k =>
+      api.post('/ai/translate', { text: fields[k], to: 'en' }).then(({ data }) => [k, data.result]).catch(() => null)
+    )).then(pairs => {
+      const upd = {};
+      pairs.filter(Boolean).forEach(([k, v]) => { upd[k] = v; });
+      if (Object.keys(upd).length) setFields(f => ({ ...f, ...upd }));
+    }).finally(() => setTranslating(false));
+  }, [isPreviewStep, en]);
 
   async function handleSelectType(type) {
     setContractType(type);
@@ -1428,7 +1556,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
     try {
       const calculated = { subtotal, vat, total, depositAmount, depositAmountVat, remainingBalance, cancellationDate };
       const { data } = await api.post(`/leads/${lead.id}/contracts`, {
-        contract_data: { fields, rows, calculated, texts: contractTexts, offerType: contractType },
+        contract_data: { fields, rows, calculated, texts: contractTexts, offerType: contractType, language },
       });
       const url = `${window.location.origin}/sign/${data.token}`;
       setSigningUrl(url);
@@ -1493,8 +1621,24 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
 
         <div className="flex-1 overflow-y-auto p-5">
 
+          {/* Language selection (first) */}
+          {contractType === null && !languageSelected && (
+            <div className="flex flex-col items-center gap-4 py-8">
+              <p className="font-bold text-slate-700 text-base">באיזו שפה להפיק את החוזה?</p>
+              <button onClick={() => chooseLanguage('he')}
+                className="w-full max-w-xs py-4 rounded-2xl font-black text-sm text-white"
+                style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+                עברית
+              </button>
+              <button onClick={() => chooseLanguage('en')}
+                className="w-full max-w-xs py-4 rounded-2xl font-black text-sm border-2 border-violet-400 text-violet-700 bg-white">
+                English
+              </button>
+            </div>
+          )}
+
           {/* Type selection */}
-          {contractType === null && (
+          {contractType === null && languageSelected && (
             <div className="flex flex-col items-center gap-4 py-8">
               <p className="font-bold text-slate-700 text-base">בחר סוג חוזה</p>
               <button onClick={() => handleSelectType('regular')}
@@ -1687,7 +1831,8 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
           {isPreviewStep && !sent && (
             <div>
               <p className="text-xs text-slate-400 text-center mb-3">לחץ על כל טקסט לעריכה</p>
-              <div dir="rtl" style={{ fontFamily: 'Arial, sans-serif', fontSize: '10pt', color: '#222', background: '#fff', padding: '10px', lineHeight: 1.8 }}>
+              {translating && <p className="text-xs text-amber-600 text-center mb-2 font-bold">ממיר לאנגלית…</p>}
+              <div dir={docDir} style={{ fontFamily: 'Arial, sans-serif', fontSize: '10pt', color: '#222', background: '#fff', padding: '10px', lineHeight: 1.8 }}>
 
                 <div style={{ textAlign: 'center', marginBottom: 8 }}>
                   <img src="/logo.jpg" alt="" style={{ height: 60, objectFit: 'contain' }} />
@@ -1697,32 +1842,36 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                   <EditableCell value={contractTexts.title} onChange={v => setTxt('title', v)} />
                 </h2>
 
-                <p>שנערך ונחתם ביום ___ לאירוע בתאריך {fields.eventDate ? new Date(fields.eventDate + 'T12:00:00').toLocaleDateString('he-IL') : '___'}</p>
-                <p>‫בין:‬ ___ &nbsp;&nbsp;&nbsp; ‫ת.ז\ח.פ:‬ ___</p>
-                <p style={{ textAlign: 'left' }}>מצד אחד;</p>
-                <p>לבין:</p>
-                <p>שרביה, מספר שותפות 558450383</p>
-                <p>מרח' שמעון הצדיק 18 תל אביב.</p>
-                <p style={{ textAlign: 'left', marginBottom: 8 }}>מצד שני;</p>
+                <p>{CL.signedOnPre}___{CL.signedOnMid}{fields.eventDate ? new Date(fields.eventDate + 'T12:00:00').toLocaleDateString(en ? 'en-GB' : 'he-IL') : '___'}</p>
+                <p>{mark(CL.between)} ___ &nbsp;&nbsp;&nbsp; {mark(CL.idL)} ___</p>
+                <p style={{ textAlign: en ? 'right' : 'left' }}>{CL.firstParty}</p>
+                <p>{CL.andBetween}</p>
+                <p>{CL.vendorName}</p>
+                <p>{CL.vendorAddr}</p>
+                <p style={{ textAlign: en ? 'right' : 'left', marginBottom: 8 }}>{CL.secondParty}</p>
 
                 <p><EditableCell value={contractTexts.whereas1} onChange={v => setTxt('whereas1', v)} multiline /></p>
                 <p><EditableCell value={contractTexts.whereas2} onChange={v => setTxt('whereas2', v)} multiline /></p>
                 <p style={{ marginBottom: 8 }}><EditableCell value={contractTexts.therefore} onChange={v => setTxt('therefore', v)} /></p>
                 <p style={{ marginBottom: 10 }}><EditableCell value={contractTexts.preamble} onChange={v => setTxt('preamble', v)} multiline /></p>
 
-                <h3 style={{ fontWeight: 'bold', marginTop: 8 }}>האירוע:</h3>
-                <p>תאריך אירוע: <EditableCell value={fields.eventDate ? new Date(fields.eventDate + 'T12:00:00').toLocaleDateString('he-IL') : ''} onChange={v => setField('eventDate', v)} /></p>
-                <p>אולם אירועים: שרביה ברחוב רבי פנחס בן יאיר 3 תל-אביב יפו</p>
-                <p>שעת התחלה: <EditableCell value={fields.startTime} onChange={v => setField('startTime', v)} /></p>
-                <p>שעת סיום האירוע: <EditableCell value={fields.endTime} onChange={v => setField('endTime', v)} /></p>
+                <h3 style={{ fontWeight: 'bold', marginTop: 8 }}>{CL.eventH}</h3>
+                <p>{CL.eventDateL} <EditableCell value={fields.eventDate ? new Date(fields.eventDate + 'T12:00:00').toLocaleDateString(en ? 'en-GB' : 'he-IL') : ''} onChange={v => setField('eventDate', v)} /></p>
+                <p>{CL.venueL}</p>
+                <p>{CL.startL} <EditableCell value={fields.startTime} onChange={v => setField('startTime', v)} /></p>
+                <p>{CL.endL} <EditableCell value={fields.endTime} onChange={v => setField('endTime', v)} /></p>
 
-                <h3 style={{ fontWeight: 'bold', marginTop: 10, marginBottom: 4 }}>עלויות:</h3>
+                <h3 style={{ fontWeight: 'bold', marginTop: 10, marginBottom: 4 }}>{CL.costsH}</h3>
 
                 {isPackage ? (
                   <div style={{ marginBottom: 8 }}>
-                    <p>עלות החבילה עבור <EditableCell value={String(fields.packageGuests || '')} onChange={v => setField('packageGuests', v)} /> אורחים - <EditableCell value={String(fields.packageTotal || '')} onChange={v => setField('packageTotal', v)} /> ש"ח כולל מע"מ</p>
+                    <p>{en
+                      ? <>Package cost for <EditableCell value={String(fields.packageGuests || '')} onChange={v => setField('packageGuests', v)} /> guests - <EditableCell value={String(fields.packageTotal || '')} onChange={v => setField('packageTotal', v)} /> {cur} incl. VAT</>
+                      : <>עלות החבילה עבור <EditableCell value={String(fields.packageGuests || '')} onChange={v => setField('packageGuests', v)} /> אורחים - <EditableCell value={String(fields.packageTotal || '')} onChange={v => setField('packageTotal', v)} /> ש"ח כולל מע"מ</>}</p>
                     {Number(fields.packageExtraGuestPrice) > 0 && (
-                      <p>כל אורח נוסף מעל {fields.packageGuests} אורחים בתוספת של <EditableCell value={String(fields.packageExtraGuestPrice || '')} onChange={v => setField('packageExtraGuestPrice', v)} /> ש"ח כולל מע"מ</p>
+                      <p>{en
+                        ? <>Each additional guest above {fields.packageGuests} guests at <EditableCell value={String(fields.packageExtraGuestPrice || '')} onChange={v => setField('packageExtraGuestPrice', v)} /> {cur} incl. VAT</>
+                        : <>כל אורח נוסף מעל {fields.packageGuests} אורחים בתוספת של <EditableCell value={String(fields.packageExtraGuestPrice || '')} onChange={v => setField('packageExtraGuestPrice', v)} /> ש"ח כולל מע"מ</>}</p>
                     )}
                   </div>
                 ) : (
@@ -1730,7 +1879,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt' }}>
                   <thead>
                     <tr style={{ background: '#f5f5f5' }}>
-                      {['שם הפריט', 'תיאור', 'כמות', 'מחיר', 'סה"כ לפני מע"מ'].map(h => (
+                      {[CL.thItem, CL.thDesc, CL.thQty, CL.thPrice, CL.thTotal].map(h => (
                         <th key={h} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{h}</th>
                       ))}
                       <th style={{ border: '1px solid #ccc', padding: '4px 6px', width: 20 }} />
@@ -1763,26 +1912,27 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                       </tr>
                     ))}
                     <tr>
-                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>‫סה"כ חייב במע"מ:‬</td>
-                      <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center', fontWeight: 'bold' }}>{subtotal.toLocaleString()} ש"ח</td>
+                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>{mark(CL.subtotal)}</td>
+                      <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center', fontWeight: 'bold' }}>{subtotal.toLocaleString()} {cur}</td>
                     </tr>
                     <tr>
-                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right' }}>‫מע"מ (18%):‬</td>
-                      <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{vat.toLocaleString()} ש"ח</td>
+                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right' }}>{mark(CL.vat)}</td>
+                      <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{vat.toLocaleString()} {cur}</td>
                     </tr>
                     <tr style={{ fontWeight: 'bold' }}>
-                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right' }}>‫סה"כ לתשלום:‬</td>
-                      <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{total.toLocaleString()} ש"ח</td>
+                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right' }}>{mark(CL.total)}</td>
+                      <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{total.toLocaleString()} {cur}</td>
                     </tr>
                   </tbody>
                 </table>
 
                 <p style={{ marginTop: 8 }}>
-                  הסכם זה עבור קיום אירוע עם מינימום{' '}
-                  <EditableCell value={String(fields.guests || '')} onChange={v => setField('guests', v)} />{' '}אורחים
+                  {CL.minGuestsPre}<EditableCell value={String(fields.guests || '')} onChange={v => setField('guests', v)} />{CL.minGuestsSuf}
                 </p>
                 {fields.extraGuestPrice && Number(fields.extraGuestPrice) > 0 && (
-                  <p>כל אורח מעל {fields.guests} אורחים בעלות של {Number(fields.extraGuestPrice).toLocaleString()} ש"ח לא כולל מע"מ</p>
+                  <p>{en
+                    ? `Each guest above ${fields.guests} guests at a cost of ${Number(fields.extraGuestPrice).toLocaleString()} ${cur} excl. VAT`
+                    : `כל אורח מעל ${fields.guests} אורחים בעלות של ${Number(fields.extraGuestPrice).toLocaleString()} ${cur} לא כולל מע"מ`}</p>
                 )}
                   </>
                 )}
@@ -1898,15 +2048,15 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                   </p>
                 ))}
 
-                <p style={{ marginTop: 12, fontWeight: 'bold' }}>לראיה באו הצדדים על החתום:</p>
-                <p>שם המזמין: ___</p>
+                <p style={{ marginTop: 12, fontWeight: 'bold' }}>{CL.signConfirm}</p>
+                <p>{CL.ordererNameL} ___</p>
                 <table style={{ width: '100%', marginTop: 16 }}>
                   <tbody><tr>
                     <td style={{ width: '50%', textAlign: 'center', paddingTop: 8 }}>
-                      <div style={{ borderTop: '1px solid #333', paddingTop: 4 }}>המזמין</div>
+                      <div style={{ borderTop: '1px solid #333', paddingTop: 4 }}>{CL.ordererSig}</div>
                     </td>
                     <td style={{ width: '50%', textAlign: 'center', paddingTop: 8 }}>
-                      <div style={{ borderTop: '1px solid #333', paddingTop: 4 }}>הספק</div>
+                      <div style={{ borderTop: '1px solid #333', paddingTop: 4 }}>{CL.vendorSig}</div>
                     </td>
                   </tr></tbody>
                 </table>
@@ -2327,11 +2477,11 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
     if (fields.packageGuests && fields.packagePrice)
       lines.push(en
         ? `Package cost for ${fields.packageGuests} guests - ${Number(fields.packagePrice).toLocaleString()} ${cur} ${vatLabel}`
-        : `עלות החבילה עבור ${fields.packageGuests} אורחים - ${Number(fields.packagePrice).toLocaleString()} ש"ח ${vatLabel}`);
+        : `עלות החבילה עבור ${fields.packageGuests} אורחים - ${Number(fields.packagePrice).toLocaleString()} {cur} ${vatLabel}`);
     if (fields.packageGuests && fields.packageExtraGuestPrice)
       lines.push(en
         ? `Each additional guest above ${fields.packageGuests} guests adds - ${Number(fields.packageExtraGuestPrice).toLocaleString()} ${cur} ${vatLabel}`
-        : `כל אורח נוסף מעל ${fields.packageGuests} אורחים בתוספת של - ${Number(fields.packageExtraGuestPrice).toLocaleString()} ש"ח ${vatLabel}`);
+        : `כל אורח נוסף מעל ${fields.packageGuests} אורחים בתוספת של - ${Number(fields.packageExtraGuestPrice).toLocaleString()} {cur} ${vatLabel}`);
     if (lines.length) setTexts(t => ({ ...t, packageCostLines: lines }));
   }, [isPreviewStep]);
 
@@ -2540,7 +2690,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
                 className="w-full border-2 border-amber-300 rounded-xl px-4 py-3 text-lg focus:outline-none focus:border-amber-500"
               />
               {withVat && fields.extraGuestPrice && Number(fields.extraGuestPrice) > 0 && (
-                <p className="text-xs text-slate-400">= {Math.round(Number(fields.extraGuestPrice) / 1.18).toLocaleString()} ש"ח לפני מע"מ</p>
+                <p className="text-xs text-slate-400">= {Math.round(Number(fields.extraGuestPrice) / 1.18).toLocaleString()} {cur} לפני מע"מ</p>
               )}
               <p className="text-xs text-slate-400">אופציונלי — אם לא רלוונטי, השאר ריק</p>
               <div className="flex gap-2">
@@ -2748,8 +2898,8 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
                     {row.desc && <p className="text-sm text-slate-500">{row.desc}</p>}
                     <div className="flex flex-wrap gap-4 text-base text-slate-600 mt-2">
                       <span>כמות: <strong>{row.qty}</strong></span>
-                      <span>מחיר: <strong>{row.price.toLocaleString()} ש"ח</strong></span>
-                      <span>סה"כ: <strong>{(row.qty * row.price).toLocaleString()} ש"ח</strong></span>
+                      <span>מחיר: <strong>{row.price.toLocaleString()} {cur}</strong></span>
+                      <span>סה"כ: <strong>{(row.qty * row.price).toLocaleString()} {cur}</strong></span>
                     </div>
                   </div>
                 )}
