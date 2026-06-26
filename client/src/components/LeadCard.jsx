@@ -1145,7 +1145,7 @@ function BodyWithFile({ body }) {
 function EditableCell({ value, onChange, multiline, dir: cellDir }) {
   const [editing, setEditing] = useState(false);
   const commit = () => setEditing(false);
-  const style = { cursor: 'pointer', padding: '1px 2px', display: 'inline' };
+  const style = { cursor: 'pointer', padding: '1px 2px', display: 'inline', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' };
   const inputStyle = { border: '1px solid #6366f1', borderRadius: 4, padding: '2px 6px', fontSize: 'inherit', fontFamily: 'inherit', width: '100%', direction: cellDir || 'rtl' };
   if (editing) {
     if (multiline) return <textarea autoFocus value={value} onChange={e => onChange(e.target.value)} onBlur={commit}
@@ -1153,7 +1153,7 @@ function EditableCell({ value, onChange, multiline, dir: cellDir }) {
     return <input autoFocus value={value} onChange={e => onChange(e.target.value)}
       onBlur={commit} onKeyDown={e => e.key === 'Enter' && commit()} style={inputStyle} />;
   }
-  const _v = value ? value.replace(/ /g, ' ') : ' ';
+  const _v = value || ' ';
   return <span dir={cellDir || 'rtl'} onClick={() => setEditing(true)} style={style}>{cellDir !== 'ltr' && value ? '‫' + _v + '‬' : _v}</span>;
 }
 
@@ -1462,19 +1462,19 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
   };
   const money = (n) => `${fmtNum(n)} ${cur}`;
 
+  // Data entry stays in Hebrew; English is applied only at the preview step.
   function chooseLanguage(lng) {
     setLanguage(lng);
     setLanguageSelected(true);
-    if (lng === 'en') {
-      setContractTexts(JSON.parse(JSON.stringify(CONTRACT_TEXTS_EN)));
-      setRows(CONTRACT_ROWS_EN.map(r => ({ ...r })));
-    }
   }
 
-  // On reaching the English preview, translate free-text inputs (chef/bar menu) to English.
+  // On reaching the English preview: swap boilerplate to the English defaults (keeping
+  // row qty/price), and translate free-text inputs (chef/bar menu). Entry stays Hebrew.
   useEffect(() => {
     if (!isPreviewStep || !en || translatedRef.current) return;
     translatedRef.current = true;
+    setContractTexts(JSON.parse(JSON.stringify(CONTRACT_TEXTS_EN)));
+    setRows(rs => rs.map(r => { const d = CONTRACT_ROWS_EN.find(x => x.id === r.id); return d ? { ...r, label: d.label, desc: d.desc } : r; }));
     const keys = ['chefMenu', 'barMenu'];
     const isAsciiish = v => /^[\x00-\x7F]*$/.test(v);
     const todo = keys.filter(k => (fields[k] || '').trim() && !isAsciiish(fields[k]));
@@ -1832,7 +1832,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
             <div>
               <p className="text-xs text-slate-400 text-center mb-3">לחץ על כל טקסט לעריכה</p>
               {translating && <p className="text-xs text-amber-600 text-center mb-2 font-bold">ממיר לאנגלית…</p>}
-              <div dir={docDir} style={{ fontFamily: 'Arial, sans-serif', fontSize: '10pt', color: '#222', background: '#fff', padding: '10px', lineHeight: 1.8 }}>
+              <div dir={docDir} style={{ fontFamily: 'Arial, sans-serif', fontSize: '10pt', color: '#222', background: '#fff', padding: '10px', lineHeight: 1.8, maxWidth: '100%', overflowWrap: 'anywhere' }}>
 
                 <div style={{ textAlign: 'center', marginBottom: 8 }}>
                   <img src="/logo.jpg" alt="" style={{ height: 60, objectFit: 'contain' }} />
@@ -2414,21 +2414,19 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
   const money  = (n) => `${Number(n || 0).toLocaleString()} ${cur}`;
   const mark = (s) => en ? s : ('‫' + s + '‬'); // RTL-embed only in Hebrew
 
-  // Choose a language and seed English defaults (editable later in the preview).
+  // Data entry stays in Hebrew; English is applied only at the preview step.
   function chooseLanguage(lng) {
     setLanguage(lng);
     setLanguageSelected(true);
-    if (lng === 'en') {
-      setTexts(JSON.parse(JSON.stringify(OFFER_TEXTS_EN)));
-      setRows(OFFER_ROWS_EN.map(r => ({ ...r })));
-    }
   }
 
-  // On reaching the English preview, translate the user's free-text inputs (typed in
-  // Hebrew during entry) to English — best-effort; failures leave the original text.
+  // On reaching the English preview: swap boilerplate to the English defaults (keeping
+  // row qty/price), and translate free-text inputs. Entry stays Hebrew throughout.
   useEffect(() => {
     if (!isPreviewStep || !en || translatedRef.current) return;
     translatedRef.current = true;
+    setTexts(t => ({ ...JSON.parse(JSON.stringify(OFFER_TEXTS_EN)), packageCostLines: t.packageCostLines }));
+    setRows(rs => rs.map(r => { const d = OFFER_ROWS_EN.find(x => x.id === r.id); return d ? { ...r, label: d.label, desc: d.desc } : r; }));
     const keys = ['eventDate', 'chefMenu', 'barMenu', 'notes'];
     const isAsciiish = v => /^[\x00-\x7F]*$/.test(v); // already English/numeric → skip
     const todo = keys.filter(k => (fields[k] || '').trim() && !isAsciiish(fields[k]));
@@ -2969,7 +2967,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
             <div>
               <p className="text-xs text-slate-400 text-center mb-3">לחץ על כל טקסט לעריכה</p>
               {translating && <p className="text-xs text-amber-600 text-center mb-2 font-bold">ממיר לאנגלית…</p>}
-              <div ref={previewRef} dir={docDir} style={{ fontFamily: 'Arial, sans-serif', fontSize: '10pt', color: '#222', background: '#fff', padding: '12mm', lineHeight: 1.7 }}>
+              <div ref={previewRef} dir={docDir} style={{ fontFamily: 'Arial, sans-serif', fontSize: '10pt', color: '#222', background: '#fff', padding: '12px', lineHeight: 1.7, maxWidth: '100%', overflowWrap: 'anywhere' }}>
 
                 {/* Logo */}
                 <div style={{ textAlign: 'center', marginBottom: '10pt' }}>
