@@ -1751,10 +1751,10 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                         <td style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>
                           {row.isPct
                             ? `${row.pct || 0}%`
-                            : <><EditableCell value={String(row.price)} onChange={v => setRows(rs => rs.map(r => r.id === row.id ? { ...r, price: parseFloat(v) || 0 } : r))} />{' ש"ח'}</>}
+                            : <><EditableCell value={String(row.price)} onChange={v => setRows(rs => rs.map(r => r.id === row.id ? { ...r, price: parseFloat(v) || 0 } : r))} />{' ' + cur}</>}
                         </td>
                         <td style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>
-                          {cGetRowTotal(row).toLocaleString()}{' ש"ח'}
+                          {cGetRowTotal(row).toLocaleString()}{' ' + cur}
                         </td>
                         <td style={{ border: '1px solid #ccc', padding: '2px', textAlign: 'center' }}>
                           <button onClick={() => setRows(rs => rs.filter((_, idx) => idx !== i))}
@@ -2035,6 +2035,72 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
   );
 }
 
+// English defaults for the price offer (curated; editable in the preview).
+const OFFER_TEXTS_EN = {
+  title:          'Price Offer – Event at Sharabiya',
+  arrival:        'Event entrance: via 3 Rabbi Pinchas Ben Yair St., Tel Aviv–Yafo',
+  venueDescHeader: 'Venue details:',
+  venueDescIntro:  'Our gallery is made up of several spaces',
+  venueDescItems: [
+    'Louis XVI hall: a stunning space with exposed stone walls, meticulously designed with antique furniture and a magical Jaffa atmosphere, suitable for any type of event.',
+    'Louis XVII hall: an additional space with the same design character, equipped with upgraded sound systems for a dance floor. Also suitable for any type of event.',
+    'Outdoor area: the outdoor area sits on the picturesque promenade of the Greek market. The area is fenced and private to the event guests. It allows seating, designed sofas and includes parasols, a music system and ventilation / heaters to suit winter and summer.',
+  ],
+  costsHeader:    'Costs:',
+  tableHeaders:   ['Item', 'Description', 'Qty', 'Price', 'Total before VAT'],
+  includesHeader: 'The price includes:',
+  includes: [
+    'Hall rental',
+    'Setup crew',
+    'Operations crew',
+    'Chef menu',
+    'Bar menu',
+    'Security',
+    'Cleaning crew',
+    'Projector for wall projection (computer and HDMI cable not included)',
+    'Stage and DJ booth setup',
+    'Microphone',
+    'Venue styling — knights’ tables with white tablecloths, decorative vases, alternative seating areas including sofas, high bar tables, low tables, antique wine barrels, luxurious rugs',
+  ],
+  extrasHeader:    'Add-ons (optional):',
+  extras: [
+    'DJ: 5,500 NIS excl. VAT',
+    'Stills photographer + highlights: 5,500 NIS excl. VAT',
+    'Alchemist cocktail bar (two hours at reception): 4,500 NIS excl. VAT',
+    'Parking: 40 NIS per car (parking arrangement with "Hatzrot Yafo" lot, which closes at 24:00. If the event runs past 24:00, the host pays 100 NIS per additional hour to the lot attendant)',
+  ],
+  packageCostLines: [],
+  minGuestsPrefix: 'This price offer is for an event with a minimum of',
+  minGuestsSuffix: 'guests',
+  payment:  'Payment terms: 30% deposit, balance due on the event day before the event begins.',
+  validity: 'This offer is valid for 3 days.',
+  closing:  'We look forward to seeing you, the Sharabiya team',
+};
+const OFFER_ROWS_EN = [
+  { id: 1, label: 'Per-guest price', desc: 'Includes venue rental, catering menu, bar menu', qty: 0, price: 395 },
+  { id: 2, label: 'Waiter service', desc: '', qty: 1, price: 500 },
+  { id: 3, label: 'Bartender service', desc: '', qty: 1, price: 550 },
+  { id: 4, label: 'Event manager / catering service', desc: '', qty: 1, price: 900 },
+  { id: 5, label: 'Lighting & sound + operation throughout the event', desc: '', qty: 1, price: 0 },
+];
+// Document labels by language (editor chrome stays Hebrew for staff).
+const OFFER_LABELS = {
+  he: {
+    to: 'לכבוד', email: 'מייל', phone: 'טלפון', eventDate: 'תאריך האירוע',
+    doorTime: 'שעת פתיחת דלתות', endTime: 'שעת סיום האירוע',
+    subtotal: 'סה"כ חייב במע"מ:', vat: 'מע"מ (18%):', total: 'סה"כ לתשלום:',
+    notes: 'הערות: ', noVat: 'המחיר אינו כולל מע"מ',
+    extraGuestPre: 'עלות כל אורח נוסף מעל ', extraGuestMid: ' אורחים הינה ', vatIncl: 'כולל מע"מ',
+  },
+  en: {
+    to: 'To', email: 'Email', phone: 'Phone', eventDate: 'Event date',
+    doorTime: 'Doors open', endTime: 'Event end',
+    subtotal: 'Subtotal (before VAT):', vat: 'VAT (18%):', total: 'Total to pay:',
+    notes: 'Notes: ', noVat: 'Price does not include VAT',
+    extraGuestPre: 'Each additional guest above ', extraGuestMid: ' guests is ', vatIncl: 'incl. VAT',
+  },
+};
+
 function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLabels = {}, onClose, onSaved }) {
   const FIELD_STEPS = 10;
   const FIELD_DEFS = [
@@ -2066,6 +2132,10 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
   const [editMode, setEditMode]   = useState(false);
   const [vatAnswered, setVatAnswered] = useState(false);
   const [withVat, setWithVat]         = useState(true);
+  const [language, setLanguage]             = useState('he'); // 'he' | 'en'
+  const [languageSelected, setLanguageSelected] = useState(false);
+  const [translating, setTranslating]       = useState(false);
+  const translatedRef = useRef(false);
   const [fields, setFields]   = useState({
     name: lead.name || '', email: allEmails[0] || '', phone: lead.phone || '',
     eventDate: lead.event_date_text || '', doorTime: lead.event_time || '',
@@ -2186,6 +2256,44 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
   const advance = () => { setEditMode(false); setStep(s => s + 1); };
   const back    = () => { setEditMode(false); setStep(s => Math.max(0, s - 1)); };
 
+  // English/Hebrew document presentation helpers.
+  const en  = language === 'en';
+  const L    = OFFER_LABELS[en ? 'en' : 'he'];
+  const cur  = en ? 'NIS' : 'ש"ח';
+  const docDir = en ? 'ltr' : 'rtl';
+  const money  = (n) => `${Number(n || 0).toLocaleString()} ${cur}`;
+  const mark = (s) => en ? s : ('‫' + s + '‬'); // RTL-embed only in Hebrew
+
+  // Choose a language and seed English defaults (editable later in the preview).
+  function chooseLanguage(lng) {
+    setLanguage(lng);
+    setLanguageSelected(true);
+    if (lng === 'en') {
+      setTexts(JSON.parse(JSON.stringify(OFFER_TEXTS_EN)));
+      setRows(OFFER_ROWS_EN.map(r => ({ ...r })));
+    }
+  }
+
+  // On reaching the English preview, translate the user's free-text inputs (typed in
+  // Hebrew during entry) to English — best-effort; failures leave the original text.
+  useEffect(() => {
+    if (!isPreviewStep || !en || translatedRef.current) return;
+    translatedRef.current = true;
+    const keys = ['eventDate', 'chefMenu', 'barMenu', 'notes'];
+    const isAsciiish = v => /^[\x00-\x7F]*$/.test(v); // already English/numeric → skip
+    const todo = keys.filter(k => (fields[k] || '').trim() && !isAsciiish(fields[k]));
+    if (!todo.length) return;
+    setTranslating(true);
+    Promise.all(todo.map(k =>
+      api.post('/ai/translate', { text: fields[k], to: 'en' })
+        .then(({ data }) => [k, data.result]).catch(() => null)
+    )).then(pairs => {
+      const upd = {};
+      pairs.filter(Boolean).forEach(([k, v]) => { upd[k] = v; });
+      if (Object.keys(upd).length) setFields(f => ({ ...f, ...upd }));
+    }).finally(() => setTranslating(false));
+  }, [isPreviewStep, en]);
+
   function deleteCurrentRow() {
     const idx = step - ROW_START;
     const next = rows.filter((_, i) => i !== idx);
@@ -2214,12 +2322,16 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
 
   useEffect(() => {
     if (!isPreviewStep || offerType !== 'package' || texts.packageCostLines.length > 0) return;
-    const vatLabel = withVat ? 'כולל מע"מ' : 'לא כולל מע"מ';
+    const vatLabel = en ? (withVat ? 'incl. VAT' : 'excl. VAT') : (withVat ? 'כולל מע"מ' : 'לא כולל מע"מ');
     const lines = [];
     if (fields.packageGuests && fields.packagePrice)
-      lines.push(`עלות החבילה עבור ${fields.packageGuests} אורחים - ${Number(fields.packagePrice).toLocaleString()} ש"ח ${vatLabel}`);
+      lines.push(en
+        ? `Package cost for ${fields.packageGuests} guests - ${Number(fields.packagePrice).toLocaleString()} ${cur} ${vatLabel}`
+        : `עלות החבילה עבור ${fields.packageGuests} אורחים - ${Number(fields.packagePrice).toLocaleString()} ש"ח ${vatLabel}`);
     if (fields.packageGuests && fields.packageExtraGuestPrice)
-      lines.push(`כל אורח נוסף מעל ${fields.packageGuests} אורחים בתוספת של - ${Number(fields.packageExtraGuestPrice).toLocaleString()} ש"ח ${vatLabel}`);
+      lines.push(en
+        ? `Each additional guest above ${fields.packageGuests} guests adds - ${Number(fields.packageExtraGuestPrice).toLocaleString()} ${cur} ${vatLabel}`
+        : `כל אורח נוסף מעל ${fields.packageGuests} אורחים בתוספת של - ${Number(fields.packageExtraGuestPrice).toLocaleString()} ש"ח ${vatLabel}`);
     if (lines.length) setTexts(t => ({ ...t, packageCostLines: lines }));
   }, [isPreviewStep]);
 
@@ -2241,7 +2353,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
   async function generateBlob() {
     const res = await api.post(
       `/leads/${lead.id}/price-offer`,
-      { fields: { ...fields, withVat }, rows, texts, offerType },
+      { fields: { ...fields, withVat, language }, rows, texts, offerType, language },
       { responseType: 'blob' }
     );
     return res.data;
@@ -2338,8 +2450,23 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-5">
 
+          {/* ── Language pre-step ── */}
+          {offerType === '' && !languageSelected && (
+            <div className="space-y-4 text-center">
+              <p className="font-black text-slate-700 text-lg">באיזו שפה להפיק את ההצעה?</p>
+              <button onClick={() => chooseLanguage('he')}
+                className="w-full border-2 border-amber-300 text-amber-700 font-bold py-4 rounded-xl hover:bg-amber-50 text-lg">
+                עברית
+              </button>
+              <button onClick={() => chooseLanguage('en')}
+                className="w-full border-2 border-amber-300 text-amber-700 font-bold py-4 rounded-xl hover:bg-amber-50 text-lg">
+                English
+              </button>
+            </div>
+          )}
+
           {/* ── VAT pre-step ── */}
-          {offerType === '' && !vatAnswered && (
+          {offerType === '' && languageSelected && !vatAnswered && (
             <div className="space-y-4 text-center">
               <p className="font-black text-slate-700 text-lg">האם ההצעה כוללת מע"מ?</p>
               <button onClick={() => { setWithVat(true); setVatAnswered(true); }}
@@ -2691,7 +2818,8 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
           {isPreviewStep && (
             <div>
               <p className="text-xs text-slate-400 text-center mb-3">לחץ על כל טקסט לעריכה</p>
-              <div ref={previewRef} dir="rtl" style={{ fontFamily: 'Arial, sans-serif', fontSize: '10pt', color: '#222', background: '#fff', padding: '12mm', lineHeight: 1.7 }}>
+              {translating && <p className="text-xs text-amber-600 text-center mb-2 font-bold">ממיר לאנגלית…</p>}
+              <div ref={previewRef} dir={docDir} style={{ fontFamily: 'Arial, sans-serif', fontSize: '10pt', color: '#222', background: '#fff', padding: '12mm', lineHeight: 1.7 }}>
 
                 {/* Logo */}
                 <div style={{ textAlign: 'center', marginBottom: '10pt' }}>
@@ -2712,16 +2840,19 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
                       { label: 'תאריך האירוע', key: 'eventDate' },
                       { label: 'שעת פתיחת דלתות', key: 'doorTime' },
                       { label: 'שעת סיום האירוע', key: 'endTime' },
-                    ].map(({ label, key, ltr }) => (
+                    ].map(({ key, ltr }) => {
+                      const label = L[{ name: 'to', email: 'email', phone: 'phone', eventDate: 'eventDate', doorTime: 'doorTime', endTime: 'endTime' }[key]];
+                      return (
                       <tr key={key}>
                         <td style={{ fontWeight: 'bold', whiteSpace: 'nowrap', paddingLeft: '6pt', verticalAlign: 'top', paddingBottom: '2pt' }}>
                           {'‫' + label + ':‬'}
                         </td>
-                        <td style={{ direction: ltr ? 'ltr' : 'rtl', paddingBottom: '2pt', verticalAlign: 'top' }}>
-                          <EditableCell value={fields[key]} onChange={v => setFields(f => ({ ...f, [key]: v }))} dir={ltr ? 'ltr' : 'rtl'} />
+                        <td style={{ direction: (en || ltr) ? 'ltr' : 'rtl', paddingBottom: '2pt', verticalAlign: 'top' }}>
+                          <EditableCell value={fields[key]} onChange={v => setFields(f => ({ ...f, [key]: v }))} dir={(en || ltr) ? 'ltr' : 'rtl'} />
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
 
@@ -2740,7 +2871,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
                   {texts.venueDescItems.map((item, i) => {
                     if (!item.trim()) return null;
                     return (
-                      <div key={i} style={{ direction: 'rtl' }}>
+                      <div key={i} style={{ direction: docDir }}>
                         <EditableCell value={item} onChange={v => setVenueDesc(i, v)} multiline />
                       </div>
                     );
@@ -2776,10 +2907,10 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
                         <td style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>
                           {row.isPct
                             ? `${row.pct || 0}%`
-                            : <><EditableCell value={String(row.price)} onChange={v => updateRow(i, { price: parseFloat(v) || 0 })} />{' ש"ח'}</>}
+                            : <><EditableCell value={String(row.price)} onChange={v => updateRow(i, { price: parseFloat(v) || 0 })} />{' ' + cur}</>}
                         </td>
                         <td style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>
-                          {getRowTotal(row).toLocaleString()} {'ש"ח'}
+                          {getRowTotal(row).toLocaleString()} {cur}
                         </td>
                         <td data-html2canvas-ignore="true" style={{ border: '1px solid #ccc', padding: '2px', textAlign: 'center' }}>
                           <button onClick={() => setRows(prev => prev.filter((_, idx) => idx !== i))}
@@ -2789,17 +2920,17 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
                     ))}
                     {withVat && <>
                       <tr>
-                        <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>{'‫סה"כ חייב במע"מ:‬'}</td>
-                        <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center', fontWeight: 'bold' }}>{subtotal.toLocaleString()} {'ש"ח'}</td>
+                        <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>{mark(L.subtotal)}</td>
+                        <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center', fontWeight: 'bold' }}>{subtotal.toLocaleString()} {cur}</td>
                       </tr>
                       <tr>
-                        <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right' }}>{'‫מע"מ (18%):‬'}</td>
-                        <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{vat.toLocaleString()} {'ש"ח'}</td>
+                        <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right' }}>{mark(L.vat)}</td>
+                        <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{vat.toLocaleString()} {cur}</td>
                       </tr>
                     </>}
                     <tr style={{ fontWeight: 'bold' }}>
-                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right' }}>{'‫סה"כ לתשלום:‬'}</td>
-                      <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{total.toLocaleString()} {'ש"ח'}</td>
+                      <td colSpan={4} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'right' }}>{mark(L.total)}</td>
+                      <td colSpan={2} style={{ border: '1px solid #ccc', padding: '4px 6px', textAlign: 'center' }}>{total.toLocaleString()} {cur}</td>
                     </tr>
                   </tbody>
                 </table>}
@@ -2816,12 +2947,12 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
                     </p>
                     {fields.extraGuestPrice && Number(fields.extraGuestPrice) > 0 && (
                       <p style={{ marginTop: '4pt' }}>
-                        {'עלות כל אורח נוסף מעל '}
+                        {L.extraGuestPre}
                         <EditableCell value={fields.guests || ''} onChange={v => setFields(f => ({ ...f, guests: v }))} />
-                        {' אורחים הינה '}
+                        {L.extraGuestMid}
                         <EditableCell value={Number(fields.extraGuestPrice).toLocaleString()} onChange={v => setFields(f => ({ ...f, extraGuestPrice: v.replace(/,/g, '') }))} />
-                        {' ש"ח'}
-                        {withVat && <>{' '}<EditableCell value={texts.extraGuestSuffix ?? 'כולל מע"מ'} onChange={v => setTxt('extraGuestSuffix', v)} /></>}
+                        {' ' + cur}
+                        {withVat && <>{' '}<EditableCell value={texts.extraGuestSuffix ?? L.vatIncl} onChange={v => setTxt('extraGuestSuffix', v)} /></>}
                       </p>
                     )}
                   </>
@@ -2833,7 +2964,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
                     {texts.packageCostLines.map((line, i) => {
                       if (!line.trim()) return null;
                       return (
-                        <div key={i} style={{ direction: 'rtl' }}>
+                        <div key={i} style={{ direction: docDir }}>
                           <EditableCell value={line} onChange={v => setPkgLine(i, v)} multiline />
                         </div>
                       );
@@ -2865,7 +2996,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
                         + (i === barIdx  && fields.barMenu  ? ' ' + fields.barMenu  : '');
                       if (!combined.trim()) return null;
                       return (
-                        <div key={i} style={{ direction: 'rtl' }}>
+                        <div key={i} style={{ direction: docDir }}>
                           {i === chefIdx ? (
                             <><EditableCell value={item} onChange={v => setInc(i, v)} />{' '}<EditableCell value={fields.chefMenu} onChange={v => setFields(f => ({ ...f, chefMenu: v }))} /></>
                           ) : i === barIdx ? (
@@ -2897,7 +3028,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
                   {texts.extras.map((item, i) => {
                     if (!item.trim()) return null;
                     return (
-                      <div key={i} style={{ direction: 'rtl' }}>
+                      <div key={i} style={{ direction: docDir }}>
                         <EditableCell value={item} onChange={v => setExt(i, v)} multiline />
                       </div>
                     );
@@ -2916,7 +3047,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
 
                 {fields.notes && (
                   <p style={{ marginTop: '8pt' }}>
-                    {'‫הערות: ‬'}<EditableCell value={fields.notes} onChange={v => setFields(f => ({ ...f, notes: v }))} multiline />
+                    {mark(L.notes)}<EditableCell value={fields.notes} onChange={v => setFields(f => ({ ...f, notes: v }))} multiline />
                   </p>
                 )}
 
@@ -2924,7 +3055,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
                   <EditableCell value={texts.payment} onChange={v => setTxt('payment', v)} multiline />
                 </p>
                 {!withVat && (
-                  <p style={{ fontSize: '9pt', fontWeight: 'bold' }}>המחיר אינו כולל מע"מ</p>
+                  <p style={{ fontSize: '9pt', fontWeight: 'bold' }}>{L.noVat}</p>
                 )}
                 <p style={{ fontSize: '9pt', color: '#555' }}>
                   <EditableCell value={texts.validity} onChange={v => setTxt('validity', v)} />
