@@ -10,7 +10,7 @@ const STAGE_LABELS = {
 };
 
 const SOURCE_LABELS = {
-  website_popup: 'אתר (פופאפ)', website_form: 'אתר (טופס)',
+  website_popup: 'גוגל - אתר (פופ אפ)', website_form: 'גוגל - אתר (טופס)',
   call_event: 'Call Event', telekol: 'טלקול',
   whatsapp: 'וואטסאפ', facebook: 'פייסבוק',
   instagram: 'אינסטגרם', manual: 'ידני',
@@ -153,8 +153,8 @@ export default function AnalyticsPage() {
           {/* By Stage */}
           <Card title="לידים לפי שלב">
             <div className="space-y-2 mt-2">
-              {byStage.map((s, i) => {
-                const max = Math.max(...byStage.map(x => parseInt(x.count)));
+              {byStage.filter(s => s.stage !== 'lost').map((s, i, arr) => {
+                const max = Math.max(...arr.map(x => parseInt(x.count)));
                 const pct = Math.round((parseInt(s.count) / (max || 1)) * 100);
                 return (
                   <div key={s.stage}>
