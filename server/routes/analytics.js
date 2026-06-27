@@ -2,8 +2,17 @@ const express = require('express');
 const router  = express.Router();
 const pool    = require('../db/pool');
 
-// GET /api/analytics/overview
+// GET /api/analytics/overview?from=YYYY-MM-DD&to=YYYY-MM-DD
+// from/to are optional; when both are present, lead-based stats are limited to
+// leads created within the range. Absent = all-time (original behavior).
 router.get('/overview', async (req, res) => {
+  const { from, to } = req.query;
+  const ranged = !!(from && to);
+  const params = ranged ? [from, to] : [];
+  const wDate  = ranged ? 'WHERE created_at::date BETWEEN $1::date AND $2::date' : '';
+  const aDate  = ranged ? 'AND created_at::date BETWEEN $1::date AND $2::date'    : '';
+  const jDate  = ranged ? 'AND l.created_at::date BETWEEN $1::date AND $2::date'  : '';
+
   try {
     const [
       totalLeads,
@@ -20,31 +29,33 @@ router.get('/overview', async (req, res) => {
         SELECT
           COUNT(*) FILTER (WHERE stage IN ('new','new_no_answer')) AS new_leads,
           COUNT(*) FILTER (WHERE stage IN ('contacted','meeting','offer_sent','negotiation','contract_sent','process_no_answer')) AS in_process,
-          COUNT(*) FILTER (WHERE stage IN ('deposit','production')) AS closed,
+          COUNT(*) FILTER (WHERE stage IN ('deposit','production','completed')) AS closed,
           COUNT(*) FILTER (WHERE stage = 'lost') AS lost,
           COUNT(*) AS total
-        FROM leads
-      `),
+        FROM leads ${wDate}
+      `, params),
 
       // By stage
       pool.query(`
         SELECT stage, COUNT(*) AS count
-        FROM leads GROUP BY stage ORDER BY count DESC
-      `),
+        FROM leads ${wDate} GROUP BY stage ORDER BY count DESC
+      `, params),
 
-      // By source
+      // By source — quality split: progressed (reached price offer or deeper)
+      // and paid (deposit/production/completed)
       pool.query(`
         SELECT source, COUNT(*) AS count,
-               COUNT(*) FILTER (WHERE stage IN ('deposit','production')) AS won
-        FROM leads
+               COUNT(*) FILTER (WHERE stage IN ('offer_sent','negotiation','contract_sent','deposit','production','completed')) AS progressed,
+               COUNT(*) FILTER (WHERE stage IN ('deposit','production','completed')) AS paid
+        FROM leads ${wDate}
         GROUP BY source ORDER BY count DESC
-      `),
+      `, params),
 
-      // Leads per month (last 6 months)
+      // Leads per month (last 6 months — own window, not range-filtered)
       pool.query(`
         SELECT TO_CHAR(DATE_TRUNC('month', created_at), 'MM/YYYY') AS month,
                COUNT(*) AS total,
-               COUNT(*) FILTER (WHERE stage IN ('deposit','production')) AS won
+               COUNT(*) FILTER (WHERE stage IN ('deposit','production','completed')) AS won
         FROM leads
         WHERE created_at > NOW() - INTERVAL '6 months'
         GROUP BY DATE_TRUNC('month', created_at)
@@ -54,30 +65,30 @@ router.get('/overview', async (req, res) => {
       // Staff performance
       pool.query(`
         SELECT u.display_name, COUNT(l.id) AS total,
-               COUNT(l.id) FILTER (WHERE l.stage IN ('deposit','production')) AS won,
+               COUNT(l.id) FILTER (WHERE l.stage IN ('deposit','production','completed')) AS won,
                COUNT(l.id) FILTER (WHERE l.stage = 'lost') AS lost
         FROM users u
-        LEFT JOIN leads l ON l.assigned_to = u.id
+        LEFT JOIN leads l ON l.assigned_to = u.id ${jDate}
         WHERE u.role IN ('admin','sales')
         GROUP BY u.id, u.display_name
         ORDER BY total DESC
-      `),
+      `, params),
 
       // Lost reasons
       pool.query(`
         SELECT lost_reason, COUNT(*) AS count
-        FROM leads WHERE stage = 'lost' AND lost_reason IS NOT NULL
+        FROM leads WHERE stage = 'lost' AND lost_reason IS NOT NULL ${aDate}
         GROUP BY lost_reason ORDER BY count DESC
-      `),
+      `, params),
 
       // Average days in each stage (based on updated_at vs created_at as rough proxy)
       pool.query(`
         SELECT stage,
                ROUND(AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 86400), 1) AS avg_days
         FROM leads
-        WHERE stage != 'new'
+        WHERE stage != 'new' ${aDate}
         GROUP BY stage
-      `),
+      `, params),
     ]);
 
     res.json({

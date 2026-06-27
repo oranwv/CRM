@@ -9,6 +9,7 @@ const path = require('path');
 const FormData = require('form-data');
 const { uploadFile } = require('../services/storageService');
 const { normalizePhone, findLeadByPhone } = require('../utils/phoneUtils');
+const { classifyInboundSource } = require('../utils/leadSource');
 const OpenAI = require('openai');
 
 let _oaiClient;
@@ -136,8 +137,8 @@ async function findOrCreateLead(phone, name, messageBody, chatId) {
   const leadName = name || 'ליד חדש מוואטסאפ';
   const { rows } = await pool.query(
     `INSERT INTO leads (name, phone, source, stage, notes, event_name, avatar_url)
-     VALUES ($1, $2, 'whatsapp', 'new', $3, $4, $5) RETURNING id`,
-    [leadName, clean, `הודעה ראשונה: ${messageBody}`, leadName, avatar]
+     VALUES ($1, $2, $3, 'new', $4, $5, $6) RETURNING id`,
+    [leadName, clean, classifyInboundSource(messageBody), `הודעה ראשונה: ${messageBody}`, leadName, avatar]
   );
   return rows[0].id;
 }

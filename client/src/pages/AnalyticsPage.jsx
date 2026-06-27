@@ -31,18 +31,35 @@ const SOURCE_COLORS = [
   'bg-green-400', 'bg-blue-400', 'bg-pink-400', 'bg-slate-400',
 ];
 
+const dayStr = d => d.toISOString().slice(0, 10);
+function shiftDays(n) { const d = new Date(); d.setDate(d.getDate() + n); return dayStr(d); }
+
 export default function AnalyticsPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  // Empty range = all-time (preserves original behavior).
+  const [from, setFrom] = useState('');
+  const [to, setTo]     = useState('');
+
+  const todayStr = dayStr(new Date());
 
   useEffect(() => {
-    api.get('/analytics/overview')
+    setLoading(true);
+    const qs = (from && to) ? `?from=${from}&to=${to}` : '';
+    api.get(`/analytics/overview${qs}`)
       .then(r => setData(r.data))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [from, to]);
 
-  if (loading) return (
+  const presets = [
+    { label: 'הכל',     from: '',              to: '' },
+    { label: 'היום',    from: todayStr,        to: todayStr },
+    { label: '7 ימים',  from: shiftDays(-6),   to: todayStr },
+    { label: '30 ימים', from: shiftDays(-29),  to: todayStr },
+  ];
+
+  if (loading && !data) return (
     <div className="min-h-screen flex items-center justify-center">
       <p className="text-stone-400">טוען נתונים...</p>
     </div>
@@ -58,7 +75,33 @@ export default function AnalyticsPage() {
   return (
     <div className="min-h-screen">
       {/* Header */}
-      <div className="bg-white/70 backdrop-blur-sm border-b border-violet-100 px-5 py-4 flex items-center justify-end shadow-sm">
+      <div className="bg-white/70 backdrop-blur-sm border-b border-violet-100 px-5 py-4 flex items-center justify-between gap-3 flex-wrap shadow-sm" dir="rtl">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1">
+            {presets.map(p => {
+              const active = from === p.from && to === p.to;
+              return (
+                <button key={p.label} onClick={() => { setFrom(p.from); setTo(p.to); }}
+                  className={`text-xs font-bold px-2.5 py-1.5 rounded-lg transition ${active ? 'bg-violet-600 text-white' : 'bg-white border border-slate-300 text-slate-600 hover:bg-slate-100'}`}>
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex items-center gap-1 text-xs text-slate-500">
+            <span>מ-</span>
+            <input type="date" value={from} max={to || todayStr}
+              onChange={e => setFrom(e.target.value)}
+              className="border border-slate-300 rounded-xl px-2 py-1.5 text-sm text-slate-700 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+              style={{ direction: 'ltr' }} />
+            <span>עד</span>
+            <input type="date" value={to} min={from || undefined} max={todayStr}
+              onChange={e => setTo(e.target.value)}
+              className="border border-slate-300 rounded-xl px-2 py-1.5 text-sm text-slate-700 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+              style={{ direction: 'ltr' }} />
+          </div>
+          {loading && <span className="text-xs text-slate-400">טוען...</span>}
+        </div>
         <div className="text-right">
           <h1 className="text-lg font-black text-stone-900">אנליטיקס</h1>
           <p className="text-stone-400 text-xs">סטטיסטיקות ומדדים</p>
@@ -133,12 +176,18 @@ export default function AnalyticsPage() {
             <div className="space-y-2 mt-2">
               {bySource.map((s, i) => {
                 const max = Math.max(...bySource.map(x => parseInt(x.count)));
-                const pct = Math.round((parseInt(s.count) / (max || 1)) * 100);
-                const wonPct = parseInt(s.count) > 0 ? Math.round((parseInt(s.won) / parseInt(s.count)) * 100) : 0;
+                const count = parseInt(s.count);
+                const pct = Math.round((count / (max || 1)) * 100);
+                const progressedPct = count > 0 ? Math.round((parseInt(s.progressed) / count) * 100) : 0;
+                const paidPct       = count > 0 ? Math.round((parseInt(s.paid) / count) * 100) : 0;
                 return (
                   <div key={s.source}>
                     <div className="flex justify-between text-xs mb-0.5">
-                      <span className="font-bold text-slate-700">{parseInt(s.count)} <span className="text-violet-700 font-normal">({wonPct}% סגרו)</span></span>
+                      <span className="font-bold text-slate-700">
+                        {count}
+                        <span className="text-sky-700 font-normal"> · {progressedPct}% התקדמו</span>
+                        <span className="text-emerald-700 font-normal"> · {paidPct}% שילמו</span>
+                      </span>
                       <span className="text-slate-500">{SOURCE_LABELS[s.source] || s.source}</span>
                     </div>
                     <div className="w-full bg-slate-100 rounded-full h-2">

@@ -5,6 +5,7 @@ const path  = require('path');
 const pool  = require('../db/pool');
 const { uploadFile } = require('./storageService');
 const { normalizePhone, findLeadByPhone } = require('../utils/phoneUtils');
+const { classifyInboundSource } = require('../utils/leadSource');
 
 function mediaMimeToExt(mime) {
   const map = { 'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif','video/mp4':'mp4','audio/ogg':'ogg','audio/mpeg':'mp3','application/pdf':'pdf' };
@@ -82,8 +83,8 @@ async function findOrCreateLead(phone, senderName, messageBody, chatId) {
   const { name: profileName, avatar } = chatId ? await fetchContactInfo(chatId) : {};
   const displayName = profileName || senderName || 'ליד וואטסאפ';
   const { rows: newRows } = await pool.query(
-    `INSERT INTO leads (name, phone, source, stage, notes, avatar_url, event_name) VALUES ($1,$2,'whatsapp','new',$3,$4,$5) RETURNING id`,
-    [displayName, clean, `הודעה ראשונה: ${messageBody}`, avatar || null, displayName]
+    `INSERT INTO leads (name, phone, source, stage, notes, avatar_url, event_name) VALUES ($1,$2,$3,'new',$4,$5,$6) RETURNING id`,
+    [displayName, clean, classifyInboundSource(messageBody), `הודעה ראשונה: ${messageBody}`, avatar || null, displayName]
   );
   return newRows[0].id;
 }

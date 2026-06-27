@@ -1,6 +1,7 @@
 const pool  = require('../db/pool');
 const axios = require('axios');
 const { normalizePhone, findLeadByPhone } = require('../utils/phoneUtils');
+const { classifyInboundSource } = require('../utils/leadSource');
 
 async function findOrCreateLead(phone, name, previewText) {
   const clean = normalizePhone(phone);
@@ -12,8 +13,8 @@ async function findOrCreateLead(phone, name, previewText) {
   const leadName = name || 'ליד חדש מוואטסאפ';
   const { rows } = await pool.query(
     `INSERT INTO leads (name, phone, source, stage, notes, event_name)
-     VALUES ($1, $2, 'whatsapp', 'new', $3, $4) RETURNING id`,
-    [leadName, clean, `הודעה ראשונה: ${previewText}`, leadName]
+     VALUES ($1, $2, $3, 'new', $4, $5) RETURNING id`,
+    [leadName, clean, classifyInboundSource(previewText), `הודעה ראשונה: ${previewText}`, leadName]
   );
   return rows[0].id;
 }

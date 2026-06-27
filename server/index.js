@@ -169,6 +169,16 @@ pool.query(`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS orderer_name TEXT`)
 pool.query(`ALTER TABLE lead_contacts ADD COLUMN IF NOT EXISTS label TEXT`)
   .catch(err => console.error('[DB] lead_contacts label migration error:', err.message));
 
+// Reclassify historical Instagram Click-to-WhatsApp leads that were stored as
+// 'whatsapp'. The first inbound message is saved in notes as "הודעה ראשונה: <body>";
+// the Instagram CTA template contains "אפשר לקבל מידע נוסף על זה". Idempotent:
+// after the first run no 'whatsapp' rows still match, so it self-noops.
+pool.query(`
+  UPDATE leads SET source = 'instagram'
+  WHERE source = 'whatsapp'
+    AND notes LIKE 'הודעה ראשונה:%אפשר לקבל מידע נוסף על זה%'
+`).catch(err => console.error('[DB] instagram source backfill error:', err.message));
+
 pool.query(`
   CREATE TABLE IF NOT EXISTS production_checklist (
     id SERIAL PRIMARY KEY,
