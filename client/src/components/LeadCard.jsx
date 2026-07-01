@@ -1167,6 +1167,9 @@ const CONTRACT_TEXTS_EN = {
   therefore: 'Therefore it has been agreed between the parties as follows:',
   preamble: 'The preamble to this agreement and all appendices, whether attached at the time of signing this agreement or attached to it in the future, form an integral part hereof.',
   includesHeader: 'The price includes:',
+  extraGuestPre: 'Each guest above',
+  extraGuestMid: 'guests at a cost of',
+  extraGuestSuffix: 'excl. VAT',
   includes: [
     'Setup crew', 'Operations crew', 'Event manager and accompaniment throughout the process',
     'Waiters', 'Bartenders + bar manager',
@@ -1313,6 +1316,9 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
     therefore: 'לפיכך הוסכם והותנה בין הצדדים:',
     preamble: 'המבוא להסכם זה וכל הנספחים, בין המצורפים במועד חתימת הסכם זה ובין שיצורפו אליו בעתיד, מהווים חלק בלתי נפרד הימנו.',
     includesHeader: 'המחיר כולל בתוכו:',
+    extraGuestPre: 'כל אורח מעל',
+    extraGuestMid: 'אורחים בעלות של',
+    extraGuestSuffix: 'לא כולל מע"מ',
     includes: [
       'צוות הקמה', 'צוות תפעול', 'מנהל אירוע וליווי לאורך התהליך',
       'מלצרים', 'ברמנים + מנהל בר',
@@ -1757,9 +1763,12 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                 </div>
               )}
               {newRow.label.trim() && (
-                <button onClick={() => {
-                  setRows(rs => [...rs, { ...newRow, id: Date.now() }]);
+                <button type="button" onClick={() => {
+                  setRows(rs => [...rs, newRow.isPct
+                    ? { label: newRow.label, desc: newRow.desc, isPct: true, pct: Number(newRow.pct) || 0, qty: 0, price: 0, id: Date.now() }
+                    : { label: newRow.label, desc: newRow.desc, isPct: false, qty: Number(newRow.qty) || 0, price: Number(newRow.price) || 0, id: Date.now() }]);
                   setNewRow({ label: '', desc: '', qty: 1, price: 0, isPct: false, pct: 0 });
+                  setStep(s => s + 1);
                 }} className="text-sm font-bold text-violet-600 underline">+ הוסף שורה</button>
               )}
             </div>
@@ -1906,7 +1915,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                           {cGetRowTotal(row).toLocaleString()}{' ' + cur}
                         </td>
                         <td style={{ border: '1px solid #ccc', padding: '2px', textAlign: 'center' }}>
-                          <button onClick={() => setRows(rs => rs.filter((_, idx) => idx !== i))}
+                          <button type="button" onClick={() => { setRows(rs => rs.filter((_, idx) => idx !== i)); setStep(s => s - 1); }}
                             style={{ color: '#ef4444', fontWeight: 'bold', background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px' }}>✕</button>
                         </td>
                       </tr>
@@ -1930,9 +1939,13 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                   {CL.minGuestsPre}<EditableCell value={String(fields.guests || '')} onChange={v => setField('guests', v)} />{CL.minGuestsSuf}
                 </p>
                 {fields.extraGuestPrice && Number(fields.extraGuestPrice) > 0 && (
-                  <p>{en
-                    ? `Each guest above ${fields.guests} guests at a cost of ${Number(fields.extraGuestPrice).toLocaleString()} ${cur} excl. VAT`
-                    : `כל אורח מעל ${fields.guests} אורחים בעלות של ${Number(fields.extraGuestPrice).toLocaleString()} ${cur} לא כולל מע"מ`}</p>
+                  <p>
+                    <EditableCell value={contractTexts.extraGuestPre} onChange={v => setTxt('extraGuestPre', v)} />{' '}
+                    {fields.guests}{' '}
+                    <EditableCell value={contractTexts.extraGuestMid} onChange={v => setTxt('extraGuestMid', v)} />{' '}
+                    <EditableCell value={Number(fields.extraGuestPrice).toLocaleString()} onChange={v => setField('extraGuestPrice', v.replace(/,/g, ''))} />{' ' + cur + ' '}
+                    <EditableCell value={contractTexts.extraGuestSuffix} onChange={v => setTxt('extraGuestSuffix', v)} />
+                  </p>
                 )}
                   </>
                 )}
