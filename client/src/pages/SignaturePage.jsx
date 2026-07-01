@@ -44,6 +44,9 @@ function ContractDisplay({ data }) {
         <p>אולם אירועים: שרבייה ברחוב רבי פנחס בן יאיר 3 תל -אביב יפו</p>
         <p>שעת התחלה: {startTime}</p>
         <p>שעת סיום האירוע: {endTime}</p>
+        {(texts?.eventExtraLines || []).map((line, i) => (
+          <p key={i}>{line}</p>
+        ))}
       </div>
 
       <div>
@@ -98,6 +101,9 @@ function ContractDisplay({ data }) {
           )}
           </>
         )}
+        {(texts?.costExtraLines || []).map((line, i) => (
+          <p key={i}>{line}</p>
+        ))}
       </div>
 
       <div>

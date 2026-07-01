@@ -1142,6 +1142,31 @@ function BodyWithFile({ body }) {
 }
 
 /* ── PRICE OFFER MODAL ── */
+// VAT (18%) entry helpers. Prices are stored pre-VAT (net); package fields are
+// stored VAT-inclusive (gross). These convert a typed amount between the two.
+const toNet   = (v) => Math.round((Number(v) || 0) / 1.18);
+const toGross = (v) => Math.round((Number(v) || 0) * 1.18);
+
+// Segmented "לא כולל מע"מ / כולל מע"מ" toggle + live conversion hint.
+// mode 'net'  → default excl; picking incl means the typed amount is VAT-inclusive
+//               and will be stored as its pre-VAT value (typed / 1.18).
+function VatToggle({ incl, onChange, amount, cur, mode = 'net' }) {
+  const n = Number(amount) || 0;
+  return (
+    <div className="space-y-1">
+      <div className="flex gap-1 p-1 rounded-xl bg-slate-100">
+        <button type="button" onClick={() => onChange(false)}
+          className={`flex-1 py-1.5 rounded-lg font-bold text-xs transition ${!incl ? 'bg-violet-600 text-white' : 'text-slate-500 hover:text-slate-700'}`}>לא כולל מע"מ</button>
+        <button type="button" onClick={() => onChange(true)}
+          className={`flex-1 py-1.5 rounded-lg font-bold text-xs transition ${incl ? 'bg-violet-600 text-white' : 'text-slate-500 hover:text-slate-700'}`}>כולל מע"מ</button>
+      </div>
+      {mode === 'net' && incl && n > 0 && (
+        <p className="text-xs text-slate-400">= {toNet(n).toLocaleString()} {cur} לפני מע"מ</p>
+      )}
+    </div>
+  );
+}
+
 function EditableCell({ value, onChange, multiline, dir: cellDir }) {
   const [editing, setEditing] = useState(false);
   const commit = () => setEditing(false);
@@ -1170,6 +1195,8 @@ const CONTRACT_TEXTS_EN = {
   extraGuestPre: 'Each guest above',
   extraGuestMid: 'guests at a cost of',
   extraGuestSuffix: 'excl. VAT',
+  eventExtraLines: [],
+  costExtraLines: [],
   includes: [
     'Setup crew', 'Operations crew', 'Event manager and accompaniment throughout the process',
     'Waiters', 'Bartenders + bar manager',
@@ -1294,11 +1321,15 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
   const [newCancellation, setNewCancellation] = useState('');
   const [newObligation, setNewObligation]     = useState('');
   const [newPaymentExtra, setNewPaymentExtra] = useState('');
+  const [newEventLine, setNewEventLine]       = useState('');
+  const [newCostLine, setNewCostLine]         = useState('');
   const [rows, setRows]               = useState(DEFAULT_ROWS);
   const [loadingImport, setLoadingImport] = useState(false);
   const [latestContract,   setLatestContract]   = useState(undefined);
   const [latestPriceOffer, setLatestPriceOffer] = useState(undefined);
-  const [newRow, setNewRow]           = useState({ label: '', desc: '', qty: 1, price: 0, isPct: false, pct: 0 });
+  const [newRow, setNewRow]           = useState({ label: '', desc: '', qty: 1, price: 0, isPct: false, pct: 0, inclVat: false });
+  const [entryIncl, setEntryIncl]     = useState(false); // VAT basis for the current field-step price entry (default excl)
+  useEffect(() => { setEntryIncl(false); }, [step]);
   const [sending, setSending]         = useState('');
   const [sent, setSent]               = useState(false);
   const [signingUrl, setSigningUrl]   = useState('');
@@ -1367,8 +1398,24 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
       'שום ויתור, הנחה, היימנעות מפעולה בזמנה, או מתן ארכה, לא יחשבו כוויתור של צד מהצדדים להסכם זה על זכות מזכויותיו.',
     ],
     paymentExtras: [],
+    eventExtraLines: [],
+    costExtraLines: [],
   });
   const setTxt = (key, val) => setContractTexts(t => ({ ...t, [key]: val }));
+  const setEventLine = (i, val) => setContractTexts(t => ({ ...t, eventExtraLines: t.eventExtraLines.map((v,j) => j===i ? val : v) }));
+  const setCostLine  = (i, val) => setContractTexts(t => ({ ...t, costExtraLines: t.costExtraLines.map((v,j) => j===i ? val : v) }));
+  const removeEventLine = (i) => setContractTexts(t => ({ ...t, eventExtraLines: t.eventExtraLines.filter((_, j) => j !== i) }));
+  const removeCostLine  = (i) => setContractTexts(t => ({ ...t, costExtraLines: t.costExtraLines.filter((_, j) => j !== i) }));
+  function addEventLine() {
+    if (!newEventLine.trim()) return;
+    setContractTexts(t => ({ ...t, eventExtraLines: [...t.eventExtraLines, newEventLine.trim()] }));
+    setNewEventLine('');
+  }
+  function addCostLine() {
+    if (!newCostLine.trim()) return;
+    setContractTexts(t => ({ ...t, costExtraLines: [...t.costExtraLines, newCostLine.trim()] }));
+    setNewCostLine('');
+  }
   const setInc = (i, val) => setContractTexts(t => ({ ...t, includes: t.includes.map((v,j) => j===i ? val : v) }));
   const setCancelItem = (i, val) => setContractTexts(t => ({ ...t, cancellationItems: t.cancellationItems.map((v,j) => j===i ? val : v) }));
   const setObligation = (i, val) => setContractTexts(t => ({ ...t, obligations: t.obligations.map((v,j) => j===i ? val : v) }));
@@ -1667,6 +1714,19 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                 <PickerDateInput value={fields[currentDef.key]} onChange={v => setField(currentDef.key, v)} className={cls} />
               ) : currentDef.type === 'time' ? (
                 <PickerTimeInput value={fields[currentDef.key]} onChange={v => setField(currentDef.key, v)} className={cls} />
+              ) : currentDef.key === 'extraGuestPrice' ? (
+                <>
+                  <input
+                    type="number"
+                    value={entryIncl ? String(toGross(fields.extraGuestPrice)) : (fields.extraGuestPrice ?? '')}
+                    onChange={e => setField('extraGuestPrice', entryIncl ? String(toNet(e.target.value)) : e.target.value)}
+                    className={cls}
+                    autoFocus
+                    onKeyDown={e => e.key === 'Enter' && setStep(s => s + 1)}
+                  />
+                  <VatToggle incl={entryIncl} onChange={setEntryIncl}
+                    amount={entryIncl ? toGross(fields.extraGuestPrice) : fields.extraGuestPrice} cur={cur} />
+                </>
               ) : (
                 <input
                   type={currentDef.type}
@@ -1757,17 +1817,20 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
               {newRow.isPct ? (
                 <input type="number" placeholder="אחוזים %" min="0" value={newRow.pct} onChange={e => setNewRow(r => ({ ...r, pct: Number(e.target.value) }))} className={cls} />
               ) : (
+                <>
                 <div className="grid grid-cols-2 gap-3">
                   <input type="number" placeholder="כמות" min="0" value={newRow.qty} onChange={e => setNewRow(r => ({ ...r, qty: Number(e.target.value) }))} className={cls} />
                   <input type="number" placeholder="מחיר" min="0" value={newRow.price} onChange={e => setNewRow(r => ({ ...r, price: Number(e.target.value) }))} className={cls} />
                 </div>
+                <VatToggle incl={newRow.inclVat} onChange={v => setNewRow(r => ({ ...r, inclVat: v }))} amount={newRow.price} cur={cur} />
+                </>
               )}
               {newRow.label.trim() && (
                 <button type="button" onClick={() => {
                   setRows(rs => [...rs, newRow.isPct
                     ? { label: newRow.label, desc: newRow.desc, isPct: true, pct: Number(newRow.pct) || 0, qty: 0, price: 0, id: Date.now() }
-                    : { label: newRow.label, desc: newRow.desc, isPct: false, qty: Number(newRow.qty) || 0, price: Number(newRow.price) || 0, id: Date.now() }]);
-                  setNewRow({ label: '', desc: '', qty: 1, price: 0, isPct: false, pct: 0 });
+                    : { label: newRow.label, desc: newRow.desc, isPct: false, qty: Number(newRow.qty) || 0, price: newRow.inclVat ? toNet(newRow.price) : (Number(newRow.price) || 0), id: Date.now() }]);
+                  setNewRow({ label: '', desc: '', qty: 1, price: 0, isPct: false, pct: 0, inclVat: false });
                   setStep(s => s + 1);
                 }} className="text-sm font-bold text-violet-600 underline">+ הוסף שורה</button>
               )}
@@ -1869,6 +1932,21 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                 <p>{CL.venueL}</p>
                 <p>{CL.startL} <EditableCell value={fields.startTime} onChange={v => setField('startTime', v)} /></p>
                 <p>{CL.endL} <EditableCell value={fields.endTime} onChange={v => setField('endTime', v)} /></p>
+                {contractTexts.eventExtraLines.map((line, i) => (
+                  <p key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <EditableCell value={line} onChange={v => setEventLine(i, v)} multiline />
+                    <button type="button" data-html2canvas-ignore="true" onClick={() => removeEventLine(i)}
+                      style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '9pt' }}>✕</button>
+                  </p>
+                ))}
+                <div data-html2canvas-ignore="true" style={{ marginTop: '4pt', display: 'flex', gap: '6px' }}>
+                  <input value={newEventLine} onChange={e => setNewEventLine(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addEventLine()}
+                    placeholder="הוסף שורה לפרטי האירוע..."
+                    style={{ flex: 1, border: '1px solid #ccc', borderRadius: '6px', padding: '2px 6px', fontSize: '9pt', direction: 'rtl' }} />
+                  <button type="button" onClick={addEventLine} disabled={!newEventLine.trim()}
+                    style={{ border: '1px solid #f59e0b', color: '#b45309', borderRadius: '6px', padding: '2px 8px', fontSize: '9pt', background: 'none', cursor: 'pointer', opacity: newEventLine.trim() ? 1 : 0.4 }}>+ הוסף</button>
+                </div>
 
                 <h3 style={{ fontWeight: 'bold', marginTop: 10, marginBottom: 4 }}>{CL.costsH}</h3>
 
@@ -1949,6 +2027,21 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                 )}
                   </>
                 )}
+                {contractTexts.costExtraLines.map((line, i) => (
+                  <p key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <EditableCell value={line} onChange={v => setCostLine(i, v)} multiline />
+                    <button type="button" data-html2canvas-ignore="true" onClick={() => removeCostLine(i)}
+                      style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '9pt' }}>✕</button>
+                  </p>
+                ))}
+                <div data-html2canvas-ignore="true" style={{ marginTop: '4pt', display: 'flex', gap: '6px' }}>
+                  <input value={newCostLine} onChange={e => setNewCostLine(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addCostLine()}
+                    placeholder="הוסף שורה לעלויות..."
+                    style={{ flex: 1, border: '1px solid #ccc', borderRadius: '6px', padding: '2px 6px', fontSize: '9pt', direction: 'rtl' }} />
+                  <button type="button" onClick={addCostLine} disabled={!newCostLine.trim()}
+                    style={{ border: '1px solid #f59e0b', color: '#b45309', borderRadius: '6px', padding: '2px 8px', fontSize: '9pt', background: 'none', cursor: 'pointer', opacity: newCostLine.trim() ? 1 : 0.4 }}>+ הוסף</button>
+                </div>
 
                 <h3 style={{ fontWeight: 'bold', marginTop: 10, marginBottom: 4 }}>
                   <EditableCell value={contractTexts.includesHeader} onChange={v => setTxt('includesHeader', v)} />
@@ -2312,7 +2405,9 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
     { id: 4, label: 'מנהל אירוע / קייטרינג שירות', desc: '', qty: 1, price: 900 },
     { id: 5, label: 'תאורה והגברה + תפעול לאורך האירוע', desc: '', qty: 1, price: 0 },
   ]);
-  const [newRow, setNewRow]         = useState({ label: '', desc: '', qty: 1, price: 0, isPct: false, pct: 0 });
+  const [newRow, setNewRow]         = useState({ label: '', desc: '', qty: 1, price: 0, isPct: false, pct: 0, inclVat: false });
+  const [entryIncl, setEntryIncl]   = useState(false); // VAT basis for a price entry (default excl)
+  useEffect(() => { setEntryIncl(false); }, [step]);
   const [newInclude, setNewInclude] = useState('');
   const [newExtra, setNewExtra]     = useState('');
   const [newPkgLine, setNewPkgLine] = useState('');
@@ -2501,9 +2596,9 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
     const nextId = Math.max(0, ...rows.map(r => r.id)) + 1;
     const row = newRow.isPct
       ? { ...newRow, id: nextId, pct: parseFloat(newRow.pct) || 0 }
-      : { ...newRow, id: nextId, qty: parseFloat(newRow.qty) || 0, price: parseFloat(newRow.price) || 0 };
+      : { ...newRow, id: nextId, qty: parseFloat(newRow.qty) || 0, price: (withVat && newRow.inclVat) ? toNet(newRow.price) : (parseFloat(newRow.price) || 0) };
     setRows(prev => [...prev, row]);
-    setNewRow({ label: '', desc: '', qty: 1, price: 0, isPct: false, pct: 0 });
+    setNewRow({ label: '', desc: '', qty: 1, price: 0, isPct: false, pct: 0, inclVat: false });
     setStep(s => s + 1);
   }
 
@@ -2694,14 +2789,16 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
             <div className="space-y-5">
               <p className="text-slate-400 text-sm font-semibold">עלות אורח נוסף</p>
               <input
-                autoFocus type="number" value={fields.extraGuestPrice}
-                onChange={e => setFields(f => ({ ...f, extraGuestPrice: e.target.value }))}
+                autoFocus type="number"
+                value={withVat && entryIncl ? String(toGross(fields.extraGuestPrice)) : (fields.extraGuestPrice ?? '')}
+                onChange={e => setFields(f => ({ ...f, extraGuestPrice: (withVat && entryIncl) ? String(toNet(e.target.value)) : e.target.value }))}
                 onKeyDown={e => e.key === 'Enter' && advance()}
                 placeholder="לדוגמה: 400"
                 className="w-full border-2 border-amber-300 rounded-xl px-4 py-3 text-lg focus:outline-none focus:border-amber-500"
               />
-              {withVat && fields.extraGuestPrice && Number(fields.extraGuestPrice) > 0 && (
-                <p className="text-xs text-slate-400">= {Math.round(Number(fields.extraGuestPrice) / 1.18).toLocaleString()} {cur} לפני מע"מ</p>
+              {withVat && (
+                <VatToggle incl={entryIncl} onChange={setEntryIncl}
+                  amount={entryIncl ? toGross(fields.extraGuestPrice) : fields.extraGuestPrice} cur={cur} />
               )}
               <p className="text-xs text-slate-400">אופציונלי — אם לא רלוונטי, השאר ריק</p>
               <div className="flex gap-2">
@@ -2962,6 +3059,9 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
                         className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-amber-400" />
                     </div>
                   </div>
+                )}
+                {withVat && !newRow.isPct && (
+                  <VatToggle incl={newRow.inclVat} onChange={v => setNewRow(r => ({ ...r, inclVat: v }))} amount={newRow.price} cur={cur} />
                 )}
               </div>
               <button onClick={addNewRow} disabled={!newRow.label.trim()}

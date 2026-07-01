@@ -123,6 +123,7 @@ ${logoB64 ? `<div style="text-align:center;margin-bottom:10pt;"><img src="data:i
 <p>${en ? `Start time: ${esc(startTime)}` : `&#x05E9;&#x05E2;&#x05EA; &#x05D4;&#x05EA;&#x05D7;&#x05DC;&#x05D4;: ${esc(startTime)}`}</p>
 <p>${en ? `End time: ${esc(endTime)}` : `&#x05E9;&#x05E2;&#x05EA; &#x05E1;&#x05D9;&#x05D5;&#x05DD; &#x05D4;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2;: ${esc(endTime)}`}</p>
 
+${tArr('eventExtraLines').map(l => (l && l.trim()) ? `<p>${esc(l)}</p>` : '').join('\n')}
 <h3>${en ? 'Costs:' : '&#x05E2;&#x05DC;&#x05D5;&#x05D9;&#x05D5;&#x05EA;:'}</h3>
 ${isPackage ? `
 <p>${en
@@ -170,6 +171,7 @@ ${extraGuestPrice && Number(extraGuestPrice) > 0
       : `&#x05DB;&#x05DC; &#x05D0;&#x05D5;&#x05E8;&#x05D7; &#x05DE;&#x05E2;&#x05DC; ${esc(String(guests || ''))} &#x05D0;&#x05D5;&#x05E8;&#x05D7;&#x05D9;&#x05DD; &#x05D1;&#x05E2;&#x05DC;&#x05D5;&#x05EA; &#x05E9;&#x05DC; ${money(extraGuestPrice)} &#x05DC;&#x05D0; &#x05DB;&#x05D5;&#x05DC;&#x05DC; &#x05DE;&#x05E2;"&#x05DE;`}</p>`
   : ''}
 `}
+${tArr('costExtraLines').map(l => (l && l.trim()) ? `<p>${esc(l)}</p>` : '').join('\n')}
 
 <h3>${t('includesHeader')}</h3>
 <ul>
