@@ -1789,12 +1789,17 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                 </div>
                 <div>
                   <label className="text-xs font-bold text-slate-500 mb-1 block">מחיר ליחידה (ש"ח)</label>
-                  <input type="number" min="0" value={currentRow.price}
-                    onChange={e => setRows(rs => rs.map(r => r.id === currentRow.id ? { ...r, price: Number(e.target.value) } : r))}
+                  <input type="number" min="0"
+                    value={entryIncl ? String(toGross(currentRow.price)) : currentRow.price}
+                    onChange={e => { const p = entryIncl ? toNet(e.target.value) : Number(e.target.value); setRows(rs => rs.map(r => r.id === currentRow.id ? { ...r, price: p } : r)); }}
                     className={cls}
                     onKeyDown={e => e.key === 'Enter' && setStep(s => s + 1)} />
                 </div>
               </div>
+              {!currentRow.isPct && (
+                <VatToggle incl={entryIncl} onChange={setEntryIncl}
+                  amount={entryIncl ? toGross(currentRow.price) : currentRow.price} cur={cur} />
+              )}
             </div>
           )}
 
@@ -2995,10 +3000,16 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
                       </div>
                       <div className="flex-1">
                         <p className="text-xs text-slate-400 mb-1">מחיר ש"ח</p>
-                        <input type="number" value={row.price} onChange={e => updateRow(rowIdx, { price: parseFloat(e.target.value) || 0 })}
+                        <input type="number"
+                          value={withVat && entryIncl ? String(toGross(row.price)) : row.price}
+                          onChange={e => updateRow(rowIdx, { price: (withVat && entryIncl) ? toNet(e.target.value) : (parseFloat(e.target.value) || 0) })}
                           className="w-full border-2 border-amber-300 rounded-xl px-3 py-2 text-base focus:outline-none" />
                       </div>
                     </div>
+                    {withVat && !row.isPct && (
+                      <VatToggle incl={entryIncl} onChange={setEntryIncl}
+                        amount={entryIncl ? toGross(row.price) : row.price} cur={cur} />
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-1">

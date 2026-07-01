@@ -73,15 +73,18 @@ function ContractDisplay({ data }) {
                 </tr>
               </thead>
               <tbody>
-                {(rows || []).map((r, i) => (
+                {(() => {
+                  const fixedSubtotal = (rows || []).filter(r => !r.isPct).reduce((s, r) => s + (r.qty||0)*(r.price||0), 0);
+                  return (rows || []).map((r, i) => (
                   <tr key={i}>
                     <td className="border border-slate-300 p-1.5">{r.label}</td>
                     <td className="border border-slate-300 p-1.5 text-slate-500">{r.desc || ''}</td>
-                    <td className="border border-slate-300 p-1.5 text-center">{r.qty}</td>
-                    <td className="border border-slate-300 p-1.5 text-center">{fmt(r.price)} ש"ח</td>
-                    <td className="border border-slate-300 p-1.5 text-center">{fmt((r.qty||0)*(r.price||0))} ש"ח</td>
+                    <td className="border border-slate-300 p-1.5 text-center">{r.isPct ? '-' : r.qty}</td>
+                    <td className="border border-slate-300 p-1.5 text-center">{r.isPct ? `${r.pct||0}%` : `${fmt(r.price)} ש"ח`}</td>
+                    <td className="border border-slate-300 p-1.5 text-center">{fmt(r.isPct ? Math.round(fixedSubtotal*(r.pct||0)/100) : (r.qty||0)*(r.price||0))} ש"ח</td>
                   </tr>
-                ))}
+                  ));
+                })()}
                 <tr><td colSpan={4} className="border border-slate-300 p-1.5 font-bold text-left">סה"כ חייב במע"מ:</td><td className="border border-slate-300 p-1.5 text-center font-bold">{fmt(subtotal)} ש"ח</td></tr>
                 <tr><td colSpan={4} className="border border-slate-300 p-1.5 text-left">מע"מ (18%):</td><td className="border border-slate-300 p-1.5 text-center">{fmt(vat)} ש"ח</td></tr>
                 <tr><td colSpan={4} className="border border-slate-300 p-1.5 font-bold text-left">סה"כ לתשלום:</td><td className="border border-slate-300 p-1.5 text-center font-bold">{fmt(total)} ש"ח</td></tr>
