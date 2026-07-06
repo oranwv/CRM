@@ -7,7 +7,7 @@ const todayStr = () => new Date().toISOString().slice(0, 10);
 export default function InvoiceModal({ lead, allPhones, allPhoneLabels, onClose, onCreated }) {
   const [docType,       setDocType]       = useState(300);
   const [paymentMethod, setPaymentMethod] = useState(4);
-  const [items,         setItems]         = useState([{ description: 'שירותי הפקת אירוע', quantity: 1, price: '', vatType: 1 }]);
+  const [items,         setItems]         = useState([{ description: 'אירוע', quantity: 1, price: '', vatType: 1 }]);
   const [docDate,       setDocDate]       = useState(todayStr());
   const [secondDate,    setSecondDate]    = useState(todayStr());
   const [sendByEmail,   setSendByEmail]   = useState(false);
@@ -15,6 +15,9 @@ export default function InvoiceModal({ lead, allPhones, allPhoneLabels, onClose,
   const [waMessage,     setWaMessage]     = useState('');
   const [waPhone,       setWaPhone]       = useState(allPhones?.[0] || lead?.phone || '');
   const [taxId,         setTaxId]         = useState((lead?.signer_id_number || '').replace(/\D/g, ''));
+  const [clientName,    setClientName]    = useState(lead?.orderer_name || lead?.name || '');
+  const [clientPhone,   setClientPhone]   = useState(lead?.phone || '');
+  const [clientEmail,   setClientEmail]   = useState(lead?.email || '');
   const [submitting,    setSubmitting]    = useState(false);
   const [error,         setError]         = useState(null);
   const [created,       setCreated]       = useState(null);
@@ -47,6 +50,9 @@ export default function InvoiceModal({ lead, allPhones, allPhoneLabels, onClose,
         paymentDate:     needsPmt ? secondDate : undefined,
         paymentMethod,
         taxId:           taxId.trim() || undefined,
+        name:            clientName.trim() || undefined,
+        phone:           clientPhone.trim() || undefined,
+        email:           clientEmail.trim() || undefined,
         sendByEmail,
         sendByWhatsApp:  sendByWa,
         whatsappMessage: waMessage,
@@ -209,13 +215,28 @@ export default function InvoiceModal({ lead, allPhones, allPhoneLabels, onClose,
                 </div>
               </div>
 
-              {/* Client info */}
-              <div className="bg-slate-50 rounded-xl p-3 space-y-1 text-xs text-slate-600">
-                <p className="font-bold text-slate-700 mb-1">פרטי לקוח</p>
-                <p>שם: {lead.orderer_name || lead.name}</p>
-                {lead.phone && <p>טלפון: <a href={`tel:${lead.phone}`} className="text-violet-600">{lead.phone}</a></p>}
-                {lead.email && <p>אימייל: {lead.email}</p>}
-                <div className="pt-1">
+              {/* Client info — all editable */}
+              <div className="bg-slate-50 rounded-xl p-3 space-y-2 text-xs text-slate-600">
+                <p className="font-bold text-slate-700">פרטי לקוח</p>
+                <div>
+                  <label className="block font-bold text-slate-600 mb-0.5">שם</label>
+                  <input value={clientName} onChange={e => setClientName(e.target.value)}
+                    placeholder="שם הלקוח למסמך"
+                    className="w-full text-sm bg-white border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-400" />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-600 mb-0.5">טלפון</label>
+                  <input value={clientPhone} onChange={e => setClientPhone(e.target.value)}
+                    placeholder="טלפון" dir="ltr"
+                    className="w-full text-sm bg-white border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-400" />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-600 mb-0.5">אימייל</label>
+                  <input value={clientEmail} onChange={e => setClientEmail(e.target.value)}
+                    placeholder="אימייל" dir="ltr"
+                    className="w-full text-sm bg-white border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-400" />
+                </div>
+                <div>
                   <label className="block font-bold text-slate-600 mb-0.5">ח.פ / ת.ז (מספר עוסק)</label>
                   <input value={taxId} onChange={e => setTaxId(e.target.value)}
                     placeholder="נשלף מהחוזה החתום — ניתן לעריכה"

@@ -86,6 +86,10 @@ function buildDocPayload(params, lead) {
   // Strip to digits only — the signing form is RTL free text and may carry
   // invisible direction marks / spaces / prefixes that GreenInvoice rejects (error 1111).
   const taxId    = String(params.taxId || lead.signer_id_number || '').replace(/\D/g, '') || undefined;
+  // Editable per-document overrides; fall back to the lead / signed contract.
+  const name  = params.name  || lead.orderer_name || lead.name;
+  const phone = params.phone || lead.phone;
+  const email = params.email || lead.email;
 
   return {
     type:     docType,
@@ -94,11 +98,11 @@ function buildDocPayload(params, lead) {
     currency: 'ILS',
     ...(dueDate ? { dueDate } : {}),
     client: {
-      name: lead.orderer_name || lead.name,
+      name,
       add:  false,
       ...(taxId ? { taxId } : {}),
-      ...(lead.phone            ? { phone:  lead.phone }             : {}),
-      ...(lead.email            ? { emails: [lead.email] }           : {}),
+      ...(phone ? { phone } : {}),
+      ...(email ? { emails: [email] } : {}),
     },
     income: (items || []).map(it => ({
       description: it.description,
@@ -198,6 +202,7 @@ router.post('/document', async (req, res) => {
   const {
     leadId, type, items, docDate, dueDate, paymentDate,
     paymentMethod, sendByEmail, sendByWhatsApp, whatsappMessage, whatsappPhone, taxId,
+    name, phone, email,
   } = req.body;
 
   try {
@@ -221,7 +226,7 @@ router.post('/document', async (req, res) => {
 
     if (!isManagerOrAdmin) {
       // Save as pending and notify managers
-      const payload = { type, items, docDate, dueDate, paymentDate, paymentMethod, sendByEmail, sendByWhatsApp, whatsappMessage, whatsappPhone, taxId };
+      const payload = { type, items, docDate, dueDate, paymentDate, paymentMethod, sendByEmail, sendByWhatsApp, whatsappMessage, whatsappPhone, taxId, name, phone, email };
       await pool.query(
         `INSERT INTO pending_documents (lead_id, created_by, payload) VALUES ($1, $2, $3)`,
         [leadId, req.user.id, JSON.stringify(payload)]
@@ -231,7 +236,7 @@ router.post('/document', async (req, res) => {
     }
 
     // Manager/admin — create immediately
-    const docPayload = buildDocPayload({ type, items, docDate, dueDate, paymentDate, paymentMethod, taxId }, lead);
+    const docPayload = buildDocPayload({ type, items, docDate, dueDate, paymentDate, paymentMethod, taxId, name, phone, email }, lead);
     const { docId, docUrl, filename } = await createAndSaveDoc(docPayload, leadId, req.user.id);
 
     // Send via WhatsApp if requested
@@ -332,8 +337,11 @@ router.post('/pending/:id/approve', managerOnly, async (req, res) => {
 
     const pending = rows[0];
     const params  = pending.payload;
-    // Manager may correct the ח.פ/ת.ז at approval time (per-document override).
+    // Manager may correct client details at approval time (per-document overrides).
     if (req.body.taxId !== undefined) params.taxId = req.body.taxId;
+    if (req.body.name  !== undefined) params.name  = req.body.name;
+    if (req.body.phone !== undefined) params.phone = req.body.phone;
+    if (req.body.email !== undefined) params.email = req.body.email;
     const lead    = { name: pending.name, phone: pending.phone, email: pending.email, signer_id_number: pending.signer_id_number, orderer_name: pending.orderer_name };
     const docPayload = buildDocPayload(params, lead);
 

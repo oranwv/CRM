@@ -11,6 +11,10 @@ export default function PendingDocDetail({ doc, isManager, onClose, onActionDone
   const [busy,      setBusy]      = useState(false);
   const [error,     setError]     = useState(null);
   const [taxId,     setTaxId]     = useState(String(doc.client_tax_id || doc.payload?.taxId || '').replace(/\D/g, ''));
+  // Prefer the per-document override (what will actually be issued), else the lead value.
+  const [clientName,  setClientName]  = useState(doc.payload?.name  || doc.orderer_name || doc.lead_name || '');
+  const [clientPhone, setClientPhone] = useState(doc.payload?.phone || doc.client_phone || '');
+  const [clientEmail, setClientEmail] = useState(doc.payload?.email || doc.client_email || '');
 
   const editable = doc.status === 'pending' && isManager;
 
@@ -23,7 +27,9 @@ export default function PendingDocDetail({ doc, isManager, onClose, onActionDone
   async function approve() {
     setBusy(true); setError(null);
     try {
-      await api.post(`/greeninvoice/pending/${doc.id}/approve`, { taxId: taxId.trim() });
+      await api.post(`/greeninvoice/pending/${doc.id}/approve`, {
+        taxId: taxId.trim(), name: clientName.trim(), phone: clientPhone.trim(), email: clientEmail.trim(),
+      });
       onActionDone?.();
       onClose?.();
     } catch (err) {
@@ -68,25 +74,45 @@ export default function PendingDocDetail({ doc, isManager, onClose, onActionDone
             {doc.created_at ? ` · ${new Date(doc.created_at).toLocaleDateString('he-IL')}` : ''}
           </div>
 
-          {/* Client details — exactly what is sent to GreenInvoice (incl. taxId) */}
-          <div className="bg-slate-50 rounded-xl p-3 space-y-0.5 text-xs text-slate-600">
-            <p className="font-bold text-slate-700 mb-1">פרטי לקוח</p>
-            <p>שם: {doc.orderer_name || doc.lead_name || '—'}</p>
+          {/* Client details — exactly what is sent to GreenInvoice */}
+          <div className="bg-slate-50 rounded-xl p-3 space-y-2 text-xs text-slate-600">
+            <p className="font-bold text-slate-700">פרטי לקוח</p>
             {editable ? (
-              <div className="pt-0.5">
-                <label className="block font-bold text-slate-600 mb-0.5">ח.פ / עוסק</label>
-                <input value={taxId} onChange={e => setTaxId(e.target.value)}
-                  placeholder="נשלף מהחוזה — ניתן לעריכה לפני אישור"
-                  className="w-full text-sm bg-white border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-400" />
-                {!taxId.trim() && <p className="text-amber-600 mt-0.5">לא הוזן — GreenInvoice עלול לדחות</p>}
-              </div>
+              <>
+                <div>
+                  <label className="block font-bold text-slate-600 mb-0.5">שם</label>
+                  <input value={clientName} onChange={e => setClientName(e.target.value)}
+                    placeholder="שם הלקוח למסמך"
+                    className="w-full text-sm bg-white border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-400" />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-600 mb-0.5">טלפון</label>
+                  <input value={clientPhone} onChange={e => setClientPhone(e.target.value)} dir="ltr"
+                    className="w-full text-sm bg-white border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-400" />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-600 mb-0.5">אימייל</label>
+                  <input value={clientEmail} onChange={e => setClientEmail(e.target.value)} dir="ltr"
+                    className="w-full text-sm bg-white border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-400" />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-600 mb-0.5">ח.פ / עוסק</label>
+                  <input value={taxId} onChange={e => setTaxId(e.target.value)}
+                    placeholder="נשלף מהחוזה — ניתן לעריכה לפני אישור"
+                    className="w-full text-sm bg-white border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-400" />
+                  {!taxId.trim() && <p className="text-amber-600 mt-0.5">לא הוזן — GreenInvoice עלול לדחות</p>}
+                </div>
+              </>
             ) : (
-              <p className={taxId ? '' : 'text-red-600 font-bold'}>
-                ח.פ / עוסק: {taxId || 'חסר — לא הוזן בחוזה החתום'}
-              </p>
+              <>
+                <p>שם: {clientName || '—'}</p>
+                <p className={taxId ? '' : 'text-red-600 font-bold'}>
+                  ח.פ / עוסק: {taxId || 'חסר — לא הוזן בחוזה החתום'}
+                </p>
+                {clientPhone && <p>טלפון: {clientPhone}</p>}
+                {clientEmail && <p>אימייל: {clientEmail}</p>}
+              </>
             )}
-            {doc.client_phone && <p>טלפון: {doc.client_phone}</p>}
-            {doc.client_email && <p>אימייל: {doc.client_email}</p>}
           </div>
 
           {/* Items */}
