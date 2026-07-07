@@ -6,12 +6,13 @@ const multer = require('multer');
 const path   = require('path');
 const fs     = require('fs');
 const os     = require('os');
-const { uploadFile, getSignedUrl } = require('../services/storageService');
+const { uploadFile, uploadBuffer, getSignedUrl } = require('../services/storageService');
 
 const { PDFParse } = require('pdf-parse'); // v2 API: class, not a callable default
 
-const sigUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
-const kbUpload  = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const sigUpload   = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
+const kbUpload    = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const mediaUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 60 * 1024 * 1024 } }); // KB media (images/videos)
 
 const ROLE_PRIORITY = ['admin','sales','production'];
 function deriveRole(roles) {
@@ -372,6 +373,62 @@ router.post('/knowledge-files', adminOnly, kbUpload.single('file'), async (req, 
 router.delete('/knowledge-files/:id', adminOnly, async (req, res) => {
   try {
     await pool.query('DELETE FROM ai_knowledge_files WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── AI knowledge media (images/videos the assistant can show) ──
+
+// GET /api/admin/knowledge-media
+router.get('/knowledge-media', adminOnly, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, title, description, url, media_type, source, created_at FROM ai_knowledge_media ORDER BY created_at DESC'
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/knowledge-media — upload a file OR provide an external url (YouTube/Drive/direct)
+router.post('/knowledge-media', adminOnly, mediaUpload.single('file'), async (req, res) => {
+  const { title, description, url: extUrl, mediaType } = req.body;
+  if (!title || !title.trim()) return res.status(400).json({ error: 'נא להזין כותרת' });
+  try {
+    let url, media_type, source, stored_name = null;
+    if (req.file) {
+      const mime = req.file.mimetype || '';
+      media_type = mime.startsWith('image/') ? 'image' : 'video';
+      source = 'upload';
+      const up = await uploadBuffer(req.file.buffer, req.file.originalname, mime || 'application/octet-stream');
+      url = up.url;
+      stored_name = up.storedName;
+    } else if (extUrl && extUrl.trim()) {
+      url = extUrl.trim();
+      source = 'external';
+      media_type = mediaType === 'image' ? 'image' : 'video';
+    } else {
+      return res.status(400).json({ error: 'נא להעלות קובץ או להזין קישור' });
+    }
+    const { rows: [row] } = await pool.query(
+      `INSERT INTO ai_knowledge_media (title, description, url, media_type, source, stored_name, uploaded_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, title, description, url, media_type, source, created_at`,
+      [title.trim(), description?.trim() || null, url, media_type, source, stored_name, req.user.id]
+    );
+    res.json(row);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/admin/knowledge-media/:id
+router.delete('/knowledge-media/:id', adminOnly, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM ai_knowledge_media WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

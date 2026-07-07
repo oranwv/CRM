@@ -14,13 +14,38 @@ const TOOL_LABELS = {
   get_rsvp_summary:   'טוען נתוני אישורי הגעה...',
 };
 
-function MarkdownText({ content }) {
-  const navigate = useNavigate();
+// Render a KB media item (image / uploaded video / YouTube / Google Drive).
+function MediaEmbed({ item }) {
+  if (!item || !item.url) return null;
+  const { url, media_type, title } = item;
+  const yt = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/);
+  const gd = url.match(/drive\.google\.com\/file\/d\/([\w-]+)/);
+  let media;
+  if (yt) {
+    media = <iframe className="w-full rounded-xl border border-slate-200" style={{ aspectRatio: '16 / 9' }}
+      src={`https://www.youtube.com/embed/${yt[1]}`} title={title || 'video'} allowFullScreen
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" />;
+  } else if (gd) {
+    media = <iframe className="w-full rounded-xl border border-slate-200" style={{ aspectRatio: '16 / 9' }}
+      src={`https://drive.google.com/file/d/${gd[1]}/preview`} title={title || 'video'} allowFullScreen />;
+  } else if (media_type === 'image') {
+    media = <a href={url} target="_blank" rel="noopener noreferrer"><img src={url} alt={title || ''} className="w-full rounded-xl border border-slate-200 object-contain" /></a>;
+  } else {
+    media = <video src={url} controls playsInline className="w-full rounded-xl border border-slate-200" />;
+  }
+  return (
+    <div className="my-2">
+      {title && <div className="text-xs font-bold text-slate-500 mb-1">{title}</div>}
+      {media}
+    </div>
+  );
+}
+
+// Render text with [text](url) links and **bold**.
+function renderRuns(content, navigate, keyPrefix) {
   const tokens = [];
   const linkRe = /\[([^\]]+)\]\(([^)]+)\)/g;
-  let last = 0;
-  let m;
-
+  let last = 0, m;
   while ((m = linkRe.exec(content)) !== null) {
     if (m.index > last) tokens.push({ type: 'text', value: content.slice(last, m.index) });
     tokens.push({ type: 'link', text: m[1], href: m[2] });
@@ -28,39 +53,59 @@ function MarkdownText({ content }) {
   }
   if (last < content.length) tokens.push({ type: 'text', value: content.slice(last) });
 
+  return tokens.map((tok, i) => {
+    if (tok.type === 'link') {
+      if (tok.href.startsWith('tel:')) {
+        return <a key={`${keyPrefix}-${i}`} href={tok.href} className="text-blue-600 underline font-semibold">{tok.text}</a>;
+      }
+      if (tok.href.startsWith('/')) {
+        return (
+          <a key={`${keyPrefix}-${i}`} href={tok.href} className="text-violet-600 underline font-semibold"
+            onClick={e => { e.preventDefault(); navigate(tok.href); }}>
+            {tok.text}
+          </a>
+        );
+      }
+      return <a key={`${keyPrefix}-${i}`} href={tok.href} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">{tok.text}</a>;
+    }
+    return tok.value.split('\n').map((line, j, arr) => (
+      <span key={`${keyPrefix}-${i}-${j}`}>
+        {line.split(/(\*\*[^*]+\*\*)/).map((part, k) =>
+          part.startsWith('**') && part.endsWith('**')
+            ? <strong key={k}>{part.slice(2, -2)}</strong>
+            : part
+        )}
+        {j < arr.length - 1 && <br />}
+      </span>
+    ));
+  });
+}
+
+function MarkdownText({ content, mediaMap = {} }) {
+  const navigate = useNavigate();
+  // Split out [[media:ID]] tags the assistant may emit, render each as an embed.
+  const mediaRe = /\[\[media:(\d+)\]\]/g;
+  const segments = [];
+  let last = 0, mm;
+  while ((mm = mediaRe.exec(content)) !== null) {
+    if (mm.index > last) segments.push({ type: 'text', value: content.slice(last, mm.index) });
+    segments.push({ type: 'media', id: mm[1] });
+    last = mm.index + mm[0].length;
+  }
+  if (last < content.length) segments.push({ type: 'text', value: content.slice(last) });
+
   return (
     <>
-      {tokens.map((tok, i) => {
-        if (tok.type === 'link') {
-          if (tok.href.startsWith('tel:')) {
-            return <a key={i} href={tok.href} className="text-blue-600 underline font-semibold">{tok.text}</a>;
-          }
-          if (tok.href.startsWith('/')) {
-            return (
-              <a key={i} href={tok.href} className="text-violet-600 underline font-semibold"
-                onClick={e => { e.preventDefault(); navigate(tok.href); }}>
-                {tok.text}
-              </a>
-            );
-          }
-          return <a key={i} href={tok.href} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">{tok.text}</a>;
-        }
-        return tok.value.split('\n').map((line, j, arr) => (
-          <span key={`${i}-${j}`}>
-            {line.split(/(\*\*[^*]+\*\*)/).map((part, k) =>
-              part.startsWith('**') && part.endsWith('**')
-                ? <strong key={k}>{part.slice(2, -2)}</strong>
-                : part
-            )}
-            {j < arr.length - 1 && <br />}
-          </span>
-        ));
-      })}
+      {segments.map((seg, si) =>
+        seg.type === 'media'
+          ? <MediaEmbed key={`m-${si}`} item={mediaMap[seg.id]} />
+          : <span key={`t-${si}`}>{renderRuns(seg.value, navigate, `t-${si}`)}</span>
+      )}
     </>
   );
 }
 
-function Message({ msg }) {
+function Message({ msg, mediaMap }) {
   const isUser  = msg.role === 'user';
   const isError = msg.error;
   return (
@@ -75,7 +120,7 @@ function Message({ msg }) {
         }`}
         dir="rtl"
       >
-        {isUser ? msg.content : <MarkdownText content={msg.content} />}
+        {isUser ? msg.content : <MarkdownText content={msg.content} mediaMap={mediaMap} />}
         {msg.streaming && (
           <span className="inline-block w-1.5 h-3.5 bg-gray-400 ml-0.5 animate-pulse rounded-sm" />
         )}
@@ -91,6 +136,7 @@ export default function AIChat() {
   // All hooks must come before any conditional return
   const [open, setOpen]           = useState(false);
   const [messages, setMessages]   = useState([]);
+  const [mediaMap, setMediaMap]   = useState({});
   const [input, setInput]         = useState('');
   const [loading, setLoading]     = useState(false);
   const [toolLabel, setToolLabel] = useState('');
@@ -109,6 +155,14 @@ export default function AIChat() {
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 100);
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      // Load the KB media map so [[media:ID]] tags the assistant emits can render.
+      const token = localStorage.getItem('crm_token');
+      if (token) {
+        fetch('/api/chat/media', { headers: { Authorization: `Bearer ${token}` } })
+          .then(r => r.ok ? r.json() : [])
+          .then(list => setMediaMap(Object.fromEntries((list || []).map(m => [String(m.id), m]))))
+          .catch(() => {});
+      }
     }
   }, [open]);
 
@@ -295,7 +349,7 @@ export default function AIChat() {
                 שלום! שאל אותי על הלידים, המשימות, הלוז שלך — כל מה שצריך.
               </div>
             )}
-            {messages.map((msg, i) => <Message key={i} msg={msg} />)}
+            {messages.map((msg, i) => <Message key={i} msg={msg} mediaMap={mediaMap} />)}
             {toolLabel && (
               <div className="flex justify-end mb-1">
                 <div className="text-xs text-gray-400 italic px-3 py-1.5 bg-gray-50 rounded-full border border-gray-100">

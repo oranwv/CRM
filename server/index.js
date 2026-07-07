@@ -450,6 +450,17 @@ pool.query(`
     uploaded_by INT REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
   );
+  CREATE TABLE IF NOT EXISTS ai_knowledge_media (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    url VARCHAR(1000) NOT NULL,
+    media_type VARCHAR(20) NOT NULL DEFAULT 'video',
+    source VARCHAR(20) NOT NULL DEFAULT 'upload',
+    stored_name TEXT,
+    uploaded_by INT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
 `).catch(err => console.error('[DB] ai_knowledge_files migration error:', err.message));
 
 const { pollGoogleCalendar } = require('./services/calendarPollService');

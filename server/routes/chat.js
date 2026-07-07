@@ -529,15 +529,20 @@ router.post('/', requireAuth, async (req, res) => {
     }
 
     // Load knowledge base from DB
-    const [{ rows: [knowledgeRow] }, { rows: kbFiles }] = await Promise.all([
+    const [{ rows: [knowledgeRow] }, { rows: kbFiles }, { rows: kbMedia }] = await Promise.all([
       pool.query("SELECT value FROM settings WHERE key = 'ai_knowledge_text'"),
-      pool.query("SELECT filename, content_text FROM ai_knowledge_files ORDER BY created_at DESC")
+      pool.query("SELECT filename, content_text FROM ai_knowledge_files ORDER BY created_at DESC"),
+      pool.query("SELECT id, title, description, media_type FROM ai_knowledge_media ORDER BY created_at DESC"),
     ]);
+    const mediaSection = kbMedia.length
+      ? `\n\n## מדיה זמינה להצגה למשתמש:\nכשזה עוזר לתשובה (למשל שאלה "איך מפעילים..."), הצג את המדיה על ידי כתיבת התגית בשורה נפרדת בדיוק בפורמט [[media:ID]] — בנוסף להסבר טקסטואלי. הצג רק מדיה רלוונטית, ואל תמציא מזהים.\n`
+        + kbMedia.map(m => `- [[media:${m.id}]] — ${m.title}${m.description ? `: ${m.description}` : ''} (${m.media_type === 'image' ? 'תמונה' : 'סרטון'})`).join('\n')
+      : '';
     const knowledgeParts = [
       knowledgeRow?.value?.trim() ? `## מידע כללי על שרביה:\n${knowledgeRow.value.trim()}` : '',
       ...kbFiles.map(f => `## מסמך: ${f.filename}\n${f.content_text}`)
     ].filter(Boolean);
-    const knowledgeSection = knowledgeParts.length ? '\n\n' + knowledgeParts.join('\n\n') : '';
+    const knowledgeSection = (knowledgeParts.length ? '\n\n' + knowledgeParts.join('\n\n') : '') + mediaSection;
 
     const systemPrompt = `אתה עוזר AI של מערכת CRM שרביה.
 אתה מסייע ל-${user.display_name || user.username} (תפקיד: ${userRoles.join(', ')}).${modeHint}${leadContext}
@@ -638,6 +643,18 @@ router.post('/', requireAuth, async (req, res) => {
     console.error('[Chat] error:', err.message);
     sse('error', { message: 'שגיאה פנימית. נסה שוב.' });
     res.end();
+  }
+});
+
+// GET /api/chat/media — media map for rendering [[media:ID]] tags the assistant emits
+router.get('/media', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, title, url, media_type, source FROM ai_knowledge_media'
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

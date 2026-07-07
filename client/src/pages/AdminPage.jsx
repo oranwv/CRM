@@ -356,6 +356,12 @@ export default function AdminPage() {
   const [kbSaved,        setKbSaved]          = useState(false);
   const [kbUploading,    setKbUploading]      = useState(false);
   const kbFileRef = useRef(null);
+  const [knowledgeMedia, setKnowledgeMedia]   = useState([]);
+  const [mediaTitle,     setMediaTitle]       = useState('');
+  const [mediaDesc,      setMediaDesc]        = useState('');
+  const [mediaUrl,       setMediaUrl]         = useState('');
+  const [mediaUploading, setMediaUploading]   = useState(false);
+  const mediaFileRef = useRef(null);
   const [chatbotEnabled,  setChatbotEnabled]  = useState(false);
   const [chatbotGreeting, setChatbotGreeting] = useState('');
   const [chatbotFollowup, setChatbotFollowup] = useState('');
@@ -398,6 +404,7 @@ export default function AdminPage() {
     loadUsers();
     loadCalAcl();
     loadKnowledgeFiles();
+    loadKnowledgeMedia();
   }, []);
 
   async function loadUsers() {
@@ -579,6 +586,42 @@ export default function AdminPage() {
     }
   }
 
+  async function loadKnowledgeMedia() {
+    try { const { data } = await api.get('/admin/knowledge-media'); setKnowledgeMedia(data); } catch {}
+  }
+
+  // Submit either an uploaded file (from the picker) or the pasted external URL.
+  async function submitMedia(file) {
+    if (!mediaTitle.trim()) { alert('נא להזין כותרת'); return; }
+    if (!file && !mediaUrl.trim()) { alert('נא להעלות קובץ או להזין קישור'); return; }
+    setMediaUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('title', mediaTitle.trim());
+      fd.append('description', mediaDesc.trim());
+      if (file) fd.append('file', file);
+      else { fd.append('url', mediaUrl.trim()); fd.append('mediaType', 'video'); }
+      const { data } = await api.post('/admin/knowledge-media', fd);
+      setKnowledgeMedia(prev => [data, ...prev]);
+      setMediaTitle(''); setMediaDesc(''); setMediaUrl('');
+    } catch (err) {
+      alert(err.response?.data?.error || 'שגיאה בהעלאת המדיה');
+    } finally {
+      setMediaUploading(false);
+      if (mediaFileRef.current) mediaFileRef.current.value = '';
+    }
+  }
+
+  async function handleMediaDelete(id) {
+    if (!confirm('למחוק את המדיה?')) return;
+    try {
+      await api.delete(`/admin/knowledge-media/${id}`);
+      setKnowledgeMedia(prev => prev.filter(m => m.id !== id));
+    } catch (err) {
+      alert(err.response?.data?.error || 'שגיאה');
+    }
+  }
+
   async function handleCalAclAdd() {
     const email = calAclNewEmail.trim();
     if (!email) return;
@@ -749,6 +792,45 @@ export default function AdminPage() {
                       <p className="text-xs text-slate-400">{new Date(f.created_at).toLocaleDateString('he-IL')}</p>
                     </div>
                     <button onClick={() => handleKbFileDelete(f.id)} className="text-red-400 hover:text-red-600 text-lg leading-none transition px-1">×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Media the assistant can show (images / videos) ── */}
+          <div className="border-t border-slate-100 pt-3 mt-3">
+            <p className="text-xs font-bold text-slate-600 mb-1">מדיה שהעוזר יכול להציג (תמונות / סרטונים)</p>
+            <p className="text-[11px] text-slate-400 mb-2">העוזר יציג את המדיה כשהיא רלוונטית לשאלה, לפי הכותרת ותיאור "מתי להציג".</p>
+            <input value={mediaTitle} onChange={e => setMediaTitle(e.target.value)} dir="rtl"
+              placeholder="כותרת (למשל: הפעלת מערכת סאונד)"
+              className="w-full rounded-xl px-3 py-2 text-sm border border-violet-200 focus:outline-none focus:border-violet-400 text-slate-700 mb-2" />
+            <input value={mediaDesc} onChange={e => setMediaDesc(e.target.value)} dir="rtl"
+              placeholder='מתי להציג (למשל: כששואלים איך מפעילים סאונד/מגברים)'
+              className="w-full rounded-xl px-3 py-2 text-sm border border-violet-200 focus:outline-none focus:border-violet-400 text-slate-700 mb-2" />
+            <div className="flex gap-2 mb-2">
+              <input value={mediaUrl} onChange={e => setMediaUrl(e.target.value)} dir="ltr"
+                placeholder="קישור YouTube / Drive / וידאו"
+                className="flex-1 rounded-xl px-3 py-2 text-sm border border-violet-200 focus:outline-none focus:border-violet-400 text-slate-700" />
+              <button onClick={() => submitMedia(null)} disabled={mediaUploading}
+                className="px-3 py-2 rounded-xl bg-violet-100 text-violet-700 text-sm font-bold whitespace-nowrap disabled:opacity-50">הוסף קישור</button>
+            </div>
+            <label className={`block w-full py-2 rounded-xl font-bold text-sm text-center cursor-pointer border-2 border-dashed border-violet-300 text-violet-600 hover:bg-violet-50 transition mb-3 ${mediaUploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+              {mediaUploading ? 'מעלה...' : '+ העלה תמונה / סרטון'}
+              <input ref={mediaFileRef} type="file" accept="image/*,video/*" className="hidden"
+                onChange={e => { const f = e.target.files[0]; if (f) submitMedia(f); }} disabled={mediaUploading} />
+            </label>
+            {knowledgeMedia.length === 0 ? (
+              <p className="text-xs text-slate-400 text-center py-2">אין מדיה עדיין</p>
+            ) : (
+              <div className="space-y-1.5">
+                {knowledgeMedia.map(m => (
+                  <div key={m.id} className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 border border-slate-100" dir="rtl">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-700 truncate">{m.media_type === 'image' ? '🖼️' : '🎬'} {m.title}</p>
+                      {m.description && <p className="text-xs text-slate-400 truncate">{m.description}</p>}
+                    </div>
+                    <button onClick={() => handleMediaDelete(m.id)} className="text-red-400 hover:text-red-600 text-lg leading-none transition px-1 shrink-0">×</button>
                   </div>
                 ))}
               </div>
