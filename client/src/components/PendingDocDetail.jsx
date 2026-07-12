@@ -10,7 +10,8 @@ export default function PendingDocDetail({ doc, isManager, onClose, onActionDone
   const [comment,   setComment]   = useState('');
   const [busy,      setBusy]      = useState(false);
   const [error,     setError]     = useState(null);
-  const [taxId,     setTaxId]     = useState(String(doc.client_tax_id || doc.payload?.taxId || '').replace(/\D/g, ''));
+  // Payload first: the creator's edited ח.פ must not be masked by the signed-contract value.
+  const [taxId,     setTaxId]     = useState(String(doc.payload?.taxId || doc.client_tax_id || '').replace(/\D/g, ''));
   // Prefer the per-document override (what will actually be issued), else the lead value.
   const [clientName,  setClientName]  = useState(doc.payload?.name  || doc.orderer_name || doc.lead_name || '');
   const [clientPhone, setClientPhone] = useState(doc.payload?.phone || doc.client_phone || '');

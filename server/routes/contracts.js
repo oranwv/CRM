@@ -191,6 +191,7 @@ ${tArr('costExtraLines').map(l => (l && l.trim()) ? `<p>${esc(l)}</p>` : '').joi
 <p>${t('remainderLine')} <strong>${money(remainingBalance)} ${t('remainderSuffix')}</strong></p>
 <p>${t('checkNote')}</p>
 <p>${t('paymentNote')}</p>
+${tArr('paymentExtras').map(l => (l && l.trim()) ? `<p>${esc(l)}</p>` : '').join('\n')}
 
 <h3>${t('cancellationHeader')}</h3>
 <ul>
