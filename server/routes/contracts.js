@@ -188,8 +188,15 @@ ${tArr('costExtraLines').map(l => (l && l.trim()) ? `<p>${esc(l)}</p>` : '').joi
 
 <h3>${t('paymentHeader')}</h3>
 <p>${t('depositLine')} <strong>${money(depositAmount)} (${esc(String(depositPercent))}%)</strong> ${t('depositSuffix')} <strong>${money(depositAmountVat)}</strong></p>
+${texts.finalSettlementIntro ? `
+<p>${t('finalSettlementIntro')}</p>
+<p>${t('securityCheckPre')} <strong>${texts.remainderAmtLabel ? esc(texts.remainderAmtLabel) : money(remainingBalance)}</strong> ${t('securityCheckSuf')}</p>
+<p>${t('reserveCheckPre')} <strong>${texts.reserveAmtLabel ? esc(texts.reserveAmtLabel) : money(Math.round(total * 0.1))}</strong> ${t('reserveCheckSuf')}</p>
+<p>${t('checksUsageNote')}</p>
+` : `
 <p>${t('remainderLine')} <strong>${money(remainingBalance)} ${t('remainderSuffix')}</strong></p>
 <p>${t('checkNote')}</p>
+`}
 <p>${t('paymentNote')}</p>
 ${tArr('paymentExtras').map(l => (l && l.trim()) ? `<p>${esc(l)}</p>` : '').join('\n')}
 

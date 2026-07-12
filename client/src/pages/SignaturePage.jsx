@@ -130,11 +130,30 @@ function ContractDisplay({ data }) {
           {texts?.depositSuffix || 'לא כולל מע"מ. סה"כ כולל מע"מ'}{' '}
           <strong>{fmt(depositAmountVat)} ש"ח</strong>
         </p>
-        <p>
-          {texts?.remainderLine || 'ביום האירוע, לפני תחילת האירוע יש לשלם את יתרת הסכום על סך'}{' '}
-          <strong>{fmt(remainingBalance)} ש"ח {texts?.remainderSuffix || 'כולל מע"מ'}</strong>
-        </p>
-        <p>{texts?.checkNote || "לחלופין - ניתן להביא צ'ק ביטחון של הסכום הנ\"ל בתחילת האירוע."}</p>
+        {texts?.finalSettlementIntro ? (
+          <>
+            <p>{texts.finalSettlementIntro}</p>
+            <p>
+              {texts.securityCheckPre}{' '}
+              <strong>{texts.remainderAmtLabel || `${fmt(remainingBalance)} ש"ח`}</strong>{' '}
+              {texts.securityCheckSuf}
+            </p>
+            <p>
+              {texts.reserveCheckPre}{' '}
+              <strong>{texts.reserveAmtLabel || `${fmt(Math.round(total * 0.1))} ש"ח`}</strong>{' '}
+              {texts.reserveCheckSuf}
+            </p>
+            <p>{texts.checksUsageNote}</p>
+          </>
+        ) : (
+          <>
+            <p>
+              {texts?.remainderLine || 'ביום האירוע, לפני תחילת האירוע יש לשלם את יתרת הסכום על סך'}{' '}
+              <strong>{fmt(remainingBalance)} ש"ח {texts?.remainderSuffix || 'כולל מע"מ'}</strong>
+            </p>
+            <p>{texts?.checkNote || "לחלופין - ניתן להביא צ'ק ביטחון של הסכום הנ\"ל בתחילת האירוע."}</p>
+          </>
+        )}
         <p>{texts?.paymentNote || 'חשוב לציין כי ללא הנ"ל מנהל האירוע לא יתחיל ויקיים את האירוע!'}</p>
         {(texts?.paymentExtras || []).map((line, i) => (
           <p key={i}>{line}</p>

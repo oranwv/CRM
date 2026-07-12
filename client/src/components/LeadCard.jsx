@@ -1212,10 +1212,14 @@ const CONTRACT_TEXTS_EN = {
   depositAmtLabel: null, depositPctLabel: null,
   depositSuffix: 'excl. VAT. Total incl. VAT',
   depositAmtVatLabel: null,
-  remainderLine: 'On the event day, before the event begins, the balance shall be paid in the amount of',
+  finalSettlementIntro: 'The Orderer undertakes to arrive at the venue offices at least 3 business days before the event date (the "Final Settlement Date"), to settle the payments and provide the securities detailed below:',
+  securityCheckPre: '1. Security cheque: a cheque in the amount of',
   remainderAmtLabel: null,
-  remainderSuffix: 'incl. VAT',
-  checkNote: 'Alternatively — a security cheque for the above amount may be brought at the start of the event.',
+  securityCheckSuf: 'incl. VAT, dated the event date, which shall serve as security for the fulfilment of all the Orderer\'s obligations under this agreement.',
+  reserveCheckPre: '2. Reserve cheque: a cheque in the amount of',
+  reserveAmtLabel: null,
+  reserveCheckSuf: '(10% of the event\'s minimum commitment). This cheque shall cover additional portions, exceptional services or additions ordered during the event itself.',
+  checksUsageNote: 'The venue undertakes not to use the above cheques except in the event of non-compliance with the agreement or to cover debts incurred during the event and not settled at its end. Cheques not used shall be returned to the Orderer or destroyed after the event and the final settlement.',
   paymentNote: 'Please note that without the above, the event manager will not begin or hold the event!',
   cancellationHeader: 'Event cancellation:',
   cancellationItems: [
@@ -1366,10 +1370,14 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
     depositPctLabel:    null,
     depositSuffix: 'לא כולל מע"מ. סה"כ כולל מע"מ',
     depositAmtVatLabel: null,
-    remainderLine: 'ביום האירוע, לפני תחילת האירוע יש לשלם את יתרת הסכום על סך',
+    finalSettlementIntro: 'המזמין מתחייב להגיע למשרדי אולם האירועים 3 ימי עסקים לפחות לפני מועד האירוע (להלן: "מועד גמר החשבון"), לשם הסדרת התשלומים ומסירת הבטחונות כמפורט להלן:',
+    securityCheckPre: "1. המחאת ביטחון: צ'ק על סך",
     remainderAmtLabel:  null,
-    remainderSuffix: 'כולל מע"מ',
-    checkNote: "לחלופין - ניתן להביא צ'ק ביטחון של הסכום הנ\"ל בתחילת האירוע.",
+    securityCheckSuf: 'כולל מע"מ למועד האירוע, אשר ישמש כביטחון לקיומן של כלל התחייבויות המזמין על פי חוזה זה.',
+    reserveCheckPre: "2. המחאת רזרבה: צ'ק על סך",
+    reserveAmtLabel: null,
+    reserveCheckSuf: '(10% מגובה סך ההתחייבות המינימלית של האירוע). המחאה זו תשמש לכיסוי מנות נוספות, שירותים חריגים או תוספות שיוזמנו במהלך האירוע עצמו.',
+    checksUsageNote: 'אולם האירועים מתחייב כי לא יעשה כל שימוש בהמחאות הנ"ל, אלא במקרה של אי-עמידה בתנאי החוזה או לשם כיסוי חובות שנוצרו במהלך האירוע ולא הוסדרו בסיומו. המחאות שלא ייעשה בהן שימוש יוחזרו למזמין או יושמדו בתום האירוע ולאחר גמר החשבון הסופי.',
     paymentNote: 'חשוב לציין כי ללא הנ"ל מנהל האירוע לא יתחיל ויקיים את האירוע!',
     cancellationHeader: 'ביטול האירוע:',
     cancellationItems: [
@@ -2089,14 +2097,22 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                     <EditableCell value={contractTexts.depositAmtVatLabel ?? `${fmtNum(depositAmountVat)} ש"ח`} onChange={v => setTxt('depositAmtVatLabel', v)} />
                   </strong>
                 </p>
+                <p><EditableCell value={contractTexts.finalSettlementIntro} onChange={v => setTxt('finalSettlementIntro', v)} multiline /></p>
                 <p>
-                  <EditableCell value={contractTexts.remainderLine} onChange={v => setTxt('remainderLine', v)} multiline />{' '}
+                  <EditableCell value={contractTexts.securityCheckPre} onChange={v => setTxt('securityCheckPre', v)} />{' '}
                   <strong>
-                    <EditableCell value={contractTexts.remainderAmtLabel ?? `${fmtNum(remainingBalance)} ש"ח`} onChange={v => setTxt('remainderAmtLabel', v)} />{' '}
-                    <EditableCell value={contractTexts.remainderSuffix} onChange={v => setTxt('remainderSuffix', v)} />
-                  </strong>
+                    <EditableCell value={contractTexts.remainderAmtLabel ?? `${fmtNum(remainingBalance)} ${cur}`} onChange={v => setTxt('remainderAmtLabel', v)} />
+                  </strong>{' '}
+                  <EditableCell value={contractTexts.securityCheckSuf} onChange={v => setTxt('securityCheckSuf', v)} multiline />
                 </p>
-                <p><EditableCell value={contractTexts.checkNote} onChange={v => setTxt('checkNote', v)} multiline /></p>
+                <p>
+                  <EditableCell value={contractTexts.reserveCheckPre} onChange={v => setTxt('reserveCheckPre', v)} />{' '}
+                  <strong>
+                    <EditableCell value={contractTexts.reserveAmtLabel ?? `${fmtNum(Math.round(total * 0.1))} ${cur}`} onChange={v => setTxt('reserveAmtLabel', v)} />
+                  </strong>{' '}
+                  <EditableCell value={contractTexts.reserveCheckSuf} onChange={v => setTxt('reserveCheckSuf', v)} multiline />
+                </p>
+                <p><EditableCell value={contractTexts.checksUsageNote} onChange={v => setTxt('checksUsageNote', v)} multiline /></p>
                 <p><EditableCell value={contractTexts.paymentNote} onChange={v => setTxt('paymentNote', v)} multiline /></p>
                 {(contractTexts.paymentExtras || []).map((line, i) => (
                   <p key={i}><EditableCell value={line} onChange={v => setContractTexts(t => ({ ...t, paymentExtras: t.paymentExtras.map((x, j) => j === i ? v : x) }))} multiline /></p>
