@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../api';
 
-const ROLE_LABELS = { admin: 'מנהל מערכת', manager: 'מנהל', sales: 'מכירות', production: 'הפקה', suppliers: 'ספקים', rsvp: 'אישורי הגעה', operations: 'תפעול' };
-const ALL_PERMISSIONS = ['admin','manager','sales','production','suppliers','rsvp','operations'];
+const ROLE_LABELS = { admin: 'מנהל מערכת', manager: 'מנהל', sales: 'מכירות', production: 'הפקה', suppliers: 'ספקים', rsvp: 'אישורי הגעה', operations: 'תפעול', finance: 'כספים' };
+const ALL_PERMISSIONS = ['admin','manager','sales','production','suppliers','rsvp','operations','finance'];
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 
@@ -297,7 +297,7 @@ function ItemEditorModal({ overrides, customItems, onSave, onClose }) {
   );
 }
 
-const ROLE_COLORS = { admin: 'bg-violet-100 text-violet-700', manager: 'bg-purple-100 text-purple-700', sales: 'bg-indigo-100 text-indigo-700', production: 'bg-slate-100 text-slate-600', suppliers: 'bg-emerald-100 text-emerald-700', rsvp: 'bg-pink-100 text-pink-700', operations: 'bg-orange-100 text-orange-700' };
+const ROLE_COLORS = { admin: 'bg-violet-100 text-violet-700', manager: 'bg-purple-100 text-purple-700', sales: 'bg-indigo-100 text-indigo-700', production: 'bg-slate-100 text-slate-600', suppliers: 'bg-emerald-100 text-emerald-700', rsvp: 'bg-pink-100 text-pink-700', operations: 'bg-orange-100 text-orange-700', finance: 'bg-amber-100 text-amber-700' };
 
 const DEFAULT_CHATBOT_GREETING = `היי תודה שפנית לשרביה
 נשמח לעזור לך לתכנן אירוע מיוחד ובלתי נשכח באווירה הייחודית של יפו העתיקה.

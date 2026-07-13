@@ -450,6 +450,27 @@ pool.query(`
     uploaded_by INT REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
   );
+  CREATE TABLE IF NOT EXISTS finance_missing_expenses (
+    id SERIAL PRIMARY KEY,
+    fingerprint TEXT UNIQUE NOT NULL,
+    entry_date DATE,
+    name TEXT,
+    description TEXT,
+    amount NUMERIC NOT NULL,
+    source VARCHAR(10) NOT NULL,
+    status TEXT,
+    status_updated_at TIMESTAMPTZ,
+    resolved BOOLEAN DEFAULT FALSE,
+    resolved_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS finance_expense_notes (
+    id SERIAL PRIMARY KEY,
+    expense_id INT REFERENCES finance_missing_expenses(id) ON DELETE CASCADE,
+    body TEXT NOT NULL,
+    created_by INT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
   CREATE TABLE IF NOT EXISTS ai_knowledge_media (
     id SERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
@@ -496,6 +517,7 @@ app.use('/api/presence',            requireAuth, require('./routes/presence'));
 app.use('/api/suppliers',           requireAuth, require('./routes/suppliers'));
 app.use('/api/operations',          requireAuth, operationsRoutes);
 app.use('/api/greeninvoice',        requireAuth, require('./routes/greeninvoice'));
+app.use('/api/finance',             requireAuth, require('./routes/finance'));
 app.use('/api/ai',                  requireAuth, aiRoutes);
 app.use('/api/chat',               chatRoutes);  // auth applied inside route
 app.use('/api/calendar', (req, res, next) => {

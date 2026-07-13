@@ -16,6 +16,7 @@ import RSVPsPage        from './pages/RSVPs/RSVPsPage';
 import RSVPDetailPage   from './pages/RSVPs/RSVPDetailPage';
 import OperationsPage    from './pages/OperationsPage';
 import ManagementPage   from './pages/ManagementPage';
+import FinancePage      from './pages/FinancePage';
 import AIChat           from './components/AIChat';
 import PendingDocsModal  from './components/PendingDocsModal';
 import { docTypeLabel }   from './utils/docTypes';
@@ -84,6 +85,7 @@ function GlobalHeader() {
     else if (m === 'אישורי הגעה') navigate('/rsvps');
     else if (m === 'תפעול') navigate('/operations');
     else if (m === 'ניהול') navigate('/management');
+    else if (m === 'כספים') navigate('/finance');
     else navigate('/');
   }
 
@@ -144,13 +146,14 @@ function GlobalHeader() {
             className="absolute left-0 mt-1.5 bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-100 z-50"
             style={{ minWidth: 140, top: '100%' }}
           >
-            {(isAdmin ? ['מכירות','הפקה','ספקים','אישורי הגעה','תפעול','ניהול'] : [
+            {(isAdmin ? ['מכירות','הפקה','ספקים','אישורי הגעה','תפעול','ניהול','כספים'] : [
               ...(userRoles.includes('sales')      ? ['מכירות']      : []),
               ...(userRoles.includes('production') ? ['הפקה']         : []),
               ...(userRoles.includes('suppliers')  ? ['ספקים']        : []),
               ...(userRoles.includes('rsvp')       ? ['אישורי הגעה']  : []),
               ...(userRoles.includes('operations') ? ['תפעול']        : []),
               ...(isManager                        ? ['ניהול']        : []),
+              ...(isManager || userRoles.includes('finance') ? ['כספים'] : []),
             ]).map(m => (
               <button
                 key={m}
@@ -191,8 +194,11 @@ function AppShellNav() {
   const isRSVP         = mode === 'אישורי הגעה';
   const isOperations   = mode === 'תפעול';
   const isManagement   = mode === 'ניהול';
+  const isFinance      = mode === 'כספים';
 
-  const tabs = isManagement
+  const tabs = isFinance
+    ? [{ path: '/finance', icon: '💰', label: 'כספים' }]
+    : isManagement
     ? [{ path: '/management', icon: '📈', label: 'ניהול' }]
     : isRSVP
     ? [{ path: '/rsvps', icon: '📋', label: 'אישורי הגעה', prefix: '/rsvps' }]
@@ -266,6 +272,7 @@ function RootRedirect() {
     else if (mode === 'אישורי הגעה') navigate('/rsvps',      { replace: true });
     else if (mode === 'תפעול')       navigate('/operations', { replace: true });
     else if (mode === 'ניהול')       navigate('/management', { replace: true });
+    else if (mode === 'כספים')       navigate('/finance',    { replace: true });
   }, []);
   return <LeadsPage />;
 }
@@ -335,6 +342,16 @@ function AppRoutes() {
             <>
               <div className="pt-11" />
               <AdminPage />
+              <AppShellNav />
+              <div className="pb-28" />
+            </>
+          </PrivateRoute>
+        } />
+        <Route path="/finance" element={
+          <PrivateRoute>
+            <>
+              <div className="pt-11" />
+              <FinancePage />
               <AppShellNav />
               <div className="pb-28" />
             </>
