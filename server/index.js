@@ -471,6 +471,37 @@ pool.query(`
     created_by INT REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
   );
+  CREATE TABLE IF NOT EXISTS finance_gmail_accounts (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    token_json TEXT NOT NULL,
+    active BOOLEAN DEFAULT TRUE,
+    last_scan_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS finance_scanned_emails (
+    gmail_id TEXT PRIMARY KEY,
+    account_email VARCHAR(255),
+    is_invoice BOOLEAN DEFAULT FALSE,
+    scanned_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS finance_invoice_files (
+    id SERIAL PRIMARY KEY,
+    gmail_message_id TEXT NOT NULL,
+    account_email VARCHAR(255),
+    email_subject TEXT,
+    email_from TEXT,
+    email_date TIMESTAMPTZ,
+    filename TEXT NOT NULL,
+    source_kind VARCHAR(12),
+    status VARCHAR(10) NOT NULL,
+    error TEXT,
+    drive_file_id TEXT,
+    drive_link TEXT,
+    drive_folder VARCHAR(20),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (gmail_message_id, filename)
+  );
   CREATE TABLE IF NOT EXISTS ai_knowledge_media (
     id SERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
@@ -483,6 +514,8 @@ pool.query(`
     created_at TIMESTAMPTZ DEFAULT NOW()
   );
 `).catch(err => console.error('[DB] ai_knowledge_files migration error:', err.message));
+
+require('./services/financeInvoiceScanner').startDailyInvoiceScan();
 
 const { pollGoogleCalendar } = require('./services/calendarPollService');
 pollGoogleCalendar();
@@ -517,6 +550,9 @@ app.use('/api/presence',            requireAuth, require('./routes/presence'));
 app.use('/api/suppliers',           requireAuth, require('./routes/suppliers'));
 app.use('/api/operations',          requireAuth, operationsRoutes);
 app.use('/api/greeninvoice',        requireAuth, require('./routes/greeninvoice'));
+// Public OAuth callback for connecting extra finance mailboxes (Google redirects
+// the browser here; access is validated via the signed `state` param).
+app.get('/api/finance/gmail/oauth/callback', require('./services/financeInvoiceScanner').oauthCallbackHandler);
 app.use('/api/finance',             requireAuth, require('./routes/finance'));
 app.use('/api/ai',                  requireAuth, aiRoutes);
 app.use('/api/chat',               chatRoutes);  // auth applied inside route

@@ -2,6 +2,7 @@ const router = require('express').Router();
 const pool   = require('../db/pool');
 const multer = require('multer');
 const { reconcile, DEFAULT_EXCLUSIONS } = require('../services/financeReconcile');
+const { scanRange, buildConnectUrl } = require('../services/financeInvoiceScanner');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024, files: 6 } });
 
@@ -145,6 +146,64 @@ router.post('/missing/:id/notes', async (req, res) => {
       [req.params.id, body, req.user.id]
     );
     res.json(note);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Invoice email scanning ────────────────────────────────────────────────────
+
+// POST /api/finance/scan { from, to } — scan Gmail accounts for supplier invoices
+router.post('/scan', async (req, res) => {
+  const { from, to } = req.body;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from || '') || !/^\d{4}-\d{2}-\d{2}$/.test(to || '')) {
+    return res.status(400).json({ error: 'טווח תאריכים לא תקין' });
+  }
+  try {
+    const summary = await scanRange(from, to);
+    res.json(summary);
+  } catch (err) {
+    console.error('[Finance] scan error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/finance/invoices — recently saved invoice files
+router.get('/invoices', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM finance_invoice_files ORDER BY email_date DESC NULLS LAST, created_at DESC LIMIT 100`);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/finance/gmail/accounts
+router.get('/gmail/accounts', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, email, active, last_scan_at, created_at FROM finance_gmail_accounts ORDER BY created_at');
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/finance/gmail/connect-url — start OAuth for an additional mailbox
+router.get('/gmail/connect-url', (req, res) => {
+  try {
+    res.json({ url: buildConnectUrl(req.user.id) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/finance/gmail/accounts/:id
+router.delete('/gmail/accounts/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM finance_gmail_accounts WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
