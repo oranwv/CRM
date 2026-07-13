@@ -357,6 +357,9 @@ export default function AdminPage() {
   const [kbUploading,    setKbUploading]      = useState(false);
   const kbFileRef = useRef(null);
   const [knowledgeMedia, setKnowledgeMedia]   = useState([]);
+  const [invoiceDriveLink, setInvoiceDriveLink] = useState('');
+  const [invoiceDriveSaving, setInvoiceDriveSaving] = useState(false);
+  const [invoiceDriveSaved,  setInvoiceDriveSaved]  = useState(false);
   const [mediaTitle,     setMediaTitle]       = useState('');
   const [mediaDesc,      setMediaDesc]        = useState('');
   const [mediaUrl,       setMediaUrl]         = useState('');
@@ -381,6 +384,7 @@ export default function AdminPage() {
         setGoogleReviewMessage(r.data.google_review_message || '');
         try { setElemOverrides(r.data.seating_element_overrides ? JSON.parse(r.data.seating_element_overrides) : {}); } catch {}
         try { setCustomItems(r.data.seating_custom_items ? JSON.parse(r.data.seating_custom_items) : []); } catch {}
+        setInvoiceDriveLink(r.data.finance_drive_root_link || '');
         setChatbotEnabled(r.data.wa_chatbot_enabled === 'true');
         setChatbotGreeting(r.data.wa_chatbot_greeting || DEFAULT_CHATBOT_GREETING);
         setChatbotFollowup(r.data.wa_chatbot_followup || DEFAULT_CHATBOT_FOLLOWUP);
@@ -584,6 +588,31 @@ export default function AdminPage() {
     } catch (err) {
       alert(err.response?.data?.error || 'שגיאה');
     }
+  }
+
+  // Extract a Drive folder ID from a pasted link (or accept a bare ID).
+  function parseDriveFolderId(link) {
+    const s = (link || '').trim();
+    if (!s) return '';
+    const m = s.match(/folders\/([\w-]+)/) || s.match(/[?&]id=([\w-]+)/);
+    if (m) return m[1];
+    if (/^[\w-]{15,}$/.test(s)) return s; // bare folder ID
+    return null;
+  }
+
+  async function handleInvoiceDriveSave() {
+    const id = parseDriveFolderId(invoiceDriveLink);
+    if (id === null) { alert('הקישור לא נראה כמו קישור לתיקיית דרייב'); return; }
+    setInvoiceDriveSaving(true); setInvoiceDriveSaved(false);
+    try {
+      await Promise.all([
+        api.put('/admin/settings/finance_drive_root_link', { value: invoiceDriveLink.trim() }),
+        api.put('/admin/settings/finance_drive_root_id',   { value: id }),
+      ]);
+      setInvoiceDriveSaved(true); setTimeout(() => setInvoiceDriveSaved(false), 3000);
+    } catch (err) {
+      alert(err.response?.data?.error || 'שגיאה בשמירה');
+    } finally { setInvoiceDriveSaving(false); }
   }
 
   async function loadKnowledgeMedia() {
@@ -836,6 +865,23 @@ export default function AdminPage() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* ── Finance: invoices Drive folder ── */}
+        <div className="rounded-2xl p-4 bg-white border border-violet-100 shadow-sm">
+          <h2 className="font-black text-base text-slate-800 mb-1">💰 תיקיית חשבוניות בדרייב</h2>
+          <p className="text-xs text-slate-400 mb-3">
+            הדבק קישור לתיקייה בגוגל דרייב שבה סריקת החשבוניות תשמור את הקבצים (בתוכה ייווצרו תיקיות חודשיות כמו 07-2026).
+            אם לא מוגדר — תיווצר אוטומטית תיקייה בשם "חשבוניות".
+          </p>
+          <input value={invoiceDriveLink} onChange={e => setInvoiceDriveLink(e.target.value)} dir="ltr"
+            placeholder="https://drive.google.com/drive/folders/..."
+            className="w-full rounded-xl px-3 py-2.5 text-sm border border-violet-200 focus:outline-none focus:border-violet-400 text-slate-700 mb-2" />
+          <button onClick={handleInvoiceDriveSave} disabled={invoiceDriveSaving}
+            className="w-full py-2.5 rounded-xl font-black text-sm transition disabled:opacity-50 text-white"
+            style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+            {invoiceDriveSaving ? 'שומר...' : invoiceDriveSaved ? '✅ נשמר' : 'שמור תיקייה'}
+          </button>
         </div>
 
         {/* ── Staff signature ── */}

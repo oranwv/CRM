@@ -11,7 +11,7 @@ const stream = require('stream');
 const axios  = require('axios');
 const jwt    = require('jsonwebtoken');
 const { google } = require('googleapis');
-const Anthropic  = require('@anthropic-ai/sdk');
+const { OpenAI } = require('openai');
 const pool = require('../db/pool');
 
 const CREDENTIALS_PATH = path.join(__dirname, '../credentials.json');
@@ -102,12 +102,21 @@ async function ensureFolder(drive, name, parentId = null) {
 }
 
 async function getRootFolderId(drive) {
-  const { rows } = await pool.query("SELECT value FROM settings WHERE key = 'finance_drive_root_id'");
-  if (rows[0]?.value) {
+  const { rows } = await pool.query(
+    "SELECT key, value FROM settings WHERE key IN ('finance_drive_root_id', 'finance_drive_root_link')");
+  const settings = Object.fromEntries(rows.map(r => [r.key, r.value]));
+  if (settings.finance_drive_root_id) {
     try {
-      await drive.files.get({ fileId: rows[0].value, fields: 'id' });
-      return rows[0].value;
-    } catch { /* deleted — recreate */ }
+      await drive.files.get({ fileId: settings.finance_drive_root_id, fields: 'id', supportsAllDrives: true });
+      return settings.finance_drive_root_id;
+    } catch {
+      // Admin explicitly configured a folder (link saved) — fail loudly rather
+      // than silently filing into a new auto-created folder.
+      if (settings.finance_drive_root_link) {
+        throw new Error('תיקיית הדרייב שהוגדרה בפאנל הניהול אינה נגישה — בדוק את הקישור וההרשאות');
+      }
+      /* auto-created folder was deleted — recreate below */
+    }
   }
   const id = await ensureFolder(drive, ROOT_FOLDER_NAME);
   await pool.query(
@@ -149,22 +158,11 @@ function extractLinks(text, html) {
   return [...links].slice(0, 30);
 }
 
-// ── AI classification (Claude, structured output) ─────────────────────────────
-
-const CLASSIFY_SCHEMA = {
-  type: 'object',
-  properties: {
-    is_supplier_invoice: { type: 'boolean' },
-    invoice_links: { type: 'array', items: { type: 'string' } },
-    reason: { type: 'string' },
-  },
-  required: ['is_supplier_invoice', 'invoice_links', 'reason'],
-  additionalProperties: false,
-};
+// ── AI classification (OpenAI, JSON mode — same provider as the chat) ─────────
 
 async function classifyEmail({ subject, from, snippet, attachments, links }) {
-  if (!process.env.ANTHROPIC_API_KEY) return null; // caller falls back to keyword-only
-  const anthropic = new Anthropic();
+  if (!process.env.OPENAI_API_KEY) return null; // caller falls back to keyword-only
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const prompt = `אתה מסווג מיילים עבור עסק אירועים בשם "שרביה". קבע האם המייל הבא הוא חשבונית/קבלה שספק שלח לעסק (הוצאה של העסק).
 
 חשוב: חשבוניות שהעסק עצמו הוציא ללקוחות שלו (למשל דרך GreenInvoice של שרביה, או מיילים שנשלחו על ידי שרביה) הן לא חשבוניות ספק — סווג אותן כ-false. מיילים שיווקיים שמזכירים "חשבונית" הם false.
@@ -175,18 +173,23 @@ async function classifyEmail({ subject, from, snippet, attachments, links }) {
 קבצים מצורפים: ${attachments.map(a => a.filename).join(', ') || 'אין'}
 קישורים בגוף: ${links.join('\n') || 'אין'}
 
-אם זו חשבונית ספק שמגיעה כקישור (ולא כקובץ מצורף) — החזר ב-invoice_links את הקישור/ים שכנראה מובילים להורדת החשבונית עצמה (לא קישורי הרשמה/שיווק). אם החשבונית מצורפת כקובץ, החזר invoice_links ריק.`;
+אם זו חשבונית ספק שמגיעה כקישור (ולא כקובץ מצורף) — החזר ב-invoice_links את הקישור/ים שכנראה מובילים להורדת החשבונית עצמה (לא קישורי הרשמה/שיווק). אם החשבונית מצורפת כקובץ, החזר invoice_links ריק.
+
+השב JSON בלבד במבנה: {"is_supplier_invoice": boolean, "invoice_links": string[], "reason": string}`;
 
   try {
-    const resp = await anthropic.messages.create({
-      model: 'claude-opus-4-8',
-      max_tokens: 1000,
-      output_config: { format: { type: 'json_schema', schema: CLASSIFY_SCHEMA } },
+    const resp = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      max_tokens: 500,
+      response_format: { type: 'json_object' },
       messages: [{ role: 'user', content: prompt }],
     });
-    if (resp.stop_reason === 'refusal') return { is_supplier_invoice: false, invoice_links: [], reason: 'refused' };
-    const text = resp.content.find(b => b.type === 'text')?.text || '{}';
-    return JSON.parse(text);
+    const parsed = JSON.parse(resp.choices[0]?.message?.content || '{}');
+    return {
+      is_supplier_invoice: !!parsed.is_supplier_invoice,
+      invoice_links: Array.isArray(parsed.invoice_links) ? parsed.invoice_links : [],
+      reason: parsed.reason || '',
+    };
   } catch (err) {
     console.error('[FinanceScan] AI classify error:', err.message);
     return null; // fall back to keyword-only
@@ -227,7 +230,7 @@ async function scanRange(from, to) {
   const afterEpoch  = Math.floor(new Date(`${from}T00:00:00`).getTime() / 1000);
   const beforeEpoch = Math.floor(new Date(`${to}T00:00:00`).getTime() / 1000) + 86400;
 
-  const summary = { scanned: 0, candidates: 0, invoices: 0, filesSaved: 0, failures: [], aiUsed: !!process.env.ANTHROPIC_API_KEY, accounts: [] };
+  const summary = { scanned: 0, candidates: 0, invoices: 0, filesSaved: 0, failures: [], aiUsed: !!process.env.OPENAI_API_KEY, accounts: [] };
   const primaryDriveAuth = primaryAuth(); // Drive uploads always go to the business account
   const drive = google.drive({ version: 'v3', auth: primaryDriveAuth });
   const rootId = await getRootFolderId(drive);

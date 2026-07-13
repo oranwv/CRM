@@ -231,7 +231,7 @@ function InvoiceScanSection() {
       {result && (
         <div className="text-sm bg-sky-50 border border-sky-200 text-sky-800 rounded-xl px-3 py-2 space-y-0.5">
           <p>נסרקו <strong>{result.scanned}</strong> מיילים · זוהו <strong>{result.invoices}</strong> חשבוניות · נשמרו <strong>{result.filesSaved}</strong> קבצים בדרייב</p>
-          {!result.aiUsed && <p className="text-amber-700 text-xs">⚠️ סיווג AI לא פעיל (ANTHROPIC_API_KEY חסר) — זיהוי לפי מילות מפתח בלבד</p>}
+          {!result.aiUsed && <p className="text-amber-700 text-xs">⚠️ סיווג AI לא פעיל (OPENAI_API_KEY חסר) — זיהוי לפי מילות מפתח בלבד</p>}
           {result.failures?.length > 0 && (
             <div className="text-xs text-red-600 pt-1">
               {result.failures.slice(0, 5).map((f, i) => <p key={i}>✗ {f.subject || f.account}: {f.error}</p>)}
