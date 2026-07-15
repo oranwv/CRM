@@ -385,9 +385,17 @@ router.delete('/knowledge-files/:id', adminOnly, async (req, res) => {
 router.get('/knowledge-media', adminOnly, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT id, title, description, url, media_type, source, created_at FROM ai_knowledge_media ORDER BY created_at DESC'
+      'SELECT id, title, description, url, media_type, source, stored_name, created_at FROM ai_knowledge_media ORDER BY created_at DESC'
     );
-    res.json(rows);
+    // Uploaded files live in a private bucket — the stored public URL 404s, so sign at read time.
+    const items = await Promise.all(rows.map(async ({ stored_name, ...item }) => {
+      if (stored_name) {
+        try { item.url = await getSignedUrl(stored_name, 6 * 60 * 60); }
+        catch (err) { console.error('[Admin] media sign error:', err.message); }
+      }
+      return item;
+    }));
+    res.json(items);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -419,6 +427,9 @@ router.post('/knowledge-media', adminOnly, mediaUpload.single('file'), async (re
        RETURNING id, title, description, url, media_type, source, created_at`,
       [title.trim(), description?.trim() || null, url, media_type, source, stored_name, req.user.id]
     );
+    if (stored_name) {
+      try { row.url = await getSignedUrl(stored_name, 6 * 60 * 60); } catch {}
+    }
     res.json(row);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -428,7 +439,14 @@ router.post('/knowledge-media', adminOnly, mediaUpload.single('file'), async (re
 // DELETE /api/admin/knowledge-media/:id
 router.delete('/knowledge-media/:id', adminOnly, async (req, res) => {
   try {
-    await pool.query('DELETE FROM ai_knowledge_media WHERE id = $1', [req.params.id]);
+    const { rows } = await pool.query(
+      'DELETE FROM ai_knowledge_media WHERE id = $1 RETURNING stored_name', [req.params.id]
+    );
+    if (rows[0]?.stored_name) {
+      const { createClient } = require('@supabase/supabase-js');
+      const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+      await supabase.storage.from('crm-files').remove([rows[0].stored_name]).catch(() => {});
+    }
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

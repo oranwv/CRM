@@ -3,6 +3,7 @@ const { OpenAI } = require('openai');
 const pool = require('../db/pool');
 const requireAuth = require('../middleware/auth');
 const { sendText, configured: waConfigured } = require('../services/metaWhatsapp');
+const { getSignedUrl } = require('../services/storageService');
 
 function getClient() {
   const key = process.env.OPENAI_API_KEY;
@@ -650,9 +651,17 @@ router.post('/', requireAuth, async (req, res) => {
 router.get('/media', requireAuth, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT id, title, url, media_type, source FROM ai_knowledge_media'
+      'SELECT id, title, url, media_type, source, stored_name FROM ai_knowledge_media'
     );
-    res.json(rows);
+    // Uploaded files live in a private bucket — the stored public URL 404s, so sign at read time.
+    const items = await Promise.all(rows.map(async ({ stored_name, ...item }) => {
+      if (stored_name) {
+        try { item.url = await getSignedUrl(stored_name, 6 * 60 * 60); }
+        catch (err) { console.error('[Chat] media sign error:', err.message); }
+      }
+      return item;
+    }));
+    res.json(items);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
