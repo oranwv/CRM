@@ -166,8 +166,9 @@ async function notifyManagers(lead, docType, creatorName) {
     const { rows: mgrs } = await pool.query(
       `SELECT phone FROM users WHERE role IN ('manager','admin') AND phone IS NOT NULL`
     );
-    const label  = DOC_LABELS[docType] || 'מסמך';
-    const msg    = `מסמך פיננסי ממתין לאישורך\nסוג: ${label}\nליד: ${lead.name}\nיצר: ${creatorName}`;
+    const label   = DOC_LABELS[docType] || 'מסמך';
+    const baseUrl = process.env.SERVER_URL || 'https://crm-production-c3df.up.railway.app';
+    const msg     = `מסמך פיננסי ממתין לאישורך\nסוג: ${label}\nליד: ${lead.name}\nיצר: ${creatorName}\nלצפייה ואישור: ${baseUrl}/?pendingDocs=1`;
     const waUrl  = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/sendMessage/${process.env.GREEN_API_TOKEN}`;
     for (const { phone } of mgrs) {
       const normalized = normalizePhone(phone);

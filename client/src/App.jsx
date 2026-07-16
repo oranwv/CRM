@@ -75,6 +75,16 @@ function GlobalHeader() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  // Deep link from the manager WhatsApp notification: /?pendingDocs=1 opens the approvals modal.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('pendingDocs') && isManager) {
+      setShowPending(true);
+      params.delete('pendingDocs');
+      navigate({ pathname: location.pathname, search: params.toString() }, { replace: true });
+    }
+  }, [location.search, isManager, navigate, location.pathname]);
+
   if (isPublic) return null;
 
   function selectMode(m) {
