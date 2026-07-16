@@ -262,7 +262,8 @@ pool.query(`
     color_id TEXT,
     html_link TEXT,
     fetched_at TIMESTAMPTZ DEFAULT NOW()
-  )
+  );
+  ALTER TABLE google_calendar_cache ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'google';
 `).catch(err => console.error('[DB] google_calendar_cache migration error:', err.message));
 
 pool.query(`

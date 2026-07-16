@@ -2,7 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const crypto  = require('crypto');
 const axios   = require('axios');
-const { markEventDate, getLeadCalendarStatus, syncLeadToCalendar, createMeeting, sendMeetingInvite, getMeetingRsvpStatus, patchEventDescription, deleteMeeting, updateMeetingTime, listCalendarAcl, addCalendarViewer, removeCalendarAcl } = require('../services/calendarService');
+const { markEventDate, getLeadCalendarStatus, syncLeadToCalendar, createMeeting, createManualEvent, deleteManualEvent, sendMeetingInvite, getMeetingRsvpStatus, patchEventDescription, deleteMeeting, updateMeetingTime, listCalendarAcl, addCalendarViewer, removeCalendarAcl } = require('../services/calendarService');
 const pool = require('../db/pool');
 
 // GET /api/calendar/leads — all leads with event dates (for calendar view)
@@ -408,13 +408,62 @@ router.get('/google-events', async (req, res) => {
     const rangeStart = new Date(year, month - 2, 24);
     const rangeEnd   = new Date(year, month, 8);
     const { rows } = await pool.query(`
-      SELECT google_event_id, title, description, start_time, end_time, all_day, color_id, html_link
+      SELECT google_event_id, title, description, start_time, end_time, all_day, color_id, html_link, source
       FROM google_calendar_cache
       WHERE start_time >= $1 AND start_time < $2
       ORDER BY start_time ASC
     `, [rangeStart.toISOString(), rangeEnd.toISOString()]);
     res.json(rows);
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/calendar/events — manually add a free-form event (also created on Google Calendar)
+router.post('/events', async (req, res) => {
+  const { title, description, date, startTime, endTime, allDay } = req.body;
+  if (!title || !title.trim()) return res.status(400).json({ error: 'נא להזין כותרת' });
+  if (!date)                   return res.status(400).json({ error: 'נא לבחור תאריך' });
+  if (!allDay && !startTime)   return res.status(400).json({ error: 'נא לבחור שעת התחלה' });
+  try {
+    const ev = await createManualEvent({ title: title.trim(), description, date, startTime, endTime, allDay: !!allDay });
+    // Upsert into the cache immediately so the event shows up without waiting for the poller
+    const isAllDay = !ev.start?.dateTime;
+    const startRaw = ev.start?.dateTime || ev.start?.date;
+    const endRaw   = ev.end?.dateTime   || ev.end?.date;
+    const { rows: [row] } = await pool.query(`
+      INSERT INTO google_calendar_cache
+        (google_event_id, title, description, start_time, end_time, all_day, color_id, html_link, source, fetched_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'manual',NOW())
+      ON CONFLICT (google_event_id) DO UPDATE SET
+        title=$2, description=$3, start_time=$4, end_time=$5,
+        all_day=$6, color_id=$7, html_link=$8, source='manual', fetched_at=NOW()
+      RETURNING google_event_id, title, description, start_time, end_time, all_day, color_id, html_link, source
+    `, [ev.id, ev.summary || '', ev.description || '', startRaw, endRaw, isAllDay, ev.colorId || null, ev.htmlLink || null]);
+    res.json(row);
+  } catch (err) {
+    console.error('[Calendar] manual event create error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/calendar/events/:eventId — delete a manually added event (CRM + Google Calendar)
+router.delete('/events/:eventId', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT source FROM google_calendar_cache WHERE google_event_id = $1`, [req.params.eventId]
+    );
+    if (!rows.length || rows[0].source !== 'manual') {
+      return res.status(404).json({ error: 'ניתן למחוק רק אירועים שנוספו ידנית' });
+    }
+    await deleteManualEvent(req.params.eventId).catch(err => {
+      // Already gone from Google — still remove from the cache
+      if (err?.code !== 404 && err?.response?.status !== 404 && err?.response?.status !== 410) throw err;
+    });
+    await pool.query(`DELETE FROM google_calendar_cache WHERE google_event_id = $1`, [req.params.eventId]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Calendar] manual event delete error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

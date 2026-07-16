@@ -19,7 +19,9 @@ const COLOR_CLASSES = {
   '11': 'bg-red-500',
 };
 
-function getColor(colorId) {
+function getColor(colorId, source) {
+  if (source === 'holiday') return 'bg-[#0b8043]'; // Google Calendar holiday green
+  if (source === 'manual')  return 'bg-[#795548]'; // brown — manually added CRM events
   return COLOR_CLASSES[colorId] ?? 'bg-blue-500';
 }
 
@@ -151,7 +153,7 @@ function DayView({ date, events, onClose, onSelectEvent }) {
               <button
                 key={ev.google_event_id}
                 onClick={() => onSelectEvent(ev)}
-                className={`text-xs text-white px-2 py-1 rounded font-semibold hover:opacity-90 transition ${getColor(ev.color_id)}`}
+                className={`text-xs text-white px-2 py-1 rounded font-semibold hover:opacity-90 transition ${getColor(ev.color_id, ev.source)}`}
               >
                 {ev.title || '(ללא שם)'}
               </button>
@@ -210,7 +212,7 @@ function DayView({ date, events, onClose, onSelectEvent }) {
                 key={ev.google_event_id}
                 style={getEventStyle(ev)}
                 onClick={() => onSelectEvent(ev)}
-                className={`text-right overflow-hidden cursor-pointer hover:opacity-90 transition rounded-lg ${getColor(ev.color_id)}`}
+                className={`text-right overflow-hidden cursor-pointer hover:opacity-90 transition rounded-lg ${getColor(ev.color_id, ev.source)}`}
               >
                 <div className="px-2 py-1 h-full flex flex-col justify-start gap-0.5">
                   <p className="text-xs font-bold text-white truncate leading-tight">
@@ -229,6 +231,105 @@ function DayView({ date, events, onClose, onSelectEvent }) {
   );
 }
 
+// Google-Calendar-style "add event" dialog: title, all-day toggle, start/end time, description.
+function AddEventModal({ defaultDate, onClose, onSaved }) {
+  const toDateStr = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const [title, setTitle]             = useState('');
+  const [date, setDate]               = useState(toDateStr(defaultDate || new Date()));
+  const [allDay, setAllDay]           = useState(false);
+  const [startTime, setStartTime]     = useState('');
+  const [endTime, setEndTime]         = useState('');
+  const [description, setDescription] = useState('');
+  const [saving, setSaving]           = useState(false);
+  const [error, setError]             = useState('');
+
+  const inputCls = 'w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-400';
+
+  async function save() {
+    if (!title.trim())          return setError('נא להזין כותרת');
+    if (!date)                  return setError('נא לבחור תאריך');
+    if (!allDay && !startTime)  return setError('נא לבחור שעת התחלה');
+    setError('');
+    setSaving(true);
+    try {
+      await api.post('/calendar/events', { title, description, date, startTime, endTime, allDay });
+      onSaved();
+      onClose();
+    } catch (err) {
+      setError(err.response?.data?.error || 'שגיאה בשמירת האירוע');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl p-5 w-full max-w-sm space-y-3" dir="rtl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-slate-800 text-base">אירוע חדש</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition text-lg leading-none">✕</button>
+        </div>
+
+        <input
+          autoFocus
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          placeholder="הוסף כותרת"
+          className="w-full border-b-2 border-slate-200 focus:border-violet-500 px-1 py-2 text-lg font-semibold focus:outline-none"
+        />
+
+        <div>
+          <label className="block text-xs font-bold text-slate-500 mb-1">תאריך</label>
+          <input type="date" value={date} onChange={e => setDate(e.target.value)} className={inputCls} />
+        </div>
+
+        <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
+          <input type="checkbox" checked={allDay} onChange={e => setAllDay(e.target.checked)}
+            className="w-4 h-4 accent-violet-600" />
+          כל היום
+        </label>
+
+        {!allDay && (
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="block text-xs font-bold text-slate-500 mb-1">שעת התחלה</label>
+              <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className={inputCls} />
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs font-bold text-slate-500 mb-1">שעת סיום</label>
+              <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className={inputCls} />
+            </div>
+          </div>
+        )}
+
+        <div>
+          <label className="block text-xs font-bold text-slate-500 mb-1">תיאור</label>
+          <textarea
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            rows={3}
+            placeholder="הוסף תיאור (אופציונלי)"
+            className={`${inputCls} resize-none`}
+          />
+        </div>
+
+        {error && <p className="text-xs text-red-500 font-semibold">{error}</p>}
+
+        <div className="flex gap-2 pt-1">
+          <button onClick={onClose} className="border-2 border-slate-200 text-slate-500 font-bold py-2.5 px-4 rounded-xl hover:bg-slate-50 transition">ביטול</button>
+          <button
+            onClick={save}
+            disabled={saving}
+            className="flex-1 bg-violet-600 text-white font-bold py-2.5 rounded-xl hover:bg-violet-700 transition disabled:opacity-50"
+          >
+            {saving ? 'שומר...' : 'שמור'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AppCalendar({ onOpenLead }) {
   const today = new Date();
   const [year, setYear]   = useState(today.getFullYear());
@@ -236,12 +337,16 @@ export default function AppCalendar({ onOpenLead }) {
   const [events, setEvents]               = useState([]);
   const [selectedDay, setSelectedDay]     = useState(null);
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [showAddEvent, setShowAddEvent]   = useState(false);
+  const [deletingEvent, setDeletingEvent] = useState(false);
 
-  useEffect(() => {
+  function loadEvents() {
     api.get(`/calendar/google-events?year=${year}&month=${month}`)
       .then(r => setEvents(r.data))
       .catch(() => {});
-  }, [year, month]);
+  }
+
+  useEffect(loadEvents, [year, month]);
 
   function prevMonth() {
     if (month === 1) { setYear(y => y - 1); setMonth(12); }
@@ -277,7 +382,12 @@ export default function AppCalendar({ onOpenLead }) {
   function eventsForDay(date) {
     return events
       .filter(ev => isSameDay(eventDate(ev), date))
-      .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+      .sort((a, b) => {
+        // Holidays first (like Google Calendar), then by start time
+        const hol = (b.source === 'holiday') - (a.source === 'holiday');
+        if (hol !== 0) return hol;
+        return new Date(a.start_time) - new Date(b.start_time);
+      });
   }
 
   return (
@@ -285,12 +395,17 @@ export default function AppCalendar({ onOpenLead }) {
 
       {/* Month header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-        <button onClick={nextMonth} className="text-slate-500 hover:text-violet-700 px-3 py-1 rounded-lg hover:bg-violet-50 transition font-bold text-lg">›</button>
+        <button onClick={nextMonth} className="text-slate-500 hover:text-violet-700 px-3 py-1 rounded-lg hover:bg-violet-50 transition font-bold text-lg">‹</button>
         <div className="flex items-center gap-3">
           <h2 className="font-bold text-slate-800 text-base">{HEBREW_MONTHS[month - 1]} {year}</h2>
           <button onClick={goToday} className="text-xs text-violet-600 border border-violet-200 px-2 py-0.5 rounded-lg hover:bg-violet-50 transition">היום</button>
+          <button
+            onClick={() => setShowAddEvent(true)}
+            title="הוסף אירוע"
+            className="w-6 h-6 flex items-center justify-center rounded-full bg-violet-600 text-white text-base font-bold leading-none hover:bg-violet-700 transition"
+          >+</button>
         </div>
-        <button onClick={prevMonth} className="text-slate-500 hover:text-violet-700 px-3 py-1 rounded-lg hover:bg-violet-50 transition font-bold text-lg">‹</button>
+        <button onClick={prevMonth} className="text-slate-500 hover:text-violet-700 px-3 py-1 rounded-lg hover:bg-violet-50 transition font-bold text-lg">›</button>
       </div>
 
       {/* Day-of-week headers */}
@@ -324,7 +439,7 @@ export default function AppCalendar({ onOpenLead }) {
                 {dayEvs.slice(0, 3).map(ev => (
                   <div
                     key={ev.google_event_id}
-                    className={`truncate text-xs text-white px-1 rounded ${getColor(ev.color_id)}`}
+                    className={`truncate text-xs text-white px-1 rounded ${getColor(ev.color_id, ev.source)}`}
                   >
                     {ev.title || '(ללא שם)'}
                   </div>
@@ -366,7 +481,7 @@ export default function AppCalendar({ onOpenLead }) {
               >✕</button>
               <div className="flex items-center gap-2">
                 <h3 className="font-bold text-slate-800 text-base">{selectedEvent.title || '(ללא שם)'}</h3>
-                <span className={`w-3 h-3 rounded-full shrink-0 ${getColor(selectedEvent.color_id)}`} />
+                <span className={`w-3 h-3 rounded-full shrink-0 ${getColor(selectedEvent.color_id, selectedEvent.source)}`} />
               </div>
             </div>
 
@@ -394,8 +509,39 @@ export default function AppCalendar({ onOpenLead }) {
                 פתח ליד
               </button>
             )}
+
+            {selectedEvent.source === 'manual' && (
+              <button
+                disabled={deletingEvent}
+                onClick={async () => {
+                  if (!window.confirm('למחוק את האירוע? הוא יימחק גם מיומן הגוגל.')) return;
+                  setDeletingEvent(true);
+                  try {
+                    await api.delete(`/calendar/events/${encodeURIComponent(selectedEvent.google_event_id)}`);
+                    setSelectedEvent(null);
+                    loadEvents();
+                  } catch {
+                    alert('שגיאה במחיקת האירוע');
+                  } finally {
+                    setDeletingEvent(false);
+                  }
+                }}
+                className="w-full border-2 border-red-200 text-red-500 font-bold py-2.5 rounded-xl hover:bg-red-50 transition disabled:opacity-50"
+              >
+                {deletingEvent ? 'מוחק...' : 'מחק אירוע'}
+              </button>
+            )}
           </div>
         </div>
+      )}
+
+      {/* Add-event dialog */}
+      {showAddEvent && (
+        <AddEventModal
+          defaultDate={selectedDay || today}
+          onClose={() => setShowAddEvent(false)}
+          onSaved={loadEvents}
+        />
       )}
     </div>
   );

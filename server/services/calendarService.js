@@ -170,6 +170,55 @@ async function createMeeting({ leadId, title, start, end, guestEmail, guestName,
   return { eventId: result.data.id, eventLink: result.data.htmlLink };
 }
 
+// Create a free-form event on the business calendar, marked so the CRM
+// renders it as a manual (brown) event even after re-sync.
+async function createManualEvent({ title, description, date, startTime, endTime, allDay }) {
+  const auth     = getAuth();
+  const calendar = google.calendar({ version: 'v3', auth });
+
+  let start, end;
+  if (allDay) {
+    const next = new Date(date + 'T12:00:00');
+    next.setDate(next.getDate() + 1);
+    const nextStr = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
+    start = { date };
+    end   = { date: nextStr }; // Google all-day end date is exclusive
+  } else {
+    let endT = endTime;
+    if (!endT) { // default duration: one hour
+      const s = new Date(`${date}T${startTime}:00`);
+      s.setHours(s.getHours() + 1);
+      endT = `${String(s.getHours()).padStart(2, '0')}:${String(s.getMinutes()).padStart(2, '0')}`;
+    }
+    let endDate = date;
+    if (endT <= startTime) { // crosses midnight
+      const next = new Date(date + 'T12:00:00');
+      next.setDate(next.getDate() + 1);
+      endDate = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
+    }
+    start = { dateTime: `${date}T${startTime}:00`,  timeZone: 'Asia/Jerusalem' };
+    end   = { dateTime: `${endDate}T${endT}:00`,    timeZone: 'Asia/Jerusalem' };
+  }
+
+  const result = await calendar.events.insert({
+    calendarId: 'primary',
+    requestBody: {
+      summary: title,
+      description: description || '',
+      start,
+      end,
+      extendedProperties: { private: { crmManual: '1' } },
+    },
+  });
+  return result.data;
+}
+
+async function deleteManualEvent(eventId) {
+  const auth     = getAuth();
+  const calendar = google.calendar({ version: 'v3', auth });
+  await calendar.events.delete({ calendarId: 'primary', eventId });
+}
+
 async function sendMeetingInvite(eventId) {
   const auth     = getAuth();
   const calendar = google.calendar({ version: 'v3', auth });
@@ -247,4 +296,4 @@ async function removeCalendarAcl(ruleId) {
   await calendar.acl.delete({ calendarId: CALENDAR_ID, ruleId });
 }
 
-module.exports = { syncLeadToCalendar, markEventDate, getLeadCalendarStatus, createMeeting, sendMeetingInvite, getMeetingRsvpStatus, patchEventDescription, deleteMeeting, updateMeetingTime, listCalendarAcl, addCalendarViewer, removeCalendarAcl };
+module.exports = { syncLeadToCalendar, markEventDate, getLeadCalendarStatus, createMeeting, createManualEvent, deleteManualEvent, sendMeetingInvite, getMeetingRsvpStatus, patchEventDescription, deleteMeeting, updateMeetingTime, listCalendarAcl, addCalendarViewer, removeCalendarAcl };
