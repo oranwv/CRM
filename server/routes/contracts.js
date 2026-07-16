@@ -175,15 +175,20 @@ ${tArr('costExtraLines').map(l => (l && l.trim()) ? `<p>${esc(l)}</p>` : '').joi
 
 <h3>${t('includesHeader')}</h3>
 <ul>
-  ${tArr('includes').map((item, i) => {
-    const chefIdx = 5; // 'תפריט שף' line in both regular and package includes arrays
-    const barIdx  = 6; // 'תפריט בר' line
-    let text = item;
-    if (i === chefIdx && fields.chefMenu) text += ' ' + fields.chefMenu;
-    if (i === barIdx  && fields.barMenu)  text += ' ' + fields.barMenu;
-    if (!text.trim()) return '';
-    return `<li>${esc(text)}</li>`;
-  }).join('\n  ')}
+  ${(() => {
+    const includes = tArr('includes');
+    // Anchor the popup menu texts to their bullet by content, not position — the
+    // list is editable and may come from a price offer with a different layout.
+    const chefIdx = includes.findIndex(x => /תפריט שף|chef menu/i.test(x || ''));
+    const barIdx  = includes.findIndex(x => /תפריט בר|bar menu/i.test(x || ''));
+    return includes.map((item, i) => {
+      let text = item;
+      if (i === chefIdx && fields.chefMenu && !item.includes(fields.chefMenu)) text += ' ' + fields.chefMenu;
+      if (i === barIdx  && fields.barMenu  && !item.includes(fields.barMenu))  text += ' ' + fields.barMenu;
+      if (!text.trim()) return '';
+      return `<li>${esc(text)}</li>`;
+    }).join('\n  ');
+  })()}
 </ul>
 
 <h3>${t('paymentHeader')}</h3>
@@ -204,7 +209,7 @@ ${tArr('paymentExtras').map(l => (l && l.trim()) ? `<p>${esc(l)}</p>` : '').join
 <ul>
   ${tArr('cancellationItems').map((item, i) =>
     i === 0
-      ? `<li>${esc(item)} <strong>${esc(cancellationDate)}</strong></li>`
+      ? `<li>${esc(item)} <strong>${texts.cancellationDateLabel ? esc(texts.cancellationDateLabel) : esc(cancellationDate)}</strong></li>`
       : `<li>${esc(item)}</li>`
   ).join('\n  ')}
 </ul>

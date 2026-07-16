@@ -1222,6 +1222,7 @@ const CONTRACT_TEXTS_EN = {
   checksUsageNote: 'The venue undertakes not to use the above cheques except in the event of non-compliance with the agreement or to cover debts incurred during the event and not settled at its end. Cheques not used shall be returned to the Orderer or destroyed after the event and the final settlement.',
   paymentNote: 'Please note that without the above, the event manager will not begin or hold the event!',
   cancellationHeader: 'Event cancellation:',
+  cancellationDateLabel: null,
   cancellationItems: [
     'In the event of a Home Front Command / force majeure prohibition that prevents holding the event — the parties agreed to postpone the event to another date no later than',
     'In case of cancellation less than two months before the event date — the Orderer will be charged a cancellation fee of 50% of the total amount.',
@@ -1380,6 +1381,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
     checksUsageNote: 'אולם האירועים מתחייב כי לא יעשה כל שימוש בהמחאות הנ"ל, אלא במקרה של אי-עמידה בתנאי החוזה או לשם כיסוי חובות שנוצרו במהלך האירוע ולא הוסדרו בסיומו. המחאות שלא ייעשה בהן שימוש יוחזרו למזמין או יושמדו בתום האירוע ולאחר גמר החשבון הסופי.',
     paymentNote: 'חשוב לציין כי ללא הנ"ל מנהל האירוע לא יתחיל ויקיים את האירוע!',
     cancellationHeader: 'ביטול האירוע:',
+    cancellationDateLabel: null,
     cancellationItems: [
       'במקרה של אי אישור לעריכת אירועים של פיקוד העורף/כוח עליון שאינו מאפשר לקיים את האירוע — הסכימו הצדדים על דחיית מועד האירוע למועד אחר עד לתאריך',
       'במקרה של ביטול תוך פחות מחודשיים ממועד האירוע – יחויב המזמין בדמי ביטול של 50% מהסכום הכולל.',
@@ -2060,17 +2062,23 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                   <EditableCell value={contractTexts.includesHeader} onChange={v => setTxt('includesHeader', v)} />
                 </h3>
                 <ul style={{ paddingRight: 16, lineHeight: 1.8 }}>
-                  {contractTexts.includes.map((item, i) => (
+                  {(() => {
+                    // Anchor the popup menu texts to their bullet by content, not position —
+                    // the list is editable and may be imported from a price offer.
+                    const chefIdx = contractTexts.includes.findIndex(x => /תפריט שף|chef menu/i.test(x || ''));
+                    const barIdx  = contractTexts.includes.findIndex(x => /תפריט בר|bar menu/i.test(x || ''));
+                    return contractTexts.includes.map((item, i) => (
                     <li key={i}>
-                      {i === 5 ? (
-                        <><EditableCell value={item} onChange={v => setInc(i, v)} />{fields.chefMenu ? <>{' '}<EditableCell value={fields.chefMenu} onChange={v => setField('chefMenu', v)} /></> : null}</>
-                      ) : i === 6 ? (
-                        <><EditableCell value={item} onChange={v => setInc(i, v)} />{fields.barMenu ? <>{' '}<EditableCell value={fields.barMenu} onChange={v => setField('barMenu', v)} /></> : null}</>
+                      {i === chefIdx ? (
+                        <><EditableCell value={item} onChange={v => setInc(i, v)} />{fields.chefMenu && !item.includes(fields.chefMenu) ? <>{' '}<EditableCell value={fields.chefMenu} onChange={v => setField('chefMenu', v)} /></> : null}</>
+                      ) : i === barIdx ? (
+                        <><EditableCell value={item} onChange={v => setInc(i, v)} />{fields.barMenu && !item.includes(fields.barMenu) ? <>{' '}<EditableCell value={fields.barMenu} onChange={v => setField('barMenu', v)} /></> : null}</>
                       ) : (
                         <EditableCell value={item} onChange={v => setInc(i, v)} multiline />
                       )}
                     </li>
-                  ))}
+                    ));
+                  })()}
                 </ul>
                 <div data-html2canvas-ignore="true" style={{ marginTop: '4pt', display: 'flex', gap: '6px' }}>
                   <input value={newInclude} onChange={e => setNewInclude(e.target.value)}
@@ -2135,7 +2143,9 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                   {contractTexts.cancellationItems.map((item, i) => (
                     <li key={i}>
                       <EditableCell value={item} onChange={v => setCancelItem(i, v)} multiline />
-                      {i === 0 && cancellationDate ? <strong> {cancellationDate}</strong> : null}
+                      {i === 0 && (cancellationDate || contractTexts.cancellationDateLabel) ? (
+                        <strong> <EditableCell value={contractTexts.cancellationDateLabel ?? cancellationDate} onChange={v => setTxt('cancellationDateLabel', v)} /></strong>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
@@ -3276,18 +3286,22 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
                 </p>
                 <div style={{ lineHeight: 2 }}>
                   {(() => {
-                    const chefIdx = offerType === 'package' ? 5 : 3;
-                    const barIdx  = offerType === 'package' ? 6 : 4;
+                    // Anchor the popup menu texts to their bullet by content, not position —
+                    // the list is editable, so fixed indices drift when items change.
+                    const chefIdx = texts.includes.findIndex(x => /תפריט שף|chef menu/i.test(x || ''));
+                    const barIdx  = texts.includes.findIndex(x => /תפריט בר|bar menu/i.test(x || ''));
                     return texts.includes.map((item, i) => {
+                      const showChef = i === chefIdx && !(fields.chefMenu && item.includes(fields.chefMenu));
+                      const showBar  = i === barIdx  && !(fields.barMenu  && item.includes(fields.barMenu));
                       const combined = item.trim()
-                        + (i === chefIdx && fields.chefMenu ? ' ' + fields.chefMenu : '')
-                        + (i === barIdx  && fields.barMenu  ? ' ' + fields.barMenu  : '');
+                        + (showChef && fields.chefMenu ? ' ' + fields.chefMenu : '')
+                        + (showBar  && fields.barMenu  ? ' ' + fields.barMenu  : '');
                       if (!combined.trim()) return null;
                       return (
                         <div key={i} style={{ direction: docDir }}>
-                          {i === chefIdx ? (
+                          {showChef ? (
                             <><EditableCell value={item} onChange={v => setInc(i, v)} />{' '}<EditableCell value={fields.chefMenu} onChange={v => setFields(f => ({ ...f, chefMenu: v }))} /></>
-                          ) : i === barIdx ? (
+                          ) : showBar ? (
                             <><EditableCell value={item} onChange={v => setInc(i, v)} />{' '}<EditableCell value={fields.barMenu} onChange={v => setFields(f => ({ ...f, barMenu: v }))} /></>
                           ) : (
                             <EditableCell value={item} onChange={v => setInc(i, v)} multiline={i === 10} />

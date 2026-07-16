@@ -104,10 +104,14 @@ function buildHtml({ fields, rows, texts, offerType, language }) {
     .join('');
   const packageCostHtml = `<div style="font-size:9pt;line-height:2;margin-top:4pt;">${packageCostLinesHtml}</div>`;
 
+  // Anchor the popup menu texts to their bullet by content, not position — the
+  // list is editable, so fixed indices drift when items are added or removed.
+  const chefIdx = texts.includes.findIndex(x => /תפריט שף|chef menu/i.test(x || ''));
+  const barIdx  = texts.includes.findIndex(x => /תפריט בר|bar menu/i.test(x || ''));
   const includesHtml = texts.includes.map((item, i) => {
     let text = item;
-    if (i === 3 && fields.chefMenu) text += ' ' + fields.chefMenu;
-    if (i === 4 && fields.barMenu)  text += ' ' + fields.barMenu;
+    if (i === chefIdx && fields.chefMenu && !item.includes(fields.chefMenu)) text += ' ' + fields.chefMenu;
+    if (i === barIdx  && fields.barMenu  && !item.includes(fields.barMenu))  text += ' ' + fields.barMenu;
     if (!text.trim()) return '';
     return `<div>• ${esc(text)}</div>`;
   }).join('');
