@@ -14,8 +14,34 @@ function getAuth() {
   return oauth2;
 }
 
-// Google's public Israeli-holidays calendar (Hebrew event names)
-const HOLIDAY_CALENDAR_ID = 'iw.il#holiday@group.v.calendar.google.com';
+// Israeli holidays imported from a bundled JSON (built from the Google "חגים בישראל"
+// ICS export, filtered to Jewish/Israeli holidays and translated to Hebrew).
+const HOLIDAYS_PATH = path.join(__dirname, '../data/holidays.json');
+
+async function importHolidays() {
+  try {
+    if (!fs.existsSync(HOLIDAYS_PATH)) return;
+    const holidays = JSON.parse(fs.readFileSync(HOLIDAYS_PATH, 'utf8'));
+    for (const h of holidays) {
+      await pool.query(`
+        INSERT INTO google_calendar_cache
+          (google_event_id, title, description, start_time, end_time, all_day, color_id, html_link, source, fetched_at)
+        VALUES ($1,$2,'',$3,$4,TRUE,NULL,NULL,'holiday',NOW())
+        ON CONFLICT (google_event_id) DO UPDATE SET
+          title=$2, start_time=$3, end_time=$4, all_day=TRUE, source='holiday', fetched_at=NOW()
+      `, [h.id, h.title, h.start, h.end]);
+    }
+    if (holidays.length > 0) {
+      await pool.query(
+        `DELETE FROM google_calendar_cache WHERE source = 'holiday' AND google_event_id != ALL($1::text[])`,
+        [holidays.map(h => h.id)]
+      );
+    }
+    console.log(`[CalendarPoll] Imported ${holidays.length} Israeli holidays`);
+  } catch (err) {
+    console.error('[CalendarPoll] Holiday import error:', err.message);
+  }
+}
 
 async function listAllEvents(calendar, calendarId, timeMin, timeMax) {
   const events = [];
@@ -78,27 +104,10 @@ async function pollGoogleCalendar() {
       `, [timeMin, timeMax, ids]);
     }
 
-    // Israeli holidays — separate try so a failure here never wipes or blocks the primary sync
-    try {
-      const holidays = await listAllEvents(calendar, HOLIDAY_CALENDAR_ID, timeMin, timeMax);
-      for (const ev of holidays) await upsertEvent(ev, 'holiday');
-      if (holidays.length > 0) {
-        const ids = holidays.map(e => e.id);
-        await pool.query(`
-          DELETE FROM google_calendar_cache
-          WHERE start_time >= $1 AND start_time < $2
-            AND source = 'holiday'
-            AND google_event_id != ALL($3::text[])
-        `, [timeMin, timeMax, ids]);
-      }
-      console.log(`[CalendarPoll] Synced ${events.length} events + ${holidays.length} holidays`);
-    } catch (holErr) {
-      console.error('[CalendarPoll] Holiday sync error:', holErr.message);
-      console.log(`[CalendarPoll] Synced ${events.length} events`);
-    }
+    console.log(`[CalendarPoll] Synced ${events.length} events`);
   } catch (err) {
     console.error('[CalendarPoll] Error:', err.message);
   }
 }
 
-module.exports = { pollGoogleCalendar };
+module.exports = { pollGoogleCalendar, importHolidays };

@@ -518,7 +518,8 @@ pool.query(`
 
 require('./services/financeInvoiceScanner').startDailyInvoiceScan();
 
-const { pollGoogleCalendar } = require('./services/calendarPollService');
+const { pollGoogleCalendar, importHolidays } = require('./services/calendarPollService');
+importHolidays();
 pollGoogleCalendar();
 setInterval(pollGoogleCalendar, 5 * 60 * 1000);
 
