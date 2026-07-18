@@ -293,26 +293,28 @@ function findMissing(entries, kartesetItems, exclusions = DEFAULT_EXCLUSIONS, wi
 
 // ── orchestration ────────────────────────────────────────────────────────────
 
-// files: [{ buffer, originalname }] → { entries, karteset, missing, sources }
+// files: [{ buffer, originalname, forcedType? }] → { entries, karteset, missing, sources }
+// forcedType lets the UI's dedicated upload slots override auto-detection.
+// Multiple karteset files (e.g. May + June) are merged into one item pool.
 async function reconcile(files, { exclusions = DEFAULT_EXCLUSIONS, windowDays = DEFAULT_WINDOW_DAYS } = {}) {
   const entries = [];
-  let karteset = null;
+  const kartesetItems = [];
   const sources = [];
 
   for (const f of files) {
-    const type = detectFileType(f.buffer, f.originalname || '');
+    const type = f.forcedType || detectFileType(f.buffer, f.originalname || '');
     sources.push({ filename: f.originalname, type });
     if (type === 'bank') entries.push(...await parseBankPdf(f.buffer));
     else if (type === 'credit_cal') entries.push(...parseCreditCal(f.buffer));
     else if (type === 'credit_max') entries.push(...parseCreditMax(f.buffer));
-    else if (type === 'karteset') karteset = parseKarteset(f.buffer);
+    else if (type === 'karteset') kartesetItems.push(...parseKarteset(f.buffer));
   }
 
-  if (!karteset) throw new Error('לא זוהה קובץ כרטסת בין הקבצים שהועלו');
+  if (!kartesetItems.length) throw new Error('לא זוהה קובץ כרטסת בין הקבצים שהועלו');
   if (!entries.length) throw new Error('לא זוהו קבצי בנק/אשראי בין הקבצים שהועלו');
 
-  const missing = findMissing(entries, karteset, exclusions, windowDays);
-  return { entries, karteset, missing, sources };
+  const missing = findMissing(entries, kartesetItems, exclusions, windowDays);
+  return { entries, karteset: kartesetItems, missing, sources };
 }
 
 module.exports = {

@@ -39,15 +39,22 @@ router.put('/exclusions', async (req, res) => {
   }
 });
 
-// POST /api/finance/reconcile — upload bank/credit/karteset files, run comparison,
-// upsert missing expenses (fingerprint dedupe keeps resolved items resolved).
-router.post('/reconcile', upload.array('files', 6), async (req, res) => {
-  if (!req.files?.length) return res.status(400).json({ error: 'לא הועלו קבצים' });
+// POST /api/finance/reconcile — upload karteset files (one or more months) +
+// expense files (bank PDF, CAL/MAX xlsx), run comparison, upsert missing
+// expenses (fingerprint dedupe keeps resolved items resolved).
+router.post('/reconcile', upload.fields([
+  { name: 'kartesetFiles', maxCount: 8 },
+  { name: 'expenseFiles',  maxCount: 10 },
+  { name: 'files',         maxCount: 10 }, // legacy single-dropzone field
+]), async (req, res) => {
+  const kartesetFiles = (req.files?.kartesetFiles || []).map(f => ({ ...f, forcedType: 'karteset' }));
+  const expenseFiles  = [...(req.files?.expenseFiles || []), ...(req.files?.files || [])];
+  if (!kartesetFiles.length && !expenseFiles.length) return res.status(400).json({ error: 'לא הועלו קבצים' });
   try {
     const { rows: exRows } = await pool.query("SELECT value FROM settings WHERE key = 'finance_exclusions'");
     const exclusions = exRows[0]?.value ? JSON.parse(exRows[0].value) : DEFAULT_EXCLUSIONS;
 
-    const { missing, entries, karteset, sources } = await reconcile(req.files, { exclusions });
+    const { missing, entries, karteset, sources } = await reconcile([...kartesetFiles, ...expenseFiles], { exclusions });
 
     let newCount = 0, knownCount = 0, resolvedCount = 0;
     for (const m of missing) {

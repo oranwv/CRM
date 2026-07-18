@@ -273,13 +273,15 @@ export default function FinancePage() {
   const [items, setItems]           = useState([]);
   const [showResolved, setShowResolved] = useState(false);
   const [loading, setLoading]       = useState(true);
-  const [files, setFiles]           = useState([]);
+  const [kartesetFiles, setKartesetFiles] = useState([]);
+  const [expenseFiles, setExpenseFiles]   = useState([]);
   const [running, setRunning]       = useState(false);
   const [summary, setSummary]       = useState(null);
   const [error, setError]           = useState(null);
   const [exclusions, setExclusions] = useState([]);
   const [newExclusion, setNewExclusion] = useState('');
-  const fileRef = useRef(null);
+  const kartesetRef = useRef(null);
+  const expenseRef  = useRef(null);
 
   async function load() {
     try {
@@ -298,15 +300,17 @@ export default function FinancePage() {
   }
 
   async function runReconcile() {
-    if (!files.length) return;
+    if (!kartesetFiles.length || !expenseFiles.length) return;
     setRunning(true); setError(null); setSummary(null);
     try {
       const fd = new FormData();
-      files.forEach(f => fd.append('files', f));
+      kartesetFiles.forEach(f => fd.append('kartesetFiles', f));
+      expenseFiles.forEach(f => fd.append('expenseFiles', f));
       const { data } = await api.post('/finance/reconcile', fd);
       setSummary(data);
-      setFiles([]);
-      if (fileRef.current) fileRef.current.value = '';
+      setKartesetFiles([]); setExpenseFiles([]);
+      if (kartesetRef.current) kartesetRef.current.value = '';
+      if (expenseRef.current)  expenseRef.current.value = '';
       load();
     } catch (err) {
       setError(err.response?.data?.error || 'שגיאה בהשוואה');
@@ -325,18 +329,47 @@ export default function FinancePage() {
 
         {/* Upload + run */}
         <div className="bg-white rounded-2xl border border-violet-100 shadow-sm p-4 space-y-3">
-          <label className="block w-full py-4 rounded-xl font-bold text-sm text-center cursor-pointer border-2 border-dashed border-violet-300 text-violet-600 hover:bg-violet-50 transition">
-            {files.length ? `${files.length} קבצים נבחרו` : '+ בחר קבצים: דף בנק (PDF), אשראי כאל/מקס וכרטסת (אקסל)'}
-            <input ref={fileRef} type="file" multiple accept=".pdf,.xlsx,.xls" className="hidden"
-              onChange={e => setFiles(Array.from(e.target.files || []))} />
-          </label>
-          {files.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {files.map((f, i) => (
-                <span key={i} className="text-xs bg-slate-100 text-slate-600 rounded-lg px-2 py-1">{f.name}</span>
-              ))}
-            </div>
-          )}
+          {/* Karteset files (one or more months) */}
+          <div>
+            <p className="text-xs font-bold text-slate-500 mb-1">קבצי כרטסת (אפשר כמה חודשים — למשל מאי + יוני)</p>
+            <label className="block w-full py-3 rounded-xl font-bold text-sm text-center cursor-pointer border-2 border-dashed border-emerald-300 text-emerald-600 hover:bg-emerald-50 transition">
+              {kartesetFiles.length ? `${kartesetFiles.length} קבצי כרטסת נבחרו` : '+ בחר קבצי כרטסת (אקסל)'}
+              <input ref={kartesetRef} type="file" multiple accept=".xlsx,.xls" className="hidden"
+                onChange={e => setKartesetFiles(Array.from(e.target.files || []))} />
+            </label>
+            {kartesetFiles.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {kartesetFiles.map((f, i) => (
+                  <span key={i} className="inline-flex items-center gap-1 text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg px-2 py-1">
+                    {f.name}
+                    <button type="button" onClick={() => setKartesetFiles(prev => prev.filter((_, j) => j !== i))}
+                      className="text-emerald-400 hover:text-red-500 font-bold">×</button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Expense files (bank + credit cards) */}
+          <div>
+            <p className="text-xs font-bold text-slate-500 mb-1">קבצי הוצאות — דף בנק (PDF), אשראי כאל/מקס (אקסל)</p>
+            <label className="block w-full py-3 rounded-xl font-bold text-sm text-center cursor-pointer border-2 border-dashed border-violet-300 text-violet-600 hover:bg-violet-50 transition">
+              {expenseFiles.length ? `${expenseFiles.length} קבצי הוצאות נבחרו` : '+ בחר קבצי הוצאות'}
+              <input ref={expenseRef} type="file" multiple accept=".pdf,.xlsx,.xls" className="hidden"
+                onChange={e => setExpenseFiles(Array.from(e.target.files || []))} />
+            </label>
+            {expenseFiles.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {expenseFiles.map((f, i) => (
+                  <span key={i} className="inline-flex items-center gap-1 text-xs bg-violet-50 text-violet-700 border border-violet-200 rounded-lg px-2 py-1">
+                    {f.name}
+                    <button type="button" onClick={() => setExpenseFiles(prev => prev.filter((_, j) => j !== i))}
+                      className="text-violet-400 hover:text-red-500 font-bold">×</button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Exclusions */}
           <div>
@@ -356,7 +389,7 @@ export default function FinancePage() {
             </div>
           </div>
 
-          <button type="button" onClick={runReconcile} disabled={running || !files.length}
+          <button type="button" onClick={runReconcile} disabled={running || !kartesetFiles.length || !expenseFiles.length}
             className="w-full py-2.5 rounded-xl font-black text-sm text-white disabled:opacity-40 transition"
             style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
             {running ? 'משווה...' : 'השווה מול הכרטסת'}
