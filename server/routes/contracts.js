@@ -4,7 +4,7 @@ const crypto    = require('crypto');
 const puppeteer = require('puppeteer-core');
 const axios     = require('axios');
 const pool      = require('../db/pool');
-const { uploadBuffer } = require('../services/storageService');
+const { uploadBuffer, getSignedUrl } = require('../services/storageService');
 const { sendEmail }    = require('../services/gmailService');
 
 const alefRegB64  = fs.readFileSync(path.join(__dirname, '../fonts/Alef-Regular.ttf')).toString('base64');
@@ -449,9 +449,12 @@ contractPublicRouter.post('/:token/sign', async (req, res) => {
         const { GREEN_API_URL, GREEN_API_INSTANCE, GREEN_API_TOKEN } = process.env;
         if (GREEN_API_URL && GREEN_API_INSTANCE && GREEN_API_TOKEN) {
           const phone = contract.lead_phone.replace(/\D/g, '').replace(/^0/, '972');
+          // Bucket is private — Green API must fetch via a signed URL (the stored
+          // public URL 404s). 1h expiry is ample; Green API downloads immediately.
+          const waFileUrl = await getSignedUrl(storedName, 3600);
           await axios.post(
             `${GREEN_API_URL}/waInstance${GREEN_API_INSTANCE}/sendFileByUrl/${GREEN_API_TOKEN}`,
-            { chatId: `${phone}@c.us`, urlFile: signedPdfUrl, fileName: filename, caption: 'החוזה החתום שלך מצורף.' },
+            { chatId: `${phone}@c.us`, urlFile: waFileUrl, fileName: filename, caption: 'החוזה החתום שלך מצורף.' },
             { timeout: 15000 }
           );
         }

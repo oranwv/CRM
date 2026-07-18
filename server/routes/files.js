@@ -3,7 +3,7 @@ const multer  = require('multer');
 const os      = require('os');
 const fs      = require('fs');
 const pool    = require('../db/pool');
-const { uploadFile, deleteFile, getSignedUrl } = require('../services/storageService');
+const { uploadFile, deleteFile, getSignedUrl, storedNameFromUrl } = require('../services/storageService');
 
 const router = express.Router({ mergeParams: true });
 const upload = multer({ dest: os.tmpdir(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -47,11 +47,14 @@ router.post('/', upload.single('file'), async (req, res) => {
 router.get('/:fileId/url', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT stored_name FROM files WHERE id = $1 AND lead_id = $2',
+      'SELECT stored_name, url FROM files WHERE id = $1 AND lead_id = $2',
       [req.params.fileId, req.params.leadId]
     );
-    if (!rows.length || !rows[0].stored_name) return res.status(404).json({ error: 'Not found' });
-    const url = await getSignedUrl(rows[0].stored_name);
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    // Legacy rows: stored_name is NULL but the old public URL carries the name
+    const storedName = rows[0].stored_name || storedNameFromUrl(rows[0].url);
+    if (!storedName) return res.status(404).json({ error: 'Not found' });
+    const url = await getSignedUrl(storedName);
     res.json({ url });
   } catch (err) {
     res.status(500).json({ error: err.message });

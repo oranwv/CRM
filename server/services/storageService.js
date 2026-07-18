@@ -52,6 +52,16 @@ async function getSignedUrl(storedName, expiresIn = 60) {
   return data.signedUrl;
 }
 
+// Legacy rows stored only the public URL (bucket was public back then) — the
+// stored name can be recovered from the URL path after "/crm-files/".
+function storedNameFromUrl(url) {
+  if (!url) return null;
+  const marker = `/${BUCKET}/`;
+  const idx = url.indexOf(marker);
+  if (idx === -1) return null;
+  return decodeURIComponent(url.slice(idx + marker.length).split('?')[0]);
+}
+
 async function uploadBuffer(buffer, filename, mimetype) {
   const ext = path.extname(filename);
   const unique = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
@@ -66,4 +76,4 @@ async function uploadBuffer(buffer, filename, mimetype) {
   return { url: data.publicUrl, storedName };
 }
 
-module.exports = { uploadFile, uploadBuffer, deleteFile, getSignedUrl };
+module.exports = { uploadFile, uploadBuffer, deleteFile, getSignedUrl, storedNameFromUrl };

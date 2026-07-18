@@ -3,7 +3,7 @@ const pool    = require('../db/pool');
 const multer  = require('multer');
 const os      = require('os');
 const fs      = require('fs');
-const { uploadFile, getSignedUrl } = require('../services/storageService');
+const { uploadFile, getSignedUrl, storedNameFromUrl } = require('../services/storageService');
 const upload = multer({ dest: os.tmpdir(), limits: { fileSize: 20 * 1024 * 1024 } });
 
 const STATUS_LABELS = { open: 'פתוח', in_progress: 'בטיפול', done: 'הושלם', resolved: 'נפתר' };
@@ -452,8 +452,10 @@ router.get('/activity/:entityType/:entityId', async (req, res) => {
       if (row.type === 'file') {
         try {
           const meta = JSON.parse(row.body);
-          if (meta.storedName) {
-            meta.signed_url = await getSignedUrl(meta.storedName, 3600);
+          // Legacy entries: no storedName — recover it from the old public URL
+          const storedName = meta.storedName || storedNameFromUrl(meta.url);
+          if (storedName) {
+            meta.signed_url = await getSignedUrl(storedName, 3600);
             row.body = JSON.stringify(meta);
           }
         } catch {}
