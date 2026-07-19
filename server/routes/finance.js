@@ -54,7 +54,7 @@ router.post('/reconcile', upload.fields([
     const { rows: exRows } = await pool.query("SELECT value FROM settings WHERE key = 'finance_exclusions'");
     const exclusions = exRows[0]?.value ? JSON.parse(exRows[0].value) : DEFAULT_EXCLUSIONS;
 
-    const { missing, entries, karteset, sources } = await reconcile([...kartesetFiles, ...expenseFiles], { exclusions });
+    const { missing, entries, karteset, sources, warnings } = await reconcile([...kartesetFiles, ...expenseFiles], { exclusions });
 
     let newCount = 0, knownCount = 0, resolvedCount = 0;
     for (const m of missing) {
@@ -78,7 +78,7 @@ router.post('/reconcile', upload.fields([
 
     res.json({
       newCount, knownCount, resolvedCount,
-      totalEntries: entries.length, kartesetCount: karteset.length, sources,
+      totalEntries: entries.length, kartesetCount: karteset.length, sources, warnings,
     });
   } catch (err) {
     console.error('[Finance] reconcile error:', err.message);

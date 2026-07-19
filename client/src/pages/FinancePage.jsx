@@ -403,8 +403,11 @@ export default function FinancePage() {
               {summary.resolvedCount > 0 && <> · <strong>{summary.resolvedCount}</strong> טופלו בעבר</>}
               <span className="block text-xs text-emerald-600 mt-0.5">
                 נבדקו {summary.totalEntries} תנועות מול {summary.kartesetCount} רשומות כרטסת
-                {summary.sources?.length ? ` (${summary.sources.map(s => TYPE_LABELS[s.type] || s.type).join(', ')})` : ''}
+                {summary.sources?.length ? ` (${summary.sources.map(s => `${TYPE_LABELS[s.type] || s.type}: ${s.count ?? '?'}`).join(', ')})` : ''}
               </span>
+              {summary.warnings?.map((w, i) => (
+                <span key={i} className="block text-xs text-amber-700 mt-0.5">⚠️ {w}</span>
+              ))}
             </div>
           )}
         </div>

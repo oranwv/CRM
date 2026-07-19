@@ -11,7 +11,10 @@ const XLSX = require('xlsx');
 const { PDFParse } = require('pdf-parse'); // v2 API: class, not a callable default
 
 const KNOWN_AMOUNT_HEADERS = ['סכום', 'סכום בש"ח', 'סכום עסקה מקורי', 'כולל מעמ'];
-const DEFAULT_EXCLUSIONS = ['משכורת', 'החזר הוצאות', 'חלק משכר'];
+// Bank-row exclusions. The card names prevent double counting: the checking
+// account shows each card's monthly charge, while the CAL/MAX files carry the
+// individual transactions.
+const DEFAULT_EXCLUSIONS = ['משכורת', 'החזר הוצאות', 'חלק משכר', 'מקס איט פיננס', 'לאומי קארד', 'ישראכרט', 'כאל'];
 const DEFAULT_WINDOW_DAYS = 60;
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -104,21 +107,49 @@ function parseBankText(pageText) {
   const lines = pageText.split('\n').map(l => l.trim()).filter(Boolean);
 
   // ── Primary: tab-separated transaction rows ──
+  // Two known layouts share the date-first tab-row shape:
+  //  A. Transfers list ("רשימת ההעברות"):
+  //     dd/mm/yyyy \t name \t description \t account \t ref \t ₪amount
+  //  B. Checking-account statement ("יתרה ותנועות בחשבון עו"ש"):
+  //     dd/mm/yy \t description \t signedAmount \t [balance] \t ref
+  //     Negative amount = expense (חובה), positive = income (זכות) → skipped.
   const rowEntries = [];
   for (const line of lines) {
-    if (!/^\d{2}\/\d{2}\/\d{4}\t/.test(line)) continue;
-    const amountMatch = line.match(/₪\s*([\d,]+\.\d+)/);
-    if (!amountMatch) continue;
+    if (!/^\d{2}\/\d{2}\/\d{2,4}\t/.test(line)) continue;
     const fields = line.split('\t').map(f => f.trim());
-    const amount = parseFloat(amountMatch[1].replace(/,/g, ''));
-    rowEntries.push({
-      date: fields[0],
-      name: fields[1] || '',
-      description: fields[2] || '',
-      amount,
-      amount_rounded: Math.round(amount),
-      source: 'bank',
-    });
+    const normDate = (() => { const d = toDate(fields[0]); return d ? dateStr(d) : fields[0]; })();
+
+    const shekelMatch = line.match(/₪\s*(-?[\d,]+\.\d+)/);
+    if (shekelMatch) {
+      // Layout A — transfers list (all rows are outgoing expenses)
+      const amount = parseFloat(shekelMatch[1].replace(/,/g, ''));
+      if (amount <= 0) continue;
+      rowEntries.push({
+        date: normDate,
+        name: fields[1] || '',
+        description: fields[2] || '',
+        amount,
+        amount_rounded: Math.round(amount),
+        source: 'bank',
+      });
+      continue;
+    }
+
+    // Layout B — checking-account row: signed amount in the 3rd field
+    if (fields.length >= 3 && /^-?[\d,]+\.\d{2}$/.test(fields[2])) {
+      const signed = parseFloat(fields[2].replace(/,/g, ''));
+      if (signed >= 0) continue; // income (זכות) — expenses only
+      const amount = Math.abs(signed);
+      const desc = (fields[1] || '').replace(/\)\s*[יפ]\s*\(/g, '').replace(/^[<>]\s*/, '').trim();
+      rowEntries.push({
+        date: normDate,
+        name: desc,
+        description: desc,
+        amount,
+        amount_rounded: Math.round(amount),
+        source: 'bank',
+      });
+    }
   }
   if (rowEntries.length) return rowEntries;
 
@@ -327,21 +358,30 @@ async function reconcile(files, { exclusions = DEFAULT_EXCLUSIONS, windowDays = 
   const entries = [];
   const kartesetItems = [];
   const sources = [];
+  const warnings = [];
 
   for (const f of files) {
     const type = f.forcedType || detectFileType(f.buffer, f.originalname || '');
-    sources.push({ filename: f.originalname, type });
-    if (type === 'bank') entries.push(...await parseBankPdf(f.buffer));
-    else if (type === 'credit_cal') entries.push(...parseCreditCal(f.buffer));
-    else if (type === 'credit_max') entries.push(...parseCreditMax(f.buffer));
-    else if (type === 'karteset') kartesetItems.push(...parseKarteset(f.buffer));
+    let count = 0;
+    if (type === 'bank') { const e = await parseBankPdf(f.buffer); count = e.length; entries.push(...e); }
+    else if (type === 'credit_cal') { const e = parseCreditCal(f.buffer); count = e.length; entries.push(...e); }
+    else if (type === 'credit_max') { const e = parseCreditMax(f.buffer); count = e.length; entries.push(...e); }
+    else if (type === 'karteset') { const k = parseKarteset(f.buffer); count = k.length; kartesetItems.push(...k); }
+    sources.push({ filename: f.originalname, type, count });
+    if (type === 'bank' && count === 0) {
+      warnings.push(`"${f.originalname}": קובץ ה-PDF לא מכיל טקסט קריא (כנראה יוצא כתמונה) — הורד מהבנק את דוח התנועות המלא ונסה שוב`);
+    }
   }
 
   if (!kartesetItems.length) throw new Error('לא זוהה קובץ כרטסת בין הקבצים שהועלו');
-  if (!entries.length) throw new Error('לא זוהו קבצי בנק/אשראי בין הקבצים שהועלו');
+  if (!entries.length) {
+    throw new Error(warnings.length
+      ? warnings.join(' · ')
+      : 'לא זוהו קבצי בנק/אשראי בין הקבצים שהועלו');
+  }
 
   const missing = findMissing(entries, kartesetItems, exclusions, windowDays);
-  return { entries, karteset: kartesetItems, missing, sources };
+  return { entries, karteset: kartesetItems, missing, sources, warnings };
 }
 
 module.exports = {
