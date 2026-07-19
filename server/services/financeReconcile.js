@@ -14,7 +14,7 @@ const KNOWN_AMOUNT_HEADERS = ['סכום', 'סכום בש"ח', 'סכום עסקה
 // Bank-row exclusions. The card names prevent double counting: the checking
 // account shows each card's monthly charge, while the CAL/MAX files carry the
 // individual transactions.
-const DEFAULT_EXCLUSIONS = ['משכורת', 'החזר הוצאות', 'חלק משכר', 'מקס איט פיננס', 'לאומי קארד', 'ישראכרט', 'כאל'];
+const DEFAULT_EXCLUSIONS = ['משכורת', 'החזר הוצאות', 'חלק משכר', 'מקס איט פיננס', 'לאומי קארד', 'ישראכרט', 'כאל', 'כא"ל', 'דינרס'];
 const DEFAULT_WINDOW_DAYS = 60;
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -82,14 +82,17 @@ function detectFileType(buffer, filename = '') {
     if (sn.includes('פירוט עסקאות')) return 'credit_cal';
     if (sn.includes('עסקאות במועד')) return 'credit_max';
   }
-  // Detect by headers in the first sheet's top rows
+  // Detect by cell contents in the first sheet's top rows
   const { rows } = sheetRows(buffer);
-  for (const row of rows.slice(0, 5)) {
+  for (const row of rows.slice(0, 6)) {
     for (const cell of row || []) {
-      const val = clean(cell);
+      const val = clean(cell).replace(/\s+/g, ' ');
       if (val.includes('סכום עסקה מקורי')) return 'credit_max';
       if (val.includes('סכום בש')) return 'credit_cal';
       if (val.includes('כולל מעמ')) return 'karteset';
+      // New CAL/Visa export: title cell "פירוט עסקאות לחשבון..." or the
+      // "שם בית עסק" column header (sheet is named after the bank account)
+      if (val.includes('פירוט עסקאות') || val.includes('פירוט חיובים') || val.includes('שם בית עסק')) return 'credit_cal';
     }
   }
   return 'unknown';
@@ -208,26 +211,49 @@ async function parseBankPdf(buffer) {
   }
 }
 
+// CAL exports — two known layouts, both handled by header-based column mapping:
+//  - Classic: headers on row 1/2, amount column "סכום בש"ח".
+//  - Visa-via-bank ("פירוט חיובים לכרטיס ויזה"): title rows, then a header row
+//    with "תאריך עסקה / שם בית עסק / סכום עסקה / סכום חיוב / ... / הערות"
+//    (multi-line header cells) and installments noted as "תשלום X מתוך Y".
 function parseCreditCal(buffer) {
   const { rows } = sheetRows(buffer);
-  let headers = rows[1] || [];
-  let amountCol = detectAmountColumn(headers, 'סכום');
-  if (amountCol == null) { headers = rows[0] || []; amountCol = detectAmountColumn(headers, 'סכום'); }
-  if (amountCol == null) amountCol = 2; // column C fallback
+  const norm = (h) => clean(h).replace(/\s+/g, ' ');
 
-  const startRow = (rows[1] && clean(rows[1][0]).includes('תאריך')) ? 2 : 1;
+  // Locate the header row: has a date header and an amount header
+  let headerRow = -1;
+  for (let r = 0; r < 10 && r < rows.length; r++) {
+    const hs = (rows[r] || []).map(norm);
+    if (hs.some(h => h.includes('תאריך')) && hs.some(h => h.includes('סכום'))) { headerRow = r; break; }
+  }
+  const headers = headerRow === -1 ? [] : (rows[headerRow] || []).map(norm);
+
+  const dateCol = (() => { const i = headers.findIndex(h => h.includes('תאריך')); return i === -1 ? 0 : i; })();
+  const nameCol = (() => { const i = headers.findIndex(h => h.includes('שם בית עסק')); return i === -1 ? 1 : i; })();
+  const amountCol = (() => {
+    let i = headers.findIndex(h => h.includes('סכום בש'));   // classic: charged amount in ILS
+    if (i === -1) i = headers.findIndex(h => h.includes('סכום עסקה')); // Visa layout: full transaction amount
+    if (i === -1) { const d = detectAmountColumn(headers, 'סכום'); i = d == null ? -1 : d; }
+    return i === -1 ? 2 : i; // column C fallback
+  })();
+  const notesCol = headers.findIndex(h => h.includes('הערות'));
+
   const entries = [];
-  for (const row of rows.slice(startRow)) {
+  for (const row of rows.slice(headerRow === -1 ? 1 : headerRow + 1)) {
     if (!row) continue;
     const amount = row[amountCol];
     if (typeof amount !== 'number' || amount <= 0) continue;
-    const d = toDate(row[0]);
-    // Summary rows ("סה"כ עסקאות בגיליון זה") have an amount but no date — skip
+    const d = toDate(row[dateCol]);
+    // Summary/title rows carry an amount but no date — skip
     if (!d) continue;
+    // Installments: the accountant enters ONE invoice for the full amount, so
+    // the full transaction amount is counted once — at the first installment.
+    const notes = notesCol !== -1 ? row[notesCol] : null;
+    if (notes && typeof notes === 'string' && notes.includes('מתוך') && !notes.includes('תשלום 1 מתוך')) continue;
     entries.push({
-      date: d ? dateStr(d) : (row[0] ? String(row[0]) : ''),
-      name: row[1] != null ? String(row[1]) : '',
-      description: '',
+      date: dateStr(d),
+      name: row[nameCol] != null ? String(row[nameCol]) : '',
+      description: notes ? String(notes) : '',
       amount,
       amount_rounded: Math.round(amount),
       source: 'cal',
