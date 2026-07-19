@@ -273,6 +273,11 @@ export default function FinancePage() {
   const [items, setItems]           = useState([]);
   const [showResolved, setShowResolved] = useState(false);
   const [loading, setLoading]       = useState(true);
+  const [periods, setPeriods]       = useState([]);
+  const [periodId, setPeriodId]     = useState(() => Number(localStorage.getItem('finance_period')) || null);
+  const [newPeriodName, setNewPeriodName] = useState('');
+  const [addingPeriod, setAddingPeriod]   = useState(false);
+  const [sourceTab, setSourceTab]   = useState('all');
   const [kartesetFiles, setKartesetFiles] = useState([]);
   const [expenseFiles, setExpenseFiles]   = useState([]);
   const [running, setRunning]       = useState(false);
@@ -284,15 +289,54 @@ export default function FinancePage() {
   const expenseRef  = useRef(null);
 
   async function load() {
+    if (!periodId) { setItems([]); setLoading(false); return; }
     try {
-      const { data } = await api.get(`/finance/missing?resolved=${showResolved}`);
+      const { data } = await api.get(`/finance/missing?resolved=${showResolved}&periodId=${periodId}`);
       setItems(data);
     } catch {} finally { setLoading(false); }
   }
-  useEffect(() => { setLoading(true); load(); }, [showResolved]);
+  useEffect(() => { setLoading(true); load(); }, [showResolved, periodId]);
   useEffect(() => {
     api.get('/finance/exclusions').then(r => setExclusions(r.data.exclusions || [])).catch(() => {});
+    loadPeriods();
   }, []);
+
+  async function loadPeriods() {
+    try {
+      const { data } = await api.get('/finance/periods');
+      setPeriods(data);
+      // Keep a valid selection: stored one if it still exists, else the newest
+      setPeriodId(prev => (prev && data.some(p => p.id === prev)) ? prev : (data[0]?.id || null));
+    } catch {}
+  }
+
+  function selectPeriod(id) {
+    setPeriodId(id);
+    localStorage.setItem('finance_period', String(id));
+  }
+
+  async function createPeriod() {
+    const name = newPeriodName.trim();
+    if (!name) return;
+    try {
+      const { data } = await api.post('/finance/periods', { name });
+      setPeriods(prev => [data, ...prev]);
+      selectPeriod(data.id);
+      setNewPeriodName(''); setAddingPeriod(false);
+    } catch (err) {
+      alert(err.response?.data?.error || 'שגיאה');
+    }
+  }
+
+  async function deletePeriod(id, name) {
+    if (!confirm(`למחוק את התקופה "${name}"? כל רשימת החוסרים וההערות שלה יימחקו לצמיתות.`)) return;
+    try {
+      await api.delete(`/finance/periods/${id}`);
+      loadPeriods();
+    } catch (err) {
+      alert(err.response?.data?.error || 'שגיאה');
+    }
+  }
 
   async function saveExclusions(next) {
     setExclusions(next);
@@ -300,10 +344,11 @@ export default function FinancePage() {
   }
 
   async function runReconcile() {
-    if (!kartesetFiles.length || !expenseFiles.length) return;
+    if (!kartesetFiles.length || !expenseFiles.length || !periodId) return;
     setRunning(true); setError(null); setSummary(null);
     try {
       const fd = new FormData();
+      fd.append('periodId', String(periodId));
       kartesetFiles.forEach(f => fd.append('kartesetFiles', f));
       expenseFiles.forEach(f => fd.append('expenseFiles', f));
       const { data } = await api.post('/finance/reconcile', fd);
@@ -311,7 +356,7 @@ export default function FinancePage() {
       setKartesetFiles([]); setExpenseFiles([]);
       if (kartesetRef.current) kartesetRef.current.value = '';
       if (expenseRef.current)  expenseRef.current.value = '';
-      load();
+      load(); loadPeriods();
     } catch (err) {
       setError(err.response?.data?.error || 'שגיאה בהשוואה');
     } finally { setRunning(false); }
@@ -326,6 +371,43 @@ export default function FinancePage() {
         </div>
 
         <InvoiceScanSection />
+
+        {/* Period selector — each reconciliation round is a saved workspace */}
+        <div className="bg-white rounded-2xl border border-violet-100 shadow-sm p-4 space-y-2">
+          <p className="font-bold text-slate-800 text-sm">תקופות התאמה</p>
+          <div className="flex flex-wrap gap-1.5 items-center">
+            {periods.map(p => (
+              <span key={p.id}
+                className={`inline-flex items-center gap-1.5 text-xs font-bold rounded-lg px-2.5 py-1.5 cursor-pointer border transition ${
+                  p.id === periodId ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                }`}
+                onClick={() => selectPeriod(p.id)}>
+                {p.name}
+                {p.open_count > 0 && (
+                  <span className={`text-[10px] rounded-full px-1.5 ${p.id === periodId ? 'bg-white/25' : 'bg-amber-100 text-amber-700'}`}>{p.open_count}</span>
+                )}
+                <button type="button" onClick={e => { e.stopPropagation(); deletePeriod(p.id, p.name); }}
+                  className={`font-bold ${p.id === periodId ? 'text-white/60 hover:text-white' : 'text-slate-300 hover:text-red-500'}`}>×</button>
+              </span>
+            ))}
+            {addingPeriod ? (
+              <span className="inline-flex items-center gap-1">
+                <input value={newPeriodName} onChange={e => setNewPeriodName(e.target.value)} autoFocus
+                  onKeyDown={e => { if (e.key === 'Enter') createPeriod(); if (e.key === 'Escape') setAddingPeriod(false); }}
+                  placeholder='למשל: יולי-אוגוסט 2026'
+                  className="text-xs border border-violet-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-500 w-40" />
+                <button type="button" onClick={createPeriod} disabled={!newPeriodName.trim()}
+                  className="text-xs font-bold px-2 py-1.5 rounded-lg bg-violet-600 text-white disabled:opacity-40">צור</button>
+              </span>
+            ) : (
+              <button type="button" onClick={() => setAddingPeriod(true)}
+                className="text-xs font-bold text-violet-600 border border-dashed border-violet-300 rounded-lg px-2.5 py-1.5 hover:bg-violet-50">
+                + תקופה חדשה
+              </button>
+            )}
+          </div>
+          {!periodId && <p className="text-xs text-amber-600 font-bold">צור או בחר תקופה כדי להתחיל השוואה</p>}
+        </div>
 
         {/* Upload + run */}
         <div className="bg-white rounded-2xl border border-violet-100 shadow-sm p-4 space-y-3">
@@ -390,10 +472,12 @@ export default function FinancePage() {
             </div>
           </div>
 
-          <button type="button" onClick={runReconcile} disabled={running || !kartesetFiles.length || !expenseFiles.length}
+          <button type="button" onClick={runReconcile} disabled={running || !kartesetFiles.length || !expenseFiles.length || !periodId}
             className="w-full py-2.5 rounded-xl font-black text-sm text-white disabled:opacity-40 transition"
             style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
-            {running ? 'משווה...' : 'השווה מול הכרטסת'}
+            {running ? 'משווה...' : periodId
+              ? `השווה מול הכרטסת (${periods.find(p => p.id === periodId)?.name || ''})`
+              : 'בחר תקופה כדי להשוות'}
           </button>
 
           {error && <p className="text-sm text-red-600 font-bold">{error}</p>}
@@ -402,6 +486,7 @@ export default function FinancePage() {
               נמצאו <strong>{summary.newCount}</strong> חוסרים חדשים
               {summary.knownCount > 0 && <> · <strong>{summary.knownCount}</strong> כבר במעקב</>}
               {summary.resolvedCount > 0 && <> · <strong>{summary.resolvedCount}</strong> טופלו בעבר</>}
+              {summary.autoResolvedCount > 0 && <> · <strong className="text-emerald-700">{summary.autoResolvedCount}</strong> נסגרו אוטומטית (נמצאו בכרטסת המעודכנת)</>}
               <span className="block text-xs text-emerald-600 mt-0.5">
                 נבדקו {summary.totalEntries} תנועות מול {summary.kartesetCount} רשומות כרטסת
                 {summary.sources?.length ? ` (${summary.sources.map(s => `${TYPE_LABELS[s.type] || s.type}: ${s.count ?? '?'}`).join(', ')})` : ''}
@@ -413,28 +498,45 @@ export default function FinancePage() {
           )}
         </div>
 
-        {/* List */}
+        {/* List — per-source tabs */}
         <div className="flex items-center justify-between">
           <button type="button" onClick={() => setShowResolved(v => !v)}
             className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition ${showResolved ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-300'}`}>
             {showResolved ? 'חזרה לפתוחים' : 'הצג פתורים'}
           </button>
           <p className="text-sm font-bold text-slate-600">
-            {showResolved ? 'טופלו' : 'חשבוניות חסרות'} ({items.length})
+            {showResolved ? 'טופלו' : 'חשבוניות חסרות'}{periodId && periods.length ? ` — ${periods.find(p => p.id === periodId)?.name || ''}` : ''}
           </p>
         </div>
 
-        {loading ? (
-          <p className="text-center text-slate-400 py-8 text-sm">טוען...</p>
-        ) : items.length === 0 ? (
-          <p className="text-center text-slate-400 py-8 text-sm">
-            {showResolved ? 'אין פריטים שטופלו' : 'אין חשבוניות חסרות — הכול מותאם ✓'}
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {items.map(item => <ExpenseRow key={item.id} item={item} onChanged={load} />)}
-          </div>
-        )}
+        <div className="flex gap-1.5">
+          {[['all', 'הכל'], ['bank', 'בנק'], ['cal', 'כאל'], ['max', 'מקס']].map(([key, label]) => {
+            const count = key === 'all' ? items.length : items.filter(i => i.source === key).length;
+            return (
+              <button key={key} type="button" onClick={() => setSourceTab(key)}
+                className={`flex-1 text-xs font-bold py-2 rounded-xl border transition ${
+                  sourceTab === key ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                }`}>
+                {label} ({count})
+              </button>
+            );
+          })}
+        </div>
+
+        {(() => {
+          const visible = sourceTab === 'all' ? items : items.filter(i => i.source === sourceTab);
+          return loading ? (
+            <p className="text-center text-slate-400 py-8 text-sm">טוען...</p>
+          ) : visible.length === 0 ? (
+            <p className="text-center text-slate-400 py-8 text-sm">
+              {showResolved ? 'אין פריטים שטופלו' : 'אין חשבוניות חסרות — הכול מותאם ✓'}
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {visible.map(item => <ExpenseRow key={item.id} item={item} onChanged={load} />)}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

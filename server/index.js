@@ -472,6 +472,25 @@ pool.query(`
     created_by INT REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
   );
+  CREATE TABLE IF NOT EXISTS finance_periods (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  ALTER TABLE finance_missing_expenses ADD COLUMN IF NOT EXISTS period_id INT REFERENCES finance_periods(id) ON DELETE CASCADE;
+  ALTER TABLE finance_missing_expenses DROP CONSTRAINT IF EXISTS finance_missing_expenses_fingerprint_key;
+  CREATE UNIQUE INDEX IF NOT EXISTS finance_missing_period_fp ON finance_missing_expenses (period_id, fingerprint);
+  DO $$
+  DECLARE pid INT;
+  BEGIN
+    IF EXISTS (SELECT 1 FROM finance_missing_expenses WHERE period_id IS NULL) THEN
+      SELECT id INTO pid FROM finance_periods WHERE name = 'היסטוריה' LIMIT 1;
+      IF pid IS NULL THEN
+        INSERT INTO finance_periods (name) VALUES ('היסטוריה') RETURNING id INTO pid;
+      END IF;
+      UPDATE finance_missing_expenses SET period_id = pid WHERE period_id IS NULL;
+    END IF;
+  END $$;
   CREATE TABLE IF NOT EXISTS finance_gmail_accounts (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,

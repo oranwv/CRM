@@ -50,7 +50,12 @@ router.post('/reconcile', upload.fields([
   const kartesetFiles = (req.files?.kartesetFiles || []).map(f => ({ ...f, forcedType: 'karteset' }));
   const expenseFiles  = [...(req.files?.expenseFiles || []), ...(req.files?.files || [])];
   if (!kartesetFiles.length && !expenseFiles.length) return res.status(400).json({ error: 'לא הועלו קבצים' });
+  const periodId = Number(req.body.periodId);
+  if (!periodId) return res.status(400).json({ error: 'נא לבחור תקופה לפני ההשוואה' });
   try {
+    const { rows: [period] } = await pool.query('SELECT id FROM finance_periods WHERE id = $1', [periodId]);
+    if (!period) return res.status(404).json({ error: 'התקופה לא נמצאה' });
+
     const { rows: exRows } = await pool.query("SELECT value FROM settings WHERE key = 'finance_exclusions'");
     const exclusions = exRows[0]?.value ? JSON.parse(exRows[0].value) : DEFAULT_EXCLUSIONS;
 
@@ -62,22 +67,36 @@ router.post('/reconcile', upload.fields([
       const dm = (m.date || '').match(/(\d{2})\/(\d{2})\/(\d{4})/);
       const entryDate = dm ? `${dm[3]}-${dm[2]}-${dm[1]}` : null;
       const { rows } = await pool.query(
-        `INSERT INTO finance_missing_expenses (fingerprint, entry_date, name, description, amount, source)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         ON CONFLICT (fingerprint) DO NOTHING
+        `INSERT INTO finance_missing_expenses (period_id, fingerprint, entry_date, name, description, amount, source)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (period_id, fingerprint) DO NOTHING
          RETURNING id`,
-        [m.fingerprint, entryDate, m.name || '', m.description || '', m.amount, m.source]
+        [periodId, m.fingerprint, entryDate, m.name || '', m.description || '', m.amount, m.source]
       );
       if (rows.length) newCount++;
       else {
         const { rows: [existing] } = await pool.query(
-          'SELECT resolved FROM finance_missing_expenses WHERE fingerprint = $1', [m.fingerprint]);
+          'SELECT resolved FROM finance_missing_expenses WHERE period_id = $1 AND fingerprint = $2', [periodId, m.fingerprint]);
         if (existing?.resolved) resolvedCount++; else knownCount++;
       }
     }
 
+    // Auto-resolve: open items of the re-scanned sources that are no longer
+    // missing — the updated karteset now covers them. Scoped by source so a
+    // bank-only re-run never touches CAL/MAX items.
+    const runSources = [...new Set(entries.map(e => e.source))];
+    const missingFps = missing.map(m => m.fingerprint);
+    const { rowCount: autoResolvedCount } = await pool.query(
+      `UPDATE finance_missing_expenses
+       SET resolved = TRUE, resolved_at = NOW(),
+           status = COALESCE(NULLIF(status, ''), 'נסגר אוטומטית — נמצא בכרטסת המעודכנת')
+       WHERE period_id = $1 AND resolved = FALSE
+         AND source = ANY($2) AND NOT (fingerprint = ANY($3))`,
+      [periodId, runSources, missingFps]
+    );
+
     res.json({
-      newCount, knownCount, resolvedCount,
+      newCount, knownCount, resolvedCount, autoResolvedCount,
       totalEntries: entries.length, kartesetCount: karteset.length, sources, warnings,
     });
   } catch (err) {
@@ -86,18 +105,20 @@ router.post('/reconcile', upload.fields([
   }
 });
 
-// GET /api/finance/missing?resolved=true|false — sorted by amount desc
+// GET /api/finance/missing?periodId=&resolved=true|false — sorted by amount desc
 router.get('/missing', async (req, res) => {
   const resolved = req.query.resolved === 'true';
+  const periodId = Number(req.query.periodId);
+  if (!periodId) return res.status(400).json({ error: 'חסרה תקופה' });
   try {
     const { rows } = await pool.query(
       `SELECT e.*, COUNT(n.id)::int AS note_count
        FROM finance_missing_expenses e
        LEFT JOIN finance_expense_notes n ON n.expense_id = e.id
-       WHERE e.resolved = $1
+       WHERE e.resolved = $1 AND e.period_id = $2
        GROUP BY e.id
        ORDER BY e.amount DESC, e.entry_date DESC NULLS LAST`,
-      [resolved]
+      [resolved, periodId]
     );
     res.json(rows);
   } catch (err) {
@@ -153,6 +174,47 @@ router.post('/missing/:id/notes', async (req, res) => {
       [req.params.id, body, req.user.id]
     );
     res.json(note);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Reconciliation periods (saved workspaces, e.g. "מאי-יוני 2026") ──────────
+
+// GET /api/finance/periods — with open/resolved counts
+router.get('/periods', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT p.*,
+              COUNT(e.id) FILTER (WHERE e.resolved = FALSE)::int AS open_count,
+              COUNT(e.id) FILTER (WHERE e.resolved = TRUE)::int  AS resolved_count
+       FROM finance_periods p
+       LEFT JOIN finance_missing_expenses e ON e.period_id = p.id
+       GROUP BY p.id ORDER BY p.created_at DESC`);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/finance/periods { name }
+router.post('/periods', async (req, res) => {
+  const name = (req.body.name || '').trim();
+  if (!name) return res.status(400).json({ error: 'נא להזין שם לתקופה' });
+  try {
+    const { rows: [row] } = await pool.query(
+      'INSERT INTO finance_periods (name) VALUES ($1) RETURNING *', [name]);
+    res.json({ ...row, open_count: 0, resolved_count: 0 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/finance/periods/:id — removes the period and all its items
+router.delete('/periods/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM finance_periods WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
