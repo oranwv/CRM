@@ -121,7 +121,7 @@ function parseBankText(pageText) {
 
     const shekelMatch = line.match(/₪\s*(-?[\d,]+\.\d+)/);
     if (shekelMatch) {
-      // Layout A — transfers list (all rows are outgoing expenses)
+      // Layout A — transfers list (all rows are outgoing expenses, with payee name)
       const amount = parseFloat(shekelMatch[1].replace(/,/g, ''));
       if (amount <= 0) continue;
       rowEntries.push({
@@ -131,6 +131,7 @@ function parseBankText(pageText) {
         amount,
         amount_rounded: Math.round(amount),
         source: 'bank',
+        bankKind: 'transfers',
       });
       continue;
     }
@@ -148,6 +149,7 @@ function parseBankText(pageText) {
         amount,
         amount_rounded: Math.round(amount),
         source: 'bank',
+        bankKind: 'checking',
       });
     }
   }
@@ -313,6 +315,38 @@ function parseKarteset(buffer) {
   return items;
 }
 
+// When BOTH bank reports are uploaded — the checking-account statement (all
+// debits, but transfers show only "העברה באינטרנט") and the transfers list
+// (which names the payee) — enrich each checking transfer with the payee name
+// from the matching transfers-list row (same rounded amount, dates within 4
+// days), and drop the matched transfers-list row so the transfer isn't counted
+// twice. Unmatched transfers-list rows are kept (e.g. outside the statement's
+// date range).
+function enrichBankEntries(entries) {
+  const checking  = entries.filter(e => e.bankKind === 'checking');
+  const transfers = entries.filter(e => e.bankKind === 'transfers');
+  if (!checking.length || !transfers.length) return entries;
+
+  const windowMs = 4 * 86400000;
+  const pool = transfers.map(t => ({ entry: t, used: false, date: toDate(t.date) }));
+
+  for (const c of checking) {
+    const cDate = toDate(c.date);
+    const candidates = pool
+      .filter(p => !p.used && p.entry.amount_rounded === c.amount_rounded &&
+        (!cDate || !p.date || Math.abs(p.date - cDate) <= windowMs))
+      .sort((a, b) => (cDate && a.date && b.date) ? Math.abs(a.date - cDate) - Math.abs(b.date - cDate) : 0);
+    if (candidates.length) {
+      candidates[0].used = true;
+      c.name = candidates[0].entry.name || c.name;
+      c.description = [candidates[0].entry.description, c.description].filter(Boolean).join(' · ');
+    }
+  }
+
+  const unusedTransfers = pool.filter(p => !p.used).map(p => p.entry);
+  return [...entries.filter(e => e.source !== 'bank'), ...checking, ...unusedTransfers];
+}
+
 // ── matching ─────────────────────────────────────────────────────────────────
 
 // Match each expense entry to an unused karteset item with the same rounded
@@ -380,11 +414,12 @@ async function reconcile(files, { exclusions = DEFAULT_EXCLUSIONS, windowDays = 
       : 'לא זוהו קבצי בנק/אשראי בין הקבצים שהועלו');
   }
 
-  const missing = findMissing(entries, kartesetItems, exclusions, windowDays);
-  return { entries, karteset: kartesetItems, missing, sources, warnings };
+  const enriched = enrichBankEntries(entries);
+  const missing = findMissing(enriched, kartesetItems, exclusions, windowDays);
+  return { entries: enriched, karteset: kartesetItems, missing, sources, warnings };
 }
 
 module.exports = {
   reconcile, detectFileType, parseBankPdf, parseCreditCal, parseCreditMax,
-  parseKarteset, findMissing, fingerprint, DEFAULT_EXCLUSIONS,
+  parseKarteset, findMissing, fingerprint, enrichBankEntries, DEFAULT_EXCLUSIONS,
 };

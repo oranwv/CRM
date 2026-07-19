@@ -353,6 +353,7 @@ export default function FinancePage() {
           {/* Expense files (bank + credit cards) */}
           <div>
             <p className="text-xs font-bold text-slate-500 mb-1">קבצי הוצאות — דף בנק (PDF), אשראי כאל/מקס (אקסל)</p>
+            <p className="text-[11px] text-slate-400 mb-1">טיפ: העלה מהבנק גם את "יתרה ותנועות בעו"ש" וגם את "רשימת ההעברות" — כך כל העברה תציג את שם המוטב</p>
             <label className="block w-full py-3 rounded-xl font-bold text-sm text-center cursor-pointer border-2 border-dashed border-violet-300 text-violet-600 hover:bg-violet-50 transition">
               {expenseFiles.length ? `${expenseFiles.length} קבצי הוצאות נבחרו` : '+ בחר קבצי הוצאות'}
               <input ref={expenseRef} type="file" multiple accept=".pdf,.xlsx,.xls" className="hidden"
