@@ -66,7 +66,14 @@ function ExpenseRow({ item, onChanged }) {
             </span>
             {item.entry_date && <span className="text-xs text-slate-400">{fmtDate(item.entry_date)}</span>}
           </div>
-          <p className="text-sm text-slate-600 truncate">{item.name || item.description || '—'}</p>
+          <p className="text-sm text-slate-600 truncate">
+            <span className="text-slate-400">
+              {item.source === 'bank'
+                ? (item.name && item.name !== item.description ? 'מוטב: ' : 'סוג פעולה: ')
+                : 'בית עסק: '}
+            </span>
+            {item.name || item.description || '—'}
+          </p>
           {item.status && (
             <p className="text-xs text-amber-700 truncate">
               {item.status}
