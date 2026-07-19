@@ -36,11 +36,12 @@ function detectAmountColumn(headers, hint) {
   return null;
 }
 
-// Parse a date value from xlsx (Date object via cellDates) or dd/mm/yyyy string.
+// Parse a date value from xlsx (Date object via cellDates) or a dd/mm/yyyy,
+// dd.mm.yyyy or dd-mm-yyyy string (MAX exports use dashes).
 function toDate(val) {
   if (val instanceof Date && !isNaN(val)) return val;
   if (typeof val === 'string') {
-    const m = val.trim().match(/(\d{1,2})[/.](\d{1,2})[/.](\d{2,4})/);
+    const m = val.trim().match(/(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{2,4})/);
     if (m) {
       const y = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
       const d = new Date(y, Number(m[2]) - 1, Number(m[1]), 12);
@@ -93,13 +94,35 @@ function detectFileType(buffer, filename = '') {
 
 // ── parsers ──────────────────────────────────────────────────────────────────
 
-// Bank PDF: RTL column-by-column layout. Amounts as ₪X,XXX.XX lines, dates as
-// dd/mm/yyyy lines, with שם / תיאור / תאריך section markers per page.
-// pdf-parse text order may differ from the prototype's PDFKit — the parser is
-// tolerant: if section markers are missing it still pairs amounts with dates.
+// Bank PDF. pdf-parse extracts the bank transfers list as TAB-SEPARATED rows,
+// one transaction per line:
+//   "26/02/2026\tאלי זרמון\tשף\t90 - 136743910 בנק דיסקונט...\t31871\t₪1,000.00"
+// (date, name, description, account, reference, ₪amount). Parse those directly;
+// fall back to the legacy column-by-column layout (macOS PDFKit prototype) if a
+// page has no tab rows.
 function parseBankText(pageText) {
   const lines = pageText.split('\n').map(l => l.trim()).filter(Boolean);
 
+  // ── Primary: tab-separated transaction rows ──
+  const rowEntries = [];
+  for (const line of lines) {
+    if (!/^\d{2}\/\d{2}\/\d{4}\t/.test(line)) continue;
+    const amountMatch = line.match(/₪\s*([\d,]+\.\d+)/);
+    if (!amountMatch) continue;
+    const fields = line.split('\t').map(f => f.trim());
+    const amount = parseFloat(amountMatch[1].replace(/,/g, ''));
+    rowEntries.push({
+      date: fields[0],
+      name: fields[1] || '',
+      description: fields[2] || '',
+      amount,
+      amount_rounded: Math.round(amount),
+      source: 'bank',
+    });
+  }
+  if (rowEntries.length) return rowEntries;
+
+  // ── Fallback: legacy column-by-column layout ──
   const amounts = [];
   const dates = [];
   for (const line of lines) {
@@ -166,6 +189,8 @@ function parseCreditCal(buffer) {
     const amount = row[amountCol];
     if (typeof amount !== 'number' || amount <= 0) continue;
     const d = toDate(row[0]);
+    // Summary rows ("סה"כ עסקאות בגיליון זה") have an amount but no date — skip
+    if (!d) continue;
     entries.push({
       date: d ? dateStr(d) : (row[0] ? String(row[0]) : ''),
       name: row[1] != null ? String(row[1]) : '',
@@ -208,6 +233,8 @@ function parseCreditMax(buffer) {
     if (notes && typeof notes === 'string' && notes.includes('מתוך') && !notes.includes('תשלום 1 מתוך')) continue;
 
     const d = toDate(row[0]);
+    // Summary/total rows carry an amount but no date — skip
+    if (!d) continue;
     entries.push({
       date: d ? dateStr(d) : (row[0] ? String(row[0]) : ''),
       name: row[1] != null ? String(row[1]) : '',
