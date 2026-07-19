@@ -83,20 +83,36 @@ router.post('/reconcile', upload.fields([
 
     // Auto-resolve: open items of the re-scanned sources that are no longer
     // missing — the updated karteset now covers them. Scoped by source so a
-    // bank-only re-run never touches CAL/MAX items.
+    // bank-only re-run never touches CAL/MAX items. Deferred (carried-over)
+    // items are excluded — their charge belongs to a previous period and will
+    // never appear in this period's expense files.
     const runSources = [...new Set(entries.map(e => e.source))];
     const missingFps = missing.map(m => m.fingerprint);
-    const { rowCount: autoResolvedCount } = await pool.query(
+    const { rowCount: genericResolved } = await pool.query(
       `UPDATE finance_missing_expenses
        SET resolved = TRUE, resolved_at = NOW(),
            status = COALESCE(NULLIF(status, ''), 'נסגר אוטומטית — נמצא בכרטסת המעודכנת')
-       WHERE period_id = $1 AND resolved = FALSE
+       WHERE period_id = $1 AND resolved = FALSE AND deferred_from_period_id IS NULL
          AND source = ANY($2) AND NOT (fingerprint = ANY($3))`,
       [periodId, runSources, missingFps]
     );
 
+    // Carried-over items close when this period's karteset CONTAINS their
+    // amount (amount-only — the invoice is dated in this period while the
+    // charge is from the previous one, so date windows don't apply).
+    const kartesetAmounts = [...new Set(karteset.map(k => k.amount_rounded))];
+    const { rowCount: carriedResolved } = await pool.query(
+      `UPDATE finance_missing_expenses
+       SET resolved = TRUE, resolved_at = NOW(),
+           status = COALESCE(NULLIF(status, ''), 'נסגר אוטומטית — נמצא בכרטסת התקופה')
+       WHERE period_id = $1 AND resolved = FALSE AND deferred_from_period_id IS NOT NULL
+         AND ROUND(amount) = ANY($2)`,
+      [periodId, kartesetAmounts]
+    );
+
     res.json({
-      newCount, knownCount, resolvedCount, autoResolvedCount,
+      newCount, knownCount, resolvedCount,
+      autoResolvedCount: genericResolved + carriedResolved,
       totalEntries: entries.length, kartesetCount: karteset.length, sources, warnings,
     });
   } catch (err) {
@@ -112,15 +128,43 @@ router.get('/missing', async (req, res) => {
   if (!periodId) return res.status(400).json({ error: 'חסרה תקופה' });
   try {
     const { rows } = await pool.query(
-      `SELECT e.*, COUNT(n.id)::int AS note_count
+      `SELECT e.*, COUNT(n.id)::int AS note_count, origin.name AS deferred_from_name
        FROM finance_missing_expenses e
        LEFT JOIN finance_expense_notes n ON n.expense_id = e.id
+       LEFT JOIN finance_periods origin ON origin.id = e.deferred_from_period_id
        WHERE e.resolved = $1 AND e.period_id = $2
-       GROUP BY e.id
+       GROUP BY e.id, origin.name
        ORDER BY e.amount DESC, e.entry_date DESC NULLS LAST`,
       [resolved, periodId]
     );
     res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/finance/missing/:id/move { periodId } — defer an item to another
+// period (e.g. the invoice was issued in the next reporting period).
+router.post('/missing/:id/move', async (req, res) => {
+  const targetId = Number(req.body.periodId);
+  if (!targetId) return res.status(400).json({ error: 'נא לבחור תקופת יעד' });
+  try {
+    const { rows: [target] } = await pool.query('SELECT id FROM finance_periods WHERE id = $1', [targetId]);
+    if (!target) return res.status(404).json({ error: 'תקופת היעד לא נמצאה' });
+    const { rows: [item] } = await pool.query('SELECT * FROM finance_missing_expenses WHERE id = $1', [req.params.id]);
+    if (!item) return res.status(404).json({ error: 'הפריט לא נמצא' });
+    if (item.period_id === targetId) return res.status(400).json({ error: 'הפריט כבר בתקופה זו' });
+    const { rows: dup } = await pool.query(
+      'SELECT 1 FROM finance_missing_expenses WHERE period_id = $1 AND fingerprint = $2', [targetId, item.fingerprint]);
+    if (dup.length) return res.status(409).json({ error: 'הפריט כבר קיים בתקופת היעד' });
+    // Keep the ORIGINAL period on repeat moves
+    const { rows: [updated] } = await pool.query(
+      `UPDATE finance_missing_expenses
+       SET period_id = $1, deferred_from_period_id = COALESCE(deferred_from_period_id, $2)
+       WHERE id = $3 RETURNING *`,
+      [targetId, item.period_id, req.params.id]
+    );
+    res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

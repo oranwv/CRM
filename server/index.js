@@ -478,6 +478,7 @@ pool.query(`
     created_at TIMESTAMPTZ DEFAULT NOW()
   );
   ALTER TABLE finance_missing_expenses ADD COLUMN IF NOT EXISTS period_id INT REFERENCES finance_periods(id) ON DELETE CASCADE;
+  ALTER TABLE finance_missing_expenses ADD COLUMN IF NOT EXISTS deferred_from_period_id INT REFERENCES finance_periods(id) ON DELETE SET NULL;
   ALTER TABLE finance_missing_expenses DROP CONSTRAINT IF EXISTS finance_missing_expenses_fingerprint_key;
   CREATE UNIQUE INDEX IF NOT EXISTS finance_missing_period_fp ON finance_missing_expenses (period_id, fingerprint);
   DO $$

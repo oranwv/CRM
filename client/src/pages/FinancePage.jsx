@@ -8,7 +8,7 @@ const TYPE_LABELS = { bank: 'דף בנק', credit_cal: 'אשראי כאל', cred
 const fmtAmount = (n) => Number(n).toLocaleString('he-IL', { maximumFractionDigits: 0 });
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('he-IL') : '');
 
-function ExpenseRow({ item, onChanged }) {
+function ExpenseRow({ item, onChanged, periods = [], periodId }) {
   const [open, setOpen]         = useState(false);
   const [status, setStatus]     = useState(item.status || '');
   const [notes, setNotes]       = useState(null);
@@ -50,6 +50,19 @@ function ExpenseRow({ item, onChanged }) {
     } catch {} finally { setBusy(false); }
   }
 
+  async function moveToPeriod(targetId) {
+    const target = periods.find(p => p.id === targetId);
+    if (!target) return;
+    if (!confirm(`להעביר את ההוצאה לתקופה "${target.name}"? היא תיסגר שם אוטומטית כשתועלה כרטסת שמכילה את הסכום.`)) return;
+    setBusy(true);
+    try {
+      await api.post(`/finance/missing/${item.id}/move`, { periodId: targetId });
+      onChanged();
+    } catch (err) {
+      alert(err.response?.data?.error || 'שגיאה בהעברה');
+    } finally { setBusy(false); }
+  }
+
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
       <div className="flex items-center gap-3 px-4 py-3 cursor-pointer" onClick={toggleOpen}>
@@ -64,6 +77,11 @@ function ExpenseRow({ item, onChanged }) {
             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${SOURCE_COLORS[item.source] || 'bg-slate-100 text-slate-600'}`}>
               {SOURCE_LABELS[item.source] || item.source}
             </span>
+            {item.deferred_from_name && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
+                הועבר מ־{item.deferred_from_name}
+              </span>
+            )}
             {item.entry_date && <span className="text-xs text-slate-400">{fmtDate(item.entry_date)}</span>}
           </div>
           <p className="text-sm text-slate-600 truncate">
@@ -87,6 +105,19 @@ function ExpenseRow({ item, onChanged }) {
       {open && (
         <div className="border-t border-slate-100 px-4 py-3 space-y-3 bg-slate-50/50">
           {item.description && <p className="text-xs text-slate-500">{item.description}</p>}
+          {periods.filter(p => p.id !== periodId).length > 0 && !item.resolved && (
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-bold text-slate-500">העבר לתקופה:</label>
+              <select value="" onChange={e => e.target.value && moveToPeriod(Number(e.target.value))} disabled={busy}
+                className="text-xs bg-white border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-400">
+                <option value="">בחר תקופה...</option>
+                {periods.filter(p => p.id !== periodId).map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              <span className="text-[11px] text-slate-400">לחשבונית שהונפקה בתקופת הדיווח הבאה</span>
+            </div>
+          )}
           <div>
             <label className="text-xs font-bold text-slate-500 mb-1 block">סטטוס</label>
             <input value={status} onChange={e => setStatus(e.target.value)} onBlur={saveStatus}
@@ -540,7 +571,10 @@ export default function FinancePage() {
             </p>
           ) : (
             <div className="space-y-2">
-              {visible.map(item => <ExpenseRow key={item.id} item={item} onChanged={load} />)}
+              {visible.map(item => (
+                <ExpenseRow key={item.id} item={item} periods={periods} periodId={periodId}
+                  onChanged={() => { load(); loadPeriods(); }} />
+              ))}
             </div>
           );
         })()}

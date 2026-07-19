@@ -1,10 +1,35 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-07-13
+updated: 2026-07-16
 ---
 
 # Now
+
+## Latest session (2026-07-15/16) — bug fixes, all pushed to main
+
+- **AI KB media 404 fixed** (`8b5faea`): private `crm-files` bucket → serve
+  knowledge media via signed URLs at read time (chat + admin routes); delete
+  now also removes the stored object.
+- **Contract/offer fixes** (`271e2b2`): chef/bar menu popup text now anchored
+  to its bullet by content match instead of fixed index (5 render sites — was
+  landing on אבטחה/צוות נקיון after import-from-offer); postponement date now
+  editable in preview (`cancellationDateLabel`); customer signing page now
+  fully English for English contracts.
+- **Approval deep link** (`7d3c91a`): manager WhatsApp "מסמך פיננסי ממתין
+  לאישורך" now includes `/?pendingDocs=1` which auto-opens the approvals modal.
+- **Calendar** (`d309019`, `9224026`): Israeli holidays as green chips —
+  API fetch of Google's public holiday calendar didn't work in prod, so
+  holidays now import at startup from server/data/holidays.json (built from
+  user's ICS export, 2025-2031, Jewish/Israeli only, Hebrew names; rebuild
+  script pattern: filter by DESCRIPTION 'Public holiday'/'Observance' +
+  translate). + button → Google-style add-event dialog, manual events written
+  to real GCal with crmManual extendedProperty, rendered brown, deletable;
+  month-nav chevrons were bidi-mirrored by RTL → glyphs swapped.
+- ⚠ No local Node on this machine — changes reviewed statically only; user
+  should verify after Railway deploy: import-from-offer contract → menus on
+  right bullets in preview/signing page/signed PDF; edit postpone date;
+  package price-offer PDF; English contract signing page.
 
 ## Current focus
 
@@ -12,12 +37,24 @@ New **כספים (Finance) module** — built and deployed across July 2026 sess
 Mode/tab "כספים" (roles: admin/manager + new assignable `finance` role).
 
 1. **Reconciliation** (`server/services/financeReconcile.js`, `/api/finance/*`,
-   `FinancePage.jsx`): bank PDF + CAL/MAX credit xlsx vs accountant's karteset;
-   amount + 60-day date-window matching; live tracked list of missing invoices
-   (amount desc) with free-text status + dated notes + ✓ resolve; fingerprint
-   dedupe across runs. Test script: `server/scripts/testReconcile.js` (runs on
-   ~/Downloads/Oran samples). ⚠ Bank-PDF parser (pdf-parse port of macOS
-   prototype) is the risk area — verify against real bank.pdf.
+   `FinancePage.jsx`) — as of 2026-07-19 fully verified on the user's REAL files:
+   - Bank PDF parsers: transfers list ("רשימת ההעברות", tab rows with ₪ + payee)
+     AND checking-account statement ("יתרה ותנועות בעו"ש", signed amounts,
+     expenses = negatives only). Some bank exports are IMAGE-based (32KB, no
+     text layer) → explicit warning; user must download the full report.
+     Debug tool: `server/scripts/debugBankPdf.js <pdf>`.
+   - Payee enrichment: when both bank reports uploaded, checking transfers get
+     the payee name from the transfers list (amount + ±4d match, deduped).
+   - Rows display labeled מוטב/בית עסק; separate upload slots for karteset
+     (multi-month, merged) vs expense files; CAL/MAX summary rows skipped;
+     dd-mm-yyyy dates supported; card-charge rows in DEFAULT_EXCLUSIONS.
+   - **Saved periods** (finance_periods): each reconciliation round is a
+     workspace (chips bar, create/delete, per-period item scoping via
+     (period_id, fingerprint) unique); per-source tabs (בנק/כאל/מקס); re-upload
+     of the accountant's UPDATED karteset auto-resolves items now covered
+     (status 'נסגר אוטומטית — נמצא בכרטסת המעודכנת', source-scoped).
+   - Node.js now installed on the user's Mac (brew) — local build/tests work:
+     `npx vite build`, `node server/scripts/testReconcile.js`.
 2. **Invoice email scan** (`server/services/financeInvoiceScanner.js`): scans
    business Gmail + extra OAuth-connected mailboxes; keyword prefilter → OpenAI
    gpt-4o-mini JSON-mode confirms supplier invoices (user chose OpenAI — same
