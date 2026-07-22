@@ -316,6 +316,9 @@ export default function FinancePage() {
   const [newPeriodName, setNewPeriodName] = useState('');
   const [addingPeriod, setAddingPeriod]   = useState(false);
   const [sourceTab, setSourceTab]   = useState('all');
+  const [rekRunning, setRekRunning] = useState(false);
+  const [rekResult, setRekResult]   = useState(null);
+  const rekRef = useRef(null);
   const [kartesetFiles, setKartesetFiles] = useState([]);
   const [expenseFiles, setExpenseFiles]   = useState([]);
   const [running, setRunning]       = useState(false);
@@ -379,6 +382,26 @@ export default function FinancePage() {
   async function saveExclusions(next) {
     setExclusions(next);
     try { await api.put('/finance/exclusions', { exclusions: next }); } catch {}
+  }
+
+  // Upload ONLY the accountant's updated karteset — re-compares against the
+  // expenses stored from the last full run; newly-covered items auto-resolve.
+  async function runRekarteset(files) {
+    if (!files.length || !periodId) return;
+    setRekRunning(true); setError(null); setRekResult(null);
+    try {
+      const fd = new FormData();
+      fd.append('periodId', String(periodId));
+      files.forEach(f => fd.append('kartesetFiles', f));
+      const { data } = await api.post('/finance/rekarteset', fd);
+      setRekResult(data);
+      load(); loadPeriods();
+    } catch (err) {
+      setError(err.response?.data?.error || 'שגיאה בהעלאת הכרטסת');
+    } finally {
+      setRekRunning(false);
+      if (rekRef.current) rekRef.current.value = '';
+    }
   }
 
   async function runReconcile() {
@@ -560,6 +583,23 @@ export default function FinancePage() {
             );
           })}
         </div>
+
+        {/* Karteset-only re-upload: re-compares vs the stored expenses */}
+        <label className={`block w-full py-2 rounded-xl font-bold text-xs text-center cursor-pointer border-2 border-dashed border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition ${(rekRunning || !periodId) ? 'opacity-50 cursor-not-allowed' : ''}`}>
+          {rekRunning ? 'משווה מול הכרטסת המעודכנת...' : '⬆ העלה כרטסת מעודכנת — הוצאות שנוספו לכרטסת ייסגרו אוטומטית'}
+          <input ref={rekRef} type="file" multiple accept=".xlsx,.xls" className="hidden" disabled={rekRunning || !periodId}
+            onChange={e => runRekarteset(Array.from(e.target.files || []))} />
+        </label>
+        {rekResult && (
+          <div className="text-sm bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-3 py-2">
+            נפתרו אוטומטית <strong>{rekResult.autoResolvedCount}</strong> הוצאות שנמצאו בכרטסת המעודכנת
+            {rekResult.newCount > 0 && <> · נוספו <strong>{rekResult.newCount}</strong> חוסרים חדשים</>}
+            <span className="block text-xs text-emerald-600 mt-0.5">
+              נבדקו {rekResult.totalEntries} הוצאות שמורות מול {rekResult.kartesetCount} רשומות כרטסת
+              {' · '}{new Date(rekResult.uploadedAt).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}
+            </span>
+          </div>
+        )}
 
         {(() => {
           const visible = sourceTab === 'all' ? items : items.filter(i => i.source === sourceTab);

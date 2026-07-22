@@ -479,6 +479,18 @@ pool.query(`
   );
   ALTER TABLE finance_missing_expenses ADD COLUMN IF NOT EXISTS period_id INT REFERENCES finance_periods(id) ON DELETE CASCADE;
   ALTER TABLE finance_missing_expenses ADD COLUMN IF NOT EXISTS deferred_from_period_id INT REFERENCES finance_periods(id) ON DELETE SET NULL;
+  CREATE TABLE IF NOT EXISTS finance_period_entries (
+    id SERIAL PRIMARY KEY,
+    period_id INT REFERENCES finance_periods(id) ON DELETE CASCADE,
+    source VARCHAR(10) NOT NULL,
+    entry_date DATE,
+    name TEXT,
+    description TEXT,
+    amount NUMERIC NOT NULL,
+    fingerprint TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS finance_period_entries_period ON finance_period_entries (period_id);
   ALTER TABLE finance_missing_expenses DROP CONSTRAINT IF EXISTS finance_missing_expenses_fingerprint_key;
   CREATE UNIQUE INDEX IF NOT EXISTS finance_missing_period_fp ON finance_missing_expenses (period_id, fingerprint);
   DO $$

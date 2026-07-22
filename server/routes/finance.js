@@ -1,8 +1,86 @@
 const router = require('express').Router();
 const pool   = require('../db/pool');
 const multer = require('multer');
-const { reconcile, DEFAULT_EXCLUSIONS } = require('../services/financeReconcile');
+const { reconcile, parseKarteset, findMissing, fingerprint, DEFAULT_EXCLUSIONS } = require('../services/financeReconcile');
 const { scanRange, buildConnectUrl } = require('../services/financeInvoiceScanner');
+
+// Unified status for karteset-driven auto-resolves (full compare + rekarteset)
+function kartesetResolvedStatus(now = new Date()) {
+  const fmt = new Intl.DateTimeFormat('he-IL', {
+    timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+  return `נפתר בכרטסת שהועלתה ב־${fmt.format(now)}`;
+}
+
+const toEntryDate = (dateStr) => {
+  const dm = (dateStr || '').match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  return dm ? `${dm[3]}-${dm[2]}-${dm[1]}` : null;
+};
+
+// Shared post-processing for a comparison run: upsert missing items, then
+// auto-resolve what the (updated) karteset now covers.
+async function applyReconcileResults(periodId, entries, karteset, missing) {
+  let newCount = 0, knownCount = 0, resolvedCount = 0;
+  for (const m of missing) {
+    const { rows } = await pool.query(
+      `INSERT INTO finance_missing_expenses (period_id, fingerprint, entry_date, name, description, amount, source)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (period_id, fingerprint) DO NOTHING
+       RETURNING id`,
+      [periodId, m.fingerprint, toEntryDate(m.date), m.name || '', m.description || '', m.amount, m.source]
+    );
+    if (rows.length) newCount++;
+    else {
+      const { rows: [existing] } = await pool.query(
+        'SELECT resolved FROM finance_missing_expenses WHERE period_id = $1 AND fingerprint = $2', [periodId, m.fingerprint]);
+      if (existing?.resolved) resolvedCount++; else knownCount++;
+    }
+  }
+
+  const autoStatus = kartesetResolvedStatus();
+
+  // Open items of the re-scanned sources that are no longer missing — the
+  // updated karteset covers them. Deferred items are excluded (their charge
+  // belongs to a previous period and never re-appears in the expense files).
+  const runSources = [...new Set(entries.map(e => e.source))];
+  const missingFps = missing.map(m => m.fingerprint);
+  const { rowCount: genericResolved } = await pool.query(
+    `UPDATE finance_missing_expenses
+     SET resolved = TRUE, resolved_at = NOW(),
+         status = COALESCE(NULLIF(status, ''), $4)
+     WHERE period_id = $1 AND resolved = FALSE AND deferred_from_period_id IS NULL
+       AND source = ANY($2) AND NOT (fingerprint = ANY($3))`,
+    [periodId, runSources, missingFps, autoStatus]
+  );
+
+  // Carried-over items close when this period's karteset CONTAINS their amount
+  const kartesetAmounts = [...new Set(karteset.map(k => k.amount_rounded))];
+  const { rowCount: carriedResolved } = await pool.query(
+    `UPDATE finance_missing_expenses
+     SET resolved = TRUE, resolved_at = NOW(),
+         status = COALESCE(NULLIF(status, ''), $3)
+     WHERE period_id = $1 AND resolved = FALSE AND deferred_from_period_id IS NOT NULL
+       AND ROUND(amount) = ANY($2)`,
+    [periodId, kartesetAmounts, autoStatus]
+  );
+
+  return { newCount, knownCount, resolvedCount, autoResolvedCount: genericResolved + carriedResolved };
+}
+
+// Snapshot the parsed expense entries for a period (per source) so a later
+// karteset-only upload can re-run the exact comparison without the expense files.
+async function snapshotEntries(periodId, entries) {
+  const sources = [...new Set(entries.map(e => e.source))];
+  if (!sources.length) return;
+  await pool.query('DELETE FROM finance_period_entries WHERE period_id = $1 AND source = ANY($2)', [periodId, sources]);
+  for (const e of entries) {
+    await pool.query(
+      `INSERT INTO finance_period_entries (period_id, source, entry_date, name, description, amount, fingerprint)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [periodId, e.source, toEntryDate(e.date), e.name || '', e.description || '', e.amount, e.fingerprint || fingerprint(e)]
+    );
+  }
+}
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024, files: 6 } });
 
@@ -61,62 +139,67 @@ router.post('/reconcile', upload.fields([
 
     const { missing, entries, karteset, sources, warnings } = await reconcile([...kartesetFiles, ...expenseFiles], { exclusions });
 
-    let newCount = 0, knownCount = 0, resolvedCount = 0;
-    for (const m of missing) {
-      // dd/mm/yyyy → yyyy-mm-dd for the DATE column
-      const dm = (m.date || '').match(/(\d{2})\/(\d{2})\/(\d{4})/);
-      const entryDate = dm ? `${dm[3]}-${dm[2]}-${dm[1]}` : null;
-      const { rows } = await pool.query(
-        `INSERT INTO finance_missing_expenses (period_id, fingerprint, entry_date, name, description, amount, source)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         ON CONFLICT (period_id, fingerprint) DO NOTHING
-         RETURNING id`,
-        [periodId, m.fingerprint, entryDate, m.name || '', m.description || '', m.amount, m.source]
-      );
-      if (rows.length) newCount++;
-      else {
-        const { rows: [existing] } = await pool.query(
-          'SELECT resolved FROM finance_missing_expenses WHERE period_id = $1 AND fingerprint = $2', [periodId, m.fingerprint]);
-        if (existing?.resolved) resolvedCount++; else knownCount++;
-      }
-    }
-
-    // Auto-resolve: open items of the re-scanned sources that are no longer
-    // missing — the updated karteset now covers them. Scoped by source so a
-    // bank-only re-run never touches CAL/MAX items. Deferred (carried-over)
-    // items are excluded — their charge belongs to a previous period and will
-    // never appear in this period's expense files.
-    const runSources = [...new Set(entries.map(e => e.source))];
-    const missingFps = missing.map(m => m.fingerprint);
-    const { rowCount: genericResolved } = await pool.query(
-      `UPDATE finance_missing_expenses
-       SET resolved = TRUE, resolved_at = NOW(),
-           status = COALESCE(NULLIF(status, ''), 'נסגר אוטומטית — נמצא בכרטסת המעודכנת')
-       WHERE period_id = $1 AND resolved = FALSE AND deferred_from_period_id IS NULL
-         AND source = ANY($2) AND NOT (fingerprint = ANY($3))`,
-      [periodId, runSources, missingFps]
-    );
-
-    // Carried-over items close when this period's karteset CONTAINS their
-    // amount (amount-only — the invoice is dated in this period while the
-    // charge is from the previous one, so date windows don't apply).
-    const kartesetAmounts = [...new Set(karteset.map(k => k.amount_rounded))];
-    const { rowCount: carriedResolved } = await pool.query(
-      `UPDATE finance_missing_expenses
-       SET resolved = TRUE, resolved_at = NOW(),
-           status = COALESCE(NULLIF(status, ''), 'נסגר אוטומטית — נמצא בכרטסת התקופה')
-       WHERE period_id = $1 AND resolved = FALSE AND deferred_from_period_id IS NOT NULL
-         AND ROUND(amount) = ANY($2)`,
-      [periodId, kartesetAmounts]
-    );
+    const results = await applyReconcileResults(periodId, entries, karteset, missing);
+    await snapshotEntries(periodId, entries); // enables karteset-only re-compare later
 
     res.json({
-      newCount, knownCount, resolvedCount,
-      autoResolvedCount: genericResolved + carriedResolved,
+      ...results,
       totalEntries: entries.length, kartesetCount: karteset.length, sources, warnings,
     });
   } catch (err) {
     console.error('[Finance] reconcile error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/finance/rekarteset — upload ONLY the accountant's updated karteset
+// and re-run the exact comparison against the period's stored expense entries.
+// Newly-covered items auto-resolve with a timestamped status.
+router.post('/rekarteset', upload.fields([{ name: 'kartesetFiles', maxCount: 8 }]), async (req, res) => {
+  const periodId = Number(req.body.periodId);
+  if (!periodId) return res.status(400).json({ error: 'נא לבחור תקופה' });
+  const kFiles = req.files?.kartesetFiles || [];
+  if (!kFiles.length) return res.status(400).json({ error: 'לא הועלה קובץ כרטסת' });
+  try {
+    const { rows: [period] } = await pool.query('SELECT id FROM finance_periods WHERE id = $1', [periodId]);
+    if (!period) return res.status(404).json({ error: 'התקופה לא נמצאה' });
+
+    const kartesetItems = [];
+    for (const f of kFiles) kartesetItems.push(...parseKarteset(f.buffer));
+    if (!kartesetItems.length) return res.status(400).json({ error: 'לא זוהו שורות בקובץ הכרטסת' });
+
+    const { rows: stored } = await pool.query(
+      'SELECT source, entry_date, name, description, amount, fingerprint FROM finance_period_entries WHERE period_id = $1',
+      [periodId]);
+    if (!stored.length) {
+      return res.status(400).json({ error: 'אין נתוני הוצאות שמורים לתקופה — בצע קודם השוואה מלאה אחת (עם קבצי ההוצאות)' });
+    }
+
+    // Rebuild entry objects exactly as the engine produced them
+    const fmtD = (d) => d ? `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}` : '';
+    const entries = stored.map(r => ({
+      source: r.source,
+      date: r.entry_date ? fmtD(new Date(r.entry_date)) : '',
+      name: r.name || '',
+      description: r.description || '',
+      amount: Number(r.amount),
+      amount_rounded: Math.round(Number(r.amount)),
+      fingerprint: r.fingerprint,
+    }));
+
+    const { rows: exRows } = await pool.query("SELECT value FROM settings WHERE key = 'finance_exclusions'");
+    const exclusions = exRows[0]?.value ? JSON.parse(exRows[0].value) : DEFAULT_EXCLUSIONS;
+
+    const missing = findMissing(entries, kartesetItems, exclusions);
+    const results = await applyReconcileResults(periodId, entries, kartesetItems, missing);
+
+    res.json({
+      ...results,
+      totalEntries: entries.length, kartesetCount: kartesetItems.length,
+      uploadedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error('[Finance] rekarteset error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
