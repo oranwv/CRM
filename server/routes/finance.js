@@ -21,20 +21,39 @@ const toEntryDate = (dateStr) => {
 // auto-resolve what the (updated) karteset now covers.
 async function applyReconcileResults(periodId, entries, karteset, missing) {
   let newCount = 0, knownCount = 0, resolvedCount = 0;
+  const missingFpsAll = missing.map(m => m.fingerprint);
   for (const m of missing) {
-    const { rows } = await pool.query(
+    const { rows: [existing] } = await pool.query(
+      'SELECT resolved FROM finance_missing_expenses WHERE period_id = $1 AND fingerprint = $2', [periodId, m.fingerprint]);
+    if (existing) {
+      if (existing.resolved) resolvedCount++; else knownCount++;
+      continue;
+    }
+    // An item's fingerprint can change between runs when its NAME changes —
+    // e.g. a bank transfer gains a payee via the transfers-list enrichment.
+    // Adopt the matching open item (same source/date/amount, old fingerprint
+    // no longer produced) so the user's status and notes are preserved.
+    const { rows: [adopted] } = await pool.query(
+      `UPDATE finance_missing_expenses
+       SET fingerprint = $1, name = $2, description = $3
+       WHERE id = (
+         SELECT id FROM finance_missing_expenses
+         WHERE period_id = $4 AND resolved = FALSE AND source = $5
+           AND entry_date IS NOT DISTINCT FROM $6 AND ROUND(amount) = $7
+           AND NOT (fingerprint = ANY($8))
+         LIMIT 1
+       ) RETURNING id`,
+      [m.fingerprint, m.name || '', m.description || '', periodId, m.source,
+       toEntryDate(m.date), Math.round(m.amount), missingFpsAll]
+    );
+    if (adopted) { knownCount++; continue; }
+    await pool.query(
       `INSERT INTO finance_missing_expenses (period_id, fingerprint, entry_date, name, description, amount, source)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
-       ON CONFLICT (period_id, fingerprint) DO NOTHING
-       RETURNING id`,
+       ON CONFLICT (period_id, fingerprint) DO NOTHING`,
       [periodId, m.fingerprint, toEntryDate(m.date), m.name || '', m.description || '', m.amount, m.source]
     );
-    if (rows.length) newCount++;
-    else {
-      const { rows: [existing] } = await pool.query(
-        'SELECT resolved FROM finance_missing_expenses WHERE period_id = $1 AND fingerprint = $2', [periodId, m.fingerprint]);
-      if (existing?.resolved) resolvedCount++; else knownCount++;
-    }
+    newCount++;
   }
 
   const autoStatus = kartesetResolvedStatus();
