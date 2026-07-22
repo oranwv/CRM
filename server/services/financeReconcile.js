@@ -464,17 +464,20 @@ async function reconcile(files, { exclusions = DEFAULT_EXCLUSIONS, windowDays = 
   const sources = [];
   const warnings = [];
 
+  let fileIdx = 0;
   for (const f of files) {
     const type = f.forcedType || detectFileType(f.buffer, f.originalname || '');
     let count = 0;
-    if (type === 'bank') { const e = await parseBankPdf(f.buffer); count = e.length; entries.push(...e); }
-    else if (type === 'credit_cal') { const e = parseCreditCal(f.buffer); count = e.length; entries.push(...e); }
-    else if (type === 'credit_max') { const e = parseCreditMax(f.buffer); count = e.length; entries.push(...e); }
+    const tag = (arr) => arr.map(e => ({ ...e, _file: fileIdx }));
+    if (type === 'bank') { const e = await parseBankPdf(f.buffer); count = e.length; entries.push(...tag(e)); }
+    else if (type === 'credit_cal') { const e = parseCreditCal(f.buffer); count = e.length; entries.push(...tag(e)); }
+    else if (type === 'credit_max') { const e = parseCreditMax(f.buffer); count = e.length; entries.push(...tag(e)); }
     else if (type === 'karteset') { const k = await parseKartesetAny(f.buffer); count = k.length; kartesetItems.push(...k); }
     sources.push({ filename: f.originalname, type, count });
     if (type === 'bank' && count === 0) {
       warnings.push(`"${f.originalname}": קובץ ה-PDF לא מכיל טקסט קריא (כנראה יוצא כתמונה) — הורד מהבנק את דוח התנועות המלא ונסה שוב`);
     }
+    fileIdx++;
   }
 
   if (!kartesetItems.length) throw new Error('לא זוהה קובץ כרטסת בין הקבצים שהועלו');
@@ -484,7 +487,33 @@ async function reconcile(files, { exclusions = DEFAULT_EXCLUSIONS, windowDays = 
       : 'לא זוהו קבצי בנק/אשראי בין הקבצים שהועלו');
   }
 
-  const enriched = enrichBankEntries(entries);
+  // Cross-file dedupe: the same charge reported by two overlapping exports
+  // (e.g. both CAL export formats uploaded together) must count ONCE — else the
+  // single karteset invoice covers one copy and the twin stays "missing"
+  // forever. Real same-day duplicates WITHIN one file are preserved: per
+  // fingerprint we keep the file with the most occurrences (max, not sum).
+  const byFp = new Map();
+  for (const e of entries) {
+    const fp = fingerprint(e);
+    if (!byFp.has(fp)) byFp.set(fp, new Map());
+    const perFile = byFp.get(fp);
+    if (!perFile.has(e._file)) perFile.set(e._file, []);
+    perFile.get(e._file).push(e);
+  }
+  const deduped = [];
+  let dupDropped = 0;
+  for (const perFile of byFp.values()) {
+    const groups = [...perFile.values()];
+    const keep = groups.reduce((a, b) => (b.length > a.length ? b : a));
+    deduped.push(...keep);
+    dupDropped += groups.reduce((s, g) => s + g.length, 0) - keep.length;
+  }
+  if (dupDropped > 0) {
+    warnings.push(`${dupDropped} תנועות שהופיעו ביותר מקובץ אחד (קבצים חופפים) נספרו פעם אחת בלבד`);
+  }
+  deduped.forEach(e => delete e._file);
+
+  const enriched = enrichBankEntries(deduped);
   const missing = findMissing(enriched, kartesetItems, exclusions, windowDays);
   return { entries: enriched, karteset: kartesetItems, missing, sources, warnings };
 }
