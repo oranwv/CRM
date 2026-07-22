@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const pool   = require('../db/pool');
 const multer = require('multer');
-const { reconcile, parseKarteset, findMissing, fingerprint, DEFAULT_EXCLUSIONS } = require('../services/financeReconcile');
+const { reconcile, parseKartesetAny, findMissing, fingerprint, DEFAULT_EXCLUSIONS } = require('../services/financeReconcile');
 const { scanRange, buildConnectUrl } = require('../services/financeInvoiceScanner');
 
 // Unified status for karteset-driven auto-resolves (full compare + rekarteset)
@@ -165,7 +165,7 @@ router.post('/rekarteset', upload.fields([{ name: 'kartesetFiles', maxCount: 8 }
     if (!period) return res.status(404).json({ error: 'התקופה לא נמצאה' });
 
     const kartesetItems = [];
-    for (const f of kFiles) kartesetItems.push(...parseKarteset(f.buffer));
+    for (const f of kFiles) kartesetItems.push(...await parseKartesetAny(f.buffer));
     if (!kartesetItems.length) return res.status(400).json({ error: 'לא זוהו שורות בקובץ הכרטסת' });
 
     const { rows: stored } = await pool.query(

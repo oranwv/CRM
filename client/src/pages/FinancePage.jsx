@@ -476,8 +476,8 @@ export default function FinancePage() {
           <div>
             <p className="text-xs font-bold text-slate-500 mb-1">קבצי כרטסת (אפשר כמה חודשים — למשל מאי + יוני)</p>
             <label className="block w-full py-3 rounded-xl font-bold text-sm text-center cursor-pointer border-2 border-dashed border-emerald-300 text-emerald-600 hover:bg-emerald-50 transition">
-              {kartesetFiles.length ? `${kartesetFiles.length} קבצי כרטסת נבחרו` : '+ בחר קבצי כרטסת (אקסל)'}
-              <input ref={kartesetRef} type="file" multiple accept=".xlsx,.xls" className="hidden"
+              {kartesetFiles.length ? `${kartesetFiles.length} קבצי כרטסת נבחרו` : '+ בחר קבצי כרטסת (אקסל או PDF)'}
+              <input ref={kartesetRef} type="file" multiple accept=".xlsx,.xls,.pdf" className="hidden"
                 onChange={e => setKartesetFiles(Array.from(e.target.files || []))} />
             </label>
             {kartesetFiles.length > 0 && (
@@ -587,7 +587,7 @@ export default function FinancePage() {
         {/* Karteset-only re-upload: re-compares vs the stored expenses */}
         <label className={`block w-full py-2 rounded-xl font-bold text-xs text-center cursor-pointer border-2 border-dashed border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition ${(rekRunning || !periodId) ? 'opacity-50 cursor-not-allowed' : ''}`}>
           {rekRunning ? 'משווה מול הכרטסת המעודכנת...' : '⬆ העלה כרטסת מעודכנת — הוצאות שנוספו לכרטסת ייסגרו אוטומטית'}
-          <input ref={rekRef} type="file" multiple accept=".xlsx,.xls" className="hidden" disabled={rekRunning || !periodId}
+          <input ref={rekRef} type="file" multiple accept=".xlsx,.xls,.pdf" className="hidden" disabled={rekRunning || !periodId}
             onChange={e => runRekarteset(Array.from(e.target.files || []))} />
         </label>
         {rekResult && (

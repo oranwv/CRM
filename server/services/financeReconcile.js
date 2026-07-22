@@ -373,6 +373,50 @@ function enrichBankEntries(entries) {
   return [...entries.filter(e => e.source !== 'bank'), ...checking, ...unusedTransfers];
 }
 
+// Karteset as PDF ("דוח כרטסת" export, e.g. from Paperless bookkeeping).
+// Rows extract as: seq \t dd/mm/yyyy \t supplier \t ח.פ \t אסמכתא \t כולל מעמ \t [ללא מעמ \t מעמ]
+async function parseKartesetPdf(buffer) {
+  const parser = new PDFParse({ data: buffer });
+  try {
+    const result = await parser.getText();
+    const pages = (result.pages && result.pages.length)
+      ? result.pages.map(p => p.text || '')
+      : String(result.text || '').split('\f');
+    const items = [];
+    for (const page of pages) {
+      for (const raw of page.split('\n')) {
+        const line = raw.trim();
+        if (!/^\d+\t\d{1,2}\/\d{1,2}\/\d{2,4}\t/.test(line)) continue; // seq + date rows only
+        const fields = line.split('\t').map(f => f.trim());
+        // Optional columns (ספק / ח.פ / מעמ) may be absent, shifting positions —
+        // so resolve "כולל מעמ" from the RIGHT using the arithmetic relation:
+        //   [..., כולל, ללא, מעמ] → last3 satisfy a=b+c;  [..., כולל, ללא] → last2 equal
+        const num = (s) => { const v = parseFloat(String(s || '').replace(/,/g, '')); return isFinite(v) ? v : null; };
+        const n = fields.length;
+        const a = n >= 3 ? num(fields[n - 3]) : null;
+        const b = n >= 2 ? num(fields[n - 2]) : null;
+        const c = num(fields[n - 1]);
+        let amount = null;
+        if (a != null && b != null && c != null && Math.abs(a - (b + c)) <= 1) amount = a;
+        else if (b != null && c != null && Math.abs(b - c) <= 0.01) amount = b;
+        else amount = num(fields[5]); // legacy positional fallback
+        if (amount == null || amount === 0) continue;
+        items.push({ amount_rounded: Math.round(amount), date: toDate(fields[1]) });
+      }
+    }
+    return items;
+  } finally {
+    await parser.destroy();
+  }
+}
+
+const isPdfBuffer = (buffer) => buffer.slice(0, 4).toString() === '%PDF';
+
+// Karteset in either format (xlsx or PDF)
+async function parseKartesetAny(buffer) {
+  return isPdfBuffer(buffer) ? parseKartesetPdf(buffer) : parseKarteset(buffer);
+}
+
 // ── matching ─────────────────────────────────────────────────────────────────
 
 // Match each expense entry to an unused karteset item with the same rounded
@@ -426,7 +470,7 @@ async function reconcile(files, { exclusions = DEFAULT_EXCLUSIONS, windowDays = 
     if (type === 'bank') { const e = await parseBankPdf(f.buffer); count = e.length; entries.push(...e); }
     else if (type === 'credit_cal') { const e = parseCreditCal(f.buffer); count = e.length; entries.push(...e); }
     else if (type === 'credit_max') { const e = parseCreditMax(f.buffer); count = e.length; entries.push(...e); }
-    else if (type === 'karteset') { const k = parseKarteset(f.buffer); count = k.length; kartesetItems.push(...k); }
+    else if (type === 'karteset') { const k = await parseKartesetAny(f.buffer); count = k.length; kartesetItems.push(...k); }
     sources.push({ filename: f.originalname, type, count });
     if (type === 'bank' && count === 0) {
       warnings.push(`"${f.originalname}": קובץ ה-PDF לא מכיל טקסט קריא (כנראה יוצא כתמונה) — הורד מהבנק את דוח התנועות המלא ונסה שוב`);
@@ -447,5 +491,6 @@ async function reconcile(files, { exclusions = DEFAULT_EXCLUSIONS, windowDays = 
 
 module.exports = {
   reconcile, detectFileType, parseBankPdf, parseCreditCal, parseCreditMax,
-  parseKarteset, findMissing, fingerprint, enrichBankEntries, DEFAULT_EXCLUSIONS,
+  parseKarteset, parseKartesetPdf, parseKartesetAny, findMissing, fingerprint,
+  enrichBankEntries, DEFAULT_EXCLUSIONS,
 };
