@@ -33,9 +33,14 @@ async function applyReconcileResults(periodId, entries, karteset, missing) {
     // e.g. a bank transfer gains a payee via the transfers-list enrichment.
     // Adopt the matching open item (same source/date/amount, old fingerprint
     // no longer produced) so the user's status and notes are preserved.
+    // Upgrade-only naming: an unenriched checking row has name = description
+    // (generic action type). Never let it overwrite a real payee name that an
+    // earlier enriched run attached to the item.
     const { rows: [adopted] } = await pool.query(
       `UPDATE finance_missing_expenses
-       SET fingerprint = $1, name = $2, description = $3
+       SET fingerprint = $1,
+           name = CASE WHEN $2 <> $3 OR name = '' OR name = description THEN $2 ELSE name END,
+           description = CASE WHEN $2 <> $3 THEN $3 ELSE description END
        WHERE id = (
          SELECT id FROM finance_missing_expenses
          WHERE period_id = $4 AND resolved = FALSE AND source = $5
