@@ -56,27 +56,37 @@ router.get('/', async (req, res) => {
       const likeIdx = params.length;
       const normalizedSearch = normalizePhone(search);
       const digitCount = search.replace(/\D/g, '').length;
+      // Normalizes a stored phone column to 972-prefixed digits for comparison
+      const normExpr = (col) => `
+          CASE
+            WHEN REGEXP_REPLACE(${col},'[^0-9]','','g') LIKE '972%'
+              THEN REGEXP_REPLACE(${col},'[^0-9]','','g')
+            WHEN REGEXP_REPLACE(${col},'[^0-9]','','g') LIKE '0%'
+              THEN '972' || SUBSTRING(REGEXP_REPLACE(${col},'[^0-9]','','g'), 2)
+            ELSE REGEXP_REPLACE(${col},'[^0-9]','','g')
+          END`;
       let phoneNormCondition = '';
+      let contactNormCondition = '';
       if (normalizedSearch && digitCount >= 5) {
         params.push(`%${normalizedSearch}%`);
         const normIdx = params.length;
-        phoneNormCondition = ` OR (
-          CASE
-            WHEN REGEXP_REPLACE(l.phone,'[^0-9]','','g') LIKE '972%'
-              THEN REGEXP_REPLACE(l.phone,'[^0-9]','','g')
-            WHEN REGEXP_REPLACE(l.phone,'[^0-9]','','g') LIKE '0%'
-              THEN '972' || SUBSTRING(REGEXP_REPLACE(l.phone,'[^0-9]','','g'), 2)
-            ELSE REGEXP_REPLACE(l.phone,'[^0-9]','','g')
-          END LIKE $${normIdx}
-        )`;
+        phoneNormCondition   = ` OR (${normExpr('l.phone')} LIKE $${normIdx})`;
+        contactNormCondition = ` OR (lc.type = 'phone' AND ${normExpr('lc.value')} LIKE $${normIdx})`;
       }
-      conditions.push(`(l.name ILIKE $${likeIdx} OR l.phone ILIKE $${likeIdx} OR l.email ILIKE $${likeIdx} OR l.event_name ILIKE $${likeIdx} OR l.event_type ILIKE $${likeIdx} OR l.notes ILIKE $${likeIdx}${phoneNormCondition})`);
+      // Additional contacts (lead_contacts): match extra phones/emails and the contact-person label
+      const contactsMatch = `EXISTS (
+        SELECT 1 FROM lead_contacts lc
+        WHERE lc.lead_id = l.id
+          AND (lc.value ILIKE $${likeIdx} OR lc.label ILIKE $${likeIdx}${contactNormCondition})
+      )`;
+      conditions.push(`(l.name ILIKE $${likeIdx} OR l.phone ILIKE $${likeIdx} OR l.email ILIKE $${likeIdx} OR l.event_name ILIKE $${likeIdx} OR l.event_type ILIKE $${likeIdx} OR l.notes ILIKE $${likeIdx}${phoneNormCondition} OR ${contactsMatch})`);
       // Rank: a hit on the lead/event name is the most likely intended lead; a hit
       // only in the free-text notes is the least likely. Contact fields sit between.
       rankSelect = `(
         (CASE WHEN l.name       ILIKE $${likeIdx} THEN 100 ELSE 0 END) +
         (CASE WHEN l.event_name ILIKE $${likeIdx} THEN 80  ELSE 0 END) +
         (CASE WHEN l.phone      ILIKE $${likeIdx} THEN 60  ELSE 0 END) +
+        (CASE WHEN ${contactsMatch}               THEN 55  ELSE 0 END) +
         (CASE WHEN l.email      ILIKE $${likeIdx} THEN 50  ELSE 0 END) +
         (CASE WHEN l.event_type ILIKE $${likeIdx} THEN 40  ELSE 0 END) +
         (CASE WHEN l.notes      ILIKE $${likeIdx} THEN 20  ELSE 0 END)
