@@ -263,14 +263,14 @@ contractLeadRouter.get('/latest', async (req, res) => {
 
 contractLeadRouter.post('/', async (req, res) => {
   try {
-    const { contract_data } = req.body;
+    const { contract_data, sent_via, whatsapp_phone } = req.body;
     if (!contract_data) return res.status(400).json({ error: 'contract_data required' });
 
     const token = crypto.randomUUID();
     const { rows } = await pool.query(
-      `INSERT INTO contracts (lead_id, token, contract_data, created_by)
-       VALUES ($1,$2,$3,$4) RETURNING id, token`,
-      [req.params.id, token, JSON.stringify(contract_data), req.user.id]
+      `INSERT INTO contracts (lead_id, token, contract_data, created_by, sent_via, whatsapp_phone)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, token`,
+      [req.params.id, token, JSON.stringify(contract_data), req.user.id, sent_via || null, whatsapp_phone || null]
     );
 
     await pool.query(
@@ -416,46 +416,58 @@ contractPublicRouter.post('/:token/sign', async (req, res) => {
       });
     } catch (e) { console.error('[Contracts] sharabiya email failed:', e.message); }
 
-    // Send to customer
+    // Send to customer — same message body for both channels
     const clientEmail = contract.contract_data?.fields?.clientEmail || contract.lead_email;
+    const { rows: emailSettings } = await pool.query(
+      `SELECT key, value FROM settings WHERE key IN ('contract_email_body','contract_email_bank')`
+    );
+    const settingsMap  = Object.fromEntries(emailSettings.map(r => [r.key, r.value]));
+    const customBody   = settingsMap.contract_email_body?.trim() || '';
+    const bankDetails  = settingsMap.contract_email_bank?.trim() || '';
+    const clientMessage = [
+      `שלום ${ordererName},`,
+      '',
+      'תודה על החתימה! החוזה החתום מצורף.',
+      ...(customBody   ? ['', customBody]               : []),
+      ...(bankDetails  ? ['', 'פרטי תשלום:', bankDetails] : []),
+      '',
+      'בברכה, צוות שרביה',
+    ].join('\n');
+
     if (clientEmail) {
       try {
-        const { rows: emailSettings } = await pool.query(
-          `SELECT key, value FROM settings WHERE key IN ('contract_email_body','contract_email_bank')`
-        );
-        const settingsMap  = Object.fromEntries(emailSettings.map(r => [r.key, r.value]));
-        const customBody   = settingsMap.contract_email_body?.trim() || '';
-        const bankDetails  = settingsMap.contract_email_bank?.trim() || '';
-        const emailBody = [
-          `שלום ${ordererName},`,
-          '',
-          'תודה על החתימה! החוזה החתום מצורף.',
-          ...(customBody   ? ['', customBody]               : []),
-          ...(bankDetails  ? ['', 'פרטי תשלום:', bankDetails] : []),
-          '',
-          'בברכה, צוות שרביה',
-        ].join('\n');
         await sendEmail({
           to: clientEmail,
           subject: 'החוזה החתום שלך — שרביה',
-          body: emailBody,
+          body: clientMessage,
           attachmentBuffer: pdfBuffer,
           attachmentName: filename,
           attachmentMime: 'application/pdf',
         });
       } catch (e) { console.error('[Contracts] client email failed:', e.message); }
-    } else if (contract.lead_phone) {
+    }
+
+    // WhatsApp: when the contract was sent via WhatsApp — always; for contracts
+    // created before sent_via existed — only as the no-email fallback (old behavior).
+    const waTarget = contract.whatsapp_phone || contract.contract_data?.fields?.clientPhone || contract.lead_phone;
+    const shouldSendWa = contract.sent_via === 'whatsapp' || (!contract.sent_via && !clientEmail);
+    if (shouldSendWa && waTarget) {
       try {
         const { GREEN_API_URL, GREEN_API_INSTANCE, GREEN_API_TOKEN } = process.env;
         if (GREEN_API_URL && GREEN_API_INSTANCE && GREEN_API_TOKEN) {
-          const phone = contract.lead_phone.replace(/\D/g, '').replace(/^0/, '972');
+          const phone = waTarget.replace(/\D/g, '').replace(/^0/, '972');
           // Bucket is private — Green API must fetch via a signed URL (the stored
           // public URL 404s). 1h expiry is ample; Green API downloads immediately.
           const waFileUrl = await getSignedUrl(storedName, 3600);
           await axios.post(
             `${GREEN_API_URL}/waInstance${GREEN_API_INSTANCE}/sendFileByUrl/${GREEN_API_TOKEN}`,
-            { chatId: `${phone}@c.us`, urlFile: waFileUrl, fileName: filename, caption: 'החוזה החתום שלך מצורף.' },
+            { chatId: `${phone}@c.us`, urlFile: waFileUrl, fileName: filename, caption: clientMessage },
             { timeout: 15000 }
+          );
+          await pool.query(
+            `INSERT INTO messages (lead_id, channel, direction, body, timestamp, contact_value)
+             VALUES ($1, 'whatsapp', 'outbound', $2, NOW(), $3)`,
+            [contract.lead_id, `[חוזה חתום מצורף]\n${clientMessage}`, phone]
           );
         }
       } catch (e) { console.error('[Contracts] WhatsApp send failed:', e.message); }

@@ -1620,6 +1620,8 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
       const calculated = { subtotal, vat, total, depositAmount, depositAmountVat, remainingBalance, cancellationDate };
       const { data } = await api.post(`/leads/${lead.id}/contracts`, {
         contract_data: { fields, rows, calculated, texts: contractTexts, offerType: contractType, language },
+        sent_via: channel === 'email' ? 'email' : 'whatsapp',
+        whatsapp_phone: channel === 'email' ? null : waPhone,
       });
       const url = `${window.location.origin}/sign/${data.token}`;
       setSigningUrl(url);
