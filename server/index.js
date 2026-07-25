@@ -278,7 +278,7 @@ pool.query(`
   );
   INSERT INTO supplier_categories (name, sort_order) VALUES
     ('קייטרינג/שף', 0), ('צלמים', 1), ('מלצרים', 2), ('ברמנים', 3),
-    ('שומרים', 4), ('נקיון', 5), ('כללי', 6), ('מפיקים', 7)
+    ('שומרים', 4), ('נקיון', 5), ('כללי', 6), ('מפיקים', 7), ('מארחות', 8)
   ON CONFLICT (name) DO NOTHING;
   CREATE TABLE IF NOT EXISTS suppliers (
     id SERIAL PRIMARY KEY,

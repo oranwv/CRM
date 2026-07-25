@@ -3,6 +3,129 @@ import api from '../api';
 
 const SUPPLIER_TYPES = ['עיצוב', 'DJ', 'צלם מגנטים', 'צלם סטילס', 'רב', 'אחר'];
 
+// Dedicated per-category supplier rows — each picks from the real suppliers DB
+const CATEGORY_ROWS = [
+  { key: 'waiters',    label: 'מלצרים',   category: 'מלצרים' },
+  { key: 'bartenders', label: 'ברמנים',   category: 'ברמנים' },
+  { key: 'catering',   label: 'קייטרינג', category: 'קייטרינג/שף' },
+  { key: 'security',   label: 'מאבטח',    category: 'שומרים' },
+  { key: 'hostess',    label: 'מארחת',    category: 'מארחות' },
+];
+
+// Multi-select supplier picker. category=null → all suppliers with search + category filter.
+function SupplierPickerModal({ title, category, selected, onSave, onClose }) {
+  const [suppliers, setSuppliers] = useState(null); // null = loading
+  const [checked, setChecked]     = useState(() => new Set((selected || []).map(s => s.id)));
+  const [search, setSearch]       = useState('');
+  const [catFilter, setCatFilter] = useState('הכל');
+  const [categories, setCategories] = useState([]);
+
+  useEffect(() => {
+    api.get('/suppliers').then(r => setSuppliers(r.data || [])).catch(() => setSuppliers([]));
+    if (!category) {
+      api.get('/suppliers/categories').then(r => setCategories(r.data || [])).catch(() => {});
+    }
+  }, [category]);
+
+  const list = (suppliers || []).filter(s => {
+    if (category && s.category !== category) return false;
+    if (!category && catFilter !== 'הכל' && s.category !== catFilter) return false;
+    if (search && !(s.name || '').toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+
+  function toggle(id) {
+    setChecked(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function save() {
+    // Keep previously-selected suppliers that are no longer visible/loaded, by id
+    const byId = new Map((selected || []).map(s => [s.id, s]));
+    const result = [];
+    for (const id of checked) {
+      const sup = (suppliers || []).find(s => s.id === id);
+      if (sup) result.push({ id: sup.id, name: sup.name, phone: sup.phone || '', category: sup.category || '' });
+      else if (byId.has(id)) result.push(byId.get(id));
+    }
+    onSave(result);
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-4 flex flex-col max-h-[80vh]" dir="rtl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3 shrink-0">
+          <h3 className="font-bold text-slate-800 text-base">{title}</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">&times;</button>
+        </div>
+
+        <input
+          autoFocus
+          className={`${inputCls} mb-2 shrink-0`}
+          placeholder="חיפוש לפי שם..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+
+        {!category && categories.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-2 shrink-0">
+            {['הכל', ...categories.map(c => c.name)].map(c => (
+              <button
+                key={c}
+                onClick={() => setCatFilter(c)}
+                className={`text-[11px] px-2 py-0.5 rounded-full border font-semibold transition ${
+                  catFilter === c ? 'bg-violet-600 border-violet-600 text-white' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                }`}
+              >{c}</button>
+            ))}
+          </div>
+        )}
+
+        <div className="flex-1 overflow-y-auto space-y-1 min-h-[80px]">
+          {suppliers === null ? (
+            <p className="text-sm text-slate-400 text-center py-4">טוען...</p>
+          ) : list.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-4">
+              {category ? 'אין ספקים בקטגוריה זו — ניתן להוסיף במסך הספקים.' : 'לא נמצאו ספקים.'}
+            </p>
+          ) : (
+            list.map(s => (
+              <label key={s.id} className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-slate-50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={checked.has(s.id)}
+                  onChange={() => toggle(s.id)}
+                  className="w-4 h-4 accent-violet-600 shrink-0"
+                />
+                <span className="text-sm text-slate-700 font-semibold flex-1 truncate">{s.name}</span>
+                {s.phone && <span className="text-xs text-slate-400" dir="ltr">{s.phone}</span>}
+                {!category && s.category && (
+                  <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full shrink-0">{s.category}</span>
+                )}
+              </label>
+            ))
+          )}
+        </div>
+
+        <div className="flex gap-2 pt-3 shrink-0">
+          <button onClick={onClose} className="border-2 border-slate-200 text-slate-500 font-bold py-2 px-4 rounded-xl hover:bg-slate-50 transition text-sm">ביטול</button>
+          <button
+            onClick={save}
+            className="flex-1 text-white font-bold py-2 rounded-xl text-sm"
+            style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}
+          >
+            שמור ({checked.size})
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AutoChip() {
   return (
     <span className="text-[10px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded font-semibold mr-1">מולא אוטומטית</span>
@@ -80,6 +203,18 @@ export default function EventBriefModal({ leadId, onClose }) {
   // Returns true if the field has an auto value and hasn't been manually overridden
   function isAuto(key) {
     return !!auto[key] && data[key] === undefined;
+  }
+
+  // key of the category row whose picker is open ('other' = all-suppliers picker)
+  const [pickerRow, setPickerRow] = useState(null);
+  const catSuppliers = data.categorySuppliers || {};
+
+  function setRowSuppliers(rowKey, list) {
+    set('categorySuppliers', { ...catSuppliers, [rowKey]: list });
+  }
+
+  function removeRowSupplier(rowKey, id) {
+    setRowSuppliers(rowKey, (catSuppliers[rowKey] || []).filter(s => s.id !== id));
   }
 
   function addSupplier(type) {
@@ -303,6 +438,65 @@ export default function EventBriefModal({ leadId, onClose }) {
             <textarea className={`${inputCls} resize-none`} rows={4} value={val('event_notes')} onChange={e => set('event_notes', e.target.value)} />
           </Field>
 
+          {/* Event suppliers — picked from the suppliers DB, per category */}
+          <div>
+            <span className="text-xs font-bold text-slate-500 block mb-2">ספקי האירוע</span>
+            <div className="space-y-2">
+              {CATEGORY_ROWS.map(row => (
+                <div key={row.key} className="bg-slate-50 rounded-xl border border-slate-200 p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-violet-600">{row.label}</span>
+                    <button
+                      data-html2canvas-ignore="true"
+                      onClick={() => setPickerRow(row.key)}
+                      className="text-[11px] px-2 py-0.5 rounded-full border border-violet-300 text-violet-700 hover:bg-violet-50 transition font-semibold"
+                    >
+                      + הוסף {row.label}
+                    </button>
+                  </div>
+                  {(catSuppliers[row.key] || []).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {(catSuppliers[row.key] || []).map(s => (
+                        <span key={s.id} className="inline-flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-2.5 py-1 text-xs">
+                          <span className="font-semibold text-slate-700">{s.name}</span>
+                          {s.phone && <span className="text-slate-400" dir="ltr">{s.phone}</span>}
+                          <button onClick={() => removeRowSupplier(row.key, s.id)}
+                            className="text-rose-400 hover:text-rose-600 font-bold leading-none">&times;</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Other suppliers — pick from the whole DB */}
+              <div className="bg-slate-50 rounded-xl border border-slate-200 p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-violet-600">ספקים נוספים</span>
+                  <button
+                    data-html2canvas-ignore="true"
+                    onClick={() => setPickerRow('other')}
+                    className="text-[11px] px-2 py-0.5 rounded-full border border-violet-300 text-violet-700 hover:bg-violet-50 transition font-semibold"
+                  >
+                    + הוסף ספק אחר
+                  </button>
+                </div>
+                {(catSuppliers.other || []).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {(catSuppliers.other || []).map(s => (
+                      <span key={s.id} className="inline-flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-2.5 py-1 text-xs">
+                        <span className="font-semibold text-slate-700">{s.name}</span>
+                        {s.category && <span className="text-slate-400">{s.category}</span>}
+                        <button onClick={() => removeRowSupplier('other', s.id)}
+                          className="text-rose-400 hover:text-rose-600 font-bold leading-none">&times;</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Suppliers */}
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -349,6 +543,20 @@ export default function EventBriefModal({ leadId, onClose }) {
 
         </div>
       </div>
+
+      {/* Supplier picker */}
+      {pickerRow && (() => {
+        const row = CATEGORY_ROWS.find(r => r.key === pickerRow);
+        return (
+          <SupplierPickerModal
+            title={row ? `בחירת ${row.label}` : 'בחירת ספק'}
+            category={row ? row.category : null}
+            selected={catSuppliers[pickerRow] || []}
+            onSave={list => setRowSuppliers(pickerRow, list)}
+            onClose={() => setPickerRow(null)}
+          />
+        );
+      })()}
     </div>
   );
 }
