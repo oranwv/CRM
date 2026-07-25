@@ -201,6 +201,10 @@ router.post('/webhook', async (req, res) => {
         );
         const cfg = Object.fromEntries(cfgRows.map(r => [r.key, r.value]));
         if (cfg.wa_chatbot_enabled !== 'true') return;
+        // Auto-replies only while the lead is still in the "new leads" tab —
+        // once moved to in-process (or any other stage), stay silent.
+        const { rows: [lead] } = await pool.query('SELECT stage FROM leads WHERE id = $1', [leadId]);
+        if (!lead || !['new', 'new_no_answer'].includes(lead.stage)) return;
         const { rows: cntRows } = await pool.query(
           "SELECT COUNT(*) FROM messages WHERE lead_id=$1 AND direction='inbound'",
           [leadId]
