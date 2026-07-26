@@ -462,9 +462,9 @@ export default function EventBriefModal({ leadId, onClose }) {
                       {(catSuppliers[row.key] || []).map(s => (
                         <span key={s.id} className="inline-flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-2.5 py-1 text-xs">
                           <button onClick={() => setOpenSupplierId(s.id)}
-                            className="font-semibold text-slate-700 hover:text-violet-700 hover:underline">{s.name}</button>
+                            className="font-semibold text-violet-700 underline underline-offset-2 hover:text-violet-900">{s.name}</button>
                           {s.phone && (
-                            <a href={`tel:${s.phone.replace(/\D/g, '')}`} className="text-slate-400 hover:text-violet-600" dir="ltr">{s.phone}</a>
+                            <a href={`tel:${s.phone.replace(/\D/g, '')}`} className="text-sky-600 underline underline-offset-2 hover:text-sky-800" dir="ltr">📞 {s.phone}</a>
                           )}
                           <button onClick={() => removeRowSupplier(row.key, s.id)}
                             className="text-rose-400 hover:text-rose-600 font-bold leading-none">&times;</button>
@@ -492,10 +492,10 @@ export default function EventBriefModal({ leadId, onClose }) {
                     {(catSuppliers.other || []).map(s => (
                       <span key={s.id} className="inline-flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-2.5 py-1 text-xs">
                         <button onClick={() => setOpenSupplierId(s.id)}
-                          className="font-semibold text-slate-700 hover:text-violet-700 hover:underline">{s.name}</button>
+                          className="font-semibold text-violet-700 underline underline-offset-2 hover:text-violet-900">{s.name}</button>
                         {s.category && <span className="text-slate-400">{s.category}</span>}
                         {s.phone && (
-                          <a href={`tel:${s.phone.replace(/\D/g, '')}`} className="text-slate-400 hover:text-violet-600" dir="ltr">{s.phone}</a>
+                          <a href={`tel:${s.phone.replace(/\D/g, '')}`} className="text-sky-600 underline underline-offset-2 hover:text-sky-800" dir="ltr">📞 {s.phone}</a>
                         )}
                         <button onClick={() => removeRowSupplier('other', s.id)}
                           className="text-rose-400 hover:text-rose-600 font-bold leading-none">&times;</button>

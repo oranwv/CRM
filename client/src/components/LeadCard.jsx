@@ -674,7 +674,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
                   <div className="flex flex-wrap gap-2">
                     {leadSuppliers.map(s => (
                       <span key={s.id} className="flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-violet-100 text-violet-700 border border-violet-200">
-                        <button onClick={() => setOpenSupplierCardId(s.id)} className="hover:underline">{s.name}</button>
+                        <button onClick={() => setOpenSupplierCardId(s.id)} className="underline underline-offset-2 hover:text-violet-900">{s.name}</button>
                         <button onClick={() => unlinkSupplier(s.id)} className="opacity-50 hover:opacity-100 font-black leading-none">×</button>
                       </span>
                     ))}
