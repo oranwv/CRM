@@ -51,8 +51,17 @@ function formatDateTime(d) {
   return `${date} ${time}`;
 }
 
-export default function SupplierCard({ supplierId, onClose, categories }) {
+export default function SupplierCard({ supplierId, onClose, categories: categoriesProp }) {
   const [supplier, setSupplier]         = useState(null);
+  // When opened outside SuppliersPage (event brief / lead card) no categories
+  // prop is passed — load them here so the edit-mode select still works.
+  const [fetchedCategories, setFetchedCategories] = useState([]);
+  const categories = categoriesProp ?? fetchedCategories;
+  useEffect(() => {
+    if (categoriesProp === undefined) {
+      api.get('/suppliers/categories').then(r => setFetchedCategories(r.data || [])).catch(() => {});
+    }
+  }, [categoriesProp]);
   const [interactions, setInteractions] = useState([]);
   const [events, setEvents]             = useState([]);
   const [files, setFiles]               = useState([]);

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../api';
+import SupplierCard from './SupplierCard';
 
 const SUPPLIER_TYPES = ['עיצוב', 'DJ', 'צלם מגנטים', 'צלם סטילס', 'רב', 'אחר'];
 
@@ -207,6 +208,8 @@ export default function EventBriefModal({ leadId, onClose }) {
 
   // key of the category row whose picker is open ('other' = all-suppliers picker)
   const [pickerRow, setPickerRow] = useState(null);
+  // supplier whose full card is open on top of the brief (closing returns here)
+  const [openSupplierId, setOpenSupplierId] = useState(null);
   const catSuppliers = data.categorySuppliers || {};
 
   function setRowSuppliers(rowKey, list) {
@@ -458,8 +461,11 @@ export default function EventBriefModal({ leadId, onClose }) {
                     <div className="flex flex-wrap gap-1.5 mt-2">
                       {(catSuppliers[row.key] || []).map(s => (
                         <span key={s.id} className="inline-flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-2.5 py-1 text-xs">
-                          <span className="font-semibold text-slate-700">{s.name}</span>
-                          {s.phone && <span className="text-slate-400" dir="ltr">{s.phone}</span>}
+                          <button onClick={() => setOpenSupplierId(s.id)}
+                            className="font-semibold text-slate-700 hover:text-violet-700 hover:underline">{s.name}</button>
+                          {s.phone && (
+                            <a href={`tel:${s.phone.replace(/\D/g, '')}`} className="text-slate-400 hover:text-violet-600" dir="ltr">{s.phone}</a>
+                          )}
                           <button onClick={() => removeRowSupplier(row.key, s.id)}
                             className="text-rose-400 hover:text-rose-600 font-bold leading-none">&times;</button>
                         </span>
@@ -485,8 +491,12 @@ export default function EventBriefModal({ leadId, onClose }) {
                   <div className="flex flex-wrap gap-1.5 mt-2">
                     {(catSuppliers.other || []).map(s => (
                       <span key={s.id} className="inline-flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-2.5 py-1 text-xs">
-                        <span className="font-semibold text-slate-700">{s.name}</span>
+                        <button onClick={() => setOpenSupplierId(s.id)}
+                          className="font-semibold text-slate-700 hover:text-violet-700 hover:underline">{s.name}</button>
                         {s.category && <span className="text-slate-400">{s.category}</span>}
+                        {s.phone && (
+                          <a href={`tel:${s.phone.replace(/\D/g, '')}`} className="text-slate-400 hover:text-violet-600" dir="ltr">{s.phone}</a>
+                        )}
                         <button onClick={() => removeRowSupplier('other', s.id)}
                           className="text-rose-400 hover:text-rose-600 font-bold leading-none">&times;</button>
                       </span>
@@ -543,6 +553,11 @@ export default function EventBriefModal({ leadId, onClose }) {
 
         </div>
       </div>
+
+      {/* Full supplier card on top of the brief — closing it returns here */}
+      {openSupplierId && (
+        <SupplierCard supplierId={openSupplierId} onClose={() => setOpenSupplierId(null)} />
+      )}
 
       {/* Supplier picker */}
       {pickerRow && (() => {

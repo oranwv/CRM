@@ -9,6 +9,7 @@ import SeatingChart from './SeatingChart';
 import InvoiceModal from './InvoiceModal';
 import PendingDocDetail from './PendingDocDetail';
 import AddSupplierModal from './AddSupplierModal';
+import SupplierCard from './SupplierCard';
 import { docTypeLabel } from '../utils/docTypes';
 
 const STAGES = [
@@ -187,6 +188,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
   const [allSuppliers,       setAllSuppliers]       = useState([]);
   const [showSupplierPicker, setShowSupplierPicker] = useState(false);
   const [supplierSearch,     setSupplierSearch]     = useState('');
+  const [openSupplierCardId, setOpenSupplierCardId] = useState(null);
   const [showPlusMenu,       setShowPlusMenu]       = useState(false);
   const [showAddSupplier,    setShowAddSupplier]    = useState(false);
   const [supplierCategories, setSupplierCategories] = useState([]);
@@ -672,7 +674,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
                   <div className="flex flex-wrap gap-2">
                     {leadSuppliers.map(s => (
                       <span key={s.id} className="flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-violet-100 text-violet-700 border border-violet-200">
-                        {s.name}
+                        <button onClick={() => setOpenSupplierCardId(s.id)} className="hover:underline">{s.name}</button>
                         <button onClick={() => unlinkSupplier(s.id)} className="opacity-50 hover:opacity-100 font-black leading-none">×</button>
                       </span>
                     ))}
@@ -884,6 +886,11 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
               style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>סגור</button>
           </div>
         </div>
+      )}
+
+      {/* Full supplier card on top of the lead card — closing it returns here */}
+      {openSupplierCardId && (
+        <SupplierCard supplierId={openSupplierCardId} onClose={() => setOpenSupplierCardId(null)} />
       )}
 
       {showBrief && (
