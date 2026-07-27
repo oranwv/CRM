@@ -4199,21 +4199,30 @@ function ProductionSection({ leadId, lead, onUpdated }) {
     override_name: lead.remaining_balance_override_name,
     override_at: lead.remaining_balance_override_at,
   });
-  const [autoBalance, setAutoBalance] = useState(null);
+  const [contractTotal, setContractTotal] = useState(null);
 
   useEffect(() => {
     api.get(`/leads/${leadId}/event-brief`)
       .then(r => {
-        const v = r.data?.auto?.remaining_balance;
-        if (v != null && v !== '') setAutoBalance(v);
+        const v = r.data?.auto?.contract_total;
+        if (v != null && v !== '') setContractTotal(Number(v));
       })
       .catch(() => {});
   }, [leadId]);
 
+  // Auto balance: contract total minus the deposit actually received (live)
+  const autoBalance = contractTotal != null
+    ? contractTotal - (Number(form.deposit_amount) || 0)
+    : null;
+
   async function save() {
     setSaving(true);
     try {
-      await api.patch(`/leads/${leadId}`, form);
+      await api.patch(`/leads/${leadId}`, {
+        ...form,
+        deposit_amount: form.deposit_amount === '' ? null : form.deposit_amount,
+        deposit_date:   form.deposit_date   === '' ? null : form.deposit_date,
+      });
       await onUpdated();
     } catch { alert('שגיאה בשמירה'); }
     setSaving(false);
@@ -4248,7 +4257,7 @@ function ProductionSection({ leadId, lead, onUpdated }) {
           </div>
           <div>
             <label className="text-sm text-slate-500 block mb-1">תאריך מקדמה</label>
-            <DateInput value={form.deposit_date} onChange={v => setForm(f => ({ ...f, deposit_date: v }))} className={cls} />
+            <PickerDateInput value={form.deposit_date} onChange={v => setForm(f => ({ ...f, deposit_date: v }))} className={cls} />
           </div>
         </div>
         <label className="flex items-center gap-2 cursor-pointer justify-end">
@@ -4287,7 +4296,7 @@ function ProductionSection({ leadId, lead, onUpdated }) {
                 </p>
               )}
               {isAuto && (
-                <p className="text-[11px] text-slate-400 mt-0.5">מולא אוטומטית מהחוזה</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">מחושב אוטומטית: סה"כ החוזה פחות המקדמה שהתקבלה</p>
               )}
             </>
           )}

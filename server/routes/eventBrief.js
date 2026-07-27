@@ -17,8 +17,10 @@ router.get('/', async (req, res) => {
     if (!leadRows.length) return res.status(404).json({ error: 'Not found' });
     const lead = leadRows[0];
 
+    // Prefer the latest signed contract; fall back to the latest created one
     const { rows: contractRows } = await pool.query(
-      `SELECT contract_data FROM contracts WHERE lead_id = $1 ORDER BY created_at DESC LIMIT 1`,
+      `SELECT contract_data FROM contracts WHERE lead_id = $1
+       ORDER BY (status = 'signed') DESC, created_at DESC LIMIT 1`,
       [id]
     );
     const cd = contractRows[0]?.contract_data || null;
@@ -44,10 +46,11 @@ router.get('/', async (req, res) => {
         event_type:        lead.event_type || '',
         guest_count:       lead.guest_count || '',
         day_of_week:       dayOfWeek,
-        chef_menu:         cd?.chefMenu || '',
-        bar_menu:          cd?.barMenu || '',
-        contract_guests:   cd?.guests || cd?.packageGuests || '',
-        remaining_balance: cd?.remainingBalance != null ? String(cd.remainingBalance) : '',
+        chef_menu:         cd?.fields?.chefMenu || '',
+        bar_menu:          cd?.fields?.barMenu || '',
+        contract_guests:   cd?.fields?.guests || cd?.fields?.packageGuests || '',
+        remaining_balance: cd?.calculated?.remainingBalance != null ? String(cd.calculated.remainingBalance) : '',
+        contract_total:    cd?.calculated?.total != null ? String(cd.calculated.total) : '',
       },
     });
   } catch (err) {

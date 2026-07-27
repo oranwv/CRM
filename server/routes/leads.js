@@ -176,7 +176,9 @@ router.patch('/:id', async (req, res) => {
   const fields = Object.keys(req.body).filter(k => allowed.includes(k));
   if (!fields.length) return res.status(400).json({ error: 'No valid fields' });
   const sets = fields.map((f, i) => `${f} = $${i + 2}`).join(', ');
-  const vals = fields.map(f => req.body[f]);
+  // Typed columns reject '' — treat empty strings as NULL for them
+  const TYPED = new Set(['deposit_amount', 'deposit_date', 'event_date', 'guest_count', 'budget', 'assigned_to']);
+  const vals = fields.map(f => (TYPED.has(f) && req.body[f] === '') ? null : req.body[f]);
   try {
     // Capture old stage before update so we can log the transition
     let oldStage = null;
@@ -254,7 +256,8 @@ router.patch('/:id', async (req, res) => {
 
 // PATCH /api/leads/:id/remaining-balance — override remaining balance
 router.patch('/:id/remaining-balance', async (req, res) => {
-  const { amount } = req.body;
+  // '' clears the override (back to the automatic contract-based value)
+  const amount = req.body.amount === '' ? null : req.body.amount;
   try {
     const { rows } = await pool.query(
       `UPDATE leads
