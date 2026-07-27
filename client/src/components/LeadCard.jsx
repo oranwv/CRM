@@ -1574,10 +1574,17 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
     if (!contract && !offer) setStep(1);
   }
 
+  // Data entry stays Hebrew: when importing from an English source, keep the
+  // Hebrew default texts/labels and take only the data (prices, qty, client info).
+  function rowsWithHebrewLabels(rows) {
+    return rows.map(r => { const d = DEFAULT_ROWS.find(x => x.id === r.id); return d ? { ...r, label: d.label, desc: d.desc } : r; });
+  }
+
   function handleImportFromOffer() {
     const data = latestPriceOffer;
     if (!data) return;
     const f = data.fields || {};
+    const srcEn = f.language === 'en';
     if (isPackage) {
       setFields(prev => ({
         ...prev,
@@ -1605,18 +1612,19 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
         chefMenu:        f.chefMenu        || '',
         barMenu:         f.barMenu         || '',
       }));
-      if (data.rows?.length) setRows(data.rows);
+      if (data.rows?.length) setRows(srcEn ? rowsWithHebrewLabels(data.rows) : data.rows);
     }
-    if (data.includes?.length) setContractTexts(t => ({ ...t, includes: data.includes }));
+    if (data.includes?.length && !srcEn) setContractTexts(t => ({ ...t, includes: data.includes }));
     setStep(1);
   }
 
   function handleImportFromContract() {
     const data = latestContract;
     if (!data) return;
+    const srcEn = data.language === 'en';
     if (data.fields) setFields(prev => ({ ...prev, ...data.fields }));
-    if (!isPackage && data.rows?.length) setRows(data.rows);
-    if (data.texts) setContractTexts(data.texts);
+    if (!isPackage && data.rows?.length) setRows(srcEn ? rowsWithHebrewLabels(data.rows) : data.rows);
+    if (data.texts && !srcEn) setContractTexts(data.texts);
     setStep(1);
   }
 
