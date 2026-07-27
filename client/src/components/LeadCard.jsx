@@ -1951,7 +1951,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                 <p style={{ marginBottom: 8 }}><EditableCell value={contractTexts.therefore} onChange={v => setTxt('therefore', v)} /></p>
                 <p style={{ marginBottom: 10 }}><EditableCell value={contractTexts.preamble} onChange={v => setTxt('preamble', v)} multiline /></p>
 
-                <h3 style={{ fontWeight: 'bold', marginTop: 8 }}>{CL.eventH}</h3>
+                <h3 style={{ fontWeight: 'bold', marginTop: 8 }}>1. {CL.eventH}</h3>
                 <p>{CL.eventDateL} <EditableCell value={fields.eventDate ? new Date(fields.eventDate + 'T12:00:00').toLocaleDateString(en ? 'en-GB' : 'he-IL') : ''} onChange={v => setField('eventDate', v)} /></p>
                 <p>{CL.venueL}</p>
                 <p>{CL.startL} <EditableCell value={fields.startTime} onChange={v => setField('startTime', v)} /></p>
@@ -1972,7 +1972,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                     style={{ border: '1px solid #f59e0b', color: '#b45309', borderRadius: '6px', padding: '2px 8px', fontSize: '9pt', background: 'none', cursor: 'pointer', opacity: newEventLine.trim() ? 1 : 0.4 }}>+ הוסף</button>
                 </div>
 
-                <h3 style={{ fontWeight: 'bold', marginTop: 10, marginBottom: 4 }}>{CL.costsH}</h3>
+                <h3 style={{ fontWeight: 'bold', marginTop: 10, marginBottom: 4 }}>2. {CL.costsH}</h3>
 
                 {isPackage ? (
                   <div style={{ marginBottom: 8 }}>
@@ -2068,7 +2068,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                 </div>
 
                 <h3 style={{ fontWeight: 'bold', marginTop: 10, marginBottom: 4 }}>
-                  <EditableCell value={contractTexts.includesHeader} onChange={v => setTxt('includesHeader', v)} />
+                  3. <EditableCell value={contractTexts.includesHeader} onChange={v => setTxt('includesHeader', v)} />
                 </h3>
                 <ul style={{ paddingRight: 16, lineHeight: 1.8 }}>
                   {(() => {
@@ -2078,6 +2078,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                     const barIdx  = contractTexts.includes.findIndex(x => /תפריט בר|bar menu/i.test(x || ''));
                     return contractTexts.includes.map((item, i) => (
                     <li key={i}>
+                      {`3.${i + 1} `}
                       {i === chefIdx ? (
                         <><EditableCell value={item} onChange={v => setInc(i, v)} />{fields.chefMenu && !item.includes(fields.chefMenu) ? <>{' '}<EditableCell value={fields.chefMenu} onChange={v => setField('chefMenu', v)} /></> : null}</>
                       ) : i === barIdx ? (
@@ -2101,7 +2102,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                 </div>
 
                 <h3 style={{ fontWeight: 'bold', marginTop: 10, marginBottom: 4 }}>
-                  <EditableCell value={contractTexts.paymentHeader} onChange={v => setTxt('paymentHeader', v)} />
+                  4. <EditableCell value={contractTexts.paymentHeader} onChange={v => setTxt('paymentHeader', v)} />
                 </h3>
                 <p>
                   <EditableCell value={contractTexts.depositLine} onChange={v => setTxt('depositLine', v)} multiline />{' '}
@@ -2146,11 +2147,12 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                 </div>
 
                 <h3 style={{ fontWeight: 'bold', marginTop: 10, marginBottom: 4 }}>
-                  <EditableCell value={contractTexts.cancellationHeader} onChange={v => setTxt('cancellationHeader', v)} />
+                  5. <EditableCell value={contractTexts.cancellationHeader} onChange={v => setTxt('cancellationHeader', v)} />
                 </h3>
                 <ul style={{ paddingRight: 16, lineHeight: 1.8 }}>
                   {contractTexts.cancellationItems.map((item, i) => (
                     <li key={i}>
+                      {`5.${i + 1} `}
                       <EditableCell value={item} onChange={v => setCancelItem(i, v)} multiline />
                       {i === 0 && (cancellationDate || contractTexts.cancellationDateLabel) ? (
                         <strong> <EditableCell value={contractTexts.cancellationDateLabel ?? cancellationDate} onChange={v => setTxt('cancellationDateLabel', v)} /></strong>
@@ -2170,11 +2172,11 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                 </div>
 
                 <h3 style={{ fontWeight: 'bold', marginTop: 10, marginBottom: 4 }}>
-                  <EditableCell value={contractTexts.obligationsHeader} onChange={v => setTxt('obligationsHeader', v)} />
+                  6. <EditableCell value={contractTexts.obligationsHeader} onChange={v => setTxt('obligationsHeader', v)} />
                 </h3>
                 <ul style={{ paddingRight: 16, lineHeight: 1.8 }}>
                   {contractTexts.obligations.map((item, i) => (
-                    <li key={i}><EditableCell value={item} onChange={v => setObligation(i, v)} multiline /></li>
+                    <li key={i}>{`6.${i + 1} `}<EditableCell value={item} onChange={v => setObligation(i, v)} multiline /></li>
                   ))}
                 </ul>
                 <div data-html2canvas-ignore="true" style={{ marginTop: '4pt', display: 'flex', gap: '6px' }}>

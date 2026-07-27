@@ -71,7 +71,7 @@ function ContractDisplay({ data }) {
       <p>{texts?.preamble || 'המבוא להסכם זה וכל הנספחים, בין המצורפים במועד חתימת הסכם זה ובין שיצורפו אליו בעתיד, מהווים חלק בלתי נפרד הימנו.'}</p>
 
       <div>
-        <p className="font-bold">{L.eventH}</p>
+        <p className="font-bold">1. {L.eventH}</p>
         <p>{L.eventDateL} {eventDateDisplay}</p>
         <p>{L.venueL}</p>
         <p>{L.startL} {startTime}</p>
@@ -82,7 +82,7 @@ function ContractDisplay({ data }) {
       </div>
 
       <div>
-        <p className="font-bold">{L.costsH}</p>
+        <p className="font-bold">2. {L.costsH}</p>
         {isPackage ? (
           <div className="space-y-1">
             <p>{en
@@ -150,32 +150,34 @@ function ContractDisplay({ data }) {
       </div>
 
       <div>
-        <p className="font-bold">{texts?.includesHeader || 'המחיר כולל בתוכו:'}</p>
-        <ul className={`list-disc ${sidePad} space-y-0.5`}>
+        <p className="font-bold">3. {texts?.includesHeader || 'המחיר כולל בתוכו:'}</p>
+        <ul className="space-y-0.5">
           {(() => {
             // Anchor the popup menu texts to their bullet by content, not position —
             // the list is editable and may be imported from a price offer.
             const includes = texts?.includes || [];
             const chefIdx = includes.findIndex(x => /תפריט שף|chef menu/i.test(x || ''));
             const barIdx  = includes.findIndex(x => /תפריט בר|bar menu/i.test(x || ''));
+            let n = 0; // sub-clause counter — counts only rendered (non-empty) items
             return includes.map((item, i) => {
               let text = item;
               if (i === chefIdx && chefMenu && !item.includes(chefMenu)) text += ' ' + chefMenu;
               if (i === barIdx  && barMenu  && !item.includes(barMenu))  text += ' ' + barMenu;
               if (!text.trim()) return null;
-              return <li key={i}>{text}</li>;
+              n += 1;
+              return <li key={i}>3.{n} {text}</li>;
             });
           })()}
         </ul>
       </div>
 
       <div>
-        <p className="font-bold">{texts?.paymentHeader || 'תנאי תשלום:'}</p>
+        <p className="font-bold">4. {texts?.paymentHeader || 'תנאי תשלום:'}</p>
         <p>
           {texts?.depositLine || 'במעמד חתימת הסכם זה תינתן מקדמה על-סך'}{' '}
-          <strong>{fmt(depositAmount)} {cur} ({depositPercent}%)</strong>{' '}
+          <strong>{texts?.depositAmtLabel ?? `${fmt(depositAmount)} ${cur}`} {texts?.depositPctLabel ?? `(${depositPercent}%)`}</strong>{' '}
           {texts?.depositSuffix || 'לא כולל מע"מ. סה"כ כולל מע"מ'}{' '}
-          <strong>{fmt(depositAmountVat)} {cur}</strong>
+          <strong>{texts?.depositAmtVatLabel ?? `${fmt(depositAmountVat)} ${cur}`}</strong>
         </p>
         {texts?.finalSettlementIntro ? (
           <>
@@ -208,8 +210,8 @@ function ContractDisplay({ data }) {
       </div>
 
       <div>
-        <p className="font-bold">{texts?.cancellationHeader || 'ביטול האירוע:'}</p>
-        <ul className={`list-disc ${sidePad} space-y-0.5`}>
+        <p className="font-bold">5. {texts?.cancellationHeader || 'ביטול האירוע:'}</p>
+        <ul className="space-y-0.5">
           {(texts?.cancellationItems || [
             'במקרה של אי אישור לעריכת אירועים של פיקוד העורף/כוח עליון שאינו מאפשר לקיים את האירוע — הסכימו הצדדים על דחיית מועד האירוע למועד אחר עד לתאריך',
             'במקרה של ביטול תוך פחות מחודשיים ממועד האירוע – יחויב המזמין בדמי ביטול של 50% מהסכום הכולל.',
@@ -217,7 +219,7 @@ function ContractDisplay({ data }) {
             'במקרה של ביטול תוך פחות משבוע ממועד האירוע – יחויב המזמין בדמי ביטול מלאים.',
           ]).map((item, i) => (
             <li key={i}>
-              {item}
+              {`5.${i + 1} `}{item}
               {i === 0 && (texts?.cancellationDateLabel || cancellationDate) ? <strong> {texts?.cancellationDateLabel || cancellationDate}</strong> : null}
             </li>
           ))}
@@ -225,8 +227,8 @@ function ContractDisplay({ data }) {
       </div>
 
       <div>
-        <p className="font-bold">{texts?.obligationsHeader || 'התחייבויות והצהרות הצדדים:'}</p>
-        <ul className={`list-disc ${sidePad} space-y-0.5 text-xs leading-6`}>
+        <p className="font-bold">6. {texts?.obligationsHeader || 'התחייבויות והצהרות הצדדים:'}</p>
+        <ul className="space-y-0.5 text-xs leading-6">
           {(texts?.obligations || [
             'האולם על חלקיו ישמש ללקוח לקיום האירוע. הספק מתחייב לאפשר למזמין עריכת האירוע באולם ובמועד כפי שפורטו לעיל.',
             'הספק יעמיד את האולם לרשות המזמין כשהוא נקי, ומסודר.',
@@ -239,7 +241,7 @@ function ContractDisplay({ data }) {
             'המזמין יודע, מסכים, מאשר ומבין כי באולם האירועים יש הוראה חד משמעית כי אסור לעשן בתוכו בהתאם לחוק איסור עישון במקומות ציבוריים וכי יש בגן פינות עישון מיועדת לכך.',
             'באחריות הלקוח לשלם לאקו"ם באתר הבית.',
           ]).map((item, i) => (
-            <li key={i}>{item}</li>
+            <li key={i}>{`6.${i + 1} `}{item}</li>
           ))}
         </ul>
       </div>

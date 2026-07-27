@@ -87,7 +87,7 @@ h2 { text-align:center; font-size:14pt; margin-bottom:10pt; }
 h3 { font-size:11pt; font-weight:bold; margin-top:10pt; margin-bottom:4pt; }
 table { border-collapse:collapse; width:100%; }
 th,td { font-size:9pt; }
-ul { padding-right:16pt; }
+ul { list-style:none; padding:0; }
 li { margin-bottom:2pt; }
 </style>
 </head>
@@ -117,14 +117,14 @@ ${logoB64 ? `<div style="text-align:center;margin-bottom:10pt;"><img src="data:i
 <p style="margin-bottom:8pt;">${t('therefore')}</p>
 <p style="margin-bottom:10pt;">${t('preamble')}</p>
 
-<h3>${en ? 'The Event:' : '&#x05D4;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2;:'}</h3>
+<h3>1. ${en ? 'The Event:' : '&#x05D4;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2;:'}</h3>
 <p>${en ? `Event date: ${esc(eventDateDisplay)}` : `&#x05EA;&#x05D0;&#x05E8;&#x05D9;&#x05DA; &#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2;: ${esc(eventDateDisplay)}`}</p>
 <p>${en ? 'Venue: Sharabiya, 3 Rabbi Pinchas Ben Yair St., Tel Aviv&#8211;Yafo' : '&#x05D0;&#x05D5;&#x05DC;&#x05DD; &#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2;&#x05D9;&#x05DD;: &#x05E9;&#x05E8;&#x05D1;&#x05D9;&#x05D9;&#x05D4; &#x05D1;&#x05E8;&#x05D7;&#x05D5;&#x05D1; &#x05E8;&#x05D1;&#x05D9; &#x05E4;&#x05E0;&#x05D7;&#x05E1; &#x05D1;&#x05DF; &#x05D9;&#x05D0;&#x05D9;&#x05E8; 3 &#x05EA;&#x05DC; -&#x05D0;&#x05D1;&#x05D9;&#x05D1; &#x05D9;&#x05E4;&#x05D5;'}</p>
 <p>${en ? `Start time: ${esc(startTime)}` : `&#x05E9;&#x05E2;&#x05EA; &#x05D4;&#x05EA;&#x05D7;&#x05DC;&#x05D4;: ${esc(startTime)}`}</p>
 <p>${en ? `End time: ${esc(endTime)}` : `&#x05E9;&#x05E2;&#x05EA; &#x05E1;&#x05D9;&#x05D5;&#x05DD; &#x05D4;&#x05D0;&#x05D9;&#x05E8;&#x05D5;&#x05E2;: ${esc(endTime)}`}</p>
 
 ${tArr('eventExtraLines').map(l => (l && l.trim()) ? `<p>${esc(l)}</p>` : '').join('\n')}
-<h3>${en ? 'Costs:' : '&#x05E2;&#x05DC;&#x05D5;&#x05D9;&#x05D5;&#x05EA;:'}</h3>
+<h3>2. ${en ? 'Costs:' : '&#x05E2;&#x05DC;&#x05D5;&#x05D9;&#x05D5;&#x05EA;:'}</h3>
 ${isPackage ? `
 <p>${en
   ? `Package cost for ${esc(String(packageGuests || ''))} guests - ${money(packageTotal)} incl. VAT`
@@ -173,7 +173,7 @@ ${extraGuestPrice && Number(extraGuestPrice) > 0
 `}
 ${tArr('costExtraLines').map(l => (l && l.trim()) ? `<p>${esc(l)}</p>` : '').join('\n')}
 
-<h3>${t('includesHeader')}</h3>
+<h3>3. ${t('includesHeader')}</h3>
 <ul>
   ${(() => {
     const includes = tArr('includes');
@@ -181,18 +181,20 @@ ${tArr('costExtraLines').map(l => (l && l.trim()) ? `<p>${esc(l)}</p>` : '').joi
     // list is editable and may come from a price offer with a different layout.
     const chefIdx = includes.findIndex(x => /תפריט שף|chef menu/i.test(x || ''));
     const barIdx  = includes.findIndex(x => /תפריט בר|bar menu/i.test(x || ''));
+    let n = 0; // sub-clause counter — counts only rendered (non-empty) items
     return includes.map((item, i) => {
       let text = item;
       if (i === chefIdx && fields.chefMenu && !item.includes(fields.chefMenu)) text += ' ' + fields.chefMenu;
       if (i === barIdx  && fields.barMenu  && !item.includes(fields.barMenu))  text += ' ' + fields.barMenu;
       if (!text.trim()) return '';
-      return `<li>${esc(text)}</li>`;
+      n += 1;
+      return `<li>3.${n} ${esc(text)}</li>`;
     }).join('\n  ');
   })()}
 </ul>
 
-<h3>${t('paymentHeader')}</h3>
-<p>${t('depositLine')} <strong>${money(depositAmount)} (${esc(String(depositPercent))}%)</strong> ${t('depositSuffix')} <strong>${money(depositAmountVat)}</strong></p>
+<h3>4. ${t('paymentHeader')}</h3>
+<p>${t('depositLine')} <strong>${texts.depositAmtLabel != null ? esc(texts.depositAmtLabel) : money(depositAmount)} ${texts.depositPctLabel != null ? esc(texts.depositPctLabel) : `(${esc(String(depositPercent))}%)`}</strong> ${t('depositSuffix')} <strong>${texts.depositAmtVatLabel != null ? esc(texts.depositAmtVatLabel) : money(depositAmountVat)}</strong></p>
 ${texts.finalSettlementIntro ? `
 <p>${t('finalSettlementIntro')}</p>
 <p>${t('securityCheckPre')} <strong>${texts.remainderAmtLabel ? esc(texts.remainderAmtLabel) : money(remainingBalance)}</strong> ${t('securityCheckSuf')}</p>
@@ -205,18 +207,18 @@ ${texts.finalSettlementIntro ? `
 <p>${t('paymentNote')}</p>
 ${tArr('paymentExtras').map(l => (l && l.trim()) ? `<p>${esc(l)}</p>` : '').join('\n')}
 
-<h3>${t('cancellationHeader')}</h3>
+<h3>5. ${t('cancellationHeader')}</h3>
 <ul>
   ${tArr('cancellationItems').map((item, i) =>
     i === 0
-      ? `<li>${esc(item)} <strong>${texts.cancellationDateLabel ? esc(texts.cancellationDateLabel) : esc(cancellationDate)}</strong></li>`
-      : `<li>${esc(item)}</li>`
+      ? `<li>5.${i + 1} ${esc(item)} <strong>${texts.cancellationDateLabel ? esc(texts.cancellationDateLabel) : esc(cancellationDate)}</strong></li>`
+      : `<li>5.${i + 1} ${esc(item)}</li>`
   ).join('\n  ')}
 </ul>
 
-<h3>${t('obligationsHeader')}</h3>
+<h3>6. ${t('obligationsHeader')}</h3>
 <ul>
-  ${tArr('obligations').map(item => `<li>${esc(item)}</li>`).join('\n  ')}
+  ${tArr('obligations').map((item, i) => `<li>6.${i + 1} ${esc(item)}</li>`).join('\n  ')}
 </ul>
 
 ${tArr('legalParagraphs').map((p, i) => `<p style="${i === 0 ? 'margin-top:8pt;' : ''}">${esc(p)}</p>`).join('\n')}
