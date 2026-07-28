@@ -267,6 +267,7 @@ contractLeadRouter.post('/', async (req, res) => {
   try {
     const { contract_data, sent_via, whatsapp_phone } = req.body;
     if (!contract_data) return res.status(400).json({ error: 'contract_data required' });
+    const download = !!req.body.download;
 
     const token = crypto.randomUUID();
     const { rows } = await pool.query(
@@ -277,33 +278,32 @@ contractLeadRouter.post('/', async (req, res) => {
 
     await pool.query(
       `INSERT INTO lead_interactions (lead_id, type, direction, body, created_by)
-       VALUES ($1,'note','outbound','חוזה נשלח לחתימה',$2)`,
-      [req.params.id, req.user.id]
+       VALUES ($1,'note','outbound',$2,$3)`,
+      [req.params.id, download ? 'חוזה נוצר והורד (ללא שליחה)' : 'חוזה נשלח לחתימה', req.user.id]
     );
 
-    res.json({ id: rows[0].id, token: rows[0].token });
-
-    // Background: generate unsigned PDF and save to lead files
     const leadId = req.params.id;
     const userId = req.user.id;
     const contractDataCopy = contract_data;
-    setImmediate(async () => {
-      let bgBrowser;
+
+    // Generates the unsigned PDF, saves it to the lead's files, returns the buffer + filename
+    async function generateUnsignedPdf() {
+      let browser;
       try {
         const { rows: lr } = await pool.query('SELECT name FROM leads WHERE id=$1', [leadId]);
-        if (!lr[0]) return;
+        if (!lr[0]) return null;
         const html = buildContractHtml({ contractData: contractDataCopy, signingData: null, staffSignature: null });
-        bgBrowser = await puppeteer.launch({
+        browser = await puppeteer.launch({
           executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser',
           args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
           headless: true,
         });
-        const page = await bgBrowser.newPage();
+        const page = await browser.newPage();
         page.setDefaultTimeout(25000);
         await page.setContent(html, { waitUntil: 'load' });
         const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true, margin: { top: 0, bottom: 0, left: 0, right: 0 } });
-        await bgBrowser.close();
-        bgBrowser = null;
+        await browser.close();
+        browser = null;
         const filename = `חוזה ${lr[0].name}.pdf`;
         const { url, storedName } = await uploadBuffer(pdfBuffer, filename, 'application/pdf');
         await pool.query(
@@ -311,14 +311,30 @@ contractLeadRouter.post('/', async (req, res) => {
           [leadId, filename, url, storedName, 'contract', userId]
         );
         console.log('[Contracts] unsigned PDF saved for lead', leadId);
+        return { pdfBuffer, filename };
       } catch (err) {
-        if (bgBrowser) await bgBrowser.close().catch(() => {});
+        if (browser) await browser.close().catch(() => {});
         console.error('[Contracts] unsigned PDF error:', err.message);
+        return null;
       }
-    });
+    }
+
+    if (download) {
+      // Download-only: generate inline and stream the PDF back
+      const result = await generateUnsignedPdf();
+      if (!result) return res.status(500).json({ error: 'PDF generation failed' });
+      const safeName = encodeURIComponent(result.filename);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="contract.pdf"; filename*=UTF-8''${safeName}`);
+      return res.send(result.pdfBuffer);
+    }
+
+    res.json({ id: rows[0].id, token: rows[0].token });
+    // Background: generate unsigned PDF and save to lead files
+    setImmediate(generateUnsignedPdf);
   } catch (err) {
     console.error('[Contracts] create error:', err.message);
-    res.status(500).json({ error: err.message });
+    if (!res.headersSent) res.status(500).json({ error: err.message });
   }
 });
 

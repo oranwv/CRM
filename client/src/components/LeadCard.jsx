@@ -1628,6 +1628,29 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
     setStep(1);
   }
 
+  // Download the contract PDF without sending — the contract is still saved
+  // in the system (record + PDF in lead files) so it can be imported later.
+  async function handleDownload() {
+    setSending('download');
+    try {
+      const calculated = { subtotal, vat, total, depositAmount, depositAmountVat, remainingBalance, cancellationDate };
+      const res = await api.post(`/leads/${lead.id}/contracts`, {
+        contract_data: { fields, rows, calculated, texts: contractTexts, offerType: contractType, language },
+        download: true,
+      }, { responseType: 'blob' });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `חוזה - ${fields.clientName || lead.name || ''}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert('שגיאה בהורדת החוזה');
+    } finally {
+      setSending('');
+    }
+  }
+
   async function handleSend(channel) {
     setSending(channel);
     setContractSendStep(null);
@@ -2312,6 +2335,10 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
               <button onClick={() => { setContractExtraFiles([]); setContractSendStep('email'); }} disabled={!!sending || !fields.clientEmail}
                 className="flex-1 py-2.5 rounded-xl font-black text-sm bg-sky-600 text-white disabled:opacity-50">
                 {sending === 'email' ? 'שולח...' : 'אימייל'}
+              </button>
+              <button onClick={handleDownload} disabled={!!sending}
+                className="flex-1 py-2.5 rounded-xl font-black text-sm border-2 border-violet-300 text-violet-700 hover:bg-violet-50 transition disabled:opacity-50">
+                {sending === 'download' ? 'מוריד...' : 'הורדה'}
               </button>
             </div>
           ) : (
