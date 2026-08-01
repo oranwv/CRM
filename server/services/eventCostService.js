@@ -1,6 +1,25 @@
 const pool = require('../db/pool');
 const { OpenAI } = require('openai');
 
+// Normalizes a cost line. When qty and unit_price are both numeric the amount
+// is ALWAYS computed as qty × unit_price (LLM arithmetic and client input are
+// not trusted); otherwise the flat amount is used as-is.
+function normalizeLine(l, i) {
+  const qty       = l.qty       != null && l.qty       !== '' && !isNaN(Number(l.qty))        ? Number(l.qty)        : null;
+  const unitPrice = l.unit_price != null && l.unit_price !== '' && !isNaN(Number(l.unit_price)) ? Number(l.unit_price) : null;
+  const amount = (qty != null && unitPrice != null)
+    ? Math.round(qty * unitPrice)
+    : (Number(l.amount) || 0);
+  return {
+    id:         l.id || i + 1,
+    label:      String(l.label || '').trim(),
+    qty,
+    unit_price: unitPrice,
+    amount,
+    basis:      (l.basis != null ? String(l.basis) : '').trim(),
+  };
+}
+
 // Computes an event's cost lines with AI, based on the cost-model document(s)
 // in the assistant's knowledge base + the lead's contract data, and saves them
 // to event_costs. With onlyIfEmpty, existing (possibly hand-edited) lines are
@@ -56,7 +75,8 @@ ${eventInfo}
 
 חשב את שורות העלות של האירוע לפי המודל שבמסמכים (למשל: מלצרים, ברמנים, שף/קייטרינג, אבטחה, ניקיון וכו' — לפי הכללים והתעריפים שבמודל, בהתאם למספר האורחים).
 החזר JSON בלבד בפורמט:
-{"lines":[{"label":"<שם העלות בעברית>","amount":<סכום בש"ח כמספר>,"basis":"<הסבר קצר של החישוב, למשל: 100 אורחים × 140 ש\\"ח לאדם>"}]}
+{"lines":[{"label":"<שם העלות בעברית>","qty":<כמות יחידות כמספר, או null אם זו עלות קבועה>,"unit_price":<מחיר ליחידה בש"ח כמספר, או null>,"amount":<סכום בש"ח — רק לשורות ללא כמות>,"basis":"<הסבר קצר, למשל: מלצר לכל 17 אורחים>"}]}
+חשוב: לעלות שנגזרת מכמות (מלצרים, מנות לאורח וכו') החזר qty ו-unit_price ואל תחשב את המכפלה בעצמך — המערכת תכפיל. לעלות קבועה החזר amount בלבד עם qty ו-unit_price כ-null.
 אם אין במסמכים מודל עלויות ברור — החזר {"lines":[]}.`,
     }],
   });
@@ -66,12 +86,7 @@ ${eventInfo}
     const parsed = JSON.parse(completion.choices[0].message.content);
     lines = (parsed.lines || [])
       .filter(l => (l.label || '').trim())
-      .map((l, i) => ({
-        id:     i + 1,
-        label:  String(l.label).trim(),
-        amount: Number(l.amount) || 0,
-        basis:  (l.basis != null ? String(l.basis) : '').trim(),
-      }));
+      .map((l, i) => normalizeLine({ ...l, id: i + 1 }, i));
   } catch {
     throw new Error('תשובת ה-AI לא תקינה — נסה שוב');
   }
@@ -89,4 +104,4 @@ ${eventInfo}
   return { lines: row.lines, ai_generated_at: row.ai_generated_at };
 }
 
-module.exports = { generateEventCosts };
+module.exports = { generateEventCosts, normalizeLine };

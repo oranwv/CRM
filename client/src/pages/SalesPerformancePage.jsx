@@ -7,22 +7,36 @@ const fmt = n => Number(n || 0).toLocaleString('he-IL');
 const fmtDate = d => d ? new Date(d).toLocaleDateString('he-IL') : '—';
 
 // Editable cost lines for one closed event
+// A line with both qty and unit_price has its amount locked to qty × price
+function lineAmount(l) {
+  const hasQty = l.qty !== '' && l.qty != null && !isNaN(Number(l.qty));
+  const hasUp  = l.unit_price !== '' && l.unit_price != null && !isNaN(Number(l.unit_price));
+  if (hasQty && hasUp) return Math.round(Number(l.qty) * Number(l.unit_price));
+  return Number(l.amount) || 0;
+}
+function isComputed(l) {
+  return l.qty !== '' && l.qty != null && !isNaN(Number(l.qty))
+    && l.unit_price !== '' && l.unit_price != null && !isNaN(Number(l.unit_price));
+}
+
 function CostEditor({ event, onSaved }) {
   const [lines, setLines]       = useState(event.lines?.length ? event.lines : []);
   const [saving, setSaving]     = useState(false);
   const [generating, setGenerating] = useState(false);
 
   const setLine = (i, field, v) => setLines(ls => ls.map((l, j) => j === i ? { ...l, [field]: v } : l));
-  const addLine = () => setLines(ls => [...ls, { id: Date.now(), label: '', amount: '' }]);
+  const addLine = () => setLines(ls => [...ls, { id: Date.now(), label: '', qty: '', unit_price: '', amount: '', basis: '' }]);
   const removeLine = (i) => setLines(ls => ls.filter((_, j) => j !== i));
 
-  const total = lines.reduce((s, l) => s + (Number(l.amount) || 0), 0);
+  const total = lines.reduce((s, l) => s + lineAmount(l), 0);
   const profit = event.amount != null ? event.amount - total : null;
 
   async function save() {
     setSaving(true);
     try {
-      await api.put(`/sales/costs/${event.lead_id}`, { lines });
+      // The server recomputes amounts (qty × unit_price) and is the authority
+      const { data } = await api.put(`/sales/costs/${event.lead_id}`, { lines });
+      if (data.lines) setLines(data.lines);
       await onSaved();
     } catch (err) {
       alert(err.response?.data?.error || 'שגיאה בשמירה');
@@ -64,13 +78,29 @@ function CostEditor({ event, onSaved }) {
         <div key={l.id ?? i} className="bg-white rounded-lg border border-slate-200 p-2 space-y-1">
           <div className="flex items-center gap-2">
             <input value={l.label} onChange={e => setLine(i, 'label', e.target.value)}
-              placeholder="תיאור (למשל: קייטרינג)" className={`${inputCls} flex-1 font-semibold`} />
-            <input type="number" value={l.amount} onChange={e => setLine(i, 'amount', e.target.value)}
-              placeholder="₪" className={`${inputCls} w-28 text-center`} dir="ltr" />
+              placeholder="תיאור (למשל: מלצרים)" className={`${inputCls} flex-1 font-semibold min-w-0`} />
             <button onClick={() => removeLine(i)} className="text-rose-400 hover:text-rose-600 font-bold px-1">×</button>
           </div>
+          <div className="flex items-center gap-1.5 text-xs text-slate-500">
+            <label className="shrink-0">כמות</label>
+            <input type="number" value={l.qty ?? ''} onChange={e => setLine(i, 'qty', e.target.value)}
+              placeholder="—" className={`${inputCls} w-16 text-center`} dir="ltr" />
+            <span className="shrink-0">×</span>
+            <label className="shrink-0">מחיר ליח'</label>
+            <input type="number" value={l.unit_price ?? ''} onChange={e => setLine(i, 'unit_price', e.target.value)}
+              placeholder="—" className={`${inputCls} w-20 text-center`} dir="ltr" />
+            <span className="shrink-0">=</span>
+            {isComputed(l) ? (
+              <span className="flex-1 text-center font-bold text-slate-700 bg-slate-100 rounded-lg py-1.5" dir="ltr">
+                ₪{fmt(lineAmount(l))}
+              </span>
+            ) : (
+              <input type="number" value={l.amount} onChange={e => setLine(i, 'amount', e.target.value)}
+                placeholder="סכום ₪" className={`${inputCls} flex-1 text-center`} dir="ltr" />
+            )}
+          </div>
           <input value={l.basis || ''} onChange={e => setLine(i, 'basis', e.target.value)}
-            placeholder="לפי מה חושב — למשל: 100 אורחים × 140 ₪ לאדם"
+            placeholder="לפי מה חושב — למשל: מלצר לכל 17 אורחים"
             className="w-full text-xs text-slate-500 px-2 py-1 rounded-lg border border-transparent hover:border-slate-200 focus:border-violet-300 focus:outline-none bg-transparent" />
         </div>
       ))}
@@ -103,6 +133,7 @@ export default function SalesPerformancePage() {
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(null); // lead_id of the open cost editor
+  const [bulkGenerating, setBulkGenerating] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -125,6 +156,20 @@ export default function SalesPerformancePage() {
 
   const events  = data?.events || [];
   const summary = data?.summary || { count: 0, total_amount: 0, total_profit: 0 };
+  const missingCount = events.filter(e => e.amount != null && (!e.lines || e.lines.length === 0)).length;
+
+  async function generateMissing() {
+    setBulkGenerating(true);
+    try {
+      const { data: r } = await api.post(`/sales/costs/generate-missing?year=${year}&month=${month}`);
+      if (r.failed > 0) alert(`חושבו ${r.generated} אירועים; ${r.failed} נכשלו${r.errors?.[0] ? ` (${r.errors[0].error})` : ''}`);
+      load();
+    } catch (err) {
+      alert(err.response?.data?.error || 'שגיאה בחישוב העלויות');
+    } finally {
+      setBulkGenerating(false);
+    }
+  }
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-4 space-y-4" dir="rtl">
@@ -150,6 +195,17 @@ export default function SalesPerformancePage() {
           <p className="text-xs text-slate-500 font-semibold">סה"כ רווח</p>
         </div>
       </div>
+
+      {/* Backfill banner — events closed before the auto-compute-on-signing mechanism */}
+      {!loading && missingCount > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
+          <p className="text-sm text-amber-800 font-semibold">ל-{missingCount} אירועים אין עדיין חישוב עלויות</p>
+          <button onClick={generateMissing} disabled={bulkGenerating}
+            className="shrink-0 text-sm px-3 py-1.5 rounded-xl bg-amber-500 text-white font-bold hover:bg-amber-600 transition disabled:opacity-50">
+            {bulkGenerating ? `מחשב ${missingCount} אירועים...` : 'חשב לכולם (AI)'}
+          </button>
+        </div>
+      )}
 
       {/* Events list */}
       {loading ? (

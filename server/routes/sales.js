@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const pool   = require('../db/pool');
-const { generateEventCosts } = require('../services/eventCostService');
+const { generateEventCosts, normalizeLine } = require('../services/eventCostService');
 
 // Sales-performance data (closed events + per-event profit) — visible to sales too
 router.use((req, res, next) => {
@@ -13,17 +13,12 @@ function sumLines(lines) {
   return (Array.isArray(lines) ? lines : []).reduce((s, l) => s + (Number(l.amount) || 0), 0);
 }
 
-// GET /api/sales/closed-events?year=YYYY&month=M
 // An event "closes" in the month its contract was signed; closed-stage leads
 // without a signed contract fall back to the deposit stage-change note time.
-router.get('/closed-events', async (req, res) => {
-  try {
-    const year  = parseInt(req.query.year)  || new Date().getFullYear();
-    const month = parseInt(req.query.month) || new Date().getMonth() + 1;
-    const monthStart = new Date(year, month - 1, 1);
-    const monthEnd   = new Date(year, month, 1);
-
-    const { rows } = await pool.query(`
+async function fetchClosedEvents(year, month) {
+  const monthStart = new Date(year, month - 1, 1);
+  const monthEnd   = new Date(year, month, 1);
+  const { rows } = await pool.query(`
       WITH signed AS (
         SELECT lead_id, MIN(signed_at) AS close_date
         FROM contracts WHERE status = 'signed'
@@ -62,25 +57,32 @@ router.get('/closed-events', async (req, res) => {
       ORDER BY c.close_date ASC
     `, [monthStart.toISOString(), monthEnd.toISOString()]);
 
-    const events = rows.map(r => {
-      const amount     = r.contract_data?.calculated?.subtotal != null ? Number(r.contract_data.calculated.subtotal) : null;
-      const costsTotal = sumLines(r.cost_lines);
-      return {
-        lead_id:         r.lead_id,
-        name:            r.name,
-        event_date:      r.event_date,
-        event_type:      r.event_type,
-        stage:           r.stage,
-        close_date:      r.close_date,
-        salesperson:     r.salesperson || null,
-        amount,
-        lines:           r.cost_lines || [],
-        ai_generated_at: r.ai_generated_at || null,
-        costs_total:     costsTotal,
-        profit:          amount != null ? amount - costsTotal : null,
-      };
-    });
+  return rows.map(r => {
+    const amount     = r.contract_data?.calculated?.subtotal != null ? Number(r.contract_data.calculated.subtotal) : null;
+    const costsTotal = sumLines(r.cost_lines);
+    return {
+      lead_id:         r.lead_id,
+      name:            r.name,
+      event_date:      r.event_date,
+      event_type:      r.event_type,
+      stage:           r.stage,
+      close_date:      r.close_date,
+      salesperson:     r.salesperson || null,
+      amount,
+      lines:           r.cost_lines || [],
+      ai_generated_at: r.ai_generated_at || null,
+      costs_total:     costsTotal,
+      profit:          amount != null ? amount - costsTotal : null,
+    };
+  });
+}
 
+// GET /api/sales/closed-events?year=YYYY&month=M
+router.get('/closed-events', async (req, res) => {
+  try {
+    const year  = parseInt(req.query.year)  || new Date().getFullYear();
+    const month = parseInt(req.query.month) || new Date().getMonth() + 1;
+    const events = await fetchClosedEvents(year, month);
     res.json({
       events,
       summary: {
@@ -101,13 +103,8 @@ router.put('/costs/:leadId', async (req, res) => {
   if (!Array.isArray(lines)) return res.status(400).json({ error: 'lines required' });
   try {
     const clean = lines
-      .filter(l => (l.label || '').trim() || l.amount)
-      .map((l, i) => ({
-        id:     l.id || i + 1,
-        label:  (l.label || '').trim(),
-        amount: Number(l.amount) || 0,
-        basis:  (l.basis || '').trim(),
-      }));
+      .filter(l => (l.label || '').trim() || l.amount || l.qty || l.unit_price)
+      .map((l, i) => normalizeLine(l, i));
     const { rows: [row] } = await pool.query(`
       INSERT INTO event_costs (lead_id, lines, updated_by, updated_at)
       VALUES ($1, $2, $3, NOW())
@@ -116,6 +113,33 @@ router.put('/costs/:leadId', async (req, res) => {
     `, [req.params.leadId, JSON.stringify(clean), req.user.id]);
     res.json({ lines: row.lines });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/sales/costs/generate-missing?year&month — backfill: compute costs
+// for every closed event of the month that has none yet (never overwrites)
+router.post('/costs/generate-missing', async (req, res) => {
+  try {
+    const year  = parseInt(req.query.year)  || new Date().getFullYear();
+    const month = parseInt(req.query.month) || new Date().getMonth() + 1;
+    const events  = await fetchClosedEvents(year, month);
+    const missing = events.filter(e => e.amount != null && (!e.lines || e.lines.length === 0));
+
+    let generated = 0;
+    const errors = [];
+    // Sequential on purpose — avoid hammering the OpenAI API
+    for (const ev of missing) {
+      try {
+        const r = await generateEventCosts(ev.lead_id, req.user.id, { onlyIfEmpty: true });
+        if (r) generated += 1;
+      } catch (err) {
+        errors.push({ lead_id: ev.lead_id, name: ev.name, error: err.message });
+      }
+    }
+    res.json({ generated, failed: errors.length, errors });
+  } catch (err) {
+    console.error('[Sales] generate-missing error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
