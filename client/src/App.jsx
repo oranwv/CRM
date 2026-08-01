@@ -5,6 +5,7 @@ import LeadsPage     from './pages/LeadsPage';
 import LeadDetailPage from './pages/LeadDetailPage';
 import EventsPage    from './pages/EventsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
+import SalesPerformancePage from './pages/SalesPerformancePage';
 import CalendarPage  from './pages/CalendarPage';
 import TasksPage     from './pages/TasksPage';
 import PostponePage    from './pages/PostponePage';
@@ -209,7 +210,10 @@ function AppShellNav() {
   const tabs = isFinance
     ? [{ path: '/finance', icon: '💰', label: 'כספים' }]
     : isManagement
-    ? [{ path: '/management', icon: '📈', label: 'ניהול' }]
+    ? [
+        { path: '/management',        icon: '📈', label: 'ניהול' },
+        { path: '/sales-performance', icon: '💰', label: 'רווחים' },
+      ]
     : isRSVP
     ? [{ path: '/rsvps', icon: '📋', label: 'אישורי הגעה', prefix: '/rsvps' }]
     : isSuppliers
@@ -226,10 +230,11 @@ function AppShellNav() {
         { path: '/calendar', icon: '📅', label: 'לוח שנה' },
       ]
     : [
-        { path: '/',          icon: '👥', label: 'לידים' },
-        { path: '/calendar',  icon: '📅', label: 'לוח שנה' },
-        { path: '/analytics', icon: '📊', label: 'אנליטיקס' },
-        { path: '/tasks',     icon: '✅', label: 'משימות' },
+        { path: '/',                  icon: '👥', label: 'לידים' },
+        { path: '/calendar',          icon: '📅', label: 'לוח שנה' },
+        { path: '/analytics',         icon: '📊', label: 'אנליטיקס' },
+        { path: '/sales-performance', icon: '💰', label: 'רווחים' },
+        { path: '/tasks',             icon: '✅', label: 'משימות' },
       ];
 
   const NavBtn = ({ path, icon, label, prefix }) => {
@@ -322,6 +327,16 @@ function AppRoutes() {
             <>
               <div className="pt-11" />
               <AnalyticsPage />
+              <AppShellNav />
+              <div className="pb-28" />
+            </>
+          </PrivateRoute>
+        } />
+        <Route path="/sales-performance" element={
+          <PrivateRoute>
+            <>
+              <div className="pt-11" />
+              <SalesPerformancePage />
               <AppShellNav />
               <div className="pb-28" />
             </>

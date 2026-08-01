@@ -455,6 +455,15 @@ pool.query(`
     uploaded_by INT REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
   );
+  ALTER TABLE ai_knowledge_files ADD COLUMN IF NOT EXISTS stored_name TEXT;
+  CREATE TABLE IF NOT EXISTS event_costs (
+    id SERIAL PRIMARY KEY,
+    lead_id INT UNIQUE REFERENCES leads(id) ON DELETE CASCADE,
+    lines JSONB DEFAULT '[]',
+    ai_generated_at TIMESTAMPTZ,
+    updated_by INT REFERENCES users(id) ON DELETE SET NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  );
   CREATE TABLE IF NOT EXISTS finance_missing_expenses (
     id SERIAL PRIMARY KEY,
     fingerprint TEXT UNIQUE NOT NULL,
@@ -584,6 +593,7 @@ app.get('/api/drive/debug',         driveDebugHandler);
 app.use('/api/drive',               requireAuth, driveRoutes);
 app.use('/api/users',               requireAuth, usersRoutes);
 app.use('/api/analytics',           requireAuth, analyticsRoutes);
+app.use('/api/sales',               requireAuth, require('./routes/sales'));
 app.use('/api/presence',            requireAuth, require('./routes/presence'));
 app.use('/api/suppliers',           requireAuth, require('./routes/suppliers'));
 app.use('/api/operations',          requireAuth, operationsRoutes);

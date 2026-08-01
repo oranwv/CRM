@@ -324,7 +324,7 @@ router.post('/google-token', adminOnly, async (req, res) => {
 router.get('/knowledge-files', adminOnly, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT id, filename, created_at FROM ai_knowledge_files ORDER BY created_at DESC'
+      'SELECT id, filename, stored_name, created_at FROM ai_knowledge_files ORDER BY created_at DESC'
     );
     res.json(rows);
   } catch (err) {
@@ -358,12 +358,35 @@ router.post('/knowledge-files', adminOnly, kbUpload.single('file'), async (req, 
       return res.status(400).json({ error: 'לא ניתן לחלץ טקסט מהקובץ' });
     }
 
+    // Keep the original file so it can be viewed later (private bucket, signed reads)
+    let storedName = null;
+    try {
+      const mime = ext === '.pdf' ? 'application/pdf' : 'text/plain';
+      ({ storedName } = await uploadBuffer(req.file.buffer, req.file.originalname, mime));
+    } catch (upErr) {
+      console.error('[Admin] KB file storage upload failed:', upErr.message);
+    }
+
     const { rows: [row] } = await pool.query(
-      `INSERT INTO ai_knowledge_files (filename, content_text, uploaded_by)
-       VALUES ($1, $2, $3) RETURNING id, filename, created_at`,
-      [req.file.originalname, contentText, req.user.id]
+      `INSERT INTO ai_knowledge_files (filename, content_text, uploaded_by, stored_name)
+       VALUES ($1, $2, $3, $4) RETURNING id, filename, stored_name, created_at`,
+      [req.file.originalname, contentText, req.user.id, storedName]
     );
     res.json(row);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/admin/knowledge-files/:id/url — signed URL for viewing the original file
+router.get('/knowledge-files/:id/url', adminOnly, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT stored_name FROM ai_knowledge_files WHERE id = $1', [req.params.id]);
+    if (!rows.length || !rows[0].stored_name) {
+      return res.status(404).json({ error: 'הקובץ המקורי לא נשמר — העלה אותו מחדש כדי לאפשר צפייה' });
+    }
+    const url = await getSignedUrl(rows[0].stored_name, 3600);
+    res.json({ url });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -372,7 +395,14 @@ router.post('/knowledge-files', adminOnly, kbUpload.single('file'), async (req, 
 // DELETE /api/admin/knowledge-files/:id
 router.delete('/knowledge-files/:id', adminOnly, async (req, res) => {
   try {
-    await pool.query('DELETE FROM ai_knowledge_files WHERE id = $1', [req.params.id]);
+    const { rows } = await pool.query(
+      'DELETE FROM ai_knowledge_files WHERE id = $1 RETURNING stored_name', [req.params.id]
+    );
+    if (rows[0]?.stored_name) {
+      const { createClient } = require('@supabase/supabase-js');
+      const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+      await supabase.storage.from('crm-files').remove([rows[0].stored_name]).catch(() => {});
+    }
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -817,7 +817,24 @@ export default function AdminPage() {
                 {knowledgeFiles.map(f => (
                   <div key={f.id} className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 border border-slate-100" dir="rtl">
                     <div>
-                      <p className="text-sm font-medium text-slate-700">{f.filename}</p>
+                      {f.stored_name ? (
+                        <button
+                          onClick={async () => {
+                            try {
+                              const { data } = await api.get(`/admin/knowledge-files/${f.id}/url`);
+                              window.open(data.url, '_blank');
+                            } catch { alert('שגיאה בפתיחת הקובץ'); }
+                          }}
+                          className="text-sm font-medium text-violet-700 underline underline-offset-2 hover:text-violet-900 text-right"
+                        >
+                          {f.filename}
+                        </button>
+                      ) : (
+                        <p className="text-sm font-medium text-slate-700">
+                          {f.filename}
+                          <span className="text-xs text-slate-400 font-normal mr-2">(הקובץ המקורי לא נשמר — העלה מחדש לצפייה)</span>
+                        </p>
+                      )}
                       <p className="text-xs text-slate-400">{new Date(f.created_at).toLocaleDateString('he-IL')}</p>
                     </div>
                     <button onClick={() => handleKbFileDelete(f.id)} className="text-red-400 hover:text-red-600 text-lg leading-none transition px-1">×</button>
