@@ -16,6 +16,7 @@ export function AppModeProvider({ children }) {
       'תפעול':       isAM || roles.includes('operations'),
       'ניהול':       isAM,
       'כספים':       isAM || roles.includes('finance'),
+      'רווחים':      isAM || roles.includes('sales'),
     };
     if (stored && permitted[stored]) return stored;
     return Object.keys(permitted).find(k => permitted[k]) || 'מכירות';

@@ -6,6 +6,7 @@ const axios     = require('axios');
 const pool      = require('../db/pool');
 const { uploadBuffer, getSignedUrl } = require('../services/storageService');
 const { sendEmail }    = require('../services/gmailService');
+const { generateEventCosts } = require('../services/eventCostService');
 
 const alefRegB64  = fs.readFileSync(path.join(__dirname, '../fonts/Alef-Regular.ttf')).toString('base64');
 const alefBoldB64 = fs.readFileSync(path.join(__dirname, '../fonts/Alef-Bold.ttf')).toString('base64');
@@ -492,6 +493,14 @@ contractPublicRouter.post('/:token/sign', async (req, res) => {
     }
 
     res.json({ success: true });
+
+    // The event just closed — compute its cost lines from the AI cost model in
+    // the background. Never overwrites existing (possibly hand-edited) lines.
+    setImmediate(() => {
+      generateEventCosts(contract.lead_id, null, { onlyIfEmpty: true })
+        .then(r => { if (r) console.log('[Contracts] event costs generated for lead', contract.lead_id); })
+        .catch(err => console.error('[Contracts] event cost generation failed:', err.message));
+    });
   } catch (err) {
     console.error('[Contracts] sign error:', err.message);
     if (!res.headersSent) res.status(500).json({ error: err.message || 'שגיאה בחתימה על החוזה' });

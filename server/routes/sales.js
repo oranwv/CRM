@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const pool   = require('../db/pool');
-const { OpenAI } = require('openai');
+const { generateEventCosts } = require('../services/eventCostService');
 
 // Sales-performance data (closed events + per-event profit) — visible to sales too
 router.use((req, res, next) => {
@@ -102,7 +102,12 @@ router.put('/costs/:leadId', async (req, res) => {
   try {
     const clean = lines
       .filter(l => (l.label || '').trim() || l.amount)
-      .map((l, i) => ({ id: l.id || i + 1, label: (l.label || '').trim(), amount: Number(l.amount) || 0 }));
+      .map((l, i) => ({
+        id:     l.id || i + 1,
+        label:  (l.label || '').trim(),
+        amount: Number(l.amount) || 0,
+        basis:  (l.basis || '').trim(),
+      }));
     const { rows: [row] } = await pool.query(`
       INSERT INTO event_costs (lead_id, lines, updated_by, updated_at)
       VALUES ($1, $2, $3, NOW())
@@ -116,79 +121,11 @@ router.put('/costs/:leadId', async (req, res) => {
 });
 
 // POST /api/sales/costs/:leadId/generate — compute cost lines with AI from the
-// cost-model document(s) in the assistant's knowledge base
+// cost-model document(s) in the assistant's knowledge base (explicit recompute)
 router.post('/costs/:leadId/generate', async (req, res) => {
   try {
-    const key = process.env.OPENAI_API_KEY;
-    if (!key) return res.status(500).json({ error: 'OPENAI_API_KEY is not set' });
-
-    const [{ rows: kbFiles }, { rows: [lead] }, { rows: contractRows }] = await Promise.all([
-      pool.query('SELECT filename, content_text FROM ai_knowledge_files ORDER BY created_at DESC'),
-      pool.query('SELECT name, event_type, guest_count, event_date FROM leads WHERE id = $1', [req.params.leadId]),
-      pool.query(`SELECT contract_data FROM contracts WHERE lead_id = $1
-                  ORDER BY (status = 'signed') DESC, created_at DESC LIMIT 1`, [req.params.leadId]),
-    ]);
-    if (!lead) return res.status(404).json({ error: 'Lead not found' });
-    if (!kbFiles.length) {
-      return res.status(400).json({ error: 'אין מסמכים במאגר הידע של העוזר — העלה את מסמך מודל העלויות בהגדרות' });
-    }
-
-    const cd     = contractRows[0]?.contract_data || null;
-    const f      = cd?.fields || {};
-    const guests = f.guests || f.packageGuests || lead.guest_count || '';
-    const eventInfo = [
-      `שם האירוע/לקוח: ${lead.name || ''}`,
-      `סוג אירוע: ${lead.event_type || ''}`,
-      `מספר אורחים: ${guests}`,
-      `תאריך אירוע: ${lead.event_date ? String(lead.event_date).slice(0, 10) : ''}`,
-      cd?.calculated?.subtotal != null ? `סכום החוזה לפני מע"מ: ${cd.calculated.subtotal} ש"ח` : '',
-      f.chefMenu ? `תפריט שף: ${f.chefMenu}` : '',
-      f.barMenu  ? `תפריט בר: ${f.barMenu}`  : '',
-    ].filter(Boolean).join('\n');
-
-    const docs = kbFiles.map(k => `## מסמך: ${k.filename}\n${k.content_text}`).join('\n\n');
-    const openai = new OpenAI({ apiKey: key });
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      max_tokens: 1024,
-      response_format: { type: 'json_object' },
-      messages: [{
-        role: 'user',
-        content: `אתה מחשב עלויות הפקה לאירוע באולם אירועים לפי מודל העלויות של העסק.
-
-המסמכים של העסק (כולל מודל העלויות):
-${docs}
-
-פרטי האירוע:
-${eventInfo}
-
-חשב את שורות העלות של האירוע לפי המודל שבמסמכים (למשל: מלצרים, ברמנים, שף/קייטרינג, אבטחה, ניקיון וכו' — לפי הכללים והתעריפים שבמודל, בהתאם למספר האורחים).
-החזר JSON בלבד בפורמט: {"lines":[{"label":"<שם העלות בעברית>","amount":<סכום בש"ח כמספר>}]}
-אם אין במסמכים מודל עלויות ברור — החזר {"lines":[]}.`,
-      }],
-    });
-
-    let lines = [];
-    try {
-      const parsed = JSON.parse(completion.choices[0].message.content);
-      lines = (parsed.lines || [])
-        .filter(l => (l.label || '').trim())
-        .map((l, i) => ({ id: i + 1, label: String(l.label).trim(), amount: Number(l.amount) || 0 }));
-    } catch {
-      return res.status(500).json({ error: 'תשובת ה-AI לא תקינה — נסה שוב' });
-    }
-    if (!lines.length) {
-      return res.status(400).json({ error: 'ה-AI לא מצא מודל עלויות ישים במסמכי מאגר הידע' });
-    }
-
-    const { rows: [row] } = await pool.query(`
-      INSERT INTO event_costs (lead_id, lines, ai_generated_at, updated_by, updated_at)
-      VALUES ($1, $2, NOW(), $3, NOW())
-      ON CONFLICT (lead_id) DO UPDATE SET lines = $2, ai_generated_at = NOW(), updated_by = $3, updated_at = NOW()
-      RETURNING lines, ai_generated_at
-    `, [req.params.leadId, JSON.stringify(lines), req.user.id]);
-
-    res.json({ lines: row.lines, ai_generated_at: row.ai_generated_at });
+    const result = await generateEventCosts(req.params.leadId, req.user.id);
+    res.json(result);
   } catch (err) {
     console.error('[Sales] generate costs error:', err.message);
     res.status(500).json({ error: err.message });

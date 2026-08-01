@@ -97,6 +97,7 @@ function GlobalHeader() {
     else if (m === 'תפעול') navigate('/operations');
     else if (m === 'ניהול') navigate('/management');
     else if (m === 'כספים') navigate('/finance');
+    else if (m === 'רווחים') navigate('/sales-performance');
     else navigate('/');
   }
 
@@ -157,7 +158,7 @@ function GlobalHeader() {
             className="absolute left-0 mt-1.5 bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-100 z-50"
             style={{ minWidth: 140, top: '100%' }}
           >
-            {(isAdmin ? ['מכירות','הפקה','ספקים','אישורי הגעה','תפעול','ניהול','כספים'] : [
+            {(isAdmin ? ['מכירות','הפקה','ספקים','אישורי הגעה','תפעול','ניהול','כספים','רווחים'] : [
               ...(userRoles.includes('sales')      ? ['מכירות']      : []),
               ...(userRoles.includes('production') ? ['הפקה']         : []),
               ...(userRoles.includes('suppliers')  ? ['ספקים']        : []),
@@ -165,6 +166,7 @@ function GlobalHeader() {
               ...(userRoles.includes('operations') ? ['תפעול']        : []),
               ...(isManager                        ? ['ניהול']        : []),
               ...(isManager || userRoles.includes('finance') ? ['כספים'] : []),
+              ...(isManager || userRoles.includes('sales')   ? ['רווחים'] : []),
             ]).map(m => (
               <button
                 key={m}
@@ -206,14 +208,14 @@ function AppShellNav() {
   const isOperations   = mode === 'תפעול';
   const isManagement   = mode === 'ניהול';
   const isFinance      = mode === 'כספים';
+  const isProfit       = mode === 'רווחים';
 
-  const tabs = isFinance
+  const tabs = isProfit
+    ? [{ path: '/sales-performance', icon: '💰', label: 'רווחים' }]
+    : isFinance
     ? [{ path: '/finance', icon: '💰', label: 'כספים' }]
     : isManagement
-    ? [
-        { path: '/management',        icon: '📈', label: 'ניהול' },
-        { path: '/sales-performance', icon: '💰', label: 'רווחים' },
-      ]
+    ? [{ path: '/management', icon: '📈', label: 'ניהול' }]
     : isRSVP
     ? [{ path: '/rsvps', icon: '📋', label: 'אישורי הגעה', prefix: '/rsvps' }]
     : isSuppliers
@@ -230,11 +232,10 @@ function AppShellNav() {
         { path: '/calendar', icon: '📅', label: 'לוח שנה' },
       ]
     : [
-        { path: '/',                  icon: '👥', label: 'לידים' },
-        { path: '/calendar',          icon: '📅', label: 'לוח שנה' },
-        { path: '/analytics',         icon: '📊', label: 'אנליטיקס' },
-        { path: '/sales-performance', icon: '💰', label: 'רווחים' },
-        { path: '/tasks',             icon: '✅', label: 'משימות' },
+        { path: '/',          icon: '👥', label: 'לידים' },
+        { path: '/calendar',  icon: '📅', label: 'לוח שנה' },
+        { path: '/analytics', icon: '📊', label: 'אנליטיקס' },
+        { path: '/tasks',     icon: '✅', label: 'משימות' },
       ];
 
   const NavBtn = ({ path, icon, label, prefix }) => {
@@ -288,6 +289,7 @@ function RootRedirect() {
     else if (mode === 'תפעול')       navigate('/operations', { replace: true });
     else if (mode === 'ניהול')       navigate('/management', { replace: true });
     else if (mode === 'כספים')       navigate('/finance',    { replace: true });
+    else if (mode === 'רווחים')      navigate('/sales-performance', { replace: true });
   }, []);
   return <LeadsPage />;
 }

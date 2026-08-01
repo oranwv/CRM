@@ -61,12 +61,17 @@ function CostEditor({ event, onSaved }) {
         <p className="text-xs text-slate-400">אין שורות עלות — חשב עם AI לפי המודל, או הוסף ידנית.</p>
       )}
       {lines.map((l, i) => (
-        <div key={l.id ?? i} className="flex items-center gap-2">
-          <input value={l.label} onChange={e => setLine(i, 'label', e.target.value)}
-            placeholder="תיאור (למשל: מלצרים)" className={`${inputCls} flex-1`} />
-          <input type="number" value={l.amount} onChange={e => setLine(i, 'amount', e.target.value)}
-            placeholder="₪" className={`${inputCls} w-28 text-center`} dir="ltr" />
-          <button onClick={() => removeLine(i)} className="text-rose-400 hover:text-rose-600 font-bold px-1">×</button>
+        <div key={l.id ?? i} className="bg-white rounded-lg border border-slate-200 p-2 space-y-1">
+          <div className="flex items-center gap-2">
+            <input value={l.label} onChange={e => setLine(i, 'label', e.target.value)}
+              placeholder="תיאור (למשל: קייטרינג)" className={`${inputCls} flex-1 font-semibold`} />
+            <input type="number" value={l.amount} onChange={e => setLine(i, 'amount', e.target.value)}
+              placeholder="₪" className={`${inputCls} w-28 text-center`} dir="ltr" />
+            <button onClick={() => removeLine(i)} className="text-rose-400 hover:text-rose-600 font-bold px-1">×</button>
+          </div>
+          <input value={l.basis || ''} onChange={e => setLine(i, 'basis', e.target.value)}
+            placeholder="לפי מה חושב — למשל: 100 אורחים × 140 ₪ לאדם"
+            className="w-full text-xs text-slate-500 px-2 py-1 rounded-lg border border-transparent hover:border-slate-200 focus:border-violet-300 focus:outline-none bg-transparent" />
         </div>
       ))}
 
