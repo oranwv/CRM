@@ -25,9 +25,11 @@ async function fetchClosedEvents(year, month) {
         GROUP BY lead_id
       ),
       deposit_note AS (
+        -- Note format is 'שינוי שלב: {from} ← {to}' — anchor to the string END so
+        -- only transitions INTO deposit match (not deposit→production etc.)
         SELECT lead_id, MIN(created_at) AS close_date
         FROM lead_interactions
-        WHERE type = 'note' AND body LIKE '%שינוי שלב%' AND body LIKE '%התקבלה מקדמה%'
+        WHERE type = 'note' AND body LIKE '%שינוי שלב%' AND body LIKE '%← התקבלה מקדמה'
         GROUP BY lead_id
       ),
       closed AS (
@@ -99,9 +101,9 @@ router.get('/closed-events', async (req, res) => {
 
 // PUT /api/sales/costs/:leadId — save edited cost lines
 router.put('/costs/:leadId', async (req, res) => {
-  const { lines } = req.body;
-  if (!Array.isArray(lines)) return res.status(400).json({ error: 'lines required' });
   try {
+    const lines = req.body?.lines;
+    if (!Array.isArray(lines)) return res.status(400).json({ error: 'שורות עלות חסרות בבקשה (lines)' });
     const clean = lines
       .filter(l => (l.label || '').trim() || l.amount || l.qty || l.unit_price)
       .map((l, i) => normalizeLine(l, i));
@@ -113,6 +115,7 @@ router.put('/costs/:leadId', async (req, res) => {
     `, [req.params.leadId, JSON.stringify(clean), req.user.id]);
     res.json({ lines: row.lines });
   } catch (err) {
+    console.error('[Sales] save costs error:', err);
     res.status(500).json({ error: err.message });
   }
 });

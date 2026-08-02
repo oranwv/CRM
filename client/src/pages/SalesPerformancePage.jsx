@@ -39,7 +39,7 @@ function CostEditor({ event, onSaved }) {
       if (data.lines) setLines(data.lines);
       await onSaved();
     } catch (err) {
-      alert(err.response?.data?.error || 'שגיאה בשמירה');
+      alert(err.response?.data?.error || `שגיאה בשמירה (${err.message})`);
     } finally {
       setSaving(false);
     }
@@ -53,7 +53,7 @@ function CostEditor({ event, onSaved }) {
       setLines(data.lines || []);
       await onSaved();
     } catch (err) {
-      alert(err.response?.data?.error || 'שגיאה בחישוב העלויות');
+      alert(err.response?.data?.error || `שגיאה בחישוב העלויות (${err.message})`);
     } finally {
       setGenerating(false);
     }
@@ -165,7 +165,7 @@ export default function SalesPerformancePage() {
       if (r.failed > 0) alert(`חושבו ${r.generated} אירועים; ${r.failed} נכשלו${r.errors?.[0] ? ` (${r.errors[0].error})` : ''}`);
       load();
     } catch (err) {
-      alert(err.response?.data?.error || 'שגיאה בחישוב העלויות');
+      alert(err.response?.data?.error || `שגיאה בחישוב העלויות (${err.message})`);
     } finally {
       setBulkGenerating(false);
     }
