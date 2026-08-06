@@ -561,6 +561,26 @@ pool.query(`
   );
 `).catch(err => console.error('[DB] ai_knowledge_files migration error:', err.message));
 
+// One-time cleanup (2026-08-06): nightly scans that ran with the old
+// Drive-readonly token errored at folder creation and wrongly stamped invoice
+// emails as is_invoice=false with no file records — permanently skipping them.
+// Clear those stamps once so the next scan re-evaluates them.
+(async () => {
+  try {
+    const { rows } = await pool.query("SELECT 1 FROM settings WHERE key = 'finance_scan_reset_20260806'");
+    if (!rows.length) {
+      const { rowCount } = await pool.query(
+        `DELETE FROM finance_scanned_emails s
+         WHERE s.is_invoice = FALSE
+           AND NOT EXISTS (SELECT 1 FROM finance_invoice_files f WHERE f.gmail_message_id = s.gmail_id)`);
+      await pool.query("INSERT INTO settings (key, value) VALUES ('finance_scan_reset_20260806', 'done') ON CONFLICT (key) DO NOTHING");
+      console.log(`[FinanceScan] one-time reset: cleared ${rowCount} scanned-email stamps`);
+    }
+  } catch (err) {
+    console.error('[FinanceScan] one-time reset error:', err.message);
+  }
+})();
+
 require('./services/financeInvoiceScanner').startDailyInvoiceScan();
 
 const { pollGoogleCalendar, importHolidays } = require('./services/calendarPollService');

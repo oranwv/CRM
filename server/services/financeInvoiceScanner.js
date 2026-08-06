@@ -253,8 +253,22 @@ async function scanRange(from, to) {
       pageToken = list.nextPageToken;
 
       for (const m of list.messages || []) {
-        const { rows: seen } = await pool.query('SELECT 1 FROM finance_scanned_emails WHERE gmail_id = $1', [m.id]);
-        if (seen.length) continue;
+        // Skip only fully-handled emails. An email marked as an invoice whose
+        // files never saved (or partially failed — e.g. scans run with the old
+        // Drive-readonly token) is reprocessed.
+        const { rows: seen } = await pool.query(
+          `SELECT s.is_invoice,
+                  COUNT(f.*) FILTER (WHERE f.status = 'saved')::int  AS saved_count,
+                  COUNT(f.*) FILTER (WHERE f.status = 'failed')::int AS failed_count
+           FROM finance_scanned_emails s
+           LEFT JOIN finance_invoice_files f ON f.gmail_message_id = s.gmail_id
+           WHERE s.gmail_id = $1
+           GROUP BY s.gmail_id, s.is_invoice`, [m.id]);
+        if (seen.length) {
+          const s = seen[0];
+          const fullyHandled = !s.is_invoice || (s.saved_count > 0 && s.failed_count === 0);
+          if (fullyHandled) continue;
+        }
         summary.scanned++;
 
         let isInvoice = false;
@@ -313,6 +327,11 @@ async function scanRange(from, to) {
             }
 
             for (const f of files) {
+              // Already saved in a previous (partial) run — don't duplicate in Drive
+              const { rows: alreadySaved } = await pool.query(
+                "SELECT 1 FROM finance_invoice_files WHERE gmail_message_id = $1 AND filename = $2 AND status = 'saved'",
+                [m.id, f.name]);
+              if (alreadySaved.length) continue;
               try {
                 const uploaded = await uploadToDrive(drive, folderId, f.name, f.buffer, f.mimeType);
                 await recordFile(m.id, account.email, {
@@ -328,8 +347,9 @@ async function scanRange(from, to) {
           }
           await markScanned(m.id, account.email, isInvoice);
         } catch (err) {
+          // Do NOT mark as scanned — a transient failure (Drive/OpenAI/network)
+          // must not permanently consume the email; it will retry on the next scan.
           summary.failures.push({ account: account.email, error: err.message });
-          await markScanned(m.id, account.email, false).catch(() => {});
         }
       }
     } while (pageToken);
@@ -344,7 +364,7 @@ const sanitize = (s) => String(s || '').replace(/[\\/:*?"<>|]/g, ' ').trim().sli
 async function markScanned(gmailId, account, isInvoice) {
   await pool.query(
     `INSERT INTO finance_scanned_emails (gmail_id, account_email, is_invoice) VALUES ($1, $2, $3)
-     ON CONFLICT (gmail_id) DO NOTHING`, [gmailId, account, isInvoice]);
+     ON CONFLICT (gmail_id) DO UPDATE SET is_invoice = EXCLUDED.is_invoice, scanned_at = NOW()`, [gmailId, account, isInvoice]);
 }
 
 async function recordFile(gmailId, account, f) {
@@ -352,7 +372,9 @@ async function recordFile(gmailId, account, f) {
     `INSERT INTO finance_invoice_files
        (gmail_message_id, account_email, email_subject, email_from, email_date, filename, source_kind, status, error, drive_file_id, drive_link, drive_folder)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-     ON CONFLICT (gmail_message_id, filename) DO NOTHING`,
+     ON CONFLICT (gmail_message_id, filename) DO UPDATE SET
+       status = EXCLUDED.status, error = EXCLUDED.error, drive_file_id = EXCLUDED.drive_file_id,
+       drive_link = EXCLUDED.drive_link, drive_folder = EXCLUDED.drive_folder`,
     [gmailId, account, f.subject || '', f.from || '', f.emailDate || null, f.filename, f.kind, f.status, f.error || null,
      f.driveFileId || null, f.driveLink || null, f.driveFolder || null]);
 }
