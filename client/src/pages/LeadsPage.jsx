@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../api';
 import LeadCard from '../components/LeadCard';
@@ -21,6 +21,15 @@ const FILTER_STAGES = {
   lost:   ['lost'],
 };
 
+// Search results are split into these sections (in order); active on top, closed-deal
+// stages grouped below under headers. Empty groups are not rendered.
+const SEARCH_GROUPS = [
+  { key: 'active',     label: 'פעילים',        stages: FILTER_STAGES.active },
+  { key: 'production', label: 'בהפקה',          stages: ['deposit', 'production'] },
+  { key: 'completed',  label: 'אירוע שהסתיים',  stages: ['completed'] },
+  { key: 'lost',       label: 'לא סגרו',        stages: ['lost'] },
+];
+
 const SOURCE_LABELS = {
   website_popup: 'אתר (פופאפ)', website_form: 'אתר (טופס)',
   call_event: 'Call Event', telekol: 'טלקול',
@@ -40,6 +49,7 @@ const STAGE_STYLES = {
   process_no_answer: { label: 'בתהליך ונעלם / לא עונה', cls: 'bg-zinc-100 text-zinc-600 border border-zinc-200' },
   deposit:           { label: 'התקבלה מקדמה',        cls: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
   production:        { label: 'הפקה',                cls: 'bg-teal-100 text-teal-700 border border-teal-200' },
+  completed:         { label: 'אירוע הסתיים',        cls: 'bg-slate-200 text-slate-700 border border-slate-300' },
   lost:              { label: 'לא סגרו',             cls: 'bg-red-100 text-red-600 border border-red-200' },
 };
 
@@ -186,10 +196,10 @@ export default function LeadsPage() {
     abortRef.current = new AbortController();
     if (!silent) setLoading(true);
     try {
-      // When searching: lost tab stays restricted; all other tabs search across all non-lost stages
+      // When searching: search across ALL stages (incl. lost) — grouped into sections client-side.
       // When activeFilter is set on new/in_process: fetch the combined 'active' group
       const fetchTab = debouncedSearch
-        ? (tab === 'lost' ? 'lost' : 'all_active')
+        ? undefined
         : inActiveFilterMode ? 'active' : tab;
 
       const { data } = await api.get('/leads', {
@@ -412,7 +422,8 @@ export default function LeadsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-violet-50">
-                {sortedLeads.map((lead, idx) => (
+                {(() => {
+                  const renderRow = (lead, idx) => (
                   <tr
                     key={lead.id}
                     onClick={() => {
@@ -484,7 +495,23 @@ export default function LeadsPage() {
                       ) : '—'}
                     </td>
                   </tr>
-                ))}
+                  );
+                  if (!debouncedSearch) return sortedLeads.map((lead, idx) => renderRow(lead, idx));
+                  // Search mode: split into labeled sections (active on top, closed-deal below).
+                  let _n = 0;
+                  return SEARCH_GROUPS.map(g => {
+                    const gl = sortedLeads.filter(l => g.stages.includes(l.stage));
+                    if (!gl.length) return null;
+                    return (
+                      <Fragment key={g.key}>
+                        <tr className="bg-violet-100/70 border-b border-violet-100">
+                          <td colSpan={12} className="px-3 py-2 font-black text-slate-600 text-right">{g.label} ({gl.length})</td>
+                        </tr>
+                        {gl.map(lead => renderRow(lead, _n++))}
+                      </Fragment>
+                    );
+                  });
+                })()}
               </tbody>
             </table>
           </div>
