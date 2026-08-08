@@ -292,11 +292,9 @@ async function pollGmail() {
           );
         }
       } catch (err) {
-        console.error(`[Gmail] Error processing message ${msg.id}:`, err.message);
-        await pool.query(
-          `INSERT INTO processed_emails (gmail_id) VALUES ($1) ON CONFLICT DO NOTHING`,
-          [msg.id]
-        ).catch(() => {});
+        // Do NOT mark processed on error — that would permanently drop a lead
+        // whose email hit a transient failure. Leave it to retry next poll.
+        console.error(`[Gmail] Error processing message ${msg.id} (will retry next poll):`, err.message);
       }
     }
   } catch (err) {
