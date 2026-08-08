@@ -225,12 +225,20 @@ async function listScanAccounts() {
   return accounts;
 }
 
+// Live status — the route starts scanRange in the background and the client
+// polls this object; `summary` is the same object scanRange mutates, so the
+// counters update live during the scan.
+const scanStatus = { running: false, from: null, to: null, startedAt: null, finishedAt: null, summary: null, error: null };
+
 // from/to: 'YYYY-MM-DD' inclusive. Returns a summary.
 async function scanRange(from, to) {
+  if (scanStatus.running) throw new Error('סריקה כבר רצה — המתן לסיומה');
   const afterEpoch  = Math.floor(new Date(`${from}T00:00:00`).getTime() / 1000);
   const beforeEpoch = Math.floor(new Date(`${to}T00:00:00`).getTime() / 1000) + 86400;
 
   const summary = { scanned: 0, candidates: 0, invoices: 0, filesSaved: 0, failures: [], aiUsed: !!process.env.OPENAI_API_KEY, accounts: [] };
+  Object.assign(scanStatus, { running: true, from, to, startedAt: new Date().toISOString(), finishedAt: null, summary, error: null });
+  try {
   const primaryDriveAuth = primaryAuth(); // Drive uploads always go to the business account
   const drive = google.drive({ version: 'v3', auth: primaryDriveAuth });
   const rootId = await getRootFolderId(drive);
@@ -357,6 +365,13 @@ async function scanRange(from, to) {
   }
   console.log(`[FinanceScan] ${from}..${to}: scanned ${summary.scanned}, invoices ${summary.invoices}, saved ${summary.filesSaved}, failures ${summary.failures.length}`);
   return summary;
+  } catch (err) {
+    scanStatus.error = err.message;
+    throw err;
+  } finally {
+    scanStatus.running = false;
+    scanStatus.finishedAt = new Date().toISOString();
+  }
 }
 
 const sanitize = (s) => String(s || '').replace(/[\\/:*?"<>|]/g, ' ').trim().slice(0, 80);
@@ -398,4 +413,4 @@ function startDailyInvoiceScan() {
   }, 60 * 60 * 1000);
 }
 
-module.exports = { scanRange, startDailyInvoiceScan, buildConnectUrl, oauthCallbackHandler };
+module.exports = { scanRange, scanStatus, startDailyInvoiceScan, buildConnectUrl, oauthCallbackHandler };

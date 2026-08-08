@@ -1,5 +1,10 @@
 require('dotenv').config();
 const express = require('express');
+
+// A single failing async task (e.g. a stream error during a long Gmail/Drive
+// scan) must not take down the whole server — log and keep serving.
+process.on('unhandledRejection', (err) => console.error('[Process] Unhandled rejection:', err?.message || err));
+process.on('uncaughtException', (err) => console.error('[Process] Uncaught exception:', err?.message || err));
 const cors    = require('cors');
 const path    = require('path');
 const fs      = require('fs');

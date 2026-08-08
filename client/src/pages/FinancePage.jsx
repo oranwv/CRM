@@ -183,7 +183,13 @@ function InvoiceScanSection() {
 
   const loadAccounts = () => api.get('/finance/gmail/accounts').then(r => setAccounts(r.data)).catch(() => {});
   const loadInvoices = () => api.get('/finance/invoices').then(r => setInvoices(r.data)).catch(() => {});
-  useEffect(() => { loadAccounts(); }, []);
+  useEffect(() => {
+    loadAccounts();
+    // Resume progress display if a scan is already running (e.g. after refresh)
+    api.get('/finance/scan/status').then(r => {
+      if (r.data.running) { setScanning(true); setResult(r.data.summary); setTimeout(pollScan, 3000); }
+    }).catch(() => {});
+  }, []);
 
   async function connectMailbox() {
     try {
@@ -201,15 +207,29 @@ function InvoiceScanSection() {
     try { await api.delete(`/finance/gmail/accounts/${id}`); loadAccounts(); } catch {}
   }
 
+  // The scan runs in the background on the server; we poll for live progress.
+  async function pollScan() {
+    try {
+      const { data } = await api.get('/finance/scan/status');
+      if (data.summary) setResult(data.summary);
+      if (data.running) { setTimeout(pollScan, 3000); return; }
+      if (data.error) setError(data.error);
+      else { loadInvoices(); setShowInvoices(true); }
+      setScanning(false);
+    } catch {
+      setTimeout(pollScan, 5000); // transient network error — keep polling
+    }
+  }
+
   async function runScan() {
     setScanning(true); setError(null); setResult(null);
     try {
-      const { data } = await api.post('/finance/scan', { from, to });
-      setResult(data);
-      loadInvoices(); setShowInvoices(true);
+      await api.post('/finance/scan', { from, to });
+      setTimeout(pollScan, 2000);
     } catch (err) {
       setError(err.response?.data?.error || 'שגיאה בסריקה');
-    } finally { setScanning(false); }
+      setScanning(false);
+    }
   }
 
   return (
@@ -262,7 +282,9 @@ function InvoiceScanSection() {
       <button type="button" onClick={runScan} disabled={scanning}
         className="w-full py-2.5 rounded-xl font-black text-sm text-white disabled:opacity-40 transition"
         style={{ background: 'linear-gradient(135deg, #0ea5e9, #6366f1)' }}>
-        {scanning ? 'סורק מיילים... (יכול לקחת כמה דקות)' : `סרוק מיילים (${from} עד ${to})`}
+        {scanning
+          ? `סורק מיילים... ${result ? `נבדקו ${result.scanned} · זוהו ${result.invoices} · נשמרו ${result.filesSaved}` : '(יכול לקחת כמה דקות)'}`
+          : `סרוק מיילים (${from} עד ${to})`}
       </button>
 
       {error && <p className="text-sm text-red-600 font-bold">{error}</p>}

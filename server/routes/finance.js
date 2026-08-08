@@ -2,7 +2,7 @@ const router = require('express').Router();
 const pool   = require('../db/pool');
 const multer = require('multer');
 const { reconcile, parseKartesetAny, findMissing, fingerprint, DEFAULT_EXCLUSIONS } = require('../services/financeReconcile');
-const { scanRange, buildConnectUrl } = require('../services/financeInvoiceScanner');
+const { scanRange, scanStatus, buildConnectUrl } = require('../services/financeInvoiceScanner');
 
 // Unified status for karteset-driven auto-resolves (full compare + rekarteset)
 function kartesetResolvedStatus(now = new Date()) {
@@ -373,20 +373,21 @@ router.delete('/periods/:id', async (req, res) => {
 
 // ── Invoice email scanning ────────────────────────────────────────────────────
 
-// POST /api/finance/scan { from, to } — scan Gmail accounts for supplier invoices
-router.post('/scan', async (req, res) => {
+// POST /api/finance/scan { from, to } — start a background scan (a long range
+// can take many minutes; running it inside the request times out / drops).
+// The client polls GET /scan/status for live progress.
+router.post('/scan', (req, res) => {
   const { from, to } = req.body;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(from || '') || !/^\d{4}-\d{2}-\d{2}$/.test(to || '')) {
     return res.status(400).json({ error: 'טווח תאריכים לא תקין' });
   }
-  try {
-    const summary = await scanRange(from, to);
-    res.json(summary);
-  } catch (err) {
-    console.error('[Finance] scan error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
+  if (scanStatus.running) return res.status(409).json({ error: 'סריקה כבר רצה — המתן לסיומה' });
+  scanRange(from, to).catch(err => console.error('[Finance] scan error:', err.message));
+  res.json({ started: true });
 });
+
+// GET /api/finance/scan/status — live progress of the current/last scan
+router.get('/scan/status', (req, res) => res.json(scanStatus));
 
 // GET /api/finance/invoices — recently saved invoice files
 router.get('/invoices', async (req, res) => {
