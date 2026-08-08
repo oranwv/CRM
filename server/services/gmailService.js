@@ -171,6 +171,17 @@ async function upsertLead(parsed, emailId, emailTs) {
       [existing.id, `[אימייל אוטומטי - ${parsed.source}] ${parsed.notes || ''}`]
     );
 
+    // A fresh inquiry on a lost lead should reopen it so it resurfaces in "new"
+    const { rows: stageRows } = await pool.query('SELECT stage FROM leads WHERE id = $1', [existing.id]);
+    if (stageRows[0]?.stage === 'lost') {
+      await pool.query(`UPDATE leads SET stage = 'new' WHERE id = $1`, [existing.id]);
+      await pool.query(
+        `INSERT INTO lead_interactions (lead_id, type, direction, body, created_by, is_read, created_at)
+         VALUES ($1, 'note', 'outbound', $2, NULL, true, ${tsExpr})`,
+        [existing.id, '🔄 הליד חזר לחדשים בעקבות פנייה חדשה במייל']
+      );
+    }
+
     // Notify assigned user about inbound email (non-blocking)
     const _eid = existing.id;
     const _src = parsed.source;
@@ -227,15 +238,22 @@ async function pollGmail() {
       )
     `);
 
-    // Fetch unread emails from the last 7 days
+    // Fetch ALL emails from the last 7 days (read or unread) — the processed_emails
+    // table dedups, so relying on is:unread only caused reads to be missed.
     const since = Math.floor((Date.now() - 7 * 24 * 3600 * 1000) / 1000);
-    const res = await gmail.users.messages.list({
-      userId: 'me',
-      q: `after:${since} is:unread`,
-      maxResults: 50,
-    });
+    const messages = [];
+    let pageToken = null;
+    do {
+      const res = await gmail.users.messages.list({
+        userId: 'me',
+        q: `after:${since}`,
+        maxResults: 100,
+        ...(pageToken ? { pageToken } : {}),
+      });
+      messages.push(...(res.data.messages || []));
+      pageToken = res.data.nextPageToken || null;
+    } while (pageToken);
 
-    const messages = res.data.messages || [];
     for (const msg of messages) {
       try {
         // Skip already processed
