@@ -280,12 +280,23 @@ function InvoiceScanSection() {
       )}
 
       <button type="button" onClick={runScan} disabled={scanning}
-        className="w-full py-2.5 rounded-xl font-black text-sm text-white disabled:opacity-40 transition"
+        className="w-full py-2.5 rounded-xl font-black text-sm text-white disabled:opacity-70 transition flex items-center justify-center gap-2"
         style={{ background: 'linear-gradient(135deg, #0ea5e9, #6366f1)' }}>
+        {scanning && <span className="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />}
         {scanning
           ? `סורק מיילים... ${result ? `נבדקו ${result.scanned} · זוהו ${result.invoices} · נשמרו ${result.filesSaved}` : '(יכול לקחת כמה דקות)'}`
           : `סרוק מיילים (${from} עד ${to})`}
       </button>
+
+      {scanning && (
+        <div className="flex items-center gap-2 text-sm bg-sky-50 border border-sky-200 text-sky-700 rounded-xl px-3 py-2">
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-sky-500" />
+          </span>
+          <span className="font-bold">הסריקה פועלת ברקע — אפשר להמשיך לעבוד, התוצאות יתעדכנו כאן אוטומטית</span>
+        </div>
+      )}
 
       {error && <p className="text-sm text-red-600 font-bold">{error}</p>}
       {result && (

@@ -198,22 +198,61 @@ async function classifyEmail({ subject, from, snippet, attachments, links }) {
 
 // ── Invoice download (links) ──────────────────────────────────────────────────
 
-async function downloadFromLink(url) {
-  const resp = await axios.get(url, { responseType: 'arraybuffer', timeout: 20000, maxRedirects: 5 });
-  const type = (resp.headers['content-type'] || '').toLowerCase();
-  if (type.includes('pdf')) return { buffer: Buffer.from(resp.data), mimeType: 'application/pdf' };
-  if (type.includes('html')) {
-    // Landing page — look for a direct PDF link inside it
-    const html = Buffer.from(resp.data).toString('utf-8');
-    const pdfLinks = (html.match(/https?:\/\/[^\s"'<>)\]]+\.pdf[^\s"'<>)\]]*/gi) || []).slice(0, 3);
-    for (const l of pdfLinks) {
-      try {
-        const r2 = await axios.get(l, { responseType: 'arraybuffer', timeout: 20000, maxRedirects: 5 });
-        if ((r2.headers['content-type'] || '').includes('pdf')) return { buffer: Buffer.from(r2.data), mimeType: 'application/pdf' };
-      } catch { /* try next */ }
-    }
+const isPdfBuffer = (buf) => buf && buf.length > 4 && buf.slice(0, 5).toString('latin1') === '%PDF-';
+const AXIOS_OPTS = {
+  responseType: 'arraybuffer', timeout: 25000, maxRedirects: 5,
+  headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36' },
+  validateStatus: (s) => s >= 200 && s < 400,
+};
+
+// Resolve a possibly-relative URL against the page it was found on.
+function absUrl(href, base) {
+  try { return new URL(href, base).href; } catch { return null; }
+}
+
+async function tryFetchPdf(url) {
+  const r = await axios.get(url, AXIOS_OPTS);
+  const buf = Buffer.from(r.data);
+  const type = (r.headers['content-type'] || '').toLowerCase();
+  const disp = (r.headers['content-disposition'] || '').toLowerCase();
+  if (type.includes('pdf') || disp.includes('.pdf') || isPdfBuffer(buf)) {
+    return { buffer: buf, mimeType: 'application/pdf' };
   }
-  throw new Error(`לא נמצא PDF בקישור (content-type: ${type})`);
+  return null; // not a PDF (html/json/etc.)
+}
+
+// Supplier invoice links usually land on a page (PayPlus/EZcount/GreenInvoice)
+// with a "הורדת מקור" button. Follow the page and try the real download links —
+// they don't necessarily end in .pdf, so we probe candidates by keyword and by
+// verifying each response is actually a PDF (content-type OR %PDF magic bytes).
+async function downloadFromLink(url) {
+  const direct = await tryFetchPdf(url);
+  if (direct) return direct;
+
+  // Landing page — collect candidate links and rank download-looking ones first
+  const resp = await axios.get(url, AXIOS_OPTS);
+  const type = (resp.headers['content-type'] || '').toLowerCase();
+  if (!type.includes('html')) throw new Error(`לא נמצא PDF בקישור (content-type: ${type})`);
+  const html = Buffer.from(resp.data).toString('utf-8');
+  const base = resp.request?.res?.responseUrl || url;
+
+  const candidates = new Set();
+  // hrefs / src / data-* attributes and bare URLs in scripts
+  for (const m of html.matchAll(/(?:href|src|data-[\w-]*(?:url|href|link|file))\s*=\s*["']([^"']+)["']/gi)) {
+    const abs = absUrl(m[1], base); if (abs) candidates.add(abs);
+  }
+  for (const m of html.matchAll(/https?:\/\/[^\s"'<>)\\]+/gi)) candidates.add(m[1] || m[0]);
+
+  const DL_HINTS = ['download', 'pdf', 'source', 'מקור', 'origin', 'getfile', 'document', 'invoice', 'attachment', 'export', 'print'];
+  const ranked = [...candidates].sort((a, b) => {
+    const score = (u) => DL_HINTS.reduce((s, h) => s + (u.toLowerCase().includes(h) ? 1 : 0), 0);
+    return score(b) - score(a);
+  }).slice(0, 8);
+
+  for (const l of ranked) {
+    try { const pdf = await tryFetchPdf(l); if (pdf) return pdf; } catch { /* next */ }
+  }
+  throw new Error('לא נמצא קובץ PDF בדף ההורדה (ייתכן שנדרשת התחברות)');
 }
 
 // ── Main scan ─────────────────────────────────────────────────────────────────
