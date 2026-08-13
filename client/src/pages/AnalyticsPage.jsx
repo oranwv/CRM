@@ -57,9 +57,9 @@ export default function AnalyticsPage() {
 
   const { overview, activity, bySource, byMonth, staffPerf, lostReasons } = data;
   const totalRaw = parseInt(overview.total) || 0;
-  const closedRaw = parseInt(overview.closed) || 0;
-  const lostRaw = parseInt(overview.lost) || 0;
-  const activeRaw = Math.max(0, totalRaw - closedRaw - lostRaw);
+  const closedRaw = parseInt(overview.closed) || 0;  // closings that HAPPENED in the period
+  const lostRaw = parseInt(overview.lost) || 0;      // losses that happened in the period
+  const activeRaw = parseInt(overview.active) || 0;  // this period's inflow still open
   const total = totalRaw || 1;
   const wonRate = Math.round((closedRaw / total) * 100);
   const lostRate = Math.round((lostRaw / total) * 100);
@@ -117,7 +117,7 @@ export default function AnalyticsPage() {
           <Card title="לידים לפי חודש">
             <div className="flex items-end gap-2 h-32 mt-2">
               {byMonth.map((m, i) => {
-                const max = Math.max(...byMonth.map(x => parseInt(x.total)));
+                const max = Math.max(...byMonth.map(x => Math.max(parseInt(x.total), parseInt(x.won))));
                 const h = Math.round((parseInt(m.total) / (max || 1)) * 100);
                 const wonH = Math.round((parseInt(m.won) / (max || 1)) * 100);
                 return (

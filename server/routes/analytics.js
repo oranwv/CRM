@@ -16,6 +16,30 @@ router.get('/overview', async (req, res) => {
   const poCreated = ranged ? 'WHERE created_at::date BETWEEN $1::date AND $2::date' : '';
   const ctCreated = ranged ? 'WHERE created_at::date BETWEEN $1::date AND $2::date' : '';
   const ctSigned  = ranged ? "AND signed_at::date BETWEEN $1::date AND $2::date"    : '';
+  const closedRange = ranged ? 'WHERE close_date::date BETWEEN $1::date AND $2::date' : '';
+  const lostRange   = ranged ? 'WHERE lost_date::date BETWEEN $1::date AND $2::date'  : '';
+
+  // A closing is dated by its close_date (signed contract, else the deposit
+  // stage-change note) — identical to the Profit page, so counts agree there.
+  const CLOSED_CTE = `
+    signed AS (
+      SELECT lead_id, MIN(signed_at) AS close_date
+      FROM contracts WHERE status = 'signed' GROUP BY lead_id
+    ),
+    deposit_note AS (
+      SELECT lead_id, MIN(created_at) AS close_date
+      FROM lead_interactions
+      WHERE type = 'note' AND body LIKE '%שינוי שלב%' AND body LIKE '%← התקבלה מקדמה'
+      GROUP BY lead_id
+    ),
+    closed AS (
+      SELECT l.id AS lead_id, COALESCE(s.close_date, dn.close_date) AS close_date
+      FROM leads l
+      LEFT JOIN signed s        ON s.lead_id  = l.id
+      LEFT JOIN deposit_note dn ON dn.lead_id = l.id
+      WHERE COALESCE(s.close_date, dn.close_date) IS NOT NULL
+        AND (s.lead_id IS NOT NULL OR l.stage IN ('deposit','production','completed'))
+    )`;
 
   try {
     const [
@@ -28,15 +52,21 @@ router.get('/overview', async (req, res) => {
       avgTimeInStage,
     ] = await Promise.all([
 
-      // Total leads by status group
+      // Period totals — received by created_at; closed/lost by when they HAPPENED
+      // (close date / lost stage-change note), active = this period's inflow still open
       pool.query(`
+        WITH ${CLOSED_CTE},
+        lost_note AS (
+          SELECT lead_id, MIN(created_at) AS lost_date
+          FROM lead_interactions
+          WHERE type = 'note' AND body LIKE '%שינוי שלב%' AND body LIKE '%← אבוד'
+          GROUP BY lead_id
+        )
         SELECT
-          COUNT(*) FILTER (WHERE stage IN ('new','new_no_answer')) AS new_leads,
-          COUNT(*) FILTER (WHERE stage IN ('contacted','meeting','offer_sent','negotiation','contract_sent','process_no_answer')) AS in_process,
-          COUNT(*) FILTER (WHERE stage IN ('deposit','production','completed')) AS closed,
-          COUNT(*) FILTER (WHERE stage = 'lost') AS lost,
-          COUNT(*) AS total
-        FROM leads ${wDate}
+          (SELECT COUNT(*) FROM leads ${wDate}) AS total,
+          (SELECT COUNT(*) FROM closed ${closedRange}) AS closed,
+          (SELECT COUNT(*) FROM lost_note ${lostRange}) AS lost,
+          (SELECT COUNT(*) FROM leads WHERE stage NOT IN ('deposit','production','completed','lost') ${aDate}) AS active
       `, params),
 
       // Sales-activity funnel — distinct leads (a lead with multiple offers/contracts counts once)
@@ -60,15 +90,32 @@ router.get('/overview', async (req, res) => {
         GROUP BY l.source ORDER BY count DESC
       `, params),
 
-      // Leads per month (last 6 months — own window, not range-filtered)
+      // Leads per month (last 6 months, fixed window): gray = leads received that
+      // month (created_at); purple = closings that month (by close_date)
       pool.query(`
-        SELECT TO_CHAR(DATE_TRUNC('month', created_at), 'MM/YYYY') AS month,
-               COUNT(*) AS total,
-               COUNT(*) FILTER (WHERE stage IN ('deposit','production','completed')) AS won
-        FROM leads
-        WHERE created_at > NOW() - INTERVAL '6 months'
-        GROUP BY DATE_TRUNC('month', created_at)
-        ORDER BY DATE_TRUNC('month', created_at)
+        WITH ${CLOSED_CTE},
+        months AS (
+          SELECT generate_series(
+            DATE_TRUNC('month', NOW()) - INTERVAL '5 months',
+            DATE_TRUNC('month', NOW()),
+            INTERVAL '1 month'
+          ) AS m
+        ),
+        inflow AS (
+          SELECT DATE_TRUNC('month', created_at) AS m, COUNT(*) AS total
+          FROM leads WHERE created_at > NOW() - INTERVAL '6 months' GROUP BY 1
+        ),
+        closed_by_month AS (
+          SELECT DATE_TRUNC('month', close_date) AS m, COUNT(*) AS won
+          FROM closed WHERE close_date > NOW() - INTERVAL '6 months' GROUP BY 1
+        )
+        SELECT TO_CHAR(months.m, 'MM/YYYY') AS month,
+               COALESCE(inflow.total, 0) AS total,
+               COALESCE(closed_by_month.won, 0) AS won
+        FROM months
+        LEFT JOIN inflow          ON inflow.m = months.m
+        LEFT JOIN closed_by_month ON closed_by_month.m = months.m
+        ORDER BY months.m
       `),
 
       // Staff performance
