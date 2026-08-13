@@ -1,17 +1,9 @@
 import { useState, useEffect } from 'react';
 import api from '../api';
 
-const STAGE_LABELS = {
-  new: 'חדש', new_no_answer: 'חדש ולא עונה', contacted: 'בוצעה שיחה ראשונית',
-  meeting_scheduled: 'נקבעה פגישה', meeting: 'בוצעה פגישה',
-  offer_sent: 'נשלחה הצעת מחיר', negotiation: 'מו"מ',
-  contract_sent: 'חוזה נשלח', process_no_answer: 'בתהליך ונעלם / לא עונה',
-  deposit: 'התקבלה מקדמה', production: 'הפקה', lost: 'לא סגרו',
-};
-
 const SOURCE_LABELS = {
   website_popup: 'גוגל - אתר (פופ אפ)', website_form: 'גוגל - אתר (טופס)',
-  call_event: 'Call Event', telekol: 'טלקול',
+  call_event: 'Call Event', telekol: 'טלקול', vonage: 'Vonage',
   whatsapp: 'וואטסאפ', facebook: 'פייסבוק',
   instagram: 'אינסטגרם', manual: 'ידני',
 };
@@ -20,11 +12,6 @@ const LOST_REASON_LABELS = {
   price: 'מחיר/תקציב', date: 'תאריך תפוס', competitor: 'בחר מתחרה',
   ghosted: 'נעלם', plans_changed: 'שינוי תוכניות', other: 'אחר',
 };
-
-const STAGE_COLORS = [
-  'bg-sky-400', 'bg-amber-400', 'bg-violet-400', 'bg-blue-400',
-  'bg-orange-400', 'bg-indigo-400', 'bg-emerald-400', 'bg-teal-400', 'bg-red-400',
-];
 
 const SOURCE_COLORS = [
   'bg-violet-400', 'bg-purple-400', 'bg-orange-400', 'bg-sky-400',
@@ -37,6 +24,7 @@ function shiftDays(n) { const d = new Date(); d.setDate(d.getDate() + n); return
 export default function AnalyticsPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [hoveredMonth, setHoveredMonth] = useState(null);
   // Empty range = all-time (preserves original behavior).
   const [from, setFrom] = useState('');
   const [to, setTo]     = useState('');
@@ -67,10 +55,14 @@ export default function AnalyticsPage() {
 
   if (!data) return null;
 
-  const { overview, byStage, bySource, byMonth, staffPerf, lostReasons } = data;
-  const total = parseInt(overview.total) || 1;
-  const wonRate = Math.round((parseInt(overview.closed) / total) * 100);
-  const lostRate = Math.round((parseInt(overview.lost) / total) * 100);
+  const { overview, activity, bySource, byMonth, staffPerf, lostReasons } = data;
+  const totalRaw = parseInt(overview.total) || 0;
+  const closedRaw = parseInt(overview.closed) || 0;
+  const lostRaw = parseInt(overview.lost) || 0;
+  const activeRaw = Math.max(0, totalRaw - closedRaw - lostRaw);
+  const total = totalRaw || 1;
+  const wonRate = Math.round((closedRaw / total) * 100);
+  const lostRate = Math.round((lostRaw / total) * 100);
 
   return (
     <div className="min-h-screen">
@@ -111,15 +103,13 @@ export default function AnalyticsPage() {
       <div className="max-w-5xl mx-auto p-4 space-y-5">
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <KpiCard label="סה״כ לידים" value={overview.total} color="text-slate-700" />
-          <KpiCard label="חדשים" value={overview.new_leads} color="text-sky-600" />
-          <KpiCard label="בתהליך" value={overview.in_process} color="text-amber-600" />
-          <KpiCard label="סגרו עסקה" value={overview.closed} color="text-emerald-600" />
-          <KpiCard label="לא סגרו" value={overview.lost} color="text-red-500" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <KpiCard label="סה״כ לידים שהתקבלו" value={totalRaw} color="text-slate-700" />
+          <KpiCard label="סגרו" value={closedRaw} color="text-emerald-600" />
+          <KpiCard label="לא סגרו" value={lostRaw} color="text-red-500" />
+          <KpiCard label="עדיין פעילים" value={activeRaw} color="text-violet-600" />
           <KpiCard label="אחוז סגירה" value={`${wonRate}%`} color="text-emerald-700" />
           <KpiCard label="אחוז נשירה" value={`${lostRate}%`} color="text-red-600" />
-          <KpiCard label="פעילים" value={parseInt(overview.in_process) + parseInt(overview.new_leads)} color="text-violet-600" />
         </div>
 
         {/* Leads by Month */}
@@ -131,10 +121,17 @@ export default function AnalyticsPage() {
                 const h = Math.round((parseInt(m.total) / (max || 1)) * 100);
                 const wonH = Math.round((parseInt(m.won) / (max || 1)) * 100);
                 return (
-                  <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                    <div className="w-full relative flex flex-col justify-end" style={{ height: '100px' }}>
+                  <div key={i} className="flex-1 flex flex-col items-center gap-1"
+                    onMouseEnter={() => setHoveredMonth(i)} onMouseLeave={() => setHoveredMonth(null)}>
+                    <div className="w-full relative flex flex-col justify-end cursor-default" style={{ height: '100px' }}>
                       <div className="w-full bg-slate-200 rounded-t-lg absolute bottom-0" style={{ height: `${h}%` }} />
                       <div className="w-full bg-violet-400 rounded-t-lg absolute bottom-0" style={{ height: `${wonH}%` }} />
+                      {hoveredMonth === i && (
+                        <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 z-10 whitespace-nowrap bg-slate-800 text-white text-[11px] rounded-lg px-2 py-1 shadow-lg pointer-events-none">
+                          <div>סה״כ: {m.total}</div>
+                          <div>סגרו: {m.won}</div>
+                        </div>
+                      )}
                     </div>
                     <span className="text-xs text-slate-500">{m.month}</span>
                     <span className="text-xs font-bold text-slate-700">{m.total}</span>
@@ -150,25 +147,37 @@ export default function AnalyticsPage() {
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-          {/* By Stage */}
-          <Card title="לידים לפי שלב">
-            <div className="space-y-2 mt-2">
-              {byStage.filter(s => s.stage !== 'lost').map((s, i, arr) => {
-                const max = Math.max(...arr.map(x => parseInt(x.count)));
-                const pct = Math.round((parseInt(s.count) / (max || 1)) * 100);
-                return (
-                  <div key={s.stage}>
-                    <div className="flex justify-between text-xs mb-0.5">
-                      <span className="font-bold text-slate-700">{parseInt(s.count)}</span>
-                      <span className="text-slate-500">{STAGE_LABELS[s.stage] || s.stage}</span>
+          {/* Sales activity funnel */}
+          <Card title="פעילות">
+            {(() => {
+              const offers    = parseInt(activity?.offers_sent) || 0;
+              const contracts = parseInt(activity?.contracts_sent) || 0;
+              const signed    = parseInt(activity?.contracts_signed) || 0;
+              const max = Math.max(offers, contracts, signed, 1);
+              const steps = [
+                { label: 'הצעות מחיר שנשלחו', value: offers,    color: 'bg-sky-400',     conv: null },
+                { label: 'חוזים שנשלחו',       value: contracts, color: 'bg-violet-400',  conv: offers ? Math.round((contracts / offers) * 100) : null,   convLabel: 'מההצעות' },
+                { label: 'חוזים שנחתמו (מקדמות)', value: signed,  color: 'bg-emerald-500', conv: contracts ? Math.round((signed / contracts) * 100) : null, convLabel: 'מהחוזים' },
+              ];
+              return (
+                <div className="space-y-3 mt-2">
+                  {steps.map((s, i) => (
+                    <div key={i}>
+                      <div className="flex justify-between items-baseline text-xs mb-0.5">
+                        <span className="font-bold text-slate-700">
+                          {s.value}
+                          {s.conv != null && <span className="text-slate-400 font-normal"> · {s.conv}% {s.convLabel}</span>}
+                        </span>
+                        <span className="text-slate-500">{s.label}</span>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-2.5">
+                        <div className={`h-2.5 rounded-full ${s.color}`} style={{ width: `${Math.round((s.value / max) * 100)}%` }} />
+                      </div>
                     </div>
-                    <div className="w-full bg-slate-100 rounded-full h-2">
-                      <div className={`h-2 rounded-full ${STAGE_COLORS[i % STAGE_COLORS.length]}`} style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  ))}
+                </div>
+              );
+            })()}
           </Card>
 
           {/* By Source */}
@@ -178,15 +187,14 @@ export default function AnalyticsPage() {
                 const max = Math.max(...bySource.map(x => parseInt(x.count)));
                 const count = parseInt(s.count);
                 const pct = Math.round((count / (max || 1)) * 100);
-                const progressedPct = count > 0 ? Math.round((parseInt(s.progressed) / count) * 100) : 0;
-                const paidPct       = count > 0 ? Math.round((parseInt(s.paid) / count) * 100) : 0;
                 return (
                   <div key={s.source}>
                     <div className="flex justify-between text-xs mb-0.5">
                       <span className="font-bold text-slate-700">
                         {count}
-                        <span className="text-sky-700 font-normal"> · {progressedPct}% התקדמו</span>
-                        <span className="text-emerald-700 font-normal"> · {paidPct}% שילמו</span>
+                        <span className="text-sky-700 font-normal"> · {parseInt(s.offers) || 0} הצעה</span>
+                        <span className="text-violet-700 font-normal"> · {parseInt(s.contracts) || 0} חוזה</span>
+                        <span className="text-emerald-700 font-normal"> · {parseInt(s.closed) || 0} סגרו</span>
                       </span>
                       <span className="text-slate-500">{SOURCE_LABELS[s.source] || s.source}</span>
                     </div>

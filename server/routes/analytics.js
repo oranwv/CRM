@@ -12,11 +12,15 @@ router.get('/overview', async (req, res) => {
   const wDate  = ranged ? 'WHERE created_at::date BETWEEN $1::date AND $2::date' : '';
   const aDate  = ranged ? 'AND created_at::date BETWEEN $1::date AND $2::date'    : '';
   const jDate  = ranged ? 'AND l.created_at::date BETWEEN $1::date AND $2::date'  : '';
+  // Range predicates for the sales-activity funnel, on each table's own date column
+  const poCreated = ranged ? 'WHERE created_at::date BETWEEN $1::date AND $2::date' : '';
+  const ctCreated = ranged ? 'WHERE created_at::date BETWEEN $1::date AND $2::date' : '';
+  const ctSigned  = ranged ? "AND signed_at::date BETWEEN $1::date AND $2::date"    : '';
 
   try {
     const [
       totalLeads,
-      byStage,
+      activity,
       bySource,
       byMonth,
       staffPerf,
@@ -35,20 +39,25 @@ router.get('/overview', async (req, res) => {
         FROM leads ${wDate}
       `, params),
 
-      // By stage
+      // Sales-activity funnel — distinct leads (a lead with multiple offers/contracts counts once)
       pool.query(`
-        SELECT stage, COUNT(*) AS count
-        FROM leads ${wDate} GROUP BY stage ORDER BY count DESC
+        SELECT
+          (SELECT COUNT(DISTINCT lead_id) FROM price_offers ${poCreated}) AS offers_sent,
+          (SELECT COUNT(DISTINCT lead_id) FROM contracts ${ctCreated}) AS contracts_sent,
+          (SELECT COUNT(DISTINCT lead_id) FROM contracts WHERE status = 'signed' ${ctSigned}) AS contracts_signed
       `, params),
 
-      // By source — quality split: progressed (reached price offer or deeper)
-      // and paid (deposit/production/completed)
+      // By source — distinct leads that got a price offer / contract, plus closed
       pool.query(`
-        SELECT source, COUNT(*) AS count,
-               COUNT(*) FILTER (WHERE stage IN ('offer_sent','negotiation','contract_sent','deposit','production','completed')) AS progressed,
-               COUNT(*) FILTER (WHERE stage IN ('deposit','production','completed')) AS paid
-        FROM leads ${wDate}
-        GROUP BY source ORDER BY count DESC
+        SELECT l.source, COUNT(*) AS count,
+               COUNT(*) FILTER (WHERE l.stage IN ('deposit','production','completed')) AS closed,
+               COUNT(*) FILTER (WHERE po.lead_id IS NOT NULL) AS offers,
+               COUNT(*) FILTER (WHERE ct.lead_id IS NOT NULL) AS contracts
+        FROM leads l
+        LEFT JOIN (SELECT DISTINCT lead_id FROM price_offers) po ON po.lead_id = l.id
+        LEFT JOIN (SELECT DISTINCT lead_id FROM contracts)   ct ON ct.lead_id = l.id
+        ${ranged ? 'WHERE l.created_at::date BETWEEN $1::date AND $2::date' : ''}
+        GROUP BY l.source ORDER BY count DESC
       `, params),
 
       // Leads per month (last 6 months — own window, not range-filtered)
@@ -93,7 +102,7 @@ router.get('/overview', async (req, res) => {
 
     res.json({
       overview:      totalLeads.rows[0],
-      byStage:       byStage.rows,
+      activity:      activity.rows[0],
       bySource:      bySource.rows,
       byMonth:       byMonth.rows,
       staffPerf:     staffPerf.rows,
