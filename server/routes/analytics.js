@@ -15,6 +15,9 @@ router.get('/overview', async (req, res) => {
   // Range predicates for the sales-activity funnel, on each table's own date column
   const poCreated = ranged ? 'WHERE created_at::date BETWEEN $1::date AND $2::date' : '';
   const ctCreated = ranged ? 'WHERE created_at::date BETWEEN $1::date AND $2::date' : '';
+  // Qualified variants for joined contexts (created_at is ambiguous once joined to leads)
+  const poCreatedQ = ranged ? 'WHERE po.created_at::date BETWEEN $1::date AND $2::date' : '';
+  const ctCreatedQ = ranged ? 'WHERE ct.created_at::date BETWEEN $1::date AND $2::date' : '';
   const ctSigned  = ranged ? "AND signed_at::date BETWEEN $1::date AND $2::date"    : '';
   const closedRange = ranged ? 'WHERE close_date::date BETWEEN $1::date AND $2::date' : '';
   const lostRange   = ranged ? 'WHERE lost_date::date BETWEEN $1::date AND $2::date'  : '';
@@ -77,17 +80,32 @@ router.get('/overview', async (req, res) => {
           (SELECT COUNT(DISTINCT lead_id) FROM contracts WHERE status = 'signed' ${ctSigned}) AS contracts_signed
       `, params),
 
-      // By source — distinct leads that got a price offer / contract, plus closed
+      // By source — period activity attributed to each lead's source, so every
+      // column sums to its top-line counterpart (closings counted by close_date)
       pool.query(`
-        SELECT l.source, COUNT(*) AS count,
-               COUNT(*) FILTER (WHERE l.stage IN ('deposit','production','completed')) AS closed,
-               COUNT(*) FILTER (WHERE po.lead_id IS NOT NULL) AS offers,
-               COUNT(*) FILTER (WHERE ct.lead_id IS NOT NULL) AS contracts
-        FROM leads l
-        LEFT JOIN (SELECT DISTINCT lead_id FROM price_offers) po ON po.lead_id = l.id
-        LEFT JOIN (SELECT DISTINCT lead_id FROM contracts)   ct ON ct.lead_id = l.id
-        ${ranged ? 'WHERE l.created_at::date BETWEEN $1::date AND $2::date' : ''}
-        GROUP BY l.source ORDER BY count DESC
+        WITH ${CLOSED_CTE},
+        recv AS (SELECT source, COUNT(*) c FROM leads ${wDate} GROUP BY source),
+        off  AS (SELECT l.source, COUNT(DISTINCT po.lead_id) c
+                 FROM price_offers po JOIN leads l ON l.id = po.lead_id ${poCreatedQ} GROUP BY l.source),
+        con  AS (SELECT l.source, COUNT(DISTINCT ct.lead_id) c
+                 FROM contracts ct JOIN leads l ON l.id = ct.lead_id ${ctCreatedQ} GROUP BY l.source),
+        cls  AS (SELECT l.source, COUNT(*) c
+                 FROM closed cl JOIN leads l ON l.id = cl.lead_id ${closedRange} GROUP BY l.source),
+        srcs AS (
+          SELECT source FROM recv UNION SELECT source FROM off
+          UNION SELECT source FROM con UNION SELECT source FROM cls
+        )
+        SELECT s.source,
+               COALESCE(recv.c, 0) AS count,
+               COALESCE(off.c, 0)  AS offers,
+               COALESCE(con.c, 0)  AS contracts,
+               COALESCE(cls.c, 0)  AS closed
+        FROM srcs s
+        LEFT JOIN recv ON recv.source = s.source
+        LEFT JOIN off  ON off.source  = s.source
+        LEFT JOIN con  ON con.source  = s.source
+        LEFT JOIN cls  ON cls.source  = s.source
+        ORDER BY count DESC, closed DESC
       `, params),
 
       // Leads per month (last 6 months, fixed window): gray = leads received that

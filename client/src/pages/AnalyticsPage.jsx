@@ -154,21 +154,20 @@ export default function AnalyticsPage() {
               const contracts = parseInt(activity?.contracts_sent) || 0;
               const signed    = parseInt(activity?.contracts_signed) || 0;
               const max = Math.max(offers, contracts, signed, 1);
+              const c1 = offers ? Math.round((contracts / offers) * 100) : 0;
+              const c2 = contracts ? Math.round((signed / contracts) * 100) : 0;
               const steps = [
-                { label: 'הצעות מחיר שנשלחו', value: offers,    color: 'bg-sky-400',     conv: null },
-                { label: 'חוזים שנשלחו',       value: contracts, color: 'bg-violet-400',  conv: offers ? Math.round((contracts / offers) * 100) : null,   convLabel: 'מההצעות' },
-                { label: 'חוזים שנחתמו (מקדמות)', value: signed,  color: 'bg-emerald-500', conv: contracts ? Math.round((signed / contracts) * 100) : null, convLabel: 'מהחוזים' },
+                { value: offers,    title: 'הצעות מחיר נשלחו', color: 'bg-sky-400',     note: null },
+                { value: contracts, title: 'חוזים נשלחו',       color: 'bg-violet-400',  note: `ל-${c1}% מהלידים שקיבלו הצעת מחיר נשלח חוזה` },
+                { value: signed,    title: 'חוזים נחתמו',        color: 'bg-emerald-500', note: `${c2}% מהלידים שקיבלו חוזה חתמו עליו` },
               ];
               return (
                 <div className="space-y-3 mt-2">
                   {steps.map((s, i) => (
                     <div key={i}>
-                      <div className="flex justify-between items-baseline text-xs mb-0.5">
-                        <span className="font-bold text-slate-700">
-                          {s.value}
-                          {s.conv != null && <span className="text-slate-400 font-normal"> · {s.conv}% {s.convLabel}</span>}
-                        </span>
-                        <span className="text-slate-500">{s.label}</span>
+                      <div className="text-xs mb-0.5 text-right">
+                        <span className="font-bold text-slate-700">{s.value} {s.title}</span>
+                        {s.note && <span className="text-slate-400 font-normal"> ({s.note})</span>}
                       </div>
                       <div className="w-full bg-slate-100 rounded-full h-2.5">
                         <div className={`h-2.5 rounded-full ${s.color}`} style={{ width: `${Math.round((s.value / max) * 100)}%` }} />
