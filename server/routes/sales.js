@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const pool   = require('../db/pool');
 const { generateEventCosts, normalizeLine } = require('../services/eventCostService');
+const { getWorklist, analyzeLead, getCachedAdvice, lossInsights } = require('../services/salesAdvisor');
 
 // Sales-performance data (closed events + per-event profit) — visible to sales too
 router.use((req, res, next) => {
@@ -155,6 +156,48 @@ router.post('/costs/:leadId/generate', async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('[Sales] generate costs error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── AI Sales Agent ────────────────────────────────────────────────────────────
+
+// GET /api/sales/worklist — ranked active leads (own for sales; all for manager/admin)
+router.get('/worklist', async (req, res) => {
+  try {
+    const items = await getWorklist(req.user);
+    res.json({ items });
+  } catch (err) {
+    console.error('[Sales] worklist error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/sales/leads/:leadId/advice — cached AI advice (null if none yet)
+router.get('/leads/:leadId/advice', async (req, res) => {
+  try {
+    res.json({ advice: await getCachedAdvice(req.params.leadId) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/sales/leads/:leadId/advice — generate/refresh AI advice
+router.post('/leads/:leadId/advice', async (req, res) => {
+  try {
+    res.json({ advice: await analyzeLead(req.params.leadId, req.user.id) });
+  } catch (err) {
+    console.error('[Sales] advice error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/sales/loss-insights?from&to — AI analysis of lost leads
+router.get('/loss-insights', async (req, res) => {
+  try {
+    res.json(await lossInsights(req.query.from, req.query.to));
+  } catch (err) {
+    console.error('[Sales] loss-insights error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

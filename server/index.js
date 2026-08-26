@@ -469,6 +469,19 @@ pool.query(`
     updated_by INT REFERENCES users(id) ON DELETE SET NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW()
   );
+  CREATE TABLE IF NOT EXISTS lead_ai_advice (
+    lead_id INT PRIMARY KEY REFERENCES leads(id) ON DELETE CASCADE,
+    data JSONB NOT NULL,
+    generated_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_by INT REFERENCES users(id) ON DELETE SET NULL
+  );
+  CREATE TABLE IF NOT EXISTS sales_briefing_log (
+    id SERIAL PRIMARY KEY,
+    kind TEXT NOT NULL,
+    recipient INT REFERENCES users(id) ON DELETE CASCADE,
+    sent_on DATE NOT NULL,
+    UNIQUE (kind, recipient, sent_on)
+  );
   CREATE TABLE IF NOT EXISTS finance_missing_expenses (
     id SERIAL PRIMARY KEY,
     fingerprint TEXT UNIQUE NOT NULL,
@@ -701,6 +714,14 @@ function startCronJobs() {
     setInterval(runReminders, 2 * 60 * 1000);
   }, 30 * 1000);
   console.log('[Cron] Reminder service started');
+
+  // AI sales briefings — check hourly; each fires once/day at its configured Israel hour
+  const { runSalesBriefings } = require('./services/salesBriefingService');
+  setTimeout(() => {
+    runSalesBriefings();
+    setInterval(runSalesBriefings, 15 * 60 * 1000);
+  }, 60 * 1000);
+  console.log('[Cron] Sales briefing service started');
 
   // WhatsApp message recovery — scan last 24h every 30 minutes, import anything the webhook missed
   const { syncWhatsAppMessages } = require('./services/waSyncService');

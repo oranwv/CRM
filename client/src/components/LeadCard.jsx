@@ -164,6 +164,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
   const [contacts, setContacts]         = useState([]);
   const [loading, setLoading]           = useState(true);
   const [activeTab, setActiveTab]       = useState('info');
+  const [draftSeed, setDraftSeed]       = useState(null); // {text, ts} pushed from the AI advisor into the composer
   const [savingStage, setSavingStage]   = useState(false);
   const [showLostModal, setShowLostModal]       = useState(false);
   const [showDeleteModal, setShowDeleteModal]   = useState(false);
@@ -535,6 +536,9 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
         {activeTab === 'info' && (
           <div className="max-w-3xl mx-auto p-4 space-y-6">
 
+            {/* AI deal advisor */}
+            <DealAdvisor leadId={leadId} onUseDraft={text => { setDraftSeed({ text, ts: Date.now() }); setActiveTab('whatsapp'); }} />
+
             {/* Status */}
             <Section title="סטטוס"
               action={
@@ -770,7 +774,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
 
         {/* ── WHATSAPP TAB ── */}
         {activeTab === 'whatsapp' && (
-          <WhatsAppTab leadId={leadId} allPhones={allPhones} allPhoneLabels={allPhoneLabels} allEmails={allEmails} leadFiles={files} messages={messages} onSent={load} />
+          <WhatsAppTab leadId={leadId} allPhones={allPhones} allPhoneLabels={allPhoneLabels} allEmails={allEmails} leadFiles={files} messages={messages} onSent={load} initialDraft={draftSeed} />
         )}
       </div>
 
@@ -4021,9 +4025,85 @@ function TasksTab({ leadId, tasks, users, onUpdated, completeTask, onTaskAction,
 }
 
 /* ── WHATSAPP TAB ── */
-function WhatsAppTab({ leadId, allPhones, allPhoneLabels = {}, allEmails = [], leadFiles = [], messages = [], onSent }) {
+const TEMP_META = {
+  hot:  { label: 'חם', cls: 'bg-red-100 text-red-700',       emoji: '🔥' },
+  warm: { label: 'פושר', cls: 'bg-amber-100 text-amber-700', emoji: '🌤️' },
+  cold: { label: 'קר', cls: 'bg-sky-100 text-sky-700',       emoji: '❄️' },
+};
+
+// AI deal advisor: temperature + summary + next action + a ready-to-send draft
+function DealAdvisor({ leadId, onUseDraft }) {
+  const [advice, setAdvice]   = useState(undefined); // undefined=loading, null=none yet
+  const [busy, setBusy]       = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    api.get(`/sales/leads/${leadId}/advice`)
+      .then(r => { if (alive) setAdvice(r.data.advice || null); })
+      .catch(() => { if (alive) setAdvice(null); });
+    return () => { alive = false; };
+  }, [leadId]);
+
+  async function generate() {
+    setBusy(true);
+    try {
+      const { data } = await api.post(`/sales/leads/${leadId}/advice`);
+      setAdvice(data.advice);
+    } catch (err) {
+      alert(err.response?.data?.error || 'שגיאה בניתוח');
+    } finally { setBusy(false); }
+  }
+
+  const t = advice && TEMP_META[advice.temperature] ? TEMP_META[advice.temperature] : null;
+
+  return (
+    <div className="rounded-2xl border border-violet-200 bg-violet-50/50 p-4">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <span className="font-black text-slate-800">🤖 יועץ AI</span>
+          {t && <span className={`text-xs font-bold rounded-full px-2 py-0.5 ${t.cls}`}>{t.emoji} {t.label}</span>}
+        </div>
+        <button onClick={generate} disabled={busy}
+          className="text-xs px-3 py-1 rounded-lg bg-violet-600 text-white font-bold hover:bg-violet-700 transition disabled:opacity-50">
+          {busy ? 'מנתח...' : advice ? 'רענן ניתוח' : 'נתח את הליד'}
+        </button>
+      </div>
+
+      {advice === undefined ? (
+        <p className="text-xs text-slate-400">טוען...</p>
+      ) : !advice ? (
+        <p className="text-xs text-slate-500">לחץ "נתח את הליד" כדי לקבל סיכום, המלצה לפעולה וטיוטת הודעה.</p>
+      ) : (
+        <div className="space-y-2 text-sm">
+          {advice.headline && <p className="font-bold text-slate-800">{advice.headline}</p>}
+          {advice.summary && <p className="text-slate-600 whitespace-pre-wrap">{advice.summary}</p>}
+          {advice.next_action && (
+            <p className="text-slate-700"><span className="font-bold text-violet-700">הצעד הבא: </span>{advice.next_action}</p>
+          )}
+          {advice.draft_message && (
+            <div className="bg-white rounded-xl border border-slate-200 p-2.5">
+              <p className="text-xs font-bold text-slate-500 mb-1">טיוטת הודעה</p>
+              <p className="text-sm text-slate-700 whitespace-pre-wrap">{advice.draft_message}</p>
+              <button onClick={() => onUseDraft(advice.draft_message)}
+                className="mt-2 text-xs px-3 py-1.5 rounded-lg bg-green-600 text-white font-bold hover:bg-green-700 transition">
+                השתמש בטיוטה →
+              </button>
+            </div>
+          )}
+          {advice.generated_at && (
+            <p className="text-[11px] text-slate-400">נוצר {new Date(advice.generated_at).toLocaleString('he-IL')}</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WhatsAppTab({ leadId, allPhones, allPhoneLabels = {}, allEmails = [], leadFiles = [], messages = [], onSent, initialDraft = null }) {
   const [adding, setAdding]           = useState(null); // null | 'wa_send' | 'email_send'
   const [body, setBody]               = useState('');
+  // Seed the composer when the AI advisor pushes a draft (ts makes re-seeding the same text work)
+  useEffect(() => { if (initialDraft?.text) setBody(initialDraft.text); }, [initialDraft?.ts]);
   const [attachments, setAttachments] = useState([]);
   const [drivePickerFor, setDrivePickerFor] = useState(null);
   const [waPhone, setWaPhone]         = useState(allPhones[0] || '');
