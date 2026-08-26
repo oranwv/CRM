@@ -12,27 +12,43 @@ const fmtDate = d => d ? new Date(d).toLocaleDateString('he-IL') : '—';
 const dayStr = d => d.toISOString().slice(0, 10);
 const shiftDays = n => { const d = new Date(); d.setDate(d.getDate() + n); return dayStr(d); };
 
+const KIND_LABELS = {
+  whatsapp: 'וואטסאפ', facebook: 'פייסבוק', instagram: 'אינסטגרם',
+  call: 'שיחה', call_attempt: 'ניסיון שיחה', meeting: 'פגישה', email: 'אימייל', note: 'הערה',
+};
+
+function lastContactText(lc) {
+  if (!lc) return null;
+  const label = KIND_LABELS[lc.kind] || lc.kind || 'קשר';
+  const dir = (lc.kind === 'note') ? '' : (lc.direction === 'inbound' ? ' נכנס' : ' יוצא');
+  const snippet = String(lc.body || '').replace(/\s+/g, ' ').trim().slice(0, 45);
+  return `${label}${dir}${snippet ? ' — ' + snippet : ''}`;
+}
+
 function WorklistItem({ it, onOpen }) {
+  const sentLine = it.tier === 1 ? (it.contract_sent_at ? `חוזה נשלח: ${fmtDate(it.contract_sent_at)}` : 'חוזה נשלח')
+    : it.tier === 2 ? (it.offer_sent_at ? `הצעה נשלחה: ${fmtDate(it.offer_sent_at)}` : 'הצעה נשלחה')
+    : (it.priority === 'דחוף' || it.priority === 'גבוה') ? `עדיפות ${it.priority}` : '';
+  const lc = lastContactText(it.last_contact);
+  const days = it.days_since_contact != null && it.days_since_contact < 900 ? it.days_since_contact : null;
+
   return (
     <button onClick={() => onOpen(it.lead_id)}
       className="w-full text-right bg-white rounded-xl border border-slate-200 px-3 py-2.5 hover:border-violet-300 transition">
       <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0">
-          <p className="font-bold text-slate-800 truncate">
-            {it.name}
-            {it.near_event && <span className="mr-2 text-[10px] bg-red-100 text-red-700 rounded-full px-1.5 py-0.5 font-bold">אירוע קרוב</span>}
-          </p>
-          <p className="text-xs text-slate-500 mt-0.5">
-            {it.event_type || 'אירוע'} · אירוע {fmtDate(it.event_date)}
-            {it.rep && <> · <b>{it.rep}</b></>}
-          </p>
-        </div>
-        <div className="text-left shrink-0">
-          <p className="text-xs font-semibold text-slate-600">{it.reason}</p>
-          {it.days_since_contact != null && it.days_since_contact < 900 &&
-            <p className="text-[11px] text-slate-400">אין קשר {it.days_since_contact} ימים</p>}
-        </div>
+        <p className="font-bold text-slate-800 truncate min-w-0">
+          {it.name}
+          {it.near_event && <span className="mr-2 text-[10px] bg-red-100 text-red-700 rounded-full px-1.5 py-0.5 font-bold">אירוע קרוב</span>}
+        </p>
+        {sentLine && <span className="text-xs font-semibold text-slate-600 shrink-0">{sentLine}</span>}
       </div>
+      <p className="text-xs text-slate-500 mt-0.5">
+        {it.event_type || 'אירוע'} · אירוע {fmtDate(it.event_date)}
+        {it.rep && <> · <b>{it.rep}</b></>}
+      </p>
+      <p className="text-[11px] text-slate-400 mt-0.5">
+        {lc ? <>קשר אחרון: {lc}{days != null && <> · לפני {days} ימים</>}</> : 'אין תיעוד קשר'}
+      </p>
     </button>
   );
 }

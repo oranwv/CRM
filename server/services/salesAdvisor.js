@@ -59,13 +59,20 @@ function classify(row) {
     reason = (row.priority === 'דחוף' || row.priority === 'גבוה') ? `עדיפות ${row.priority}` : `אין קשר ${daysSince} ימים`;
   }
 
-  // Higher score = higher in the list. Tier dominates, event proximity + staleness lift.
-  const tierWeight = { 1: 300, 2: 200, 3: 100 }[tier];
-  const eventBoost = eventDays == null ? 0 : Math.max(0, 90 - Math.max(0, eventDays)); // nearer → bigger
-  const staleBoost = Math.min(daysSince, 30);
-  const score = tierWeight + eventBoost + staleBoost;
+  const last_contact = row.last_body != null
+    ? { kind: row.last_kind, direction: row.last_direction, body: row.last_body, ts: row.last_interaction_at }
+    : null;
 
-  return { tier, reason, score, days_since_contact: daysSince, event_days: eventDays, near_event: nearEvent };
+  return {
+    tier, reason,
+    priority: row.priority,
+    days_since_contact: daysSince,
+    event_days: eventDays,
+    near_event: nearEvent,
+    contract_sent_at: row.contract_sent_at || null,
+    offer_sent_at: row.offer_sent_at || null,
+    last_contact,
+  };
 }
 
 // Ranked active leads for the user's scope (sales → own; manager/admin → all)
@@ -79,27 +86,40 @@ async function getWorklist(user) {
   const { rows } = await pool.query(`
     SELECT l.id AS lead_id, l.name, l.phone, l.event_date, l.event_type, l.stage, l.priority,
            u.display_name AS rep,
-           GREATEST(
-             (SELECT MAX(created_at) FROM lead_interactions WHERE lead_id = l.id),
-             (SELECT MAX(timestamp)  FROM messages          WHERE lead_id = l.id)
-           ) AS last_interaction_at,
+           lc.ts AS last_interaction_at, lc.kind AS last_kind, lc.direction AS last_direction, lc.body AS last_body,
+           (SELECT MAX(created_at) FROM contracts    c2 WHERE c2.lead_id = l.id) AS contract_sent_at,
+           (SELECT MAX(created_at) FROM price_offers p2 WHERE p2.lead_id = l.id) AS offer_sent_at,
            EXISTS (SELECT 1 FROM price_offers po WHERE po.lead_id = l.id) AS has_offer,
            EXISTS (SELECT 1 FROM contracts c WHERE c.lead_id = l.id AND c.status = 'signed') AS has_signed_contract,
            EXISTS (SELECT 1 FROM contracts c WHERE c.lead_id = l.id AND c.status <> 'signed') AS has_unsigned_contract,
            EXISTS (SELECT 1 FROM lead_ai_advice a WHERE a.lead_id = l.id) AS has_advice
     FROM leads l
     LEFT JOIN users u ON u.id = l.assigned_to
+    LEFT JOIN LATERAL (
+      -- most recent REAL contact (excludes stage-change 🔄 and [תזכורת אוטומטית] markers)
+      SELECT ts, direction, kind, body FROM (
+        SELECT timestamp AS ts, direction, channel AS kind, body FROM messages WHERE lead_id = l.id
+        UNION ALL
+        SELECT created_at AS ts, direction, type AS kind, body FROM lead_interactions
+          WHERE lead_id = l.id AND body NOT LIKE '🔄%' AND body NOT LIKE '[תזכורת אוטומטית%'
+      ) x ORDER BY ts DESC LIMIT 1
+    ) lc ON true
     WHERE l.stage <> ALL($${params.length + 1}::text[]) ${scope}
-    ORDER BY l.event_date ASC NULLS LAST
   `, [...params, ACTIVE_EXCLUDE]);
 
-  return rows
-    .map(r => ({
-      lead_id: r.lead_id, name: r.name, phone: r.phone, event_date: r.event_date,
-      event_type: r.event_type, stage: r.stage, rep: r.rep || null, has_advice: r.has_advice,
-      ...classify(r),
-    }))
-    .sort((a, b) => b.score - a.score);
+  const items = rows.map(r => ({
+    lead_id: r.lead_id, name: r.name, phone: r.phone, event_date: r.event_date,
+    event_type: r.event_type, stage: r.stage, rep: r.rep || null, has_advice: r.has_advice,
+    ...classify(r),
+  }));
+
+  // Tiers in priority order; within each tier by the requested freshness (newest first)
+  const freshness = (it) => it.tier === 1 ? it.contract_sent_at
+    : it.tier === 2 ? it.offer_sent_at
+    : it.last_contact?.ts;
+  return items.sort((a, b) =>
+    a.tier - b.tier || (new Date(freshness(b) || 0) - new Date(freshness(a) || 0))
+  );
 }
 
 // AI per-lead advice (draft-only). Cached in lead_ai_advice.
