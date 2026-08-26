@@ -4,7 +4,7 @@ const { OpenAI } = require('openai');
 // Stage groupings
 const ACTIVE_EXCLUDE = ['deposit', 'production', 'completed', 'lost'];
 const STALE_DAYS = 3; // no contact for this long → counts as needing attention
-const NEAR_EVENT_DAYS = 14;
+const NEAR_EVENT_DAYS = 45;
 
 function openai() {
   const key = process.env.OPENAI_API_KEY;
