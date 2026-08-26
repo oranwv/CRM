@@ -1336,12 +1336,32 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
   const [newEventLine, setNewEventLine]       = useState('');
   const [newCostLine, setNewCostLine]         = useState('');
   const [rows, setRows]               = useState(DEFAULT_ROWS);
-  const [loadingImport, setLoadingImport] = useState(false);
+  const [loadingImport, setLoadingImport] = useState(true);
+  const [importDone, setImportDone]       = useState(false); // import is the first screen, before language/type
   const [latestContract,   setLatestContract]   = useState(undefined);
   const [latestPriceOffer, setLatestPriceOffer] = useState(undefined);
   const [newRow, setNewRow]           = useState({ label: '', desc: '', qty: 1, price: 0, isPct: false, pct: 0, inclVat: false });
   const [entryIncl, setEntryIncl]     = useState(false); // VAT basis for the current field-step price entry (default excl)
   useEffect(() => { setEntryIncl(false); }, [step]);
+
+  // Fetch importable sources up front — the import screen is the FIRST step now,
+  // before language/type. Latest contract is fetched without a type filter so we
+  // can offer it regardless of the (not-yet-chosen) new contract's type.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const [cRes, oRes] = await Promise.allSettled([
+        api.get(`/leads/${lead.id}/contracts/latest`),
+        api.get(`/leads/${lead.id}/price-offer/latest`),
+      ]);
+      if (!alive) return;
+      setLatestContract(cRes.status === 'fulfilled' ? cRes.value.data : null);
+      setLatestPriceOffer(oRes.status === 'fulfilled' ? oRes.value.data : null);
+      setLoadingImport(false);
+    })();
+    return () => { alive = false; };
+  }, [lead.id]);
+
   const [sending, setSending]         = useState('');
   const [sent, setSent]               = useState(false);
   const [signingUrl, setSigningUrl]   = useState('');
@@ -1470,7 +1490,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
   const PKG_INCLUDES_STEP = ACTIVE_FIELD_STEPS + 1;
   const previewStep         = isPackage ? ACTIVE_FIELD_STEPS + 2 : addRowStep + 2;
 
-  const isImportStep        = contractType !== null && step === 0;
+  const isImportStep        = !importDone; // the first screen, before language/type
   const isFieldStep         = contractType !== null && step >= 1 && step <= ACTIVE_FIELD_STEPS;
   const isRowStep           = !isPackage && step >= ROW_START && step < addRowStep;
   const isAddRowStep        = !isPackage && step === addRowStep;
@@ -1559,19 +1579,11 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
     }).finally(() => setTranslating(false));
   }, [isPreviewStep, en]);
 
-  async function handleSelectType(type) {
+  // Import already ran as the first screen; choosing a type here (the "create
+  // new" path) just enters the wizard at the first field step.
+  function handleSelectType(type) {
     setContractType(type);
-    setLoadingImport(true);
-    const [cRes, oRes] = await Promise.allSettled([
-      api.get(`/leads/${lead.id}/contracts/latest?type=${type}`),
-      api.get(`/leads/${lead.id}/price-offer/latest`),
-    ]);
-    const contract = cRes.status === 'fulfilled' ? cRes.value.data : null;
-    const offer    = oRes.status === 'fulfilled' ? oRes.value.data : null;
-    setLatestContract(contract);
-    setLatestPriceOffer(offer);
-    setLoadingImport(false);
-    if (!contract && !offer) setStep(1);
+    setStep(1);
   }
 
   // Data entry stays Hebrew: when importing from an English source, keep the
@@ -1580,12 +1592,23 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
     return rows.map(r => { const d = DEFAULT_ROWS.find(x => x.id === r.id); return d ? { ...r, label: d.label, desc: d.desc } : r; });
   }
 
+  // Import is the first screen (before type selection) — the caller sets the
+  // adopted type; this adopts language, closes the import screen, and enters the
+  // wizard at the first field step.
+  function beginImported(srcLang) {
+    if (srcLang === 'en' || srcLang === 'he') { setLanguage(srcLang); setLanguageSelected(true); }
+    setImportDone(true);
+    setStep(1);
+  }
+
   function handleImportFromOffer() {
     const data = latestPriceOffer;
     if (!data) return;
     const f = data.fields || {};
     const srcEn = f.language === 'en';
-    if (isPackage) {
+    const srcPackage = data.offer_type === 'package';
+    setContractType(srcPackage ? 'package' : 'regular');
+    if (srcPackage) {
       setFields(prev => ({
         ...prev,
         clientName:             f.name                    || '',
@@ -1615,17 +1638,19 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
       if (data.rows?.length) setRows(srcEn ? rowsWithHebrewLabels(data.rows) : data.rows);
     }
     if (data.includes?.length && !srcEn) setContractTexts(t => ({ ...t, includes: data.includes }));
-    setStep(1);
+    beginImported(srcEn ? 'en' : 'he');
   }
 
   function handleImportFromContract() {
     const data = latestContract;
     if (!data) return;
     const srcEn = data.language === 'en';
+    const srcPackage = data.offerType === 'package';
+    setContractType(srcPackage ? 'package' : 'regular');
     if (data.fields) setFields(prev => ({ ...prev, ...data.fields }));
-    if (!isPackage && data.rows?.length) setRows(srcEn ? rowsWithHebrewLabels(data.rows) : data.rows);
+    if (!srcPackage && data.rows?.length) setRows(srcEn ? rowsWithHebrewLabels(data.rows) : data.rows);
     if (data.texts && !srcEn) setContractTexts(data.texts);
-    setStep(1);
+    beginImported(srcEn ? 'en' : 'he');
   }
 
   // Download the contract PDF without sending — the contract is still saved
@@ -1724,8 +1749,8 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
 
         <div className="flex-1 overflow-y-auto p-5">
 
-          {/* Language selection (first) */}
-          {contractType === null && !languageSelected && (
+          {/* Language selection */}
+          {importDone && contractType === null && !languageSelected && (
             <div className="flex flex-col items-center gap-4 py-8">
               <p className="font-bold text-slate-700 text-base">באיזו שפה להפיק את החוזה?</p>
               <button onClick={() => chooseLanguage('he')}
@@ -1741,7 +1766,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
           )}
 
           {/* Type selection */}
-          {contractType === null && languageSelected && (
+          {importDone && contractType === null && languageSelected && (
             <div className="flex flex-col items-center gap-4 py-8">
               <p className="font-bold text-slate-700 text-base">בחר סוג חוזה</p>
               <button onClick={() => handleSelectType('regular')}
@@ -1790,33 +1815,32 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
             </div>
           )}
 
-          {/* Import step (step 0) */}
+          {/* Import step — the FIRST screen, before language/type */}
           {isImportStep && (
             <div className="flex flex-col items-center gap-4 py-6">
               {loadingImport ? (
                 <p className="text-slate-500 text-sm">טוען...</p>
               ) : (
-                <div className="text-center">
-                  <p className="font-bold text-slate-700 mb-1">לייבא פרטים?</p>
-                  <p className="text-xs text-slate-400 mb-5">פרטי לקוח, תאריך, שעות, תפריטים ועלויות ימולאו אוטומטית</p>
-                  <div className="flex flex-wrap gap-3 justify-center">
-                    {latestContract && (
-                      <button onClick={handleImportFromContract}
-                        className="px-6 py-2.5 rounded-xl font-bold text-sm text-white"
-                        style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
-                        ייבא מחוזה אחרון
-                      </button>
+                <div className="text-center w-full max-w-xs">
+                  <p className="font-bold text-slate-700 mb-1">לייבא פרטים ממסמך קודם?</p>
+                  <p className="text-xs text-slate-400 mb-5">פרטי לקוח, תאריך, שעות, תפריטים ועלויות ימולאו אוטומטית — הסוג (רגיל/חבילה) יילקח מהמסמך שממנו מייבאים</p>
+                  <div className="flex flex-col gap-3">
+                    <button onClick={handleImportFromContract} disabled={!latestContract}
+                      className="w-full py-3 rounded-xl font-bold text-sm text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                      style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+                      ייבא מחוזה אחרון
+                    </button>
+                    <button onClick={handleImportFromOffer} disabled={!latestPriceOffer}
+                      className="w-full py-3 rounded-xl font-bold text-sm text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                      style={{ background: 'linear-gradient(135deg, #06b6d4, #3b82f6)' }}>
+                      ייבא מהצעת מחיר
+                    </button>
+                    {!latestContract && !latestPriceOffer && (
+                      <p className="text-xs text-slate-400">אין מסמך קודם לליד זה לייבא ממנו</p>
                     )}
-                    {latestPriceOffer && (
-                      <button onClick={handleImportFromOffer}
-                        className="px-6 py-2.5 rounded-xl font-bold text-sm text-white"
-                        style={{ background: 'linear-gradient(135deg, #06b6d4, #3b82f6)' }}>
-                        ייבא מהצעת מחיר
-                      </button>
-                    )}
-                    <button onClick={() => setStep(1)}
-                      className="px-6 py-2.5 rounded-xl font-bold text-sm border border-slate-200 text-slate-600">
-                      לא
+                    <button onClick={() => setImportDone(true)}
+                      className="w-full py-3 rounded-xl font-bold text-sm border border-slate-200 text-slate-600 mt-1">
+                      צור חדש
                     </button>
                   </div>
                 </div>
@@ -2465,6 +2489,10 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
   const [editMode, setEditMode]   = useState(false);
   const [vatAnswered, setVatAnswered] = useState(false);
   const [withVat, setWithVat]         = useState(true);
+  const [importDone, setImportDone]   = useState(false); // import is the first screen, before language/VAT/type
+  const [loadingImport, setLoadingImport] = useState(true);
+  const [latestContract,   setLatestContract]   = useState(undefined);
+  const [latestPriceOffer, setLatestPriceOffer] = useState(undefined);
   const [language, setLanguage]             = useState('he'); // 'he' | 'en'
   const [languageSelected, setLanguageSelected] = useState(false);
   const [translating, setTranslating]       = useState(false);
@@ -2485,6 +2513,24 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
   const [newRow, setNewRow]         = useState({ label: '', desc: '', qty: 1, price: 0, isPct: false, pct: 0, inclVat: false });
   const [entryIncl, setEntryIncl]   = useState(false); // VAT basis for a price entry (default excl)
   useEffect(() => { setEntryIncl(false); }, [step]);
+
+  // Fetch importable sources up front — the import screen is now the FIRST step,
+  // before language/type. Latest contract is fetched without a type filter so we
+  // can offer it regardless of the (not-yet-chosen) new contract's type.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const [cRes, oRes] = await Promise.allSettled([
+        api.get(`/leads/${lead.id}/contracts/latest`),
+        api.get(`/leads/${lead.id}/price-offer/latest`),
+      ]);
+      if (!alive) return;
+      setLatestContract(cRes.status === 'fulfilled' ? cRes.value.data : null);
+      setLatestPriceOffer(oRes.status === 'fulfilled' ? oRes.value.data : null);
+      setLoadingImport(false);
+    })();
+    return () => { alive = false; };
+  }, [lead.id]);
   const [newInclude, setNewInclude] = useState('');
   const [newExtra, setNewExtra]     = useState('');
   const [newPkgLine, setNewPkgLine] = useState('');
@@ -2569,7 +2615,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
   const PKG_ADD_INCLUDE_STEP = PACKAGE_FIELD_STEPS + 5;
   const PKG_PREVIEW_STEP     = PACKAGE_FIELD_STEPS + 6;
 
-  const isFieldStep          = offerType === 'regular' ? step < FIELD_STEPS : step < PACKAGE_FIELD_STEPS;
+  const isFieldStep          = offerType !== '' && (offerType === 'regular' ? step < FIELD_STEPS : step < PACKAGE_FIELD_STEPS);
   const isExtraGuestStep     = offerType === 'regular' && step === EXTRA_GUEST_STEP;
   const isAddIncludeStep     = offerType === 'regular' && step === ADD_INCLUDE_STEP;
   const isRowStep            = offerType === 'regular' && step >= ROW_START && step < addRowStep;
@@ -2604,6 +2650,75 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
     setLanguage(lng);
     setLanguageSelected(true);
   }
+
+  // Keep data entry in Hebrew: relabel imported rows back to the Hebrew defaults
+  // (by id) when the source document was English.
+  function offerRowsHe(srcRows) {
+    const he = {
+      1: { label: 'מחיר אורח', desc: 'כולל שכירות המקום, תפריט קייטרינג, תפריט בר' },
+      2: { label: 'שירות מלצרים', desc: '' },
+      3: { label: 'שירות ברמנים', desc: '' },
+      4: { label: 'מנהל אירוע / קייטרינג שירות', desc: '' },
+      5: { label: 'תאורה והגברה + תפעול לאורך האירוע', desc: '' },
+    };
+    return srcRows.map(r => he[r.id] ? { ...r, ...he[r.id] } : r);
+  }
+
+  // Import is the first screen (before language/VAT/type) — each import ADOPTS
+  // the source's type, language and VAT, then enters the wizard at the first field.
+  function beginImported({ type, lang, vat }) {
+    setOfferType(type);
+    setLanguage(lang); setLanguageSelected(true);
+    setWithVat(vat); setVatAnswered(true);
+    setImportDone(true);
+    setStep(0);
+  }
+
+  function handleImportFromOffer() {
+    const data = latestPriceOffer;
+    if (!data) return;
+    const f = data.fields || {};
+    const srcEn = f.language === 'en';
+    setFields(prev => ({
+      ...prev,
+      name: f.name || '', email: f.email || '', phone: f.phone || '',
+      eventDate: f.eventDate || '', doorTime: f.doorTime || '', endTime: f.endTime || '',
+      guests: f.guests != null ? String(f.guests) : '',
+      chefMenu: f.chefMenu || '', barMenu: f.barMenu || '', notes: f.notes || '',
+      extraGuestPrice: f.extraGuestPrice != null ? String(f.extraGuestPrice) : '',
+      packagePrice: f.packagePrice != null ? String(f.packagePrice) : '',
+      packageGuests: f.packageGuests != null ? String(f.packageGuests) : '',
+      packageExtraGuestPrice: f.packageExtraGuestPrice != null ? String(f.packageExtraGuestPrice) : '',
+    }));
+    if (data.rows?.length) setRows(srcEn ? offerRowsHe(data.rows) : data.rows);
+    if (data.includes?.length && !srcEn) setTexts(t => ({ ...t, includes: data.includes }));
+    beginImported({ type: data.offer_type === 'package' ? 'package' : 'regular', lang: srcEn ? 'en' : 'he', vat: f.withVat !== false });
+  }
+
+  function handleImportFromContract() {
+    const data = latestContract; // contract_data JSON: { fields, rows, texts, calculated, offerType, language }
+    if (!data) return;
+    const srcEn = data.language === 'en';
+    const cf = data.fields || {};
+    const srcPackage = data.offerType === 'package';
+    // Contract field names differ from offer field names — map across.
+    setFields(prev => ({
+      ...prev,
+      name: cf.clientName || '', email: cf.clientEmail || '', phone: cf.clientPhone || '',
+      eventDate: cf.eventDate || prev.eventDate,
+      doorTime: cf.startTime || '', endTime: cf.endTime || '',
+      guests: cf.guests != null ? String(cf.guests) : '',
+      chefMenu: cf.chefMenu || '', barMenu: cf.barMenu || '',
+      extraGuestPrice: cf.extraGuestPrice != null ? String(cf.extraGuestPrice) : '',
+      packagePrice: cf.packageTotal != null ? String(cf.packageTotal) : '',
+      packageGuests: cf.packageGuests != null ? String(cf.packageGuests) : '',
+      packageExtraGuestPrice: cf.packageExtraGuestPrice != null ? String(cf.packageExtraGuestPrice) : '',
+    }));
+    if (!srcPackage && data.rows?.length) setRows(srcEn ? offerRowsHe(data.rows) : data.rows);
+    beginImported({ type: srcPackage ? 'package' : 'regular', lang: srcEn ? 'en' : 'he', vat: (data.calculated?.vat || 0) > 0 });
+  }
+
+  const isImportStep = !importDone; // the first screen, before language/VAT/type
 
   // On reaching the English preview: swap boilerplate to the English defaults (keeping
   // row qty/price), and translate free-text inputs. Entry stays Hebrew throughout.
@@ -2783,8 +2898,41 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-5">
 
+          {/* ── Import pre-step (the FIRST screen) ── */}
+          {isImportStep && (
+            <div className="flex flex-col items-center gap-4 py-6">
+              {loadingImport ? (
+                <p className="text-slate-500 text-sm">טוען...</p>
+              ) : (
+                <div className="text-center w-full max-w-xs">
+                  <p className="font-black text-slate-700 text-lg mb-1">לייבא פרטים ממסמך קודם?</p>
+                  <p className="text-xs text-slate-400 mb-5">פרטי לקוח, תאריך, שעות, תפריטים ועלויות ימולאו אוטומטית — הסוג (רגיל/חבילה) יילקח מהמסמך שממנו מייבאים</p>
+                  <div className="flex flex-col gap-3">
+                    <button onClick={handleImportFromOffer} disabled={!latestPriceOffer}
+                      className="w-full py-3.5 rounded-xl font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                      style={{ background: 'linear-gradient(135deg, #f59e0b, #f97316)' }}>
+                      ייבא מהצעת מחיר אחרונה
+                    </button>
+                    <button onClick={handleImportFromContract} disabled={!latestContract}
+                      className="w-full py-3.5 rounded-xl font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                      style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+                      ייבא מחוזה אחרון
+                    </button>
+                    {!latestContract && !latestPriceOffer && (
+                      <p className="text-xs text-slate-400">אין מסמך קודם לליד זה לייבא ממנו</p>
+                    )}
+                    <button onClick={() => setImportDone(true)}
+                      className="w-full py-3.5 rounded-xl font-bold border-2 border-amber-300 text-amber-700 hover:bg-amber-50 mt-1">
+                      צור חדש
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ── Language pre-step ── */}
-          {offerType === '' && !languageSelected && (
+          {importDone && offerType === '' && !languageSelected && (
             <div className="space-y-4 text-center">
               <p className="font-black text-slate-700 text-lg">באיזו שפה להפיק את ההצעה?</p>
               <button onClick={() => chooseLanguage('he')}
@@ -2799,7 +2947,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
           )}
 
           {/* ── VAT pre-step ── */}
-          {offerType === '' && languageSelected && !vatAnswered && (
+          {importDone && offerType === '' && languageSelected && !vatAnswered && (
             <div className="space-y-4 text-center">
               <p className="font-black text-slate-700 text-lg">האם ההצעה כוללת מע"מ?</p>
               <button onClick={() => { setWithVat(true); setVatAnswered(true); }}
@@ -2814,7 +2962,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
           )}
 
           {/* ── Type selection ── */}
-          {offerType === '' && vatAnswered && (
+          {importDone && offerType === '' && vatAnswered && (
             <div className="space-y-4">
               <p className="text-slate-500 text-sm font-semibold text-center">בחר סוג הצעת מחיר</p>
               <button onClick={() => setOfferType('regular')}

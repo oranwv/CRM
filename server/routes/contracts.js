@@ -252,11 +252,16 @@ contractLeadRouter.get('/latest', async (req, res) => {
   try {
     const { id: leadId } = req.params;
     const { type } = req.query;
+    // type is optional: when omitted, return the latest contract of ANY type
+    // (import now precedes type selection; the response carries offerType).
+    const params = [leadId];
+    let typeClause = '';
+    if (type) { typeClause = " AND contract_data->>'offerType' = $2"; params.push(type); }
     const { rows } = await pool.query(
       `SELECT contract_data FROM contracts
-       WHERE lead_id = $1 AND contract_data->>'offerType' = $2
+       WHERE lead_id = $1${typeClause}
        ORDER BY created_at DESC LIMIT 1`,
-      [leadId, type || 'regular']
+      params
     );
     res.json(rows[0]?.contract_data || null);
   } catch (err) {
