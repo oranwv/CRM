@@ -1,0 +1,117 @@
+{
+  "generated": "2026-09-04T10:54:09Z",
+  "vault": "/Users/weis/Projects/CRM/bedrock",
+  "note_count": 11,
+  "notes": [
+    {
+      "path": "Memory/PROJECT.md",
+      "title": "Project",
+      "note_type": "project-overview",
+      "area": "CRM",
+      "canonical": true,
+      "folder": "Memory",
+      "is_branch_entry": true,
+      "summary": "Sharabiya CRM (a.k.a. \"proevent\") \u2014 a custom CRM for Sharabiya, an event venue at \u05e4\u05e0\u05d7\u05e1 \u05d1\u05df \u05d9\u05d0\u05d9\u05e8 3, \u05ea\u05dc \u05d0\u05d1\u05d9\u05d1 (Tel Aviv). It manages the full event-business lifecycle: from first lead inquiry, through boo..."
+    },
+    {
+      "path": "Memory/ai-and-integrations.md",
+      "title": "AI & Integrations",
+      "note_type": "domain",
+      "area": "CRM",
+      "canonical": true,
+      "folder": "Memory",
+      "is_branch_entry": false,
+      "summary": "External integrations are the backbone of this CRM. Routes in server/routes/, service clients in server/services/. - Green API \u2014 primary. Webhook in prod (SERVER_URL set), long-poll locally. server/se..."
+    },
+    {
+      "path": "Memory/decisions.md",
+      "title": "Decisions",
+      "note_type": "decisions-log",
+      "area": "CRM",
+      "canonical": true,
+      "folder": "Memory",
+      "is_branch_entry": false,
+      "summary": "Durable architectural / product decisions. Most are encoded in PRD.md and the git history; this captures the ones a new agent should not have to rediscover. Decision: Monorepo with Node/Express API (s..."
+    },
+    {
+      "path": "Memory/glossary.md",
+      "title": "Glossary",
+      "note_type": "glossary",
+      "area": "CRM",
+      "canonical": true,
+      "folder": "Memory",
+      "is_branch_entry": false,
+      "summary": "Project-specific terms, Hebrew vocabulary, and names. - Sharabiya / \u05e9\u05e8\u05d1\u05d9\u05d4 \u2014 the event venue this CRM serves (Tel Aviv). Brand also surfaces as \"proevent\" (domain proevent.co.il). - \u05dc\u05d9\u05d3 (lead) \u2014 a pros..."
+    },
+    {
+      "path": "Memory/leads-pipeline.md",
+      "title": "Leads Pipeline",
+      "note_type": "domain",
+      "area": "CRM",
+      "canonical": true,
+      "folder": "Memory",
+      "is_branch_entry": false,
+      "summary": "The core entity is the lead (\u05dc\u05d9\u05d3). All leads are visible to everyone; each has an assigned owner. Every action is attributed to the logged-in user. - Website popup form + contact form (parsed from Gma..."
+    },
+    {
+      "path": "Memory/operations-and-docs.md",
+      "title": "Operations & Documents",
+      "note_type": "domain",
+      "area": "CRM",
+      "canonical": true,
+      "folder": "Memory",
+      "is_branch_entry": false,
+      "summary": "Covers the post-booking side: event production, sales documents, and guest RSVP. - OperationsPage.jsx, components in client/src/components/ops, route server/routes/operations.js, productionChecklist.j..."
+    },
+    {
+      "path": "Work/NOW.md",
+      "title": "Now",
+      "note_type": "work-now",
+      "area": "CRM",
+      "canonical": true,
+      "folder": "Work",
+      "is_branch_entry": false,
+      "summary": "Draft-only AI sales assistant. Files: server/services/salesAdvisor.js (worklist ranking + analyzeLead + lossInsights), salesBriefingService.js (WhatsApp cron), sales.js routes, client SalesWorklistPag..."
+    },
+    {
+      "path": "Work/backlog.md",
+      "title": "Backlog",
+      "note_type": "backlog",
+      "area": "CRM",
+      "canonical": true,
+      "folder": "Work",
+      "is_branch_entry": false,
+      "summary": "Use this for useful future work. Keep it short and reviewable. - [ ] Task, why it matters - [ ] Task, why it matters"
+    },
+    {
+      "path": "Work/open-questions.md",
+      "title": "Open Questions",
+      "note_type": "open-questions",
+      "area": "CRM",
+      "canonical": true,
+      "folder": "Work",
+      "is_branch_entry": false,
+      "summary": "Questions that are not resolved yet. - Question - Why it matters: - Related context:"
+    },
+    {
+      "path": "Work/risks.md",
+      "title": "Risks",
+      "note_type": "risks",
+      "area": "CRM",
+      "canonical": true,
+      "folder": "Work",
+      "is_branch_entry": false,
+      "summary": "Known project risks. - Risk: no Node/npm installed on the dev machine \u2014 client and server changes ship without local build/lint/tests. - Why it matters: syntax or JSX errors surface only after Railway..."
+    },
+    {
+      "path": "Evidence/raw/git-recent.md",
+      "title": "Recent Git History",
+      "note_type": "evidence",
+      "area": "",
+      "canonical": false,
+      "folder": "Evidence",
+      "is_branch_entry": false,
+      "summary": "Last 30 commits as of 2026-09-04. 38860a7 Lead activity: voice recording + transcription (Whisper) b7bb51f Sales worklist: 'near event' badge now covers the next 45 days (was 14) 590bbe0 Sales worklis..."
+    }
+  ]
+}

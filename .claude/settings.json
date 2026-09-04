@@ -1,0 +1,37 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bedrock sync --project /Users/weis/Projects/CRM && bedrock refresh-system --project /Users/weis/Projects/CRM"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bedrock sync --project /Users/weis/Projects/CRM"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bedrock sync --project /Users/weis/Projects/CRM"
+          }
+        ]
+      }
+    ]
+  }
+}

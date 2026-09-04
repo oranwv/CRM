@@ -1,0 +1,13 @@
+{"ts":"2026-06-14T08:40:07Z","type":"project_start","tool":"git","slug":"crm","summary":"Project started (first commit: 2026-04-21, 265 total commits)"}
+{"ts":"2026-06-14T08:40:07Z","type":"integration_cursor","tool":"cli","slug":"crm","summary":"cursor integration detected"}
+{"ts":"2026-06-14T08:40:07Z","type":"integration_claude","tool":"cli","slug":"crm","summary":"claude integration detected"}
+{"ts":"2026-06-14T08:40:07Z","type":"backfill","tool":"cli","slug":"crm","summary":"History backfill: 265 commits, 0 releases, 2 integrations"}
+{"ts":"2026-07-01T10:54:12Z","type":"integration_cursor","tool":"cli","slug":"CRM","summary":"cursor integration detected"}
+{"ts":"2026-07-01T10:54:12Z","type":"integration_claude","tool":"cli","slug":"CRM","summary":"claude integration detected"}
+{"ts":"2026-07-01T10:54:12Z","type":"backfill","tool":"cli","slug":"CRM","summary":"History backfill: 275 commits, 0 releases, 2 integrations"}
+{"ts":"2026-08-01T05:21:05Z","type":"integration_cursor","tool":"cli","slug":"CRM","summary":"cursor integration detected"}
+{"ts":"2026-08-01T05:21:05Z","type":"integration_claude","tool":"cli","slug":"CRM","summary":"claude integration detected"}
+{"ts":"2026-08-01T05:21:05Z","type":"backfill","tool":"cli","slug":"CRM","summary":"History backfill: 314 commits, 0 releases, 2 integrations"}
+{"ts":"2026-09-04T10:54:09Z","type":"integration_cursor","tool":"cli","slug":"CRM","summary":"cursor integration detected"}
+{"ts":"2026-09-04T10:54:09Z","type":"integration_claude","tool":"cli","slug":"CRM","summary":"claude integration detected"}
+{"ts":"2026-09-04T10:54:09Z","type":"backfill","tool":"cli","slug":"CRM","summary":"History backfill: 333 commits, 0 releases, 2 integrations"}

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --check /Users/weis/Projects/CRM/server/routes/chat.js)",
+      "Bash(node --check /Users/weis/Projects/CRM/server/routes/admin.js)",
+      "Read(//Users/weis/.nvm/versions/**)",
+      "Read(//Applications/**)",
+      "Bash(command -v npx bun deno)",
+      "Bash(node server/scripts/testReconcile.js)",
+      "Bash(node -e ' *)"
+    ]
+  }
+}
