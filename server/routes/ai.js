@@ -1,12 +1,29 @@
 const router = require('express').Router();
+const multer = require('multer');
 const pool   = require('../db/pool');
-const { OpenAI } = require('openai');
+const { OpenAI, toFile } = require('openai');
+
+const audioUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
 function getClient() {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error('OPENAI_API_KEY is not set');
   return new OpenAI({ apiKey: key });
 }
+
+// POST /api/ai/transcribe — voice recording → text (OpenAI Whisper, Hebrew)
+router.post('/transcribe', audioUpload.single('audio'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'לא התקבלה הקלטה' });
+  if (!process.env.OPENAI_API_KEY) return res.status(503).json({ error: 'תמלול אינו זמין (OPENAI_API_KEY חסר)' });
+  try {
+    const file = await toFile(req.file.buffer, req.file.originalname || 'audio.webm', { type: req.file.mimetype || 'audio/webm' });
+    const transcription = await getClient().audio.transcriptions.create({ model: 'whisper-1', file, language: 'he' });
+    res.json({ text: transcription.text || '' });
+  } catch (err) {
+    console.error('[AI] transcribe error:', err.message);
+    res.status(500).json({ error: 'שגיאה בתמלול ההקלטה' });
+  }
+});
 
 // POST /api/ai/translate — translate text to Hebrew or English
 router.post('/translate', async (req, res) => {

@@ -3682,6 +3682,100 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
   );
 }
 
+/* ── VOICE RECORDER ── record audio in the browser and transcribe to text.
+   Calls onTranscript(text) with the Hebrew transcription. Text-only (the audio
+   itself is not stored). */
+function VoiceRecorder({ onTranscript, disabled }) {
+  const [state, setState] = useState('idle'); // 'idle' | 'recording' | 'transcribing'
+  const [elapsed, setElapsed] = useState(0);
+  const [error, setError] = useState('');
+  const recRef = useRef(null);
+  const chunksRef = useRef([]);
+  const streamRef = useRef(null);
+  const timerRef = useRef(null);
+
+  function pickMime() {
+    const opts = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
+    return opts.find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
+  }
+
+  async function start() {
+    setError('');
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+      setError('הדפדפן לא תומך בהקלטה'); return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const mimeType = pickMime();
+      const rec = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      chunksRef.current = [];
+      rec.ondataavailable = e => { if (e.data.size) chunksRef.current.push(e.data); };
+      rec.onstop = () => transcribe(rec.mimeType || mimeType || 'audio/webm');
+      recRef.current = rec;
+      rec.start();
+      setState('recording');
+      setElapsed(0);
+      timerRef.current = setInterval(() => setElapsed(s => s + 1), 1000);
+    } catch (err) {
+      setError(err.name === 'NotAllowedError' ? 'הגישה למיקרופון נדחתה' : 'שגיאה בפתיחת המיקרופון');
+    }
+  }
+
+  function stop() {
+    clearInterval(timerRef.current);
+    try { recRef.current?.stop(); } catch {}
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    setState('transcribing');
+  }
+
+  async function transcribe(mimeType) {
+    try {
+      const blob = new Blob(chunksRef.current, { type: mimeType });
+      if (!blob.size) { setState('idle'); return; }
+      const ext = mimeType.includes('mp4') ? 'mp4' : mimeType.includes('ogg') ? 'ogg' : 'webm';
+      const fd = new FormData();
+      fd.append('audio', blob, `rec.${ext}`);
+      const { data } = await api.post('/ai/transcribe', fd);
+      if (data.text?.trim()) onTranscript(data.text.trim());
+      else setError('לא זוהה טקסט בהקלטה');
+    } catch (err) {
+      setError(err.response?.data?.error || 'שגיאה בתמלול');
+    } finally {
+      setState('idle');
+    }
+  }
+
+  useEffect(() => () => { clearInterval(timerRef.current); streamRef.current?.getTracks().forEach(t => t.stop()); }, []);
+
+  const mmss = `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`;
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      {state === 'idle' && (
+        <button type="button" onClick={start} disabled={disabled}
+          className="text-sm font-bold px-3 py-1.5 rounded-xl border-2 border-rose-200 text-rose-600 hover:bg-rose-50 disabled:opacity-40 transition">
+          🎤 הקלטה
+        </button>
+      )}
+      {state === 'recording' && (
+        <button type="button" onClick={stop}
+          className="text-sm font-bold px-3 py-1.5 rounded-xl bg-rose-600 text-white flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
+          עצור ותמלל · {mmss}
+        </button>
+      )}
+      {state === 'transcribing' && (
+        <span className="text-sm font-bold text-slate-500 flex items-center gap-2">
+          <span className="inline-block w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+          מתמלל…
+        </span>
+      )}
+      {error && <span className="text-xs text-red-600 font-bold">{error}</span>}
+    </div>
+  );
+}
+
 /* ── TIMELINE SECTION ── */
 function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, allPhoneLabels = {}, leadFiles = [], onAdded, onAddTask }) {
   const phone = allPhones[0] || null;
@@ -3767,7 +3861,8 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, allPhon
           </div>
           <textarea autoFocus value={body} onChange={e => setBody(e.target.value)}
             className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-violet-400 resize-none"
-            rows={3} placeholder="תיאור..." />
+            rows={3} placeholder="תיאור... (או הקלטה קולית)" />
+          <VoiceRecorder disabled={saving} onTranscript={t => setBody(b => b.trim() ? b.trim() + '\n' + t : t)} />
           <div className="flex gap-2">
             <button onClick={() => setAdding(null)} className="flex-1 border-2 border-slate-200 text-slate-500 text-base font-bold py-1.5 rounded-xl">ביטול</button>
             <button onClick={saveLog} disabled={saving || !body.trim()}
