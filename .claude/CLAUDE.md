@@ -46,6 +46,10 @@ Otherwise:
 
 `bedrock view` builds a styled HTML site from the vault with emoji icons, TOC, Mermaid diagram rendering, and wikilink navigation. These are HTML-only features — plain-text rules (no emojis in code/responses) do not apply to the generated site.
 
+## Owner rules
+
+- **Never change an existing design or an existing feature without an explicit instruction from the owner. If a change seems needed, ask first.** (2026-09-05)
+
 ## Git sync protocol (every session, any device — Mac, Cowork cloud, phone)
 
 GitHub is the source of truth between the owner's Mac and Claude sessions.
