@@ -428,7 +428,11 @@ router.patch('/:id/tasks/:taskId/reschedule', async (req, res) => {
 
 // POST /api/leads/:id/email/send
 router.post('/:id/email/send', emailUpload.array('files', 10), async (req, res) => {
-  const { to, subject, body, driveFileIds } = req.body;
+  const { to: toRaw, subject, body, driveFileIds } = req.body;
+  // A lead can have several contact people — `to` may be an array or a
+  // comma-separated list; RFC 5322 allows all of them in one To: header.
+  const to = (Array.isArray(toRaw) ? toRaw : String(toRaw || '').split(','))
+    .map(x => String(x).trim()).filter(Boolean).join(', ');
   if (!to || !body) return res.status(400).json({ error: 'to and body are required' });
   try {
     const { sendEmail } = require('../services/gmailService');

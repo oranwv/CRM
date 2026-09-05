@@ -20,6 +20,8 @@ This is not a git replacement.
 
 ## Recent Activity
 
+- **2026-09-05** `feature` — WhatsApp/email sends can target several contact people (multi-recipient)
+
 - **2026-09-04** `backfill` — History backfill: 333 commits, 0 releases, 2 integrations
 - **2026-09-04** `integration_claude` — claude integration detected
 - **2026-09-04** `integration_cursor` — cursor integration detected

@@ -1,6 +1,6 @@
 ---
 note_type: output
-generated: 2026-09-04T10:54:09Z
+generated: 2026-09-04T11:06:50Z
 canonical: false
 ---
 
@@ -8,7 +8,7 @@ canonical: false
 
 > Generated output. Not canonical. Do not treat as Memory.
 
-Generated: 2026-09-04T10:54:09Z  
+Generated: 2026-09-04T11:06:50Z  
 Total notes: 11
 
 ## Memory [canonical]
@@ -29,7 +29,7 @@ Total notes: 11
 ## Work [canonical]
 
 - **Now** `Work/NOW.md`
-  Draft-only AI sales assistant. Files: server/services/salesAdvisor.js (worklist ranking + analyzeLead + lossInsights), s...
+  - Claude Cowork (cloud session) is now linked to this Mac with folders CRM, sharabiya-website, wiwi-personal-assistant a...
 - **Backlog** `Work/backlog.md`
   Use this for useful future work. Keep it short and reviewable. - [ ] Task, why it matters - [ ] Task, why it matters
 - **Open Questions** `Work/open-questions.md`
@@ -40,5 +40,5 @@ Total notes: 11
 ## Evidence [non-canonical]
 
 - **Recent Git History** `Evidence/raw/git-recent.md`
-  Last 30 commits as of 2026-09-04. 38860a7 Lead activity: voice recording + transcription (Whisper) b7bb51f Sales worklis...
+  Last 30 commits as of 2026-09-04. 64ad0e4 docs: track bedrock vault + agent config in git; session log through 2026-09-0...
 

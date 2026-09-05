@@ -21,3 +21,7 @@ bedrock/.obsidian/workspace.json
 bedrock/.obsidian/workspaces.json
 
 .DS_Store
+
+# Cowork session scratch (screenshots, temp exports)
+Claude outputs/
+*.tgz

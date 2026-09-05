@@ -272,6 +272,10 @@ contractLeadRouter.get('/latest', async (req, res) => {
 contractLeadRouter.post('/', async (req, res) => {
   try {
     const { contract_data, sent_via, whatsapp_phone } = req.body;
+    // A lead can have several contact people — whatsapp_phone may arrive as an
+    // array or a comma-separated list and is stored as a comma-separated list.
+    const waPhoneList = (Array.isArray(whatsapp_phone) ? whatsapp_phone : String(whatsapp_phone || '').split(','))
+      .map(x => String(x).trim()).filter(Boolean).join(',') || null;
     if (!contract_data) return res.status(400).json({ error: 'contract_data required' });
     const download = !!req.body.download;
 
@@ -279,7 +283,7 @@ contractLeadRouter.post('/', async (req, res) => {
     const { rows } = await pool.query(
       `INSERT INTO contracts (lead_id, token, contract_data, created_by, sent_via, whatsapp_phone)
        VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, token`,
-      [req.params.id, token, JSON.stringify(contract_data), req.user.id, sent_via || null, whatsapp_phone || null]
+      [req.params.id, token, JSON.stringify(contract_data), req.user.id, sent_via || null, waPhoneList]
     );
 
     await pool.query(
@@ -441,7 +445,13 @@ contractPublicRouter.post('/:token/sign', async (req, res) => {
     } catch (e) { console.error('[Contracts] sharabiya email failed:', e.message); }
 
     // Send to customer — same message body for both channels
+    // clientEmailExtra holds the additional contact people the contract was
+    // emailed to; the signed copy goes back to all of them.
+    const extraEmails = Array.isArray(contract.contract_data?.fields?.clientEmailExtra)
+      ? contract.contract_data.fields.clientEmailExtra.filter(Boolean)
+      : [];
     const clientEmail = contract.contract_data?.fields?.clientEmail || contract.lead_email;
+    const clientEmailTo = [clientEmail, ...extraEmails].filter(Boolean).join(', ');
     const { rows: emailSettings } = await pool.query(
       `SELECT key, value FROM settings WHERE key IN ('contract_email_body','contract_email_bank')`
     );
@@ -461,7 +471,7 @@ contractPublicRouter.post('/:token/sign', async (req, res) => {
     if (clientEmail) {
       try {
         await sendEmail({
-          to: clientEmail,
+          to: clientEmailTo,
           subject: 'החוזה החתום שלך — שרביה',
           body: clientMessage,
           attachmentBuffer: pdfBuffer,
@@ -473,26 +483,36 @@ contractPublicRouter.post('/:token/sign', async (req, res) => {
 
     // WhatsApp: when the contract was sent via WhatsApp — always; for contracts
     // created before sent_via existed — only as the no-email fallback (old behavior).
+    // whatsapp_phone holds every recipient the contract was sent to (comma
+    // separated) — the signed copy goes back to all of them, not just the first.
     const waTarget = contract.whatsapp_phone || contract.contract_data?.fields?.clientPhone || contract.lead_phone;
+    const waPhones = [];
+    for (const entry of String(waTarget || '').split(',')) {
+      const digits = entry.replace(/\D/g, '').replace(/^0/, '972');
+      if (digits && !waPhones.includes(digits)) waPhones.push(digits);
+    }
     const shouldSendWa = contract.sent_via === 'whatsapp' || (!contract.sent_via && !clientEmail);
-    if (shouldSendWa && waTarget) {
+    if (shouldSendWa && waPhones.length) {
       try {
         const { GREEN_API_URL, GREEN_API_INSTANCE, GREEN_API_TOKEN } = process.env;
         if (GREEN_API_URL && GREEN_API_INSTANCE && GREEN_API_TOKEN) {
-          const phone = waTarget.replace(/\D/g, '').replace(/^0/, '972');
           // Bucket is private — Green API must fetch via a signed URL (the stored
           // public URL 404s). 1h expiry is ample; Green API downloads immediately.
           const waFileUrl = await getSignedUrl(storedName, 3600);
-          await axios.post(
-            `${GREEN_API_URL}/waInstance${GREEN_API_INSTANCE}/sendFileByUrl/${GREEN_API_TOKEN}`,
-            { chatId: `${phone}@c.us`, urlFile: waFileUrl, fileName: filename, caption: clientMessage },
-            { timeout: 15000 }
-          );
-          await pool.query(
-            `INSERT INTO messages (lead_id, channel, direction, body, timestamp, contact_value)
-             VALUES ($1, 'whatsapp', 'outbound', $2, NOW(), $3)`,
-            [contract.lead_id, `[חוזה חתום מצורף]\n${clientMessage}`, phone]
-          );
+          for (const phone of waPhones) {
+            try {
+              await axios.post(
+                `${GREEN_API_URL}/waInstance${GREEN_API_INSTANCE}/sendFileByUrl/${GREEN_API_TOKEN}`,
+                { chatId: `${phone}@c.us`, urlFile: waFileUrl, fileName: filename, caption: clientMessage },
+                { timeout: 15000 }
+              );
+              await pool.query(
+                `INSERT INTO messages (lead_id, channel, direction, body, timestamp, contact_value)
+                 VALUES ($1, 'whatsapp', 'outbound', $2, NOW(), $3)`,
+                [contract.lead_id, `[חוזה חתום מצורף]\n${clientMessage}`, phone]
+              );
+            } catch (e) { console.error('[Contracts] WhatsApp send failed for', phone, e.message); }
+          }
         }
       } catch (e) { console.error('[Contracts] WhatsApp send failed:', e.message); }
     }

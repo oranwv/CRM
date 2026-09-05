@@ -151,6 +151,33 @@ function fileIconByExt(name = '') {
   return '📎';
 }
 
+// A lead can have more than one contact person (leads.phone/email plus the
+// extra lead_contacts rows), and documents often need to reach both of them.
+// Every send flow uses this list: the value stays a comma-separated string, and
+// the server splits it into one send + one timeline row per recipient.
+function ContactCheckList({ title, options, labels = {}, value, onChange }) {
+  if (!options?.length) return null;
+  const selected = String(value || '').split(',').map(x => x.trim()).filter(Boolean);
+  const toggle = v => {
+    const next = selected.includes(v) ? selected.filter(x => x !== v) : [...selected, v];
+    onChange(next.join(','));
+  };
+  return (
+    <div className="space-y-1">
+      {title && <label className="text-xs font-bold text-slate-500 block">{title}</label>}
+      {options.map(v => (
+        <label key={v} className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
+          <input type="checkbox" checked={selected.includes(v)} onChange={() => toggle(v)} />
+          {labels?.[v] ? `${labels[v]} (${v})` : v}
+        </label>
+      ))}
+      {selected.length > 1 && (
+        <p className="text-[11px] font-bold text-violet-600">יישלח ל-{selected.length} נמענים</p>
+      )}
+    </div>
+  );
+}
+
 export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
   const currentUser = JSON.parse(localStorage.getItem('crm_user') || '{}');
   const isManager   = ['admin', 'manager'].includes(currentUser.role);
@@ -1374,6 +1401,8 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
   const [contractSendStep, setContractSendStep] = useState(null); // null | 'wa' | 'email'
   const [contractDrivePicker, setContractDrivePicker] = useState(false);
   const [waPhone, setWaPhone] = useState(allPhones?.[0] || lead?.phone || '');
+  // Comma-separated; the first one stays the address printed on the contract.
+  const [contractEmailTo, setContractEmailTo] = useState('');
   const contractFileRef = useRef(null);
 
   const [contractTexts, setContractTexts] = useState({
@@ -1685,8 +1714,16 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
     setContractSendStep(null);
     try {
       const calculated = { subtotal, vat, total, depositAmount, depositAmountVat, remainingBalance, cancellationDate };
+      // Both channels may target several contact people. For email the first
+      // address stays fields.clientEmail (it is printed on the contract) and the
+      // rest ride in clientEmailExtra, so the signed copy goes back to all.
+      const emailList = String(contractEmailTo || fields.clientEmail || '')
+        .split(',').map(x => x.trim()).filter(Boolean);
+      const sendFields = channel === 'email' && emailList.length
+        ? { ...fields, clientEmail: emailList[0], clientEmailExtra: emailList.slice(1) }
+        : fields;
       const { data } = await api.post(`/leads/${lead.id}/contracts`, {
-        contract_data: { fields, rows, calculated, texts: contractTexts, offerType: contractType, language },
+        contract_data: { fields: sendFields, rows, calculated, texts: contractTexts, offerType: contractType, language },
         sent_via: channel === 'email' ? 'email' : 'whatsapp',
         whatsapp_phone: channel === 'email' ? null : waPhone,
       });
@@ -1696,7 +1733,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
       const msg = `שלום ${fields.clientName},\n\nמצורף קישור לחוזה לחתימה דיגיטלית:\n${url}\n\nבברכה, צוות שרביה`;
       if (channel === 'email') {
         const fd = new FormData();
-        fd.append('to', fields.clientEmail);
+        fd.append('to', emailList.join(', ') || fields.clientEmail);
         fd.append('subject', `חוזה לחתימה — ${fields.clientName} — שרביה`);
         fd.append('body', msg);
         const driveIds = [];
@@ -2277,7 +2314,9 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
               <p className="text-3xl">✅</p>
               <p className="font-bold text-slate-800">החוזה נשלח לחתימה!</p>
               <p className="text-xs text-slate-500">
-                {sentChannel === 'email' ? `נשלח לאימייל: ${fields.clientEmail}` : `נשלח ב-WhatsApp ל: ${fields.clientPhone}`}
+                {sentChannel === 'email'
+                  ? `נשלח לאימייל: ${(contractEmailTo || fields.clientEmail || '').split(',').join(', ')}`
+                  : `נשלח ב-WhatsApp ל: ${(waPhone || fields.clientPhone || '').split(',').join(', ')}`}
               </p>
               <div className="bg-slate-50 rounded-xl p-3 text-xs text-slate-600 break-all">{signingUrl}</div>
               <button onClick={() => { navigator.clipboard.writeText(signingUrl); }}
@@ -2297,28 +2336,12 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
           ) : contractSendStep ? (
             <div className="space-y-2">
               {contractSendStep === 'whatsapp' && allPhones?.length > 1 && (
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 block">שלח לנייד:</label>
-                  {allPhones.map(p => (
-                    <label key={p} className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
-                      <input type="radio" name="contractWaPhone" value={p}
-                        checked={waPhone === p} onChange={() => setWaPhone(p)} />
-                      {allPhoneLabels?.[p] ? `${allPhoneLabels[p]} (${p})` : p}
-                    </label>
-                  ))}
-                </div>
+                <ContactCheckList title="שלח לנייד:" options={allPhones} labels={allPhoneLabels}
+                  value={waPhone} onChange={setWaPhone} />
               )}
               {contractSendStep === 'email' && allEmails?.length > 1 && (
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 block">שלח לאימייל:</label>
-                  {allEmails.map(e => (
-                    <label key={e} className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
-                      <input type="radio" name="contractEmail" value={e}
-                        checked={fields.clientEmail === e} onChange={() => setFields(f => ({ ...f, clientEmail: e }))} />
-                      {allEmailLabels?.[e] ? `${allEmailLabels[e]} (${e})` : e}
-                    </label>
-                  ))}
-                </div>
+                <ContactCheckList title="שלח לאימייל:" options={allEmails} labels={allEmailLabels}
+                  value={contractEmailTo} onChange={setContractEmailTo} />
               )}
               <p className="text-sm font-bold text-slate-700">קבצים נוספים (אופציונלי)</p>
               <input ref={contractFileRef} type="file" className="hidden" onChange={e => { const f = e.target.files[0]; if (f) { setContractExtraFiles(a => [...a, { type: 'local', file: f }]); e.target.value = ''; } }} />
@@ -2360,7 +2383,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                 className="flex-1 py-2.5 rounded-xl font-black text-sm bg-green-600 text-white disabled:opacity-50">
                 {sending === 'whatsapp' ? 'שולח...' : 'וואטסאפ'}
               </button>
-              <button onClick={() => { setContractExtraFiles([]); setContractSendStep('email'); }} disabled={!!sending || !fields.clientEmail}
+              <button onClick={() => { setContractExtraFiles([]); setContractEmailTo(fields.clientEmail || allEmails?.[0] || ''); setContractSendStep('email'); }} disabled={!!sending || !fields.clientEmail}
                 className="flex-1 py-2.5 rounded-xl font-black text-sm bg-sky-600 text-white disabled:opacity-50">
                 {sending === 'email' ? 'שולח...' : 'אימייל'}
               </button>
@@ -3574,16 +3597,8 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
             {showWaExtraFiles ? (
               <div className="space-y-2">
                 {allPhones?.length > 1 && (
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-500 block">שלח לנייד:</label>
-                    {allPhones.map(p => (
-                      <label key={p} className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
-                        <input type="radio" name="offerWaPhone" value={p}
-                          checked={waPhone === p} onChange={() => setWaPhone(p)} />
-                        {allPhoneLabels?.[p] ? `${allPhoneLabels[p]} (${p})` : p}
-                      </label>
-                    ))}
-                  </div>
+                  <ContactCheckList title="שלח לנייד:" options={allPhones} labels={allPhoneLabels}
+                    value={waPhone} onChange={setWaPhone} />
                 )}
                 <p className="text-sm font-bold text-slate-700">קבצים נוספים לשליחה בוואטסאפ (אופציונלי)</p>
                 <input ref={offerFileRef} type="file" className="hidden" onChange={e => { const f = e.target.files[0]; if (f) { setOfferExtraFiles(a => [...a, { type: 'local', file: f }]); e.target.value = ''; } }} />
@@ -3616,12 +3631,8 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
             ) : showEmailForm ? (
               <div className="space-y-2">
                 {allEmails.length > 1 ? (
-                  <select value={emailTo} onChange={e => setEmailTo(e.target.value)}
-                    className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400" dir="ltr">
-                    {allEmails.map(e => (
-                      <option key={e} value={e}>{allEmailLabels[e] ? `${allEmailLabels[e]} (${e})` : e}</option>
-                    ))}
-                  </select>
+                  <ContactCheckList title="שלח לאימייל:" options={allEmails} labels={allEmailLabels}
+                    value={emailTo} onChange={setEmailTo} />
                 ) : (
                   <input value={emailTo} onChange={e => setEmailTo(e.target.value)}
                     className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400" placeholder="אימייל נמען" dir="ltr" />
@@ -4334,10 +4345,8 @@ function WhatsAppTab({ leadId, allPhones, allPhoneLabels = {}, allEmails = [], l
         {adding === 'wa_send' && (
           <div className="bg-white border border-green-100 rounded-xl p-3 space-y-2">
             {allPhones.length > 1 ? (
-              <select value={waPhone} onChange={e => setWaPhone(e.target.value)}
-                className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-green-400 text-right" dir="ltr">
-                {allPhones.map(p => <option key={p} value={p}>{allPhoneLabels[p] ? `${allPhoneLabels[p]} (${p})` : p}</option>)}
-              </select>
+              <ContactCheckList title="שלח לנייד:" options={allPhones} labels={allPhoneLabels}
+                value={waPhone} onChange={setWaPhone} />
             ) : (
               <p className="text-sm text-slate-500 font-semibold text-right">שלח ל: {phone || '(אין מספר)'}</p>
             )}
@@ -4405,10 +4414,8 @@ function WhatsAppTab({ leadId, allPhones, allPhoneLabels = {}, allEmails = [], l
         {adding === 'email_send' && (
           <div className="bg-white border border-sky-100 rounded-xl p-3 space-y-2">
             {allEmails.length > 1 ? (
-              <select value={emailTo} onChange={e => setEmailTo(e.target.value)}
-                className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-400" dir="ltr">
-                {allEmails.map(e => <option key={e} value={e}>{e}</option>)}
-              </select>
+              <ContactCheckList title="שלח לאימייל:" options={allEmails}
+                value={emailTo} onChange={setEmailTo} />
             ) : (
               <input value={emailTo} onChange={e => setEmailTo(e.target.value)}
                 className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-sky-400"
@@ -5032,16 +5039,8 @@ function TaskActionModal({ task, leadId, lead, users, allPhones, allPhoneLabels,
         {mode === 'done' && outcomeType === 'wa_send' && (
           <div className="space-y-2">
             {allPhones && allPhones.length > 1 ? (
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-500 block">שלח לנייד:</label>
-                {allPhones.map(p => (
-                  <label key={p} className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
-                    <input type="radio" name="taskWaPhone" value={p}
-                      checked={waPhone === p} onChange={() => setWaPhone(p)} />
-                    {allPhoneLabels?.[p] ? `${allPhoneLabels[p]} (${p})` : p}
-                  </label>
-                ))}
-              </div>
+              <ContactCheckList title="שלח לנייד:" options={allPhones} labels={allPhoneLabels}
+                value={waPhone} onChange={setWaPhone} />
             ) : (
               <p className="text-sm text-slate-500 font-semibold text-right">שלח ל: {lead?.phone || '(אין מספר)'}</p>
             )}
@@ -5067,10 +5066,8 @@ function TaskActionModal({ task, leadId, lead, users, allPhones, allPhoneLabels,
         {mode === 'done' && outcomeType === 'email_send' && (
           <div className="space-y-2">
             {allEmails && allEmails.length > 1 ? (
-              <select value={emailTo} onChange={e => setEmailTo(e.target.value)}
-                className={`${cls} text-sm`} dir="ltr">
-                {allEmails.map(e => <option key={e} value={e}>{e}</option>)}
-              </select>
+              <ContactCheckList title="שלח לאימייל:" options={allEmails}
+                value={emailTo} onChange={setEmailTo} />
             ) : (
               <input value={emailTo} onChange={e => setEmailTo(e.target.value)}
                 className={cls} placeholder="אימייל נמען..." dir="ltr" />
@@ -5302,16 +5299,8 @@ function MeetingActionModal({ lead, leadId, eventId, meeting, allPhones, allPhon
               </div>
             </div>
             {delivery === 'whatsapp' && allPhones?.length > 1 && (
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-500 block">שלח לנייד:</label>
-                {allPhones.map(p => (
-                  <label key={p} className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
-                    <input type="radio" name="meetingWaPhone" value={p}
-                      checked={waPhone === p} onChange={() => setWaPhone(p)} />
-                    {allPhoneLabels?.[p] ? `${allPhoneLabels[p]} (${p})` : p}
-                  </label>
-                ))}
-              </div>
+              <ContactCheckList title="שלח לנייד:" options={allPhones} labels={allPhoneLabels}
+                value={waPhone} onChange={setWaPhone} />
             )}
             <div className="flex gap-2 pt-1">
               <button onClick={() => setStep(1)} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl">חזור</button>
@@ -5447,16 +5436,8 @@ function ScheduleMeetingModal({ lead, leadId, allPhones, allPhoneLabels, onClose
               )}
             </div>
             {delivery === 'whatsapp' && allPhones?.length > 1 && (
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-500 block">שלח לנייד:</label>
-                {allPhones.map(p => (
-                  <label key={p} className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
-                    <input type="radio" name="schedWaPhone" value={p}
-                      checked={waPhone === p} onChange={() => setWaPhone(p)} />
-                    {allPhoneLabels?.[p] ? `${allPhoneLabels[p]} (${p})` : p}
-                  </label>
-                ))}
-              </div>
+              <ContactCheckList title="שלח לנייד:" options={allPhones} labels={allPhoneLabels}
+                value={waPhone} onChange={setWaPhone} />
             )}
             <div className="flex gap-2 pt-1">
               <button onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl text-base">ביטול</button>

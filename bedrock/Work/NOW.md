@@ -1,10 +1,41 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-09-04
+updated: 2026-09-05
 ---
 
 # Now
+
+## 2026-09-05 — Send to several contact people (Cowork session)
+
+First feature session run from Claude Cowork (cloud) against the linked Mac.
+A lead can have more than one contact person (leads.phone/email + the extra
+lead_contacts rows) — until now every send flow picked exactly ONE of them.
+
+- Client: new `ContactCheckList` component in LeadCard.jsx replaces the radio
+  groups and `<select>`s in all 6 send flows (ContractModal, PriceOfferModal,
+  WhatsAppTab, TaskActionModal, MeetingActionModal, ScheduleMeetingModal) for
+  BOTH phones and emails. Deliberately keeps the old state shape — the value is
+  still a comma-separated STRING (`waPhone`, `emailTo`) — so not a single send
+  call site needed changing. Renders only when the lead has >1 contact of that
+  type; shows "יישלח ל-N נמענים" from two ticks up.
+- Server WhatsApp: `parsePhoneList()` splits on commas BEFORE normalizePhone
+  (which strips non-digits — a raw comma list would otherwise become one bogus
+  number), dedupes; `/send` + `/send-file` loop it. File uploaded to Green API
+  ONCE, `sendFileByUrl` per recipient. One `messages` row per recipient, so the
+  timeline shows who got what. A single bad number is logged + skipped, the rest
+  still send; only all-fail returns 500.
+- Server email: `/leads/:id/email/send` accepts array or comma list for `to`,
+  joins into one RFC 5322 To: header (Gmail buildRawEmail already handles it).
+- Contracts: `whatsapp_phone` now holds a comma-separated list; extra email
+  recipients live in `contract_data.fields.clientEmailExtra` (first address
+  stays `fields.clientEmail` — that is what is PRINTED on the contract). On
+  signing, the signed PDF goes back to ALL of them on the channel used.
+- ⚠ Verified by `vite build` only (built in the cloud container — the Mac's
+  node_modules hold darwin binaries that the Cowork Linux VM cannot load, so
+  builds must run in the container or on the Mac itself). NOT tested against
+  real Green API sends — user should send one contract to two contacts and
+  check both receive it and two rows appear in the timeline.
 
 ## 2026-09-04 — Cowork cloud session linked (infra)
 

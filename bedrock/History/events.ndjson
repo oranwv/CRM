@@ -11,3 +11,4 @@
 {"ts":"2026-09-04T10:54:09Z","type":"integration_cursor","tool":"cli","slug":"CRM","summary":"cursor integration detected"}
 {"ts":"2026-09-04T10:54:09Z","type":"integration_claude","tool":"cli","slug":"CRM","summary":"claude integration detected"}
 {"ts":"2026-09-04T10:54:09Z","type":"backfill","tool":"cli","slug":"CRM","summary":"History backfill: 333 commits, 0 releases, 2 integrations"}
+{"ts":"2026-09-05T13:50:00Z","type":"feature","tool":"cowork","slug":"CRM","summary":"Multi-recipient sends: contract, price offer, WhatsApp tab, task, meeting flows can pick several lead contacts (WhatsApp + email); signed contract returns to all"}

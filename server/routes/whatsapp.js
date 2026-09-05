@@ -150,6 +150,20 @@ async function sendWhatsAppRaw(phone, message) {
   await axios.post(url, { chatId: `${phone}@c.us`, message });
 }
 
+// A lead can have several contact people (leads.phone + lead_contacts). The
+// client may therefore send one phone, a comma-separated list, or an array —
+// normalize each entry separately (normalizePhone strips non-digits, so a raw
+// comma list would otherwise collapse into one bogus number) and de-duplicate.
+function parsePhoneList(input) {
+  const raw = Array.isArray(input) ? input : String(input == null ? '' : input).split(',');
+  const out = [];
+  for (const entry of raw) {
+    const n = normalizePhone(String(entry).trim());
+    if (n && !out.includes(n)) out.push(n);
+  }
+  return out;
+}
+
 // POST /api/whatsapp/webhook — Green API incoming messages (public)
 router.post('/webhook', async (req, res) => {
   try {
@@ -280,25 +294,40 @@ router.post('/send', requireAuth, async (req, res) => {
     const { rows } = await pool.query('SELECT phone FROM leads WHERE id = $1', [leadId]);
     if (!rows.length) return res.status(404).json({ error: 'Lead not found' });
 
-    const phone = normalizePhone(phoneOverride || rows[0].phone);
-    if (!phone) return res.status(400).json({ error: 'No phone number' });
+    const phones = parsePhoneList(phoneOverride || rows[0].phone);
+    if (!phones.length) return res.status(400).json({ error: 'No phone number' });
 
     const url = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/sendMessage/${process.env.GREEN_API_TOKEN}`;
-    await waitForWaSlot();
-    await axios.post(url, { chatId: `${phone}@c.us`, message });
-
-    // Green API succeeded — log to DB (non-fatal)
+    // Send per recipient, and log each one as soon as it goes out — a second
+    // contact that is not on WhatsApp must not undo the send to the first.
+    const sentTo = [];
+    const failed = [];
+    for (const phone of phones) {
+      try {
+        await waitForWaSlot();
+        await axios.post(url, { chatId: `${phone}@c.us`, message });
+        sentTo.push(phone);
+        await pool.query(
+          `INSERT INTO messages (lead_id, channel, direction, body, timestamp, contact_value, sent_by) VALUES ($1, 'whatsapp', 'outbound', $2, NOW(), $3, $4)`,
+          [leadId, message, phone, req.user?.id || null]
+        );
+      } catch (err) {
+        if (sentTo.includes(phone)) {
+          console.error('[WhatsApp] DB log error (message was sent):', err.message);
+        } else {
+          failed.push(phone);
+          console.error('[WhatsApp] send failed for', phone, err.response?.data || err.message);
+        }
+      }
+    }
+    if (!sentTo.length) return res.status(500).json({ error: 'Failed to send message' });
     try {
-      await pool.query(
-        `INSERT INTO messages (lead_id, channel, direction, body, timestamp, contact_value, sent_by) VALUES ($1, 'whatsapp', 'outbound', $2, NOW(), $3, $4)`,
-        [leadId, message, phone, req.user?.id || null]
-      );
       await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [leadId]);
     } catch (dbErr) {
       console.error('[WhatsApp] DB log error (message was sent):', dbErr.message);
     }
 
-    res.json({ success: true });
+    res.json({ success: true, sentTo, failed });
   } catch (err) {
     console.error('[WhatsApp] send error:', err.response?.data || err.message);
     res.status(500).json({ error: 'Failed to send message' });
@@ -313,9 +342,10 @@ router.post('/send-file', requireAuth, upload.single('file'), async (req, res) =
     const { rows } = await pool.query('SELECT phone FROM leads WHERE id = $1', [leadId]);
     if (!rows.length) return res.status(404).json({ error: 'Lead not found' });
 
-    const phone = normalizePhone(phoneOverride || rows[0].phone);
-    if (!phone) return res.status(400).json({ error: 'No phone number' });
+    const phones = parsePhoneList(phoneOverride || rows[0].phone);
+    if (!phones.length) return res.status(400).json({ error: 'No phone number' });
 
+    const sentPhones = [];
     let fileUrl = null;
     let fileName = null;
     let fileMime = 'application/octet-stream';
@@ -354,17 +384,28 @@ router.post('/send-file', requireAuth, upload.single('file'), async (req, res) =
       const urlFile = uploadRes.data.urlFile;
 
       const sendUrl = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/sendFileByUrl/${process.env.GREEN_API_TOKEN}`;
-      await waitForWaSlot();
-      await axios.post(sendUrl, { chatId: `${phone}@c.us`, urlFile, fileName: fName, caption: message });
+      const leadFileSentTo = [];
+      for (const phone of phones) {
+        try {
+          await waitForWaSlot();
+          await axios.post(sendUrl, { chatId: `${phone}@c.us`, urlFile, fileName: fName, caption: message });
+          leadFileSentTo.push(phone);
+        } catch (err) {
+          console.error('[WhatsApp] file send failed for', phone, err.response?.data || err.message);
+        }
+      }
       fs.unlinkSync(lTmpPath);
+      if (!leadFileSentTo.length) return res.status(500).json({ error: 'Failed to send file' });
 
       const logBody = message ? `${message}\n[[FILE:${existingId}|${fName}]]` : `[[FILE:${existingId}|${fName}]]`;
       try {
-        await pool.query(
-          `INSERT INTO messages (lead_id, channel, direction, body, timestamp, contact_value, sent_by)
-           VALUES ($1, 'whatsapp', 'outbound', $2, NOW(), $3, $4)`,
-          [leadId, logBody, phone, req.user?.id || null]
-        );
+        for (const phone of leadFileSentTo) {
+          await pool.query(
+            `INSERT INTO messages (lead_id, channel, direction, body, timestamp, contact_value, sent_by)
+             VALUES ($1, 'whatsapp', 'outbound', $2, NOW(), $3, $4)`,
+            [leadId, logBody, phone, req.user?.id || null]
+          );
+        }
         await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [leadId]);
       } catch (dbErr) {
         console.error('[WhatsApp] DB log error (file was sent):', dbErr.message);
@@ -392,13 +433,21 @@ router.post('/send-file', requireAuth, upload.single('file'), async (req, res) =
 
       // Step 3: send via URL
       const sendUrl = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/sendFileByUrl/${process.env.GREEN_API_TOKEN}`;
-      await waitForWaSlot();
-      await axios.post(sendUrl, {
-        chatId: `${phone}@c.us`,
-        urlFile,
-        fileName,
-        caption: message,
-      });
+      for (const phone of phones) {
+        try {
+          await waitForWaSlot();
+          await axios.post(sendUrl, {
+            chatId: `${phone}@c.us`,
+            urlFile,
+            fileName,
+            caption: message,
+          });
+          sentPhones.push(phone);
+        } catch (err) {
+          console.error('[WhatsApp] file send failed for', phone, err.response?.data || err.message);
+        }
+      }
+      if (!sentPhones.length) throw new Error('Green API rejected every recipient');
       fs.unlinkSync(req.file.path);
 
       // Step 4: insert into files table to get an ID for the timeline marker
@@ -410,17 +459,27 @@ router.post('/send-file', requireAuth, upload.single('file'), async (req, res) =
       fileUrl = fileRows[0].id;
     } else if (message.trim()) {
       const url = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/sendMessage/${process.env.GREEN_API_TOKEN}`;
-      await waitForWaSlot();
-      await axios.post(url, { chatId: `${phone}@c.us`, message });
+      for (const phone of phones) {
+        try {
+          await waitForWaSlot();
+          await axios.post(url, { chatId: `${phone}@c.us`, message });
+          sentPhones.push(phone);
+        } catch (err) {
+          console.error('[WhatsApp] send failed for', phone, err.response?.data || err.message);
+        }
+      }
+      if (!sentPhones.length) throw new Error('Green API rejected every recipient');
     }
 
     // Green API succeeded — log to DB (non-fatal)
     const logBody = fileUrl ? `${message}\n[[FILE:${fileUrl}|${fileName}]]` : message;
     try {
-      await pool.query(
-        `INSERT INTO messages (lead_id, channel, direction, body, timestamp, contact_value, sent_by) VALUES ($1, 'whatsapp', 'outbound', $2, NOW(), $3, $4)`,
-        [leadId, logBody, phone, req.user?.id || null]
-      );
+      for (const phone of sentPhones) {
+        await pool.query(
+          `INSERT INTO messages (lead_id, channel, direction, body, timestamp, contact_value, sent_by) VALUES ($1, 'whatsapp', 'outbound', $2, NOW(), $3, $4)`,
+          [leadId, logBody, phone, req.user?.id || null]
+        );
+      }
       await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [leadId]);
     } catch (dbErr) {
       console.error('[WhatsApp] DB log error (file was sent):', dbErr.message);

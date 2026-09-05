@@ -322,8 +322,8 @@ Files embedded in interaction/message bodies use this format where `id` is the `
 | Method | Path | Description |
 |---|---|---|
 | POST | `/webhook` | Receives Green API webhook. Handles text + media (imageMessage, documentMessage, audioMessage, videoMessage). Media downloaded and uploaded to Supabase. |
-| POST | `/send` | Send text message (auto-advances new→contacted) |
-| POST | `/send-file` | Send file: upload to Green API → Supabase → insert into files table → embed [[FILE:id\|name]] in message |
+| POST | `/send` | Send text message (auto-advances new→contacted). `phone` accepts one number, a comma-separated list, or an array — one send + one `messages` row per recipient |
+| POST | `/send-file` | Send file: upload to Green API → Supabase → insert into files table → embed [[FILE:id\|name]] in message. `phone` accepts several recipients (file uploaded once, sent to each) |
 
 ### Files (`/api/leads/:leadId/files`) — require auth
 | Method | Path | Description |
@@ -574,6 +574,35 @@ Media download failures degrade gracefully: caption or `[typeMessage]` stored as
 
 ### Outbound file send
 Upload to Green API storage → get `urlFile` → upload to Supabase → insert into `files` table → send via `sendFileByUrl` → embed `[[FILE:id|name]]` in message body.
+
+### Multiple recipients (contact people) ✅ Built 2026-09-05
+A lead can have several contact people — `leads.phone`/`leads.email` plus the
+extra `lead_contacts` rows (a couple booking a wedding, a client plus their
+event producer). Every send flow can now target more than one of them.
+
+- **Client** — `ContactCheckList` in `LeadCard.jsx` replaced the radio buttons
+  and `<select>`s in all six send flows (ContractModal, PriceOfferModal,
+  WhatsAppTab, TaskActionModal, MeetingActionModal, ScheduleMeetingModal), for
+  phones **and** emails. It keeps the existing state shape: the value stays a
+  **comma-separated string** (`waPhone`, `emailTo`), so no send code changed.
+  It only renders when the lead has more than one contact of that type, and
+  shows "יישלח ל-N נמענים" once two or more are ticked.
+- **Server (WhatsApp)** — `parsePhoneList()` in `routes/whatsapp.js` splits on
+  commas **before** `normalizePhone()` (which strips non-digits, so a raw comma
+  list would collapse into one bogus number), then de-duplicates. `/send` and
+  `/send-file` loop over the list. A file is uploaded to Green API **once** and
+  `sendFileByUrl` is called per recipient. Each recipient gets its own
+  `messages` row (`contact_value` = that number), so the timeline shows who
+  received what. One recipient failing (e.g. a number not on WhatsApp) is
+  logged and skipped — the others still go out; only an all-fail returns 500.
+- **Server (email)** — `POST /api/leads/:id/email/send` accepts an array or a
+  comma-separated `to` and joins it into one RFC 5322 `To:` header.
+- **Contracts** — `contracts.whatsapp_phone` now stores a comma-separated list,
+  and the extra email recipients are kept in
+  `contract_data.fields.clientEmailExtra` (the first address stays
+  `fields.clientEmail`, which is what gets printed on the contract itself).
+  On signing, the signed PDF goes back to **every** recipient the contract was
+  sent to, on the channel it was sent through.
 
 ---
 

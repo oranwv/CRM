@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-04T10:54:09Z",
+  "generated": "2026-09-04T11:06:50Z",
   "vault": "/Users/weis/Projects/CRM/bedrock",
   "note_count": 11,
   "notes": [
@@ -71,7 +71,7 @@
       "canonical": true,
       "folder": "Work",
       "is_branch_entry": false,
-      "summary": "Draft-only AI sales assistant. Files: server/services/salesAdvisor.js (worklist ranking + analyzeLead + lossInsights), salesBriefingService.js (WhatsApp cron), sales.js routes, client SalesWorklistPag..."
+      "summary": "- Claude Cowork (cloud session) is now linked to this Mac with folders CRM, sharabiya-website, wiwi-personal-assistant and ~/bedrock connected. - bedrock vault + agent config (.claude/, .cursor/, AGEN..."
     },
     {
       "path": "Work/backlog.md",
@@ -111,7 +111,7 @@
       "canonical": false,
       "folder": "Evidence",
       "is_branch_entry": false,
-      "summary": "Last 30 commits as of 2026-09-04. 38860a7 Lead activity: voice recording + transcription (Whisper) b7bb51f Sales worklist: 'near event' badge now covers the next 45 days (was 14) 590bbe0 Sales worklis..."
+      "summary": "Last 30 commits as of 2026-09-04. 64ad0e4 docs: track bedrock vault + agent config in git; session log through 2026-09-04 38860a7 Lead activity: voice recording + transcription (Whisper) b7bb51f Sales..."
     }
   ]
 }
