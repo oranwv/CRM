@@ -20,6 +20,8 @@ This is not a git replacement.
 
 ## Recent Activity
 
+- **2026-09-07** `fix` — Profit page summary cards no longer overflow on narrow phones
+
 - **2026-09-05** `feature` — WhatsApp/email sends can target several contact people (multi-recipient)
 
 - **2026-09-04** `backfill` — History backfill: 333 commits, 0 releases, 2 integrations

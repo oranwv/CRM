@@ -180,18 +180,24 @@ export default function SalesPerformancePage() {
         <button onClick={prevMonth} className="text-slate-500 hover:text-violet-700 px-3 py-1 rounded-lg hover:bg-violet-50 transition font-bold text-lg">›</button>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-2">
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-3 text-center">
-          <p className="text-2xl font-black text-slate-800">{summary.count}</p>
+      {/* Summary cards. Three to a row leaves each card ~100px wide on a phone,
+          where a six-figure sum at text-2xl spilled outside its card. On narrow
+          screens the count takes its own full-width row and the two money cards
+          share the next one (~160px each); from `sm:` up the original 3-across
+          row is unchanged. The amounts still scale with the viewport, clamped so
+          they stay exactly text-2xl on tablet and desktop, and the cards clip as
+          a last resort — verified down to 360px with 7-figure sums. */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 px-2 py-3 sm:px-3 text-center overflow-hidden col-span-2 sm:col-span-1">
+          <p className="text-2xl font-black text-slate-800 leading-tight">{summary.count}</p>
           <p className="text-xs text-slate-500 font-semibold">אירועים שנסגרו</p>
         </div>
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-3 text-center">
-          <p className="text-2xl font-black text-slate-800">₪{fmt(summary.total_amount)}</p>
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 px-2 py-3 sm:px-3 text-center overflow-hidden">
+          <p className="text-[clamp(1rem,5.7vw,1.5rem)] font-black text-slate-800 leading-tight whitespace-nowrap">₪{fmt(summary.total_amount)}</p>
           <p className="text-xs text-slate-500 font-semibold">מחזור לפני מע"מ</p>
         </div>
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-3 text-center">
-          <p className={`text-2xl font-black ${summary.total_profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>₪{fmt(summary.total_profit)}</p>
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 px-2 py-3 sm:px-3 text-center overflow-hidden">
+          <p className={`text-[clamp(1rem,5.7vw,1.5rem)] font-black leading-tight whitespace-nowrap ${summary.total_profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>₪{fmt(summary.total_profit)}</p>
           <p className="text-xs text-slate-500 font-semibold">סה"כ רווח</p>
         </div>
       </div>

@@ -499,6 +499,24 @@ Mobile-friendly action hub linked from WhatsApp task reminders. Three collapsibl
 
 Token is validated server-side (JWT, 48h expiry). No CRM login required.
 
+### `SalesPerformancePage.jsx` (`/sales-performance`) — "רווחים" mode
+Per-month profit view: a month navigator, three summary cards (events closed /
+revenue before VAT / total profit), the amber backfill banner for months closed
+before costs were computed automatically, and one expandable card per closed
+event (amount, costs, profit → `CostEditor`).
+
+**Summary-card layout (fixed 2026-09-07).** Three cards to a row leaves each one
+about 100px wide on a 360px phone, and a six-figure sum at `text-2xl` (27px —
+`html` is 18px, so `text-2xl` is 27px, not 24px) spilled outside its card. Now:
+`grid-cols-2 sm:grid-cols-3`, with the count card `col-span-2 sm:col-span-1`, so
+a phone gets the count on its own row and the two money cards sharing the next
+(~160px each) while `sm:` and up keep the original 3-across row untouched. The
+amounts use `text-[clamp(1rem,5.7vw,1.5rem)]` + `whitespace-nowrap`, and each
+card is `overflow-hidden` as a last resort. Verified by rendering at 360/390/430
+with seven-figure sums — nothing clips, and from ~470px up the size is exactly
+`text-2xl` as before. **Keep this in mind for any new KPI-card row:** a Hebrew
+RTL card that is one third of a phone screen fits roughly 5-6 digits at most.
+
 ---
 
 ## Background Services (`server/index.js → startCronJobs()`)

@@ -6,6 +6,30 @@ updated: 2026-09-05
 
 # Now
 
+## 2026-09-07 — Profit page: summary cards overflowed on a phone
+
+Reported from the phone with a screenshot: on the רווחים page the totals bled
+outside their cards. Cause — three cards to a row on a 360px screen leaves ~100px
+per card, and `text-2xl` is 27px here (index.css sets `html { font-size: 18px }`,
+so every `text-*` is 1.125x what the Tailwind name suggests — worth remembering).
+₪244,847 needs ~147px at that size.
+
+Fix in client/src/pages/SalesPerformancePage.jsx: `grid-cols-2 sm:grid-cols-3`
+with the count card `col-span-2 sm:col-span-1` — phone gets count on its own row,
+the two money cards share the next (~160px each); `sm:` and up is byte-identical
+to before. Amounts got `text-[clamp(1rem,5.7vw,1.5rem)]` + `whitespace-nowrap`,
+cards got `overflow-hidden`. User approved the layout change from a preview.
+
+Verified by rebuilding the client and rendering the card row headless at 360/390/
+430px with 6- AND 7-figure sums (scrollWidth == clientWidth everywhere). Worth
+reusing that trick: mock the markup against the built Tailwind CSS and measure,
+rather than eyeballing. Note Tailwind v4 only emits arbitrary classes it finds in
+the real source, so a mock must inline the font-size it wants to test.
+
+⚠ Done from the phone with the Mac offline: worked in a cloud clone. Session
+could NOT push — the GitHub token lives at ~/Projects/.claude-git-token on the
+Mac. Commit is held in the container; it needs applying + pushing from the Mac.
+
 ## 2026-09-05 — Send to several contact people (Cowork session)
 
 First feature session run from Claude Cowork (cloud) against the linked Mac.
