@@ -2,6 +2,7 @@ const router = require('express').Router();
 const pool   = require('../db/pool');
 const { generateEventCosts, normalizeLine } = require('../services/eventCostService');
 const { getWorklist, analyzeLead, getCachedAdvice, lossInsights } = require('../services/salesAdvisor');
+const { buildBriefingText } = require('../services/salesBriefingService');
 
 // Sales-performance data (closed events + per-event profit) — visible to sales too
 router.use((req, res, next) => {
@@ -169,6 +170,24 @@ router.get('/worklist', async (req, res) => {
     res.json({ items });
   } catch (err) {
     console.error('[Sales] worklist error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/sales/briefing-preview?kind=morning|evening — the WhatsApp briefing text
+// exactly as this user would receive it (scope by role). Preview only — nothing is sent.
+router.get('/briefing-preview', async (req, res) => {
+  try {
+    const kind = req.query.kind === 'evening' ? 'evening' : 'morning';
+    const roles = req.user.roles?.length ? req.user.roles : [req.user.role];
+    const allScope = ['admin', 'manager', 'sales_manager'].some(r => roles.includes(r));
+    const items = await getWorklist(req.user);
+    const baseUrl = process.env.SERVER_URL || 'https://www.proevent.co.il';
+    const scopeLabel = allScope ? 'כל הנציגים' : (req.user.display_name ? `הלידים של ${req.user.display_name}` : '');
+    const text = items.length ? buildBriefingText(kind, items, baseUrl, scopeLabel) : '';
+    res.type('text/plain; charset=utf-8').send(text || 'אין לידים פעילים — לא היה נשלח סיכום היום.');
+  } catch (err) {
+    console.error('[Sales] briefing-preview error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

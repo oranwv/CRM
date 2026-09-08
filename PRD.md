@@ -759,6 +759,7 @@ The issued PDF is downloaded from the pre-signed URL and saved to the lead's fil
 | POST | `/costs/:leadId/generate` | AI-generate cost lines from the cost-model KB doc + contract |
 | POST | `/costs/generate-missing?year&month` | Backfill months closed before the auto-generation hook existed |
 | GET | `/worklist` | Ranked call list. `sales` → own assigned leads; admin/manager/sales_manager → all, rep-tagged |
+| GET | `/briefing-preview?kind=morning\|evening` | The WhatsApp briefing text exactly as the calling user would receive it (role scope). Preview only, nothing is sent — for checking the format against real data |
 | GET/POST | `/leads/:leadId/advice` | Cached per-lead deal advice (`lead_ai_advice`) / regenerate |
 | GET | `/loss-insights` | Aggregated reasons deals were lost |
 
