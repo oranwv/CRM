@@ -26,9 +26,17 @@ reusing that trick: mock the markup against the built Tailwind CSS and measure,
 rather than eyeballing. Note Tailwind v4 only emits arbitrary classes it finds in
 the real source, so a mock must inline the font-size it wants to test.
 
-⚠ Done from the phone with the Mac offline: worked in a cloud clone. Session
-could NOT push — the GitHub token lives at ~/Projects/.claude-git-token on the
-Mac. Commit is held in the container; it needs applying + pushing from the Mac.
+Built from the phone with the Mac offline, in a cloud clone, so the fix sat
+unpushed and the live site kept showing the old layout — the owner reported it
+again the next day. Shipped 2026-09-08: patch applied on the Mac with `git am`,
+pushed as 5be5b5b, Railway rebuilt, and the deployed CSS was confirmed to carry
+the clamp rule.
+
+**Lesson for cloud sessions:** the work is not done until it is on origin/main.
+A cloud container cannot push (the GitHub token is ~/Projects/.claude-git-token
+on the Mac) and has no network route to the Railway app, so it cannot verify a
+deploy either. When the Mac is offline, say plainly that nothing will change on
+the live site until it is back — and pick the work back up as soon as it is.
 
 ## 2026-09-05 — Send to several contact people (Cowork session)
 
