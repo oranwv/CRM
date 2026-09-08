@@ -6,6 +6,40 @@ updated: 2026-09-08
 
 # Now
 
+## 2026-09-08 — LeadCard: mobile layout fixes
+
+Reported from the phone with screenshots: on the lead card the "מחק ליד" button
+sat on top of the title, and scrolling down the details/activity the content ran
+off the right edge with a strange sideways scroll.
+
+Root cause, same family as the profit-card bug: the card was built for desktop
+width and never given a phone breakpoint. The header packed avatar + three
+priority badges + delete/＋/× onto one non-wrapping row, squeezing the title
+column to ~76px. Long unbroken strings (emails, the calendar ICS URLs we send in
+WhatsApp) had nothing to break on, so they widened their container and the whole
+`overflow-y-auto` body scrolled sideways.
+
+Fix (client/src/components/LeadCard.jsx, mobile-only — every change is a bare
+phone rule overridden at `sm:`, so desktop is untouched):
+- header `flex-wrap sm:flex-nowrap`; the name group is `contents sm:flex` so on a
+  phone its children (name, badges, avatar) join the header's own wrap row.
+- priority badges become a horizontal row on their own line (`basis-full
+  order-last`), the original vertical column from `sm:` up.
+- delete button is icon-only on a phone (`🗑`), full "🗑 מחק ליד" from `sm:` up.
+- avatar 10×10 on a phone, 12×12 from `sm:`.
+- scroll body gets `overflow-x-hidden`; long values/messages get `wrap-anywhere`
+  (+ `min-w-0` on flex children); timeline meta pills `flex-wrap`.
+- WhatsApp tab bubble: `min-w-0` + `wrap-anywhere` so a long link wraps.
+
+Verified headless against the built bundle at 360/390/430px, info + משימות +
+וואטסאפ tabs: zero sideways scrollers, zero elements outside the viewport. Desktop
+(1280px) checked before/after — first 400 element boxes identical except the
+delete button (now slightly wider from its title/aria attrs) and the taller feed
+from wrap-anywhere reflowing long test strings; no layout shift otherwise.
+
+Note: a large unrelated PRD.md rewrite was already sitting uncommitted in the Mac
+working tree (roles, modes, env-var docs) — left untouched, not committed here.
+
 ## 2026-09-08 — Lead links landed on the wrong page
 
 Reported from the phone: the "פתח ליד ב-CRM" link in a Google Calendar event

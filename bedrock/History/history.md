@@ -20,6 +20,8 @@ This is not a git replacement.
 
 ## Recent Activity
 
+- **2026-09-08** `fix` — LeadCard mobile layout: delete button no longer overlaps the title; details/activity/WhatsApp no longer overflow sideways on a phone
+
 - **2026-09-08** `fix` — Lead deep links (/?lead=ID) always open the lead card; RootRedirect no longer bounces them to the last-used mode's page
 
 - **2026-09-07** `fix` — Profit page summary cards no longer overflow on narrow phones

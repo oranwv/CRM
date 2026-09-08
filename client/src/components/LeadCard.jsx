@@ -424,7 +424,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
   return (
     <div className="fixed inset-0 z-50 bg-white flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="px-4 py-3 flex items-center gap-3 shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+      <div className="px-4 py-3 flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
         <button onClick={onClose} className="text-white/80 hover:text-white text-2xl leading-none">&times;</button>
         <div className="relative">
           <button onClick={() => setShowPlusMenu(p => !p)} title="הוספה"
@@ -442,12 +442,12 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
           )}
         </div>
         {currentUser.role === 'admin' && (
-          <button onClick={() => setShowDeleteModal(true)} className="text-sm font-bold px-2 py-1 rounded-lg bg-red-600/40 hover:bg-red-600 text-red-200 hover:text-white transition">
-            🗑 מחק ליד
+          <button onClick={() => setShowDeleteModal(true)} className="text-sm font-bold px-2 py-1 rounded-lg bg-red-600/40 hover:bg-red-600 text-red-200 hover:text-white transition whitespace-nowrap shrink-0" title="מחק ליד" aria-label="מחק ליד">
+            🗑<span className="hidden sm:inline"> מחק ליד</span>
           </button>
         )}
-        <div className="flex items-center gap-3 flex-1 justify-end">
-          <div className="text-right">
+        <div className="contents sm:flex items-center gap-3 flex-1 justify-end">
+          <div className="text-right flex-1 sm:flex-initial min-w-0">
             {editingName ? (
               <form onSubmit={async e => { e.preventDefault(); await api.patch(`/leads/${leadId}`, { name: nameDraft }); setEditingName(false); await load(); onUpdated(); }}
                 className="flex gap-1 justify-end">
@@ -466,13 +466,13 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
                 <span className="text-sm font-normal text-white/40 group-hover:text-white/70 mr-1">✏️</span>
               </h2>
             )}
-            <p className="text-white/60 text-sm">
+            <p className="text-white/60 text-xs sm:text-sm">
               {SOURCE_LABELS[lead.source] || lead.source}
               {' · '}התקבל {formatFull(lead.created_at)}
               {lastActivity && ` · פעילות אחרונה ${formatFull(lastActivity)}`}
             </p>
           </div>
-          <div className="flex flex-col gap-1 shrink-0">
+          <div className="flex flex-row sm:flex-col gap-1 shrink-0 basis-full sm:basis-auto order-last sm:order-none">
             <button
               onClick={async () => {
                 const next = lead.priority === 'hot' ? 'normal' : 'hot';
@@ -515,9 +515,9 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
           </div>
           {lead.avatar_url
             ? <img src={lead.avatar_url} onClick={() => setAvatarZoom(true)}
-                className="w-12 h-12 rounded-full object-cover border-2 border-white/30 shrink-0 cursor-pointer hover:scale-105 transition-transform"
+                className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover border-2 border-white/30 shrink-0 cursor-pointer hover:scale-105 transition-transform"
                 onError={e => e.target.style.display='none'} />
-            : <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center text-xl font-black text-white shrink-0">
+            : <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/20 flex items-center justify-center text-xl font-black text-white shrink-0">
                 {(lead.name || '?')[0]}
               </div>
           }
@@ -557,7 +557,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
 
         {/* ── INFO + TIMELINE + FILES TAB ── */}
         {activeTab === 'info' && (
@@ -1166,7 +1166,7 @@ function BodyWithFile({ body }) {
   const isMediaPlaceholder = /^\[.+Message\]$/.test(text);
   return (
     <div>
-      {text.trim() && !isMediaPlaceholder && <p className="text-base text-slate-700 whitespace-pre-wrap">{text.trim()}</p>}
+      {text.trim() && !isMediaPlaceholder && <p className="text-base text-slate-700 whitespace-pre-wrap wrap-anywhere">{text.trim()}</p>}
       {isMediaPlaceholder && !files.length && <span className="text-sm text-slate-400 italic">📎 קובץ</span>}
       {files.map((f, i) => (
         <button key={i}
@@ -3916,12 +3916,12 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, allPhon
             const isIn = item.direction === 'inbound';
             return (
               <div key={item.id} className="bg-white border border-slate-100 rounded-xl px-3 py-2.5">
-                <div className="flex items-center justify-between gap-2 mb-1">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
                   <div className="flex items-center gap-1.5 text-sm text-slate-400">
                     <span>{formatFull(item._time)}</span>
                     {item.author && <span>· {item.author}</span>}
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
+                  <div className="flex flex-wrap items-center gap-1 shrink-0 max-w-full">
                     <span className={`text-sm font-semibold px-2 py-0.5 rounded-full ${isIn ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-600'}`}>
                       {isIn ? '↙ נכנס' : '↗ יוצא'}
                     </span>
@@ -4306,13 +4306,13 @@ function WhatsAppTab({ leadId, allPhones, allPhoneLabels = {}, allEmails = [], l
         onChange={e => { Array.from(e.target.files).forEach(f => setAttachments(a => [...a, { type: 'local', file: f }])); e.target.value = ''; }} />
 
       {/* Message history */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-2 max-w-2xl mx-auto w-full">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-2 max-w-2xl mx-auto w-full">
         {waMessages.length === 0
           ? <div className="text-center py-12 text-slate-400 text-base">אין הודעות וואטסאפ</div>
           : waMessages.map(m => (
             <div key={m.id} className={`flex ${m.direction === 'outbound' ? 'justify-start' : 'justify-end'}`}>
-              <div className={`max-w-[75%] rounded-2xl px-3 py-2 text-base ${m.direction === 'outbound' ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-800'}`}>
-                <p>{m.body}</p>
+              <div className={`max-w-[75%] min-w-0 rounded-2xl px-3 py-2 text-base ${m.direction === 'outbound' ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-800'}`}>
+                <p className="wrap-anywhere">{m.body}</p>
                 <p className={`text-sm mt-1 ${m.direction === 'outbound' ? 'text-green-200' : 'text-slate-400'}`}>{formatFull(m.timestamp)}</p>
                 {m.contact_value && (
                   <p className={`text-xs mt-0.5 ${m.direction === 'outbound' ? 'text-green-200' : 'text-slate-400'}`} dir="ltr">
@@ -4495,7 +4495,7 @@ function InfoRow({ label, children }) {
   return (
     <div className="bg-white rounded-xl px-3 py-2 border border-slate-100">
       <p className="text-sm text-slate-400 font-semibold mb-0.5">{label}</p>
-      <div className="text-slate-700 font-medium text-base">{children}</div>
+      <div className="text-slate-700 font-medium text-base min-w-0 wrap-anywhere">{children}</div>
     </div>
   );
 }
