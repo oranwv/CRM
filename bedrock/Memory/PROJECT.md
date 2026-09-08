@@ -1,7 +1,7 @@
 ---
 note_type: project-overview
 project: CRM
-updated: 2026-06-14
+updated: 2026-09-08
 ---
 
 # Project
@@ -19,9 +19,13 @@ documents, and on-the-day event production/operations.
 - **Style:** Mobile-first, Hebrew **RTL**, multi-user.
 
 The single most detailed source of truth is **`PRD.md`** at the repo root
-(~780 lines, kept current). Read it for data model, API routes, parsing rules,
-and build-phase status. This Memory captures shape + non-obvious facts; do not
-duplicate the PRD.
+(~1,600 lines, brought back in sync with the code on 2026-09-08). Read it for the
+data model (48 tables), API routes, parsing rules, and build-phase status (26 phases).
+This Memory captures shape + non-obvious facts; do not duplicate the PRD.
+
+The app is organized into eight **modes** (`client/src/context/AppModeContext.jsx`),
+each with its own bottom tabs: מכירות, הפקה, תפעול, ספקים, אישורי הגעה, ניהול,
+כספים, רווחים.
 
 ## Tech stack
 
@@ -30,9 +34,12 @@ duplicate the PRD.
   on boot. Background cron jobs started in `startCronJobs()`.
 - **Frontend:** React + Vite (`client/`), plain JSX, Tailwind-style classes.
   Pages in `client/src/pages`, components in `client/src/components`.
-- **Auth:** JWT (`jsonwebtoken`), bcrypt password hashing. Roles:
-  **admin / sales / production**. Middleware in `server/middleware/auth.js`.
-- **AI:** Anthropic Claude SDK (`@anthropic-ai/sdk`) — see [[ai-and-integrations]].
+- **Auth:** JWT (`jsonwebtoken`), bcrypt password hashing. `users.role` (legacy single:
+  admin/manager/sales/production) plus `users.roles TEXT[]` (current, multi-role:
+  + operations/suppliers/rsvp/finance) and `users.blocked`.
+  Middleware in `server/middleware/auth.js`.
+- **AI:** OpenAI (`openai` SDK, `OPENAI_API_KEY`) — gpt-4o-mini / gpt-4o / whisper-1.
+  NOT Anthropic. See [[ai-and-integrations]].
 
 ## Domain areas (Memory branches)
 
@@ -41,6 +48,8 @@ duplicate the PRD.
   Claude AI chat & messaging, GreenInvoice financial docs.
 - [[operations-and-docs]] — production/operations module (תפעול), contracts,
   price offers, financial docs, seating charts, RSVP.
+- Finance (כספים) + the AI sales agent + the profit page are documented in
+  `PRD.md` phases 22-24 and in [[Work/NOW]]; no separate Memory branch yet.
 
 ## Important context
 

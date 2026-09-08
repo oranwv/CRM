@@ -6,6 +6,36 @@ updated: 2026-09-08
 
 # Now
 
+## 2026-09-08 — PRD brought back in sync with the code
+
+The PRD had effectively stopped at 2026-05-02 and only received three later patches
+(multi-recipient sends, the profit page, lead deep links). Everything built June-September
+was undocumented. Audited bedrock -> PRD -> the actual source, and rewrote the gaps.
+
+What was missing entirely: contracts + the public signing page, price offers, GreenInvoice
+financial documents with the pending/approval flow, the finance module (reconciliation +
+invoice email scan), operations (תפעול), suppliers, RSVP, the event brief, seating charts,
+the management dashboard, the AI chat assistant + knowledge base, the AI sales agent, the
+reworked analytics, voice notes, Drive, Meta WhatsApp and the WhatsApp auto-reply chatbot.
+
+What was documented but **wrong**:
+- **AI is OpenAI, not Claude.** The PRD listed `ANTHROPIC_API_KEY` and claude-haiku/sonnet
+  models. Nothing in `server/` references Anthropic; it is gpt-4o-mini / gpt-4o / whisper-1
+  on `OPENAI_API_KEY`. bedrock's ai-and-integrations.md said Claude too — also fixed.
+- Roles: PRD said admin/sales/production; real is `role` (admin/manager/sales/production)
+  **plus** `roles TEXT[]` adding operations/suppliers/rsvp/finance, plus `blocked`.
+- Pipeline: 8 stages documented, 13 in the CHECK constraint.
+- Navigation: documented as one fixed 2-row bar; it is actually 8 modes with per-mode tabs.
+- Data model: 9 tables documented, 48 in the schema.
+- Env vars: OPENAI_API_KEY, GREENINVOICE_*, META_RSVP_*, PUPPETEER_EXECUTABLE_PATH missing.
+
+PRD.md went 850 -> ~1,610 lines. Every claim was verified against the source, not against
+bedrock — bedrock's NOW.md was the map, the code was the truth.
+
+**Note for next time:** the PRD drifts because feature sessions update NOW.md and skip it.
+Treat "update PRD.md" as part of shipping, not as a separate documentation task.
+
+
 ## 2026-09-08 — LeadCard: mobile layout fixes
 
 Reported from the phone with screenshots: on the lead card the "מחק ליד" button
