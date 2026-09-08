@@ -6,6 +6,32 @@ updated: 2026-09-08
 
 # Now
 
+## 2026-09-08 — Phone fixes round 2: settings user list + lead-card files
+
+Reported from the phone: (1) הגדרות מערכת → ניהול משתמשים — rows with several
+role pills lost the user's name entirely and the pills + ✏️/🗑 ran off the card;
+(2) lead card (sales and production alike, same `FilesSection`) — file names sat
+on top of the 🗑 button and ran off the screen.
+
+Causes: (1) the name block was `min-w-0` with no basis, the pill group `shrink-0`
+— so the pills won every pixel and the name collapsed to 0. (2) the file-name
+`<button>` had `truncate block`, but a button never stretches to its parent, so
+truncate never applied and the name spilled. Also four `flex-1` inputs in
+AdminPage lacked `min-w-0` (an input keeps its intrinsic width) — the media-link
+row and the Gmail/Drive rows overflowed too.
+
+Fixes (phone only, `sm:` restores the original): user row `flex-wrap
+sm:flex-nowrap`, name `flex-1 basis-24 min-w-0` so a short pill row stays on one
+line and a long one wraps beneath the name; pill group `shrink sm:shrink-0
+max-w-full`; inputs `min-w-0`; file name `block w-full wrap-break-word
+sm:truncate` (break-word, not anywhere — keeps "60689.pdf" whole).
+
+Verified headless at 360/390 on /admin and the card's files section: zero
+overflow. Desktop 1280 pixel-identical on /admin; files section identical except
+the pathological long name, which now truncates with … instead of overlapping 🗑.
+Harness: mock API + Playwright measure script, rebuilt each round in the cloud
+clone; the Mac's node_modules are macOS binaries so builds cannot run there.
+
 ## 2026-09-08 — Sales briefing rework, manager-scope fix, sales_manager role
 
 Oran sent a phone screenshot of the morning WhatsApp briefing: the gpt-4o-mini opener

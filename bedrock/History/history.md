@@ -20,6 +20,8 @@ This is not a git replacement.
 
 ## Recent Activity
 
+- **2026-09-08** `fix` — Phone layout: settings user list (names hidden, pills off-card) and lead-card file names (over the delete button / off-screen)
+
 - **2026-09-08** `fix` — LeadCard mobile layout: delete button no longer overlaps the title; details/activity/WhatsApp no longer overflow sideways on a phone
 
 - **2026-09-08** `fix` — Lead deep links (/?lead=ID) always open the lead card; RootRedirect no longer bounces them to the last-used mode's page

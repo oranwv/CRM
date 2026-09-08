@@ -722,8 +722,8 @@ export default function AdminPage() {
 
           <div className="space-y-2">
             {users.map(u => (
-              <div key={u.id} className="flex items-center justify-between rounded-xl border border-violet-50 bg-violet-50/40 px-3 py-2">
-                <div className="min-w-0">
+              <div key={u.id} className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-y-1.5 rounded-xl border border-violet-50 bg-violet-50/40 px-3 py-2">
+                <div className="min-w-0 flex-1 basis-24 sm:basis-auto sm:flex-initial">
                   <p className="text-sm font-bold text-slate-800 truncate">{u.display_name || u.username}</p>
                   <p className="text-xs text-slate-400 truncate">
                     {u.username}
@@ -731,7 +731,7 @@ export default function AdminPage() {
                     {u.email && ` · ${u.email}`}
                   </p>
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0 mr-2 flex-wrap justify-end">
+                <div className="flex items-center gap-1.5 shrink sm:shrink-0 min-w-0 max-w-full mr-2 flex-wrap justify-end">
                   {u.blocked && (
                     <span className="text-xs font-black px-2 py-0.5 rounded-full bg-red-100 text-red-600">חסום</span>
                   )}
@@ -857,7 +857,7 @@ export default function AdminPage() {
             <div className="flex gap-2 mb-2">
               <input value={mediaUrl} onChange={e => setMediaUrl(e.target.value)} dir="ltr"
                 placeholder="קישור YouTube / Drive / וידאו"
-                className="flex-1 rounded-xl px-3 py-2 text-sm border border-violet-200 focus:outline-none focus:border-violet-400 text-slate-700" />
+                className="flex-1 min-w-0 rounded-xl px-3 py-2 text-sm border border-violet-200 focus:outline-none focus:border-violet-400 text-slate-700" />
               <button onClick={() => submitMedia(null)} disabled={mediaUploading}
                 className="px-3 py-2 rounded-xl bg-violet-100 text-violet-700 text-sm font-bold whitespace-nowrap disabled:opacity-50">הוסף קישור</button>
             </div>
@@ -1146,7 +1146,7 @@ export default function AdminPage() {
 
           <div className="flex gap-2">
             <input
-              className="flex-1 rounded-xl px-3 py-2 text-sm border border-violet-200 focus:border-violet-400 focus:outline-none text-slate-700"
+              className="flex-1 min-w-0 rounded-xl px-3 py-2 text-sm border border-violet-200 focus:border-violet-400 focus:outline-none text-slate-700"
               placeholder="כתובת Gmail"
               value={calAclNewEmail}
               onChange={e => { setCalAclNewEmail(e.target.value); setCalAclError(''); }}
@@ -1186,14 +1186,14 @@ export default function AdminPage() {
 
           <div className="flex gap-2">
             <input
-              className="flex-1 rounded-xl px-3 py-2 text-sm border border-violet-200 focus:border-violet-400 focus:outline-none text-slate-700"
+              className="flex-1 min-w-0 rounded-xl px-3 py-2 text-sm border border-violet-200 focus:border-violet-400 focus:outline-none text-slate-700"
               placeholder="שם התיקיה"
               value={driveNewFolder.name}
               onChange={e => setDriveNewFolder(f => ({ ...f, name: e.target.value }))}
               onKeyDown={e => e.key === 'Enter' && handleDriveFolderAdd()}
             />
             <input
-              className="flex-1 rounded-xl px-3 py-2 text-sm border border-violet-200 focus:border-violet-400 focus:outline-none text-slate-700 font-mono"
+              className="flex-1 min-w-0 rounded-xl px-3 py-2 text-sm border border-violet-200 focus:border-violet-400 focus:outline-none text-slate-700 font-mono"
               placeholder="Folder ID"
               value={driveNewFolder.id}
               onChange={e => setDriveNewFolder(f => ({ ...f, id: e.target.value }))}

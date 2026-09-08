@@ -952,6 +952,33 @@ match the page being shown. Without `?lead=` the mode redirect is unchanged.
 **Rule for any new page-level redirect:** check `location.search` first — a deep
 link must survive it.
 
+### Phone-width layout rules (learned 2026-09-07/08)
+
+The app is used mostly from phones, but most screens were laid out for desktop
+width. Four bugs in two days had the same shape; the rules that fix them:
+
+1. **Every `text-*` is 12.5% bigger than its name** — `index.css` sets `html {
+   font-size: 18px }`, so `text-2xl` is 27px, not 24px. Size KPI text with
+   `clamp()` or give it fewer columns on a phone (`SalesPerformancePage`).
+2. **A non-wrapping flex row must not hold more than fits at 360px.** Use
+   `flex-wrap sm:flex-nowrap` and let secondary items (badges, role pills) drop to
+   their own line; give the primary text `flex-1 min-w-0` (LeadCard header,
+   AdminPage user rows).
+3. **Unbroken strings need a break rule.** Emails, ICS/JWT URLs and camera file
+   names have no spaces; without `wrap-anywhere` / `wrap-break-word` (+ `min-w-0`
+   on the flex child) they widen their container and the whole scroll body
+   scrolls sideways. Put `overflow-x-hidden` on every `overflow-y-auto` body as a
+   backstop (LeadCard body, WhatsApp tab).
+4. **`<input>` and `<button>` do not behave like `<div>` in flex.** An input keeps
+   its intrinsic width unless it has `min-w-0`; a button does not stretch to its
+   parent even as `display:block`, so `truncate` on a button needs `w-full`
+   (AdminPage inputs, LeadCard `FilesSection`).
+
+Every fix is a bare phone rule overridden at `sm:` so desktop stays byte-identical;
+verify by rendering the built bundle headless at 360/390/430 and asserting no
+element's box leaves the viewport and no scroll container has `scrollWidth >
+clientWidth` (the harness lives in bedrock notes for 2026-09-08).
+
 ### `AdminPage.jsx` (`/admin`) — admin only
 - ⚙️ tab visible in row 2 of bottom nav, admin only
 - **AI Instructions** textarea: free-text rules for how the AI should write replies (tone, phrases to avoid, style). Saved to `settings` table, injected into every `/reply` and `/improve` system prompt.

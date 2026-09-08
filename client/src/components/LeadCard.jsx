@@ -1126,7 +1126,7 @@ function FilesSection({ leadId, files, onChanged, isAdmin }) {
             <div className="flex-1 min-w-0 text-right">
               <button
                 onClick={e => { e.stopPropagation(); openFile(f.id); }}
-                className="text-base font-semibold text-violet-700 hover:underline truncate block text-right">
+                className="text-base font-semibold text-violet-700 hover:underline block w-full max-w-full text-right wrap-break-word sm:truncate">
                 {f.filename}
               </button>
               <p className="text-sm text-slate-400">{f.uploaded_by_name || ''} · {formatFull(f.created_at)}</p>
