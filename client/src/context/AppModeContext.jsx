@@ -9,14 +9,14 @@ export function AppModeProvider({ children }) {
     const roles  = user.roles?.length ? user.roles : (user.role ? [user.role] : []);
     const isAM   = roles.includes('admin') || roles.includes('manager');
     const permitted = {
-      'מכירות':      isAM || roles.includes('sales'),
+      'מכירות':      isAM || roles.includes('sales') || roles.includes('sales_manager'),
       'הפקה':        isAM || roles.includes('production'),
       'ספקים':       isAM || roles.includes('suppliers'),
       'אישורי הגעה': isAM || roles.includes('rsvp'),
       'תפעול':       isAM || roles.includes('operations'),
       'ניהול':       isAM,
       'כספים':       isAM || roles.includes('finance'),
-      'רווחים':      isAM || roles.includes('sales'),
+      'רווחים':      isAM || roles.includes('sales') || roles.includes('sales_manager'),
     };
     if (stored && permitted[stored]) return stored;
     return Object.keys(permitted).find(k => permitted[k]) || 'מכירות';

@@ -6,7 +6,7 @@ const { getWorklist, analyzeLead, getCachedAdvice, lossInsights } = require('../
 // Sales-performance data (closed events + per-event profit) — visible to sales too
 router.use((req, res, next) => {
   const roles = req.user.roles?.length ? req.user.roles : [req.user.role];
-  if (['admin', 'manager', 'sales'].some(r => roles.includes(r))) return next();
+  if (['admin', 'manager', 'sales_manager', 'sales'].some(r => roles.includes(r))) return next();
   return res.status(403).json({ error: 'אין הרשאה' });
 });
 

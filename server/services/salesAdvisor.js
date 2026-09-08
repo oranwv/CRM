@@ -75,10 +75,10 @@ function classify(row) {
   };
 }
 
-// Ranked active leads for the user's scope (sales → own; manager/admin → all)
+// Ranked active leads for the user's scope (sales → own; admin/manager/sales_manager → all)
 async function getWorklist(user) {
   const roles = user.roles?.length ? user.roles : [user.role];
-  const isAM = roles.includes('admin') || roles.includes('manager');
+  const isAM = ['admin', 'manager', 'sales_manager'].some(r => roles.includes(r));
   const params = [];
   let scope = '';
   if (!isAM) { params.push(user.id); scope = 'AND l.assigned_to = $1'; }

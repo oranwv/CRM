@@ -36,7 +36,7 @@ each with its own bottom tabs: מכירות, הפקה, תפעול, ספקים, �
   Pages in `client/src/pages`, components in `client/src/components`.
 - **Auth:** JWT (`jsonwebtoken`), bcrypt password hashing. `users.role` (legacy single:
   admin/manager/sales/production) plus `users.roles TEXT[]` (current, multi-role:
-  + operations/suppliers/rsvp/finance) and `users.blocked`.
+  + sales_manager/operations/suppliers/rsvp/finance; `sales_manager` = all-leads scope in the sales AI without manager rights) and `users.blocked`.
   Middleware in `server/middleware/auth.js`.
 - **AI:** OpenAI (`openai` SDK, `OPENAI_API_KEY`) — gpt-4o-mini / gpt-4o / whisper-1.
   NOT Anthropic. See [[ai-and-integrations]].

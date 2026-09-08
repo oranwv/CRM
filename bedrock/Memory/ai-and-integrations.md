@@ -29,6 +29,7 @@ nothing in `server/` references it, and `ANTHROPIC_API_KEY` is read nowhere. Eve
 call is OpenAI: `gpt-4o-mini` almost everywhere, `gpt-4o` for /reply, `whisper-1` for
 voice notes. (Verified 2026-09-08 against the source; earlier notes here said Claude.)
 - AI chat assistant (`routes/chat.js`, floating button, SSE streaming, role-scoped tools).
+- WhatsApp sales briefings (`services/salesBriefingService.js`) are **deterministic, no AI text** since 2026-09-08; roles admin/manager/sales_manager get one aggregate briefing, plain `sales` their own leads.
   Tools: get_leads, get_lead_details, get_urgent_leads, get_my_tasks, get_today_schedule,
   get_schedule, get_op_tasks, get_maintenance, get_suppliers, get_rsvp_summary.
 - AI messaging helpers (`routes/ai.js`): transcribe (Whisper) / translate / reply / improve.

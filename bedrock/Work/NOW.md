@@ -6,6 +6,35 @@ updated: 2026-09-08
 
 # Now
 
+## 2026-09-08 — Sales briefing rework, manager-scope fix, sales_manager role
+
+Oran sent a phone screenshot of the morning WhatsApp briefing: the gpt-4o-mini opener
+read oddly ("הזדמנות מדהימה לסגור 14 חוזים…") and the list ("חוזה נשלח וטרם נחתם" +
+link) gave no way to know what to do. He wanted: when the contract / offer was sent,
+when the last contact was and what it was.
+
+Shipped (server/services/salesBriefingService.js):
+- AI opener removed entirely — the briefing is now deterministic (`buildBriefingText`,
+  exported so it can be rendered offline). Header = title · weekday+date · scope line ·
+  three counts. No OpenAI import left in the file.
+- Per lead: rep, event type/date (🔴 קרוב), sent date + "לפני N ימים", last contact
+  (date · who/what · 70-char snippet), and a "who has the ball" flag
+  (❗ הלקוח פנה אחרון / ⏳ הלקוח לא ענה כבר N ימים / 👉 אין קשר מתועד). Max 10 per tier,
+  then "… ועוד N" linking to /sales-worklist. The data was already in `getWorklist`
+  (contract_sent_at / offer_sent_at / last_contact) — the web worklist used it, the
+  WhatsApp digest did not.
+- **Gili bug:** the rep loop ran before the manager loop, so a user with both `sales`
+  and `manager` got her own leads and was marked sent. Now admin/manager/sales_manager
+  are handled first (one aggregate briefing) and excluded from the rep loop.
+- New role `sales_manager` (מנהל מכירות): all-leads scope in getWorklist, the briefing,
+  chat.js lead tools (`ALL_LEADS_SET`), `/api/sales` gate; Sales + Profits modes in the
+  client; label/colour/checkbox in AdminPage. Kept OUT of `ROLE_PRIORITY` on purpose so
+  it never lands in the legacy `role` column (CHECK constraint) — `roles[]` only.
+
+Not verified: `vite build` cannot run in the Claude VM (arm64 Linux vs the Mac
+node_modules); the client diffs are three one-line role checks. Railway builds on push.
+PRD.md updated (roles table, briefing section with a sample message, Phase 27).
+
 ## 2026-09-08 — PRD brought back in sync with the code
 
 The PRD had effectively stopped at 2026-05-02 and only received three later patches

@@ -160,14 +160,14 @@ function GlobalHeader() {
             style={{ minWidth: 140, top: '100%' }}
           >
             {(isAdmin ? ['מכירות','הפקה','ספקים','אישורי הגעה','תפעול','ניהול','כספים','רווחים'] : [
-              ...(userRoles.includes('sales')      ? ['מכירות']      : []),
+              ...(userRoles.includes('sales') || userRoles.includes('sales_manager') ? ['מכירות'] : []),
               ...(userRoles.includes('production') ? ['הפקה']         : []),
               ...(userRoles.includes('suppliers')  ? ['ספקים']        : []),
               ...(userRoles.includes('rsvp')       ? ['אישורי הגעה']  : []),
               ...(userRoles.includes('operations') ? ['תפעול']        : []),
               ...(isManager                        ? ['ניהול']        : []),
               ...(isManager || userRoles.includes('finance') ? ['כספים'] : []),
-              ...(isManager || userRoles.includes('sales')   ? ['רווחים'] : []),
+              ...(isManager || userRoles.includes('sales') || userRoles.includes('sales_manager') ? ['רווחים'] : []),
             ]).map(m => (
               <button
                 key={m}

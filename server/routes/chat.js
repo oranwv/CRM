@@ -12,7 +12,9 @@ function getClient() {
 }
 
 const ADMIN_SET   = new Set(['admin', 'manager']);
-const SALES_SET   = new Set(['admin', 'manager', 'sales']);
+const SALES_SET   = new Set(['admin', 'manager', 'sales_manager', 'sales']);
+// Roles that see every rep's leads (lead scoping in the tools below)
+const ALL_LEADS_SET = new Set(['admin', 'manager', 'sales_manager']);
 const LEAD_SET    = new Set(['admin', 'manager', 'sales', 'production']);
 const OPS_SET     = new Set(['admin', 'manager', 'operations', 'production']);
 const SUPPLY_SET  = new Set(['admin', 'manager', 'suppliers']);
@@ -173,7 +175,7 @@ function getToolsForUser(userRoles) {
 async function executeTool(name, args, user) {
   const userRoles = user.roles?.length ? user.roles : [user.role];
   const uid  = user.id;
-  const isAM = hasRole(userRoles, ADMIN_SET);
+  const isAM = hasRole(userRoles, ALL_LEADS_SET);
 
   switch (name) {
     case 'get_my_tasks': {

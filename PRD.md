@@ -40,6 +40,7 @@ deleting the account.
 |---|---|
 | `admin` | Everything, including `/admin`, user management, lead deletion |
 | `manager` | Everything except admin-only settings; approves financial documents |
+| `sales_manager` | Sales manager (מנהל מכירות): Sales + profit modes, and sees **every rep's leads** in the AI worklist, the WhatsApp briefing and the AI chat — like a manager, but without ניהול/כספים/approvals. Lives only in `roles[]`, never in the legacy `role` column |
 | `sales` | Sales mode: leads, AI worklist, calendar, analytics, tasks, profit |
 | `production` | Production mode: events, tasks, calendar, event brief, seating |
 | `operations` | Operations mode (תפעול): op tasks, maintenance, faults, checklists |
@@ -341,7 +342,7 @@ username VARCHAR(100) UNIQUE
 display_name VARCHAR(200)
 password_hash TEXT
 role VARCHAR(20)             -- admin | manager | sales | production (legacy single role)
-roles TEXT[] DEFAULT '{}'    -- current multi-role field: admin|manager|sales|production|operations|suppliers|rsvp|finance
+roles TEXT[] DEFAULT '{}'    -- current multi-role field: admin|manager|sales_manager|sales|production|operations|suppliers|rsvp|finance
 blocked BOOLEAN DEFAULT FALSE
 phone VARCHAR(50)
 email VARCHAR(255)
@@ -750,14 +751,14 @@ Files embedded in interaction/message bodies use this format where `id` is the `
 return error `1111`. Stripped server-side (commit `77d184b`).
 The issued PDF is downloaded from the pre-signed URL and saved to the lead's files.
 
-### Sales / AI sales agent (`/api/sales`) — admin, manager or sales
+### Sales / AI sales agent (`/api/sales`) — admin, manager, sales_manager or sales
 | Method | Path | Description |
 |---|---|---|
 | GET | `/closed-events` | Closed events for a month — the רווחים page feed |
 | PUT | `/costs/:leadId` | Save cost lines (server recomputes `qty × unit_price`) |
 | POST | `/costs/:leadId/generate` | AI-generate cost lines from the cost-model KB doc + contract |
 | POST | `/costs/generate-missing?year&month` | Backfill months closed before the auto-generation hook existed |
-| GET | `/worklist` | Ranked call list. `sales` → own assigned leads; manager/admin → all, rep-tagged |
+| GET | `/worklist` | Ranked call list. `sales` → own assigned leads; admin/manager/sales_manager → all, rep-tagged |
 | GET/POST | `/leads/:leadId/advice` | Cached per-lead deal advice (`lead_ai_advice`) / regenerate |
 | GET | `/loss-insights` | Aggregated reasons deals were lost |
 
@@ -994,7 +995,7 @@ The prioritized call list. Ranking is **rule-based, not per-lead AI**:
 - tier 3 — urgent / hot
 - a near event (next 45 days) boosts the lead; within each tier, freshness sorts
 
-`sales` sees their own assigned leads; manager/admin see everything, tagged by rep.
+`sales` sees their own assigned leads; admin/manager/sales_manager see everything, tagged by rep.
 A second tab shows **loss insights** — aggregated reasons deals were lost.
 
 **DealAdvisor** (in the lead's info tab) is the per-lead AI part: a `gpt-4o-mini`
@@ -1266,7 +1267,6 @@ while the server was down. For gaps longer than 24h use
 | Event cost lines | `services/eventCostService.js` — JSON mode over the cost-model KB doc | `gpt-4o-mini` |
 | Invoice classification | `services/financeInvoiceScanner.js` — JSON mode | `gpt-4o-mini` |
 | Deal advisor + loss insights | `services/salesAdvisor.js` — JSON mode, cached | `gpt-4o-mini` |
-| Sales briefing text | `services/salesBriefingService.js` | `gpt-4o-mini` |
 | Reminder text | `services/reminderService.js` | `gpt-4o-mini` |
 
 `ai_instructions` (admin-editable free text) is injected into every reply/improve
@@ -1276,13 +1276,45 @@ text of every `ai_knowledge_files` row.
 > **When touching anything model-related, check the current model names — do not
 > answer model questions from memory.**
 
-### AI sales briefings (WhatsApp) ✅ Built 2026-08-27
+### AI sales briefings (WhatsApp) ✅ Built 2026-08-27, reworked 2026-09-08
 A morning day-opener and an evening summary, sent over WhatsApp: reps get their own
-leads, managers get the aggregate. Fired at most once per kind per person per day
-(`sales_briefing_log` UNIQUE `(kind, recipient, sent_on)`); hours come from
-`sales_briefing_morning_hour` / `sales_briefing_evening_hour` (default 8 / 18,
-Asia/Jerusalem) and the whole thing is gated on `sales_briefing_enabled`.
-The cron runs every 15 minutes and checks whether the hour has arrived.
+leads, users who see everyone's leads (admin / manager / sales_manager) get **one
+aggregate** briefing — even when they also hold the `sales` role (before 2026-09-08 the
+rep loop ran first and such users, e.g. Gili, got only their own leads). Fired at most
+once per kind per person per day (`sales_briefing_log` UNIQUE `(kind, recipient,
+sent_on)`); hours come from `sales_briefing_morning_hour` /
+`sales_briefing_evening_hour` (default 8 / 18, Asia/Jerusalem) and the whole thing is
+gated on `sales_briefing_enabled`. The cron runs every 15 minutes and checks whether
+the hour has arrived.
+
+**Format (2026-09-08) — no AI text at all.** The gpt-4o-mini "motivating opener" was
+removed; the message is fully deterministic (`buildBriefingText`):
+
+```
+☀️ פתיחת יום — שרביה · יום שלישי 8.9
+כל הנציגים                      ← or "הלידים של <rep>"
+📝 14 חוזים ממתינים לחתימה
+💰 17 הצעות מחיר פתוחות
+🔥 86 דחופים / ללא קשר
+
+📝 *חוזים שנשלחו וטרם נחתמו* (14)
+
+1. *שם הלקוח* · <rep>
+   חתונה · אירוע 13.11.2026 [🔴 קרוב] · חוזה נשלח 3.9 (לפני 5 ימים)
+   קשר אחרון 5.9 (לפני 3 ימים) · שלחנו ללקוח: "…70 chars…"
+   ⏳ הלקוח לא ענה כבר 3 ימים — לעשות פולואפ
+   https://www.proevent.co.il/?lead=653
+```
+
+Per lead: who the rep is, event type/date, **when the contract / price offer was sent**
+(`contracts.created_at` / `price_offers.created_at`, tier 1 / tier 2), **the last real
+contact** — date, who did it and what it was (`הלקוח כתב` / `שלחנו ללקוח` /
+`התקשרנו` / `ניסינו להתקשר, אין מענה` / `הערה` / `פגישה`, plus a 70-char snippet;
+stage-change 🔄 and auto-reminder markers are excluded by `getWorklist`) — and a
+**"who has the ball" flag**: `❗ הלקוח פנה אחרון` when the last contact was inbound,
+`⏳ הלקוח לא ענה כבר N ימים` when we wrote last and ≥2 days passed, `👉 אין קשר מתועד`
+when there is nothing. Max 10 leads per tier, then `… ועוד N` with a link to
+`/sales-worklist`. Tier 3 items show `עדיפות דחוף/גבוה` instead of a sent date.
 
 ---
 
@@ -1602,6 +1634,15 @@ invoices with AI and files them into Drive by email date. New assignable `financ
 Rule-based worklist ranking, per-lead deal advice cached in `lead_ai_advice`, loss
 insights, and morning/evening WhatsApp briefings. **Draft-only — never auto-sends to a
 customer.**
+
+### Phase 27 — Briefing rework + sales_manager role ✅ Built 2026-09-08
+Reported from Oran's phone: the briefing's AI opener read oddly, and from the list it
+was impossible to tell what to do. Rewritten as a deterministic message (see "AI sales
+briefings") showing per lead when the contract/offer went out, the last contact (when,
+who, what) and who has the ball. Fixed managers who also hold `sales` getting a
+rep-scoped briefing. New `sales_manager` role (מנהל מכירות) — sees every rep's leads in
+the worklist/briefing/AI chat without manager privileges; selectable in the admin users
+screen.
 
 ### Phase 25 — Multi-contact sends ✅ Built 2026-09-05 (`49b771e`)
 See "Multiple recipients (contact people)".
