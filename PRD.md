@@ -483,6 +483,28 @@ The nav bar has two rows rendered in `AppShellNav` inside `App.jsx`:
 
 Active tab: white top-border indicator + full white text. Overdue count badge on משימות tab icon.
 
+### Lead deep links — `/?lead=ID` (fixed 2026-09-08)
+
+Every link to a lead anywhere in the system is `{baseUrl}/?lead={leadId}`: Google
+Calendar event descriptions (`calendarService.js`), WhatsApp/email notifications
+(`whatsapp.js`, `gmailService.js`, `reminderService.js`, `salesBriefingService.js`),
+the AI chat's markdown links (`chat.js`) and in-app navigation
+(`SalesWorklistPage.jsx`). **Contract: that link always opens the lead's card.**
+
+How it resolves: `/` renders `RootRedirect` → `LeadsPage`. `LeadsPage` reads the
+`lead` param, opens `LeadCard` for it and strips the param from the URL.
+
+**The bug that was fixed:** `RootRedirect` also bounces `/` to the last-used
+mode's page (`crm_mode` in localStorage → `/sales-performance`, `/events`,
+`/suppliers`, …) — and it did so without looking at the query string, so any
+lead link opened while the last mode was not מכירות landed on that mode's page
+instead of the lead. Now, when `?lead=` is present, `RootRedirect` does not
+redirect at all and switches the mode to מכירות so the header and bottom nav
+match the page being shown. Without `?lead=` the mode redirect is unchanged.
+
+**Rule for any new page-level redirect:** check `location.search` first — a deep
+link must survive it.
+
 ### `AdminPage.jsx` (`/admin`) — admin only
 - ⚙️ tab visible in row 2 of bottom nav, admin only
 - **AI Instructions** textarea: free-text rules for how the AI should write replies (tone, phrases to avoid, style). Saved to `settings` table, injected into every `/reply` and `/improve` system prompt.

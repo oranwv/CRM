@@ -1,10 +1,30 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-09-05
+updated: 2026-09-08
 ---
 
 # Now
+
+## 2026-09-08 — Lead links landed on the wrong page
+
+Reported from the phone: the "פתח ליד ב-CRM" link in a Google Calendar event
+(`/?lead=1025`) opened the רווחים page, not the lead. Historically it landed on
+"other places" too — always whichever mode was open last.
+
+Cause: `RootRedirect` in client/src/App.jsx bounces `/` to the last-used mode's
+page from `crm_mode` in localStorage, ignoring the query string. `LeadsPage`
+(which handles `?lead=`) is its child, so the redirect fired and dropped the
+param whenever the last mode wasn't מכירות.
+
+Fix: when `?lead=` is present, skip the redirect and switch the mode to מכירות.
+Verified headless against the built bundle from רווחים/הפקה/ספקים/מכירות — all
+land on `/` with the param consumed and mode = מכירות; the control case (no
+`?lead`, mode רווחים) still redirects to /sales-performance as before.
+
+Note: client/node_modules on the Mac holds macOS-arm64 binaries (rolldown), so
+`npm run build` cannot run in the Linux VM that reaches the Mac — build checks
+run in a throwaway cloud clone; the Mac's files are only edited, never rebuilt.
 
 ## 2026-09-07 — Profit page: summary cards overflowed on a phone
 

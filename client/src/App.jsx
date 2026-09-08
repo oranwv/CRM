@@ -285,9 +285,19 @@ function AppShellNav() {
 }
 
 function RootRedirect() {
-  const { mode } = useAppMode();
+  const { mode, setMode } = useAppMode();
   const navigate  = useNavigate();
+  const location  = useLocation();
   useEffect(() => {
+    // Deep link to a lead (/?lead=ID from calendar events, WhatsApp/email
+    // notifications, the AI chat, task reminders). LeadsPage opens the card
+    // from that param, so never bounce to the last-used mode's page — that
+    // silently dropped the param and landed on רווחים/הפקה/etc. instead of
+    // the lead. Switch to sales mode so the header and nav match the page.
+    if (new URLSearchParams(location.search).get('lead')) {
+      if (mode !== 'מכירות') setMode('מכירות');
+      return;
+    }
     if      (mode === 'הפקה')        navigate('/events',     { replace: true });
     else if (mode === 'ספקים')       navigate('/suppliers',  { replace: true });
     else if (mode === 'אישורי הגעה') navigate('/rsvps',      { replace: true });

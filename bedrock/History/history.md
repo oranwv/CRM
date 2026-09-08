@@ -20,6 +20,8 @@ This is not a git replacement.
 
 ## Recent Activity
 
+- **2026-09-08** `fix` — Lead deep links (/?lead=ID) always open the lead card; RootRedirect no longer bounces them to the last-used mode's page
+
 - **2026-09-07** `fix` — Profit page summary cards no longer overflow on narrow phones
 
 - **2026-09-05** `feature` — WhatsApp/email sends can target several contact people (multi-recipient)
