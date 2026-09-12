@@ -64,3 +64,4 @@ router.post('/:item', async (req, res) => {
 });
 
 module.exports = router;
+router.ITEMS = ITEMS;

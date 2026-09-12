@@ -655,6 +655,12 @@ Files embedded in interaction/message bodies use this format where `id` is the `
 | POST | `/api/tasks/:taskId/complete` | Complete task: `{ token, result? }`. Logs result to timeline. |
 | POST | `/api/tasks/:taskId/create-followup` | Create follow-up task: `{ token, title, dueAt? }`. Inherits lead_id, assigned_to, remind_via. |
 
+### Production (`/api/production`) — auth required, production role or admin/manager
+| Method | Path | Description |
+|---|---|---|
+| GET | `/unready-events?days=7` | `{ count, events[] }` — deposit/production leads with an event in the next N days and something open (`missing[]`: brief / checklist / deposit / production_manager) |
+| GET | `/briefing-preview?kind=morning\|close` | The production WhatsApp text as it would be sent (nothing sent) |
+
 ### Calendar (`/api/calendar`) — auth required except ICS + confirm
 | Method | Path | Auth | Description |
 |---|---|---|---|
@@ -873,7 +879,7 @@ and **סידור הושבה**, opened as overlays.)
 
 **פרטי ליד** — all lead fields, inline notes editor
 
-**הפקה** — deposit amount + date + confirmed checkbox + production notes (stages deposit/production only)
+**תשלומים / הפקה** — אחראי הפקה dropdown, deposit amount + date + confirmed, full payment amount + date + confirmed (both amounts auto-filled from the signed contract incl. VAT when empty), יתרה לתשלום, production notes (stages deposit/production/completed)
 
 **קבצים**
 - Upload via button or drag-and-drop
@@ -1161,6 +1167,7 @@ the approve/reject result until they dismiss it (`creator_seen`).
 | Israeli holidays import | On start | `importHolidays()` reads `server/data/holidays.json` (2025–2031, Jewish/Israeli only, Hebrew names, built from the user's ICS export). Fetching Google's public holiday calendar did **not** work in production — do not go back to it |
 | Drive folder sync | Every 5 min | `driveService.syncDriveFolders()` → `drive_cached_files` |
 | Sales briefings | Every 15 min | `salesBriefingService.runSalesBriefings()` — fires the morning/evening WhatsApp briefing when the configured hour arrives |
+| Production briefings | Every 15 min | `productionBriefingService.runProductionBriefings()` — production morning briefing at the sales morning hour; "event ended, close it" reminders at `event_close_reminder_hour` (default 10) |
 | WhatsApp history sync | Every 30 min | `waSyncService.syncWhatsAppMessages()` — backfills messages Green API delivered while the server was down |
 | Meeting reminders | Every 60 min | `meetingReminderService.sendMeetingReminders()` |
 | Invoice scan | Daily 20:00 | `financeInvoiceScanner.startDailyInvoiceScan()` |
@@ -1665,6 +1672,33 @@ invoices with AI and files them into Drive by email date. New assignable `financ
 Rule-based worklist ranking, per-lead deal advice cached in `lead_ai_advice`, loss
 insights, and morning/evening WhatsApp briefings. **Draft-only — never auto-sends to a
 customer.**
+
+### Phase 30 — Production: full payment, אחראי הפקה, production briefing, close reminders, "not ready" badge ✅ Built 2026-09-12
+Requested by Oran (2026-09-12):
+- **Full payment** next to the deposit in the card's תשלומים section: `full_payment_amount`,
+  `full_payment_date`, `full_payment_confirmed` (same shape as the deposit). On customer
+  signature (`POST /api/contracts/:token/sign`) the deposit amount and the full-payment
+  amount are auto-filled from the contract's calculated values **incl. VAT**
+  (`depositAmountVat`, `remainingBalance`) — only where still empty; both stay editable.
+  Recording the full payment does NOT move the stage; the אחראי הפקה moves the lead to
+  "אירוע הסתיים והתקבל תשלום" by hand.
+- **אחראי הפקה** (`leads.production_manager_id`) — dropdown of production/admin/manager users
+  at the top of the תשלומים section. `/api/users` now also returns `roles`.
+- **Production morning briefing** (`services/productionBriefingService.js`, kind
+  `production_morning`, same hour as the sales morning briefing, default 8:00) to every user
+  with the production role + admins/managers, everyone's events. Sections: events in the next
+  7 days with what's missing; past events not closed; deposits/full payments not confirmed;
+  the recipient's open production tasks due today/overdue. Preview:
+  `GET /api/production/briefing-preview?kind=morning|close`.
+- **Close reminder** (kind `event_close_reminder`, `event_close_reminder_hour` setting,
+  default 10:00): each אחראי הפקה gets their events whose date passed but are still in
+  deposit/production, every day until closed; managers get one aggregate copy
+  (`event_close_reminder_mgr`).
+- **Red header badge "N אירועים לא מוכנים"** (production users + managers) next to
+  "ממתינים": events in the next 7 days with something open — brief not filled, production
+  checklist not complete, deposit not confirmed, no אחראי הפקה. Click → `UnreadyEventsModal`
+  (name, in how many days, owner, tags of what's missing); row → opens the lead.
+  Data: `GET /api/production/unready-events` via `services/eventReadiness.js`.
 
 ### Phase 29 — Remove event from calendar (unmark) ✅ Built 2026-09-12
 Lead "איימי ורן חתונה" was cancelled (moved to לא סגרו) but its red event stayed on Google:

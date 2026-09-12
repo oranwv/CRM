@@ -21,6 +21,7 @@ import ManagementPage   from './pages/ManagementPage';
 import FinancePage      from './pages/FinancePage';
 import AIChat           from './components/AIChat';
 import PendingDocsModal  from './components/PendingDocsModal';
+import UnreadyEventsModal from './components/UnreadyEventsModal';
 import { docTypeLabel }   from './utils/docTypes';
 import { AppModeProvider, useAppMode } from './context/AppModeContext';
 import usePresencePing from './hooks/usePresencePing';
@@ -39,8 +40,11 @@ function GlobalHeader() {
   const userRoles          = user.roles?.length ? user.roles : [user.role];
   const isAdmin            = userRoles.includes('admin');
   const isManager          = isAdmin || userRoles.includes('manager');
+  const isProduction       = isManager || userRoles.includes('production');
   const [pendingCount, setPendingCount] = useState(0);
   const [showPending, setShowPending]   = useState(false);
+  const [unreadyCount, setUnreadyCount] = useState(0);
+  const [showUnready, setShowUnready]   = useState(false);
   const [dropOpen, setDropOpen] = useState(false);
   const dropRef = useRef(null);
 
@@ -55,6 +59,19 @@ function GlobalHeader() {
     const t = setInterval(loadPendingCount, 60_000);
     return () => clearInterval(t);
   }, [isManager, loadPendingCount]);
+
+  // Red "אירועים לא מוכנים" badge — production users + managers, events in the next 7 days with open items
+  const loadUnreadyCount = useCallback(() => {
+    if (!isProduction || !localStorage.getItem('crm_token')) return;
+    api.get('/production/unready-events').then(r => setUnreadyCount(r.data.count)).catch(() => {});
+  }, [isProduction]);
+
+  useEffect(() => {
+    if (!isProduction || !localStorage.getItem('crm_token')) return;
+    loadUnreadyCount();
+    const t = setInterval(loadUnreadyCount, 60_000);
+    return () => clearInterval(t);
+  }, [isProduction, loadUnreadyCount]);
 
   // Creator banner — notify the user when a doc they submitted was approved/rejected.
   const [reviewedDocs, setReviewedDocs] = useState([]);
@@ -117,7 +134,18 @@ function GlobalHeader() {
             {pendingCount > 99 ? '99+' : pendingCount} ממתינים
           </button>
         )}
+        {isProduction && unreadyCount > 0 && (
+          <button
+            onClick={() => setShowUnready(true)}
+            className="bg-red-500 text-white text-[10px] font-black rounded-full px-2 py-0.5 leading-none hover:bg-red-600 transition cursor-pointer">
+            {unreadyCount > 99 ? '99+' : unreadyCount} אירועים לא מוכנים
+          </button>
+        )}
       </div>
+
+      {showUnready && (
+        <UnreadyEventsModal onClose={() => { setShowUnready(false); loadUnreadyCount(); }} />
+      )}
 
       {showPending && (
         <PendingDocsModal

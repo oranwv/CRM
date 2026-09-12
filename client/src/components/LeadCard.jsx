@@ -695,7 +695,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
 
             {/* Production module — only for deposit/production/completed stage */}
             {(lead.stage === 'deposit' || lead.stage === 'production' || lead.stage === 'completed') && (
-              <ProductionSection leadId={leadId} lead={lead} onUpdated={load} />
+              <ProductionSection leadId={leadId} lead={lead} onUpdated={load} users={users} />
             )}
 
             {/* Suppliers — visible on deposit/production/completed */}
@@ -4550,12 +4550,21 @@ function EditForm({ form, setForm, users, onSave, onCancel }) {
   );
 }
 
-function ProductionSection({ leadId, lead, onUpdated }) {
+function ProductionSection({ leadId, lead, onUpdated, users = [] }) {
   const [form, setForm] = useState({
-    deposit_amount:    lead.deposit_amount    || '',
-    deposit_date:      lead.deposit_date      ? lead.deposit_date.split('T')[0] : '',
-    deposit_confirmed: lead.deposit_confirmed || false,
-    production_notes:  lead.production_notes  || '',
+    deposit_amount:         lead.deposit_amount         || '',
+    deposit_date:           lead.deposit_date           ? lead.deposit_date.split('T')[0] : '',
+    deposit_confirmed:      lead.deposit_confirmed      || false,
+    full_payment_amount:    lead.full_payment_amount    || '',
+    full_payment_date:      lead.full_payment_date      ? lead.full_payment_date.split('T')[0] : '',
+    full_payment_confirmed: lead.full_payment_confirmed || false,
+    production_manager_id:  lead.production_manager_id  ? String(lead.production_manager_id) : '',
+    production_notes:       lead.production_notes       || '',
+  });
+  // אחראי הפקה — users with the production role (plus whoever is already set, so the value never disappears)
+  const productionUsers = users.filter(u => {
+    const r = u.roles?.length ? u.roles : [u.role];
+    return r.includes('production') || r.includes('admin') || r.includes('manager') || String(u.id) === form.production_manager_id;
   });
   const [saving, setSaving]           = useState(false);
   const [balanceEdit, setBalanceEdit] = useState(false);
@@ -4587,8 +4596,11 @@ function ProductionSection({ leadId, lead, onUpdated }) {
     try {
       await api.patch(`/leads/${leadId}`, {
         ...form,
-        deposit_amount: form.deposit_amount === '' ? null : form.deposit_amount,
-        deposit_date:   form.deposit_date   === '' ? null : form.deposit_date,
+        deposit_amount:        form.deposit_amount        === '' ? null : form.deposit_amount,
+        deposit_date:          form.deposit_date          === '' ? null : form.deposit_date,
+        full_payment_amount:   form.full_payment_amount   === '' ? null : form.full_payment_amount,
+        full_payment_date:     form.full_payment_date     === '' ? null : form.full_payment_date,
+        production_manager_id: form.production_manager_id === '' ? null : Number(form.production_manager_id),
       });
       await onUpdated();
     } catch { alert('שגיאה בשמירה'); }
@@ -4615,6 +4627,15 @@ function ProductionSection({ leadId, lead, onUpdated }) {
   return (
     <Section title="תשלומים">
       <div className="space-y-3">
+        <div>
+          <label className="text-sm text-slate-500 block mb-1">אחראי הפקה</label>
+          <select value={form.production_manager_id}
+            onChange={e => setForm(f => ({ ...f, production_manager_id: e.target.value }))}
+            className={cls}>
+            <option value="">— לא נבחר —</option>
+            {productionUsers.map(u => <option key={u.id} value={u.id}>{u.display_name}</option>)}
+          </select>
+        </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="text-sm text-slate-500 block mb-1">סכום מקדמה (₪)</label>
@@ -4631,6 +4652,26 @@ function ProductionSection({ leadId, lead, onUpdated }) {
           <span className="text-base font-semibold text-slate-700">מקדמה התקבלה</span>
           <input type="checkbox" checked={form.deposit_confirmed}
             onChange={e => setForm(f => ({ ...f, deposit_confirmed: e.target.checked }))}
+            className="w-4 h-4 accent-violet-600" />
+        </label>
+
+        {/* תשלום מלא — same shape as the deposit; amount auto-filled from the signed contract (editable) */}
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-sm text-slate-500 block mb-1">סכום תשלום מלא (₪)</label>
+            <input type="number" value={form.full_payment_amount}
+              onChange={e => setForm(f => ({ ...f, full_payment_amount: e.target.value }))}
+              className={cls} placeholder="0" />
+          </div>
+          <div>
+            <label className="text-sm text-slate-500 block mb-1">תאריך תשלום מלא</label>
+            <PickerDateInput value={form.full_payment_date} onChange={v => setForm(f => ({ ...f, full_payment_date: v }))} className={cls} />
+          </div>
+        </div>
+        <label className="flex items-center gap-2 cursor-pointer justify-end">
+          <span className="text-base font-semibold text-slate-700">תשלום מלא התקבל</span>
+          <input type="checkbox" checked={form.full_payment_confirmed}
+            onChange={e => setForm(f => ({ ...f, full_payment_confirmed: e.target.checked }))}
             className="w-4 h-4 accent-violet-600" />
         </label>
 

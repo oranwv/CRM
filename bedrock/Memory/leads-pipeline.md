@@ -37,3 +37,13 @@ signed URLs (1h expiry).
 
 Frontend: `LeadsPage.jsx` (list/board), `LeadCard.jsx` (full-screen modal with
 Info / activity / files tabs).
+
+## Production follow-through (2026-09-12)
+- `leads.production_manager_id` (אחראי הפקה) — who owns the event in production; gets the daily
+  close reminder for their past, still-open events. Distinct from `assigned_to` (sales rep).
+- Full payment: `full_payment_amount/date/confirmed`, next to the deposit fields. Both amounts
+  auto-filled from the signed contract (incl. VAT) only when empty. Stage never moves
+  automatically — a person clicks "אירוע הסתיים והתקבל תשלום".
+- "Not ready" (badge + briefing) = brief empty, checklist incomplete, deposit unconfirmed, or no
+  אחראי הפקה — computed in `services/eventReadiness.js`; keep any new criterion there so the
+  badge, the briefing and the reminder stay in sync.

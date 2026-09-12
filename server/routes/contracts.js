@@ -432,6 +432,22 @@ contractPublicRouter.post('/:token/sign', async (req, res) => {
       [contract.lead_id, `החוזה נחתם על ידי ${ordererName} — חותם: ${signerName} (ת.ז: ${signerIdNumber})`]
     );
 
+    // Auto-fill the payment amounts from the signed contract (incl. VAT) — only where still empty,
+    // so an amount someone already typed by hand is never overwritten. Both stay editable in the card.
+    try {
+      const calc = contract.contract_data?.calculated || {};
+      const depositVat = calc.depositAmountVat != null && calc.depositAmountVat !== '' ? Number(calc.depositAmountVat) : null;
+      const balance    = calc.remainingBalance  != null && calc.remainingBalance  !== '' ? Number(calc.remainingBalance)  : null;
+      await pool.query(
+        `UPDATE leads SET
+           deposit_amount      = COALESCE(deposit_amount, $1),
+           full_payment_amount = COALESCE(full_payment_amount, $2),
+           updated_at = NOW()
+         WHERE id = $3`,
+        [Number.isFinite(depositVat) ? depositVat : null, Number.isFinite(balance) ? balance : null, contract.lead_id]
+      );
+    } catch (e) { console.error('[Contracts] payment auto-fill failed:', e.message); }
+
     // Send to Sharabiya
     try {
       await sendEmail({

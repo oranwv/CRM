@@ -208,6 +208,10 @@ pool.query(`
   ALTER TABLE leads ADD COLUMN IF NOT EXISTS remaining_balance_override NUMERIC;
   ALTER TABLE leads ADD COLUMN IF NOT EXISTS remaining_balance_override_by INT REFERENCES users(id);
   ALTER TABLE leads ADD COLUMN IF NOT EXISTS remaining_balance_override_at TIMESTAMPTZ;
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS full_payment_amount NUMERIC;
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS full_payment_date DATE;
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS full_payment_confirmed BOOLEAN DEFAULT FALSE;
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS production_manager_id INT REFERENCES users(id) ON DELETE SET NULL;
 `).catch(err => console.error('[DB] production tables migration error:', err.message));
 
 pool.query(`
@@ -635,6 +639,7 @@ app.use('/api/sales',               requireAuth, require('./routes/sales'));
 app.use('/api/presence',            requireAuth, require('./routes/presence'));
 app.use('/api/suppliers',           requireAuth, require('./routes/suppliers'));
 app.use('/api/operations',          requireAuth, operationsRoutes);
+app.use('/api/production',          requireAuth, require('./routes/production'));
 app.use('/api/greeninvoice',        requireAuth, require('./routes/greeninvoice'));
 // Public OAuth callback for connecting extra finance mailboxes (Google redirects
 // the browser here; access is validated via the signed `state` param).
@@ -722,6 +727,14 @@ function startCronJobs() {
     setInterval(runSalesBriefings, 15 * 60 * 1000);
   }, 60 * 1000);
   console.log('[Cron] Sales briefing service started');
+
+  // Production briefing (8:00) + "event ended, close it" reminders (10:00) — same 15-min tick
+  const { runProductionBriefings } = require('./services/productionBriefingService');
+  setTimeout(() => {
+    runProductionBriefings();
+    setInterval(runProductionBriefings, 15 * 60 * 1000);
+  }, 90 * 1000);
+  console.log('[Cron] Production briefing service started');
 
   // WhatsApp message recovery — scan last 24h every 30 minutes, import anything the webhook missed
   const { syncWhatsAppMessages } = require('./services/waSyncService');

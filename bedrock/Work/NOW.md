@@ -6,6 +6,28 @@ updated: 2026-09-12
 
 # Now
 
+## 2026-09-12 — Production: full payment, אחראי הפקה, briefing, close reminders, badge
+
+Oran's spec (answers to clarifying questions): full payment = same fields as the
+deposit; amounts auto-filled from the signed contract incl. VAT only when empty; no
+automatic stage move (the אחראי הפקה moves to "אירוע הסתיים והתקבל תשלום" by hand);
+new field אחראי הפקה; close reminder every day from the day after the event until
+closed, at 10:00, copy to managers; production briefing at 8:00 to production users +
+admin/manager with: events this week + what's missing, past events not closed,
+unconfirmed deposits/payments, today's open production tasks; badge "אירועים לא
+מוכנים" for production + managers, 7 days, "not ready" = brief empty / checklist
+incomplete / deposit unconfirmed / no אחראי הפקה.
+
+Built: `services/eventReadiness.js` (shared queries), `services/productionBriefingService.js`
+(reuses `sales_briefing_log` for dedupe, kinds production_morning /
+event_close_reminder / event_close_reminder_mgr), `routes/production.js`,
+`components/UnreadyEventsModal.jsx`, App.jsx badge, ProductionSection fields,
+contracts.js auto-fill, index.js migration (4 lead columns). Could not run against
+the DB from the Mac VM — node --check + esbuild parse only. After deploy verify:
+(1) open a production lead → אחראי הפקה + full-payment fields save; (2)
+`/api/production/briefing-preview?kind=morning` renders; (3) badge appears when an
+event in the next 7 days has open items. Oran said more briefing items will follow.
+
 ## 2026-09-12 — Unmark (remove from calendar) + robust delete on לא סגרו
 
 "איימי ורן חתונה" cancelled → moved to לא סגרו, but the red Google event stayed:
