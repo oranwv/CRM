@@ -6,6 +6,18 @@ updated: 2026-09-12
 
 # Now
 
+## 2026-09-12 — Finance: "חבר תיבת מייל" button did nothing
+
+Oran wants extra mailboxes scanned for invoices; the feature already existed end to end
+(`buildConnectUrl` / `oauthCallbackHandler` / `finance_gmail_accounts`), but the button
+called `window.open` after an `await`, which browsers silently block. Fix in
+`FinancePage.connectMailbox`: open the popup synchronously, navigate it once the URL
+arrives, fall back to same-tab redirect; callback page closes the popup or returns to
+`/finance`; list refreshes on window focus. Pushed as 9fcd473. Not verifiable from the
+Mac VM (arm64 node_modules) — after deploy: click the button, finish Google consent, the
+new mailbox must appear as a blue chip. If Google shows `redirect_uri_mismatch` or
+"access blocked", the fix is in Google Cloud Console (redirect URI / test users), not code.
+
 ## 2026-09-12 — Production: full payment, אחראי הפקה, briefing, close reminders, badge
 
 Oran's spec (answers to clarifying questions): full payment = same fields as the

@@ -1064,6 +1064,14 @@ a supplier invoice → downloads attachments and follows body links (including i
 pages) to the real PDF → files into Drive by **email date**, under the folder configured in
 AdminPage ("תיקיית חשבוניות בדרייב") with `MM-YYYY` subfolders. Runs nightly at 20:00 server
 time, or manually with presets. Runs in the background with a live progress indicator.
+Extra mailboxes: "+ חבר תיבת מייל" on the Finance page opens Google OAuth (gmail.readonly);
+the token is stored in `finance_gmail_accounts` and every scan covers all active mailboxes
+(files always land in the business account's Drive). The OAuth window is opened
+synchronously in the click handler (browsers block `window.open` after an `await`); if it
+is still blocked the flow runs in the same tab and the callback page returns to `/finance`.
+Requires `${SERVER_URL}/api/finance/gmail/oauth/callback` to be registered as a redirect
+URI in the Google Cloud OAuth client, and the Google account to be a test user while the
+OAuth app is in Testing mode.
 
 ### `OperationsPage.jsx` (`/operations`) — "תפעול" mode
 Tasks / maintenance / faults, each with a status lifecycle and a dedicated detail view
