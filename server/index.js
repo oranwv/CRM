@@ -1,4 +1,9 @@
 require('dotenv').config();
+// Env values pasted into Railway sometimes carry stray whitespace; a leading
+// space in SERVER_URL made Google reject the OAuth redirect_uri (invalid_request).
+for (const k of ['SERVER_URL', 'GOOGLE_WEB_CLIENT_ID', 'GOOGLE_WEB_CLIENT_SECRET', 'JWT_SECRET']) {
+  if (typeof process.env[k] === 'string') process.env[k] = process.env[k].trim().replace(/\/+$/, '');
+}
 const express = require('express');
 
 // A single failing async task (e.g. a stream error during a long Gmail/Drive
