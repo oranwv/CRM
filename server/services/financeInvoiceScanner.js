@@ -60,7 +60,8 @@ function buildConnectUrl(userId) {
 // Public endpoint (Google redirects the browser here). Validates the signed state.
 async function oauthCallbackHandler(req, res) {
   const { code, state, error } = req.query;
-  const html = (msg) => res.send(`<html dir="rtl"><body style="font-family:sans-serif;text-align:center;padding-top:80px"><h3>${msg}</h3><p>אפשר לסגור את החלון.</p><script>setTimeout(()=>window.close(),2500)</script></body></html>`);
+  // Opened as a popup → close it; opened in the same tab (popup blocked) → go back to the finance page.
+  const html = (msg) => res.send(`<html dir="rtl"><body style="font-family:sans-serif;text-align:center;padding-top:80px"><h3>${msg}</h3><p>אפשר לסגור את החלון.</p><script>setTimeout(()=>{ if (window.opener) window.close(); else window.location.replace('/finance'); },2500)</script></body></html>`);
   try {
     if (error) return html('החיבור בוטל');
     jwt.verify(state, process.env.JWT_SECRET); // throws if forged/expired

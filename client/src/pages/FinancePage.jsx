@@ -192,12 +192,23 @@ function InvoiceScanSection() {
   }, []);
 
   async function connectMailbox() {
+    // Open the window synchronously inside the click handler — browsers
+    // (Safari/iOS especially) silently block window.open after an await.
+    const popup = window.open('', '_blank', 'width=520,height=680');
     try {
       const { data } = await api.get('/finance/gmail/connect-url');
-      window.open(data.url, '_blank', 'width=520,height=680');
-      // refresh list when the popup likely finished
-      setTimeout(loadAccounts, 15000);
+      if (popup) {
+        popup.location.href = data.url;
+        // refresh the list when the popup finishes / the tab regains focus
+        const onFocus = () => { loadAccounts(); window.removeEventListener('focus', onFocus); };
+        window.addEventListener('focus', onFocus);
+        setTimeout(loadAccounts, 15000);
+      } else {
+        // Popup blocked — go through Google in this tab; the callback returns to /finance
+        window.location.assign(data.url);
+      }
     } catch (err) {
+      if (popup) popup.close();
       alert(err.response?.data?.error || 'שגיאה');
     }
   }
