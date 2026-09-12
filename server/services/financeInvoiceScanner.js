@@ -34,7 +34,8 @@ function primaryAuth() {
 }
 
 function authForToken(tokenJson) {
-  const auth = oauthClient();
+  // Extra mailboxes were authorized through the web client — refresh through it too
+  const auth = process.env.GOOGLE_WEB_CLIENT_ID ? webOauthClient() : oauthClient();
   auth.setCredentials(typeof tokenJson === 'string' ? JSON.parse(tokenJson) : tokenJson);
   return auth;
 }
@@ -46,8 +47,23 @@ function connectRedirectUri() {
   return `${process.env.SERVER_URL || 'http://localhost:3000'}/api/finance/gmail/oauth/callback`;
 }
 
+// credentials.json is a *Desktop* OAuth client, which Google only allows to
+// redirect to localhost — using it with the Railway callback URL fails with
+// "Access blocked: doesn't comply with OAuth 2.0 policy (invalid_request)".
+// Connecting extra mailboxes therefore uses a separate *Web application*
+// client from env (GOOGLE_WEB_CLIENT_ID / GOOGLE_WEB_CLIENT_SECRET) whose
+// authorized redirect URI is connectRedirectUri(). Tokens obtained through it
+// must also be refreshed through it, hence authForToken() uses the same client.
+function webOauthClient() {
+  const { GOOGLE_WEB_CLIENT_ID, GOOGLE_WEB_CLIENT_SECRET } = process.env;
+  if (!GOOGLE_WEB_CLIENT_ID || !GOOGLE_WEB_CLIENT_SECRET) {
+    throw new Error('חיבור תיבות נוספות דורש GOOGLE_WEB_CLIENT_ID ו-GOOGLE_WEB_CLIENT_SECRET (OAuth client מסוג Web application) במשתני הסביבה');
+  }
+  return new google.auth.OAuth2(GOOGLE_WEB_CLIENT_ID, GOOGLE_WEB_CLIENT_SECRET, connectRedirectUri());
+}
+
 function buildConnectUrl(userId) {
-  const auth = oauthClient(connectRedirectUri());
+  const auth = webOauthClient();
   const state = jwt.sign({ uid: userId, purpose: 'finance-gmail' }, process.env.JWT_SECRET, { expiresIn: '15m' });
   return auth.generateAuthUrl({
     access_type: 'offline',
@@ -65,7 +81,7 @@ async function oauthCallbackHandler(req, res) {
   try {
     if (error) return html('החיבור בוטל');
     jwt.verify(state, process.env.JWT_SECRET); // throws if forged/expired
-    const auth = oauthClient(connectRedirectUri());
+    const auth = webOauthClient();
     const { tokens } = await auth.getToken(code);
     auth.setCredentials(tokens);
     const gmail = google.gmail({ version: 'v1', auth });

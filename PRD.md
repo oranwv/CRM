@@ -1069,9 +1069,12 @@ the token is stored in `finance_gmail_accounts` and every scan covers all active
 (files always land in the business account's Drive). The OAuth window is opened
 synchronously in the click handler (browsers block `window.open` after an `await`); if it
 is still blocked the flow runs in the same tab and the callback page returns to `/finance`.
-Requires `${SERVER_URL}/api/finance/gmail/oauth/callback` to be registered as a redirect
-URI in the Google Cloud OAuth client, and the Google account to be a test user while the
-OAuth app is in Testing mode.
+`credentials.json` is a *Desktop* OAuth client (localhost redirects only), so this flow uses
+a separate *Web application* client via env `GOOGLE_WEB_CLIENT_ID` / `GOOGLE_WEB_CLIENT_SECRET`
+whose authorized redirect URI is `${SERVER_URL}/api/finance/gmail/oauth/callback`; the token
+refresh for extra mailboxes goes through the same web client. Without these env vars the
+button returns a clear error. The Google account must be a test user while the OAuth app is
+in Testing mode.
 
 ### `OperationsPage.jsx` (`/operations`) — "תפעול" mode
 Tasks / maintenance / faults, each with a status lifecycle and a dedicated detail view

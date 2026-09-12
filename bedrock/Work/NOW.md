@@ -15,8 +15,13 @@ called `window.open` after an `await`, which browsers silently block. Fix in
 arrives, fall back to same-tab redirect; callback page closes the popup or returns to
 `/finance`; list refreshes on window focus. Pushed as 9fcd473. Not verifiable from the
 Mac VM (arm64 node_modules) — after deploy: click the button, finish Google consent, the
-new mailbox must appear as a blue chip. If Google shows `redirect_uri_mismatch` or
-"access blocked", the fix is in Google Cloud Console (redirect URI / test users), not code.
+new mailbox must appear as a blue chip. Second round: Google returned "Access blocked
+… doesn't comply with OAuth 2.0 policy, Error 400 invalid_request" — `credentials.json` is
+a Desktop client, which may only redirect to localhost. Added `webOauthClient()` using env
+`GOOGLE_WEB_CLIENT_ID` / `GOOGLE_WEB_CLIENT_SECRET` (a Web application client whose
+redirect URI is `${SERVER_URL}/api/finance/gmail/oauth/callback`); `authForToken` refreshes
+through it. Waiting on Oran to create that client in Google Cloud Console and set the two
+vars on Railway.
 
 ## 2026-09-12 — Production: full payment, אחראי הפקה, briefing, close reminders, badge
 
