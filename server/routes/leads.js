@@ -230,14 +230,16 @@ router.patch('/:id', async (req, res) => {
       // On transition to lost: delete meetings, calendar events, and open tasks
       if (lead.stage === 'lost' && oldStage !== 'lost') {
         if (hasGoogle()) {
-          const { deleteMeeting } = require('../services/calendarService');
+          const { deleteMeeting, removeLeadEventsFromGoogle } = require('../services/calendarService');
           const [mtgRows, calRows] = await Promise.all([
             pool.query('SELECT google_event_id FROM meetings        WHERE lead_id = $1 AND google_event_id IS NOT NULL', [req.params.id]),
             pool.query('SELECT google_event_id FROM calendar_events WHERE lead_id = $1 AND google_event_id IS NOT NULL', [req.params.id]),
           ]);
-          for (const r of [...mtgRows.rows, ...calRows.rows]) {
+          for (const r of mtgRows.rows) {
             deleteMeeting(r.google_event_id).catch(() => {});
           }
+          // Event-date event: delete by stored id, and also any event of this lead whose stored id went stale
+          await removeLeadEventsFromGoogle(lead, calRows.rows[0]?.google_event_id || null);
         }
         await Promise.all([
           pool.query('DELETE FROM meetings        WHERE lead_id = $1', [req.params.id]),

@@ -24,6 +24,9 @@ service clients in `server/services/`.
   `crmManual`). Sync is DB-first; if the stored `google_event_id` is gone on Google
   (404/410) the sync relinks to a surviving event of the lead or recreates one, and
   `GET /calendar/leads/:id/status` verifies + heals on lead-card load (2026-09-12).
+- Unmark: clicking the active אופציה/סגור button again → confirm popup → `POST
+  /calendar/leads/:id/unmark` (`unmarkEventDate`) deletes the Google event(s) and the
+  `calendar_events` row. The לא סגרו transition uses the same `removeLeadEventsFromGoogle`.
 - `driveService.js` + `DriveFilePicker.jsx` — attach Google Drive files.
 - Auth via OAuth; credentials reconstructed from base64 env on boot (Railway).
 

@@ -6,6 +6,18 @@ updated: 2026-09-12
 
 # Now
 
+## 2026-09-12 — Unmark (remove from calendar) + robust delete on לא סגרו
+
+"איימי ורן חתונה" cancelled → moved to לא סגרו, but the red Google event stayed:
+the lost-transition `deleteMeeting(stored id)` 404'd silently. Oran also expected a
+second click on "סגור" to cancel. Added `unmarkEventDate` + `removeLeadEventsFromGoogle`
+(delete stored id, then loop `findLeadEventOnGoogle` to catch stale/duplicate events),
+`POST /calendar/leads/:id/unmark`, and a confirm popup in `CalendarSection`
+(`pendingUnmark`) when the active button is clicked again. leads.js lost-transition
+now calls `removeLeadEventsFromGoogle(lead, storedId)`. JSX parsed with esbuild in
+the cloud; server files node --check. Events the CRM never created (no crmLeadId /
+"ליד #" marker) can't be found — delete by hand in Google.
+
 ## 2026-09-12 — Calendar link self-heal (stale google_event_id)
 
 Lead "אורי בלוך שבת חתן": CRM said סגור, Google showed yellow, "פתח ביומן Google"

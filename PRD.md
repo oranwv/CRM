@@ -660,6 +660,7 @@ Files embedded in interaction/message bodies use this format where `id` is the `
 |---|---|---|---|
 | GET | `/leads` | ✅ | All leads with event dates + calendar status |
 | POST | `/leads/:leadId/mark` | ✅ | Mark event as option or confirmed |
+| POST | `/leads/:leadId/unmark` | ✅ | Take the lead off the calendar: deletes the Google event (stored id + any event of the lead found by `crmLeadId`/`ליד #` marker), deletes the `calendar_events` row, logs `🗓️ האירוע הוסר מיומן Google` |
 | GET | `/leads/:leadId/status` | ✅ | Get calendar_events row. Also verifies the linked Google event still exists; if it was deleted on Google, re-syncs (relink or recreate) before answering |
 | POST | `/leads/:leadId/meeting` | ✅ | Create Google Calendar meeting. Logs `meeting` interaction to timeline. Body: `{ title, start, end, guestEmail, guestName }` |
 | GET | `/meetings/:eventId/details` | ✅ | Fetch meeting row (title, start_time, end_time) |
@@ -863,6 +864,7 @@ and **סידור הושבה**, opened as overlays.)
 
 **יומן Google**
 - 🟡 אופציה / ✅ סגור toggle for event date calendar marking
+- Clicking the already-active button (סגור when confirmed / אופציה when option) opens a confirm popup "להסיר את האירוע מהיומן?" → `POST /unmark` removes the event from Google and the CRM ("לא מסומן ביומן"). Moving a lead to לא סגרו does the same removal (robust to a stale stored id).
 - The Google event carries `extendedProperties.private.crmLeadId`. If the stored `google_event_id` no longer exists on Google (404/410), the sync looks for another event of the same lead around the event date (by `crmLeadId`, then by the `ליד #<id>` text in the description), relinks to it and recolours it; otherwise it creates a new event. Same recovery runs when the lead card loads (see `/status`), so "פתח ביומן Google" never points at a deleted event.
 - When `lead.meeting_event_id` is set: shows "נקבעה פגישה ל-[DD/MM/YYYY HH:MM]" block
 - Button "בטל\דחה פגישה" opens `MeetingActionModal`:
@@ -1663,6 +1665,16 @@ invoices with AI and files them into Drive by email date. New assignable `financ
 Rule-based worklist ranking, per-lead deal advice cached in `lead_ai_advice`, loss
 insights, and morning/evening WhatsApp briefings. **Draft-only — never auto-sends to a
 customer.**
+
+### Phase 29 — Remove event from calendar (unmark) ✅ Built 2026-09-12
+Lead "איימי ורן חתונה" was cancelled (moved to לא סגרו) but its red event stayed on Google:
+the lost-transition delete used a stale `google_event_id` and failed silently. Also, clicking
+"סגור" again did nothing visible — Oran expected it to cancel. Now: clicking the active
+button again shows a confirmation popup and calls `POST /calendar/leads/:id/unmark`, which
+deletes the Google event(s) of the lead (stored id + lookup by `crmLeadId` / `ליד #` marker)
+and the `calendar_events` row. The לא סגרו transition uses the same robust removal.
+Events created before 2026-09-12 by hand in Google (no CRM marker) cannot be found and must
+be deleted in Google manually.
 
 ### Phase 28 — Calendar link self-heal ✅ Built 2026-09-12
 Bug: lead "אורי בלוך שבת חתן" was marked סגור in the CRM but stayed yellow in Google

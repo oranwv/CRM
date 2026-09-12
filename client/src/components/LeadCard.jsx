@@ -4696,6 +4696,7 @@ function CalendarSection({ lead, leadId, editForm, calStatus, onUpdated, allPhon
   const [syncWarning, setSyncWarning] = useState(false);
   const [syncError, setSyncError] = useState('');
   const [pendingMark, setPendingMark] = useState(null);
+  const [pendingUnmark, setPendingUnmark] = useState(false);
   const [meeting, setMeeting] = useState(null);
   const [showMeetingAction, setShowMeetingAction] = useState(false);
 
@@ -4707,6 +4708,11 @@ function CalendarSection({ lead, leadId, editForm, calStatus, onUpdated, allPhon
   }, [lead?.meeting_event_id]);
 
   function handleMarkClick(type) {
+    // Clicking the already-active button again = take the event off the calendar (after confirmation)
+    if (calStatus?.type && calStatus.type === type) {
+      setPendingUnmark(true);
+      return;
+    }
     const dateStr = editForm?.event_date_text || '';
     const timeStr = editForm?.event_time || '';
 
@@ -4750,6 +4756,18 @@ function CalendarSection({ lead, leadId, editForm, calStatus, onUpdated, allPhon
       }
       await onUpdated();
     } catch { alert('שגיאה בסימון יומן'); }
+    setMarking(false);
+  }
+
+  async function confirmUnmark() {
+    setPendingUnmark(false);
+    setMarking(true);
+    setSyncWarning(false);
+    setSyncError('');
+    try {
+      await api.post(`/calendar/leads/${leadId}/unmark`);
+      await onUpdated();
+    } catch { alert('שגיאה בהסרת האירוע מהיומן'); }
     setMarking(false);
   }
 
@@ -4808,6 +4826,23 @@ function CalendarSection({ lead, leadId, editForm, calStatus, onUpdated, allPhon
           onClose={() => setShowMeetingAction(false)}
           onUpdated={async () => { setShowMeetingAction(false); await onUpdated(); }}
         />
+      )}
+      {pendingUnmark && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={() => setPendingUnmark(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-5 w-80 mx-4 text-right space-y-3" onClick={e => e.stopPropagation()}>
+            <p className="font-bold text-slate-800 text-base">להסיר את האירוע מהיומן?</p>
+            <p className="text-slate-600 text-sm">
+              האירוע יימחק מיומן Google והליד יסומן כ"לא מסומן ביומן".
+              {type === 'confirmed' ? ' אם האירוע רק עבר לאופציה — לחץ ביטול ובחר "אופציה".' : ''}
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => setPendingUnmark(false)}
+                className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl">ביטול</button>
+              <button onClick={confirmUnmark}
+                className="flex-1 bg-red-500 text-white font-bold py-2 rounded-xl">הסר מהיומן</button>
+            </div>
+          </div>
+        </div>
       )}
       {pendingMark && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={() => setPendingMark(null)}>

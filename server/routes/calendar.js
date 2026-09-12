@@ -2,7 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const crypto  = require('crypto');
 const axios   = require('axios');
-const { markEventDate, getLeadCalendarStatus, getLeadCalendarStatusVerified, syncLeadToCalendar, createMeeting, createManualEvent, deleteManualEvent, sendMeetingInvite, getMeetingRsvpStatus, patchEventDescription, deleteMeeting, updateMeetingTime, listCalendarAcl, addCalendarViewer, removeCalendarAcl } = require('../services/calendarService');
+const { markEventDate, unmarkEventDate, getLeadCalendarStatus, getLeadCalendarStatusVerified, syncLeadToCalendar, createMeeting, createManualEvent, deleteManualEvent, sendMeetingInvite, getMeetingRsvpStatus, patchEventDescription, deleteMeeting, updateMeetingTime, listCalendarAcl, addCalendarViewer, removeCalendarAcl } = require('../services/calendarService');
 const pool = require('../db/pool');
 
 // GET /api/calendar/leads — all leads with event dates (for calendar view)
@@ -38,6 +38,23 @@ router.post('/leads/:leadId/mark', async (req, res) => {
     });
 
     res.json({ ok: true, googleEventId, htmlLink, calendarSynced, syncError });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/calendar/leads/:leadId/unmark — remove the lead's event from Google Calendar + CRM
+router.post('/leads/:leadId/unmark', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT id FROM leads WHERE id = $1', [req.params.leadId]);
+    if (!rows[0]) return res.status(404).json({ error: 'Lead not found' });
+    const { removedFromGoogle } = await unmarkEventDate(req.params.leadId);
+    await pool.query(
+      `INSERT INTO lead_interactions (lead_id, type, direction, body, created_by, source)
+       VALUES ($1, 'note', 'outbound', $2, $3, 'calendar')`,
+      [req.params.leadId, '🗓️ האירוע הוסר מיומן Google', req.user?.id || null]
+    );
+    res.json({ ok: true, removedFromGoogle });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

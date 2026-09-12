@@ -172,6 +172,50 @@ async function syncLeadToCalendar(leadId, type = 'option', userId = null) {
   }
 }
 
+// Remove a lead's event(s) from Google Calendar. Deletes the stored event id and, in case that id
+// went stale, any other event of this lead found by crmLeadId / the "ליד #<id>" marker.
+// Never throws — returns how many events were actually removed from Google.
+async function removeLeadEventsFromGoogle(lead, storedEventId = null) {
+  if (!fs.existsSync(TOKEN_PATH)) return 0;
+  let removed = 0;
+  try {
+    const calendar = google.calendar({ version: 'v3', auth: getAuth() });
+    const ids = new Set();
+    if (storedEventId) ids.add(storedEventId);
+    if (lead?.event_date) {
+      // findLeadEventOnGoogle returns one event; loop in case several were created over time
+      for (let i = 0; i < 5; i++) {
+        const found = await findLeadEventOnGoogle(calendar, lead).catch(() => null);
+        if (!found || ids.has(found.id)) break;
+        ids.add(found.id);
+        await calendar.events.delete({ calendarId: 'primary', eventId: found.id }).catch(() => {});
+        removed++;
+      }
+    }
+    if (storedEventId) {
+      try {
+        await calendar.events.delete({ calendarId: 'primary', eventId: storedEventId });
+        removed++;
+      } catch (err) {
+        if (!isEventGone(err)) console.error('[Calendar] delete error:', err.message);
+      }
+    }
+  } catch (err) {
+    console.error('[Calendar] removeLeadEventsFromGoogle error:', err.message);
+  }
+  return removed;
+}
+
+// Called from the UI when the active button (אופציה/סגור) is clicked again: take the lead off the calendar
+async function unmarkEventDate(leadId) {
+  const { rows } = await pool.query('SELECT * FROM leads WHERE id = $1', [leadId]);
+  const lead = rows[0];
+  const existingEvent = await getLeadCalendarStatus(leadId);
+  const removed = await removeLeadEventsFromGoogle(lead, existingEvent?.google_event_id || null);
+  await pool.query('DELETE FROM calendar_events WHERE lead_id = $1', [leadId]);
+  return { removedFromGoogle: removed };
+}
+
 // Called from the UI to change type (option → confirmed or vice versa)
 // Returns { googleEventId, calendarSynced }
 async function markEventDate({ leadId, type, userId }) {
@@ -356,4 +400,4 @@ async function removeCalendarAcl(ruleId) {
   await calendar.acl.delete({ calendarId: CALENDAR_ID, ruleId });
 }
 
-module.exports = { syncLeadToCalendar, markEventDate, getLeadCalendarStatus, getLeadCalendarStatusVerified, createMeeting, createManualEvent, deleteManualEvent, sendMeetingInvite, getMeetingRsvpStatus, patchEventDescription, deleteMeeting, updateMeetingTime, listCalendarAcl, addCalendarViewer, removeCalendarAcl };
+module.exports = { syncLeadToCalendar, markEventDate, unmarkEventDate, removeLeadEventsFromGoogle, getLeadCalendarStatus, getLeadCalendarStatusVerified, createMeeting, createManualEvent, deleteManualEvent, sendMeetingInvite, getMeetingRsvpStatus, patchEventDescription, deleteMeeting, updateMeetingTime, listCalendarAcl, addCalendarViewer, removeCalendarAcl };
