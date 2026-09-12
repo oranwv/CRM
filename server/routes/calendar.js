@@ -2,7 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const crypto  = require('crypto');
 const axios   = require('axios');
-const { markEventDate, getLeadCalendarStatus, syncLeadToCalendar, createMeeting, createManualEvent, deleteManualEvent, sendMeetingInvite, getMeetingRsvpStatus, patchEventDescription, deleteMeeting, updateMeetingTime, listCalendarAcl, addCalendarViewer, removeCalendarAcl } = require('../services/calendarService');
+const { markEventDate, getLeadCalendarStatus, getLeadCalendarStatusVerified, syncLeadToCalendar, createMeeting, createManualEvent, deleteManualEvent, sendMeetingInvite, getMeetingRsvpStatus, patchEventDescription, deleteMeeting, updateMeetingTime, listCalendarAcl, addCalendarViewer, removeCalendarAcl } = require('../services/calendarService');
 const pool = require('../db/pool');
 
 // GET /api/calendar/leads — all leads with event dates (for calendar view)
@@ -46,7 +46,7 @@ router.post('/leads/:leadId/mark', async (req, res) => {
 // GET /api/calendar/leads/:leadId/status
 router.get('/leads/:leadId/status', async (req, res) => {
   try {
-    const status = await getLeadCalendarStatus(req.params.leadId);
+    const status = await getLeadCalendarStatusVerified(req.params.leadId);
     res.json(status || { type: null });
   } catch (err) {
     res.status(500).json({ error: err.message });

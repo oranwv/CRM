@@ -660,7 +660,7 @@ Files embedded in interaction/message bodies use this format where `id` is the `
 |---|---|---|---|
 | GET | `/leads` | ✅ | All leads with event dates + calendar status |
 | POST | `/leads/:leadId/mark` | ✅ | Mark event as option or confirmed |
-| GET | `/leads/:leadId/status` | ✅ | Get calendar_events row |
+| GET | `/leads/:leadId/status` | ✅ | Get calendar_events row. Also verifies the linked Google event still exists; if it was deleted on Google, re-syncs (relink or recreate) before answering |
 | POST | `/leads/:leadId/meeting` | ✅ | Create Google Calendar meeting. Logs `meeting` interaction to timeline. Body: `{ title, start, end, guestEmail, guestName }` |
 | GET | `/meetings/:eventId/details` | ✅ | Fetch meeting row (title, start_time, end_time) |
 | DELETE | `/meetings/:eventId` | ✅ | Cancel meeting: delete GCal event, clear `leads.meeting_event_id`, log cancellation with reason to timeline. Body: `{ reason }` |
@@ -863,6 +863,7 @@ and **סידור הושבה**, opened as overlays.)
 
 **יומן Google**
 - 🟡 אופציה / ✅ סגור toggle for event date calendar marking
+- The Google event carries `extendedProperties.private.crmLeadId`. If the stored `google_event_id` no longer exists on Google (404/410), the sync looks for another event of the same lead around the event date (by `crmLeadId`, then by the `ליד #<id>` text in the description), relinks to it and recolours it; otherwise it creates a new event. Same recovery runs when the lead card loads (see `/status`), so "פתח ביומן Google" never points at a deleted event.
 - When `lead.meeting_event_id` is set: shows "נקבעה פגישה ל-[DD/MM/YYYY HH:MM]" block
 - Button "בטל\דחה פגישה" opens `MeetingActionModal`:
   - **בטל פגישה**: enter reason → deletes GCal event, clears `meeting_event_id`, logs `❌ פגישה בוטלה` to activity
@@ -1662,6 +1663,17 @@ invoices with AI and files them into Drive by email date. New assignable `financ
 Rule-based worklist ranking, per-lead deal advice cached in `lead_ai_advice`, loss
 insights, and morning/evening WhatsApp briefings. **Draft-only — never auto-sends to a
 customer.**
+
+### Phase 28 — Calendar link self-heal ✅ Built 2026-09-12
+Bug: lead "אורי בלוך שבת חתן" was marked סגור in the CRM but stayed yellow in Google
+Calendar, and "פתח ביומן Google" opened "Could not find the requested event". Cause: the
+`calendar_events` row pointed at a Google event that had been deleted; the patch on
+"סגור" failed silently (404) after the DB was already updated. Fix in
+`calendarService.js`: on 404/410 the sync relinks to a surviving event of that lead
+(found by `crmLeadId` private property or the `ליד #<id>` description marker, ±1 day
+around the event date) or creates a new one, and updates `google_event_id`/`html_link`.
+`GET /calendar/leads/:id/status` now verifies the event on Google and triggers the same
+recovery, so opening the lead card fixes stale links by itself.
 
 ### Phase 27 — Briefing rework + sales_manager role ✅ Built 2026-09-08
 Reported from Oran's phone: the briefing's AI opener read oddly, and from the list it

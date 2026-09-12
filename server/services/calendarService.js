@@ -59,7 +59,37 @@ function buildEventBody(lead, type) {
     colorId,
     ...times,
     description: `ליד #${lead.id} | ${type === 'confirmed' ? 'סגור ✅' : 'אופציה 🟡'}\n🔗 פתח בCRM: ${process.env.SERVER_URL || 'http://localhost:3001'}/?lead=${lead.id}`,
+    // Lets the CRM find this event again if the stored google_event_id ever goes stale
+    extendedProperties: { private: { crmLeadId: String(lead.id) } },
   };
+}
+
+// Google returns 404 (deleted) or 410 (gone) when the stored event no longer exists
+function isEventGone(err) {
+  const code = err?.code || err?.response?.status;
+  return code === 404 || code === 410 || /not found|requested event/i.test(err?.message || '');
+}
+
+// Look for an existing Google event that belongs to this lead, after the stored id went stale.
+// First by the private crmLeadId property, then by the "ליד #<id> |" text the CRM writes in the description.
+async function findLeadEventOnGoogle(calendar, lead) {
+  const eventDate = new Date(lead.event_date).toLocaleDateString('sv', { timeZone: 'Asia/Jerusalem' });
+  const timeMin = new Date(`${addDays(eventDate, -1)}T00:00:00+02:00`).toISOString();
+  const timeMax = new Date(`${addDays(eventDate, 2)}T00:00:00+02:00`).toISOString();
+  const marker  = new RegExp(`ליד #${lead.id}(?!\\d)`);
+
+  const byProp = await calendar.events.list({
+    calendarId: 'primary', timeMin, timeMax, singleEvents: true, maxResults: 10,
+    privateExtendedProperty: `crmLeadId=${lead.id}`,
+  });
+  const propHit = (byProp.data.items || []).find(e => e.status !== 'cancelled');
+  if (propHit) return propHit;
+
+  const byText = await calendar.events.list({
+    calendarId: 'primary', timeMin, timeMax, singleEvents: true, maxResults: 50,
+    q: `ליד #${lead.id}`,
+  });
+  return (byText.data.items || []).find(e => e.status !== 'cancelled' && marker.test(e.description || '')) || null;
 }
 
 // Create or update calendar event for a lead — NEVER deletes
@@ -100,30 +130,42 @@ async function syncLeadToCalendar(leadId, type = 'option', userId = null) {
     const eventBody = buildEventBody(lead, type);
 
     if (existingEvent?.google_event_id) {
-      const patchRes = await calendar.events.patch({
-        calendarId: 'primary',
-        eventId: existingEvent.google_event_id,
-        requestBody: eventBody,
-      });
-      const htmlLink = patchRes.data.htmlLink || existingEvent.html_link || null;
-      if (htmlLink && !existingEvent.html_link) {
-        await pool.query('UPDATE calendar_events SET html_link = $1 WHERE lead_id = $2', [htmlLink, leadId]);
+      try {
+        const patchRes = await calendar.events.patch({
+          calendarId: 'primary',
+          eventId: existingEvent.google_event_id,
+          requestBody: eventBody,
+        });
+        const htmlLink = patchRes.data.htmlLink || existingEvent.html_link || null;
+        if (htmlLink && !existingEvent.html_link) {
+          await pool.query('UPDATE calendar_events SET html_link = $1 WHERE lead_id = $2', [htmlLink, leadId]);
+        }
+        return { googleEventId: existingEvent.google_event_id, htmlLink, calendarSynced: true };
+      } catch (err) {
+        if (!isEventGone(err)) throw err;
+        // The stored event was deleted from Google — fall through and relink/recreate below
+        console.warn(`[Calendar] Lead ${leadId}: stored event ${existingEvent.google_event_id} no longer exists on Google, relinking`);
       }
-      return { googleEventId: existingEvent.google_event_id, htmlLink, calendarSynced: true };
-    } else {
-      const result = await calendar.events.insert({
-        calendarId: 'primary',
-        requestBody: eventBody,
-      });
-      const googleEventId = result.data.id;
-      const htmlLink = result.data.htmlLink || null;
-      // Backfill the googleEventId and htmlLink into the placeholder row
-      await pool.query(
-        'UPDATE calendar_events SET google_event_id = $1, html_link = $2 WHERE lead_id = $3 AND google_event_id IS NULL',
-        [googleEventId, htmlLink, leadId]
-      );
-      return { googleEventId, htmlLink, calendarSynced: true };
     }
+
+    // No usable event id: try to relink to an event of this lead that still exists, otherwise create one
+    let eventData;
+    const found = await findLeadEventOnGoogle(calendar, lead);
+    if (found) {
+      const patchRes = await calendar.events.patch({ calendarId: 'primary', eventId: found.id, requestBody: eventBody });
+      eventData = patchRes.data;
+      console.log(`[Calendar] Lead ${leadId}: relinked to existing Google event ${found.id}`);
+    } else {
+      const result = await calendar.events.insert({ calendarId: 'primary', requestBody: eventBody });
+      eventData = result.data;
+    }
+    const googleEventId = eventData.id;
+    const htmlLink = eventData.htmlLink || null;
+    await pool.query(
+      'UPDATE calendar_events SET google_event_id = $1, html_link = $2 WHERE lead_id = $3',
+      [googleEventId, htmlLink, leadId]
+    );
+    return { googleEventId, htmlLink, calendarSynced: true };
   } catch (err) {
     console.error('[Calendar] Google sync error:', err.message);
     return { googleEventId: existingEvent?.google_event_id || null, htmlLink: existingEvent?.html_link || null, calendarSynced: false, syncError: err.message };
@@ -143,6 +185,24 @@ async function getLeadCalendarStatus(leadId) {
     [leadId]
   );
   return rows[0] || null;
+}
+
+// Same as getLeadCalendarStatus, but also checks that the linked Google event still exists.
+// If it was deleted on Google, re-sync (relink or recreate) so the lead card never shows a dead link
+// or a wrong colour. Best-effort: any Google error just returns the DB row as-is.
+async function getLeadCalendarStatusVerified(leadId) {
+  const row = await getLeadCalendarStatus(leadId);
+  if (!row?.google_event_id || !fs.existsSync(TOKEN_PATH)) return row;
+  try {
+    const calendar = google.calendar({ version: 'v3', auth: getAuth() });
+    const { data } = await calendar.events.get({ calendarId: 'primary', eventId: row.google_event_id });
+    if (data.status !== 'cancelled') return row;
+  } catch (err) {
+    if (!isEventGone(err)) return row;
+  }
+  console.warn(`[Calendar] Lead ${leadId}: linked Google event missing, re-syncing`);
+  const r = await syncLeadToCalendar(leadId, row.type, row.created_by || null);
+  return r.calendarSynced ? await getLeadCalendarStatus(leadId) : row;
 }
 
 async function createMeeting({ leadId, title, start, end, guestEmail, guestName, sendInvite }) {
@@ -296,4 +356,4 @@ async function removeCalendarAcl(ruleId) {
   await calendar.acl.delete({ calendarId: CALENDAR_ID, ruleId });
 }
 
-module.exports = { syncLeadToCalendar, markEventDate, getLeadCalendarStatus, createMeeting, createManualEvent, deleteManualEvent, sendMeetingInvite, getMeetingRsvpStatus, patchEventDescription, deleteMeeting, updateMeetingTime, listCalendarAcl, addCalendarViewer, removeCalendarAcl };
+module.exports = { syncLeadToCalendar, markEventDate, getLeadCalendarStatus, getLeadCalendarStatusVerified, createMeeting, createManualEvent, deleteManualEvent, sendMeetingInvite, getMeetingRsvpStatus, patchEventDescription, deleteMeeting, updateMeetingTime, listCalendarAcl, addCalendarViewer, removeCalendarAcl };

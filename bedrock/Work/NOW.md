@@ -1,10 +1,27 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-09-08
+updated: 2026-09-12
 ---
 
 # Now
+
+## 2026-09-12 — Calendar link self-heal (stale google_event_id)
+
+Lead "אורי בלוך שבת חתן": CRM said סגור, Google showed yellow, "פתח ביומן Google"
+→ "Could not find the requested event". The `calendar_events` row held a
+google_event_id that was deleted on Google; the patch on "סגור" 404'd silently
+after the DB row was already updated (DB-first by design).
+
+Fix (`calendarService.js`): events now carry `extendedProperties.private.crmLeadId`.
+On patch 404/410 `syncLeadToCalendar` searches ±1 day for a surviving event of the
+lead (crmLeadId, then `ליד #<id>` marker in the description — regex with a
+digit-boundary so #24 doesn't match #245), relinks + recolours it, else inserts a
+new one, and writes the new id/html_link back. New `getLeadCalendarStatusVerified`
+does an `events.get` and runs the same recovery; `GET /calendar/leads/:id/status`
+uses it, so opening the lead card heals a stale link. Could not test against the
+live DB/Google from the Mac VM (no env there) — syntax-checked only; verify on the
+lead after Railway deploys (open the card, check colour + link).
 
 ## 2026-09-08 — Phone fixes round 2: settings user list + lead-card files
 
