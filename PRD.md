@@ -488,6 +488,18 @@ event_costs:        id, lead_id UNIQUE → leads.id, lines JSONB DEFAULT '[]',
 multiplies `qty × unit_price` (`normalizeLine`) for both AI-generated and hand-edited
 lines — the model is never trusted to do arithmetic.
 
+### Deal-advisor signals + payment signals (2026-09-13)
+```
+contract_views:   id, contract_id → contracts.id, viewed_at, user_agent
+                  -- one row per open of the public signing page (GET /api/contracts/:token)
+payment_signals:  id, lead_id → leads.id, message_id → messages.id UNIQUE,
+                  interaction_id → lead_interactions.id UNIQUE, detected_at, said_at,
+                  amount NUMERIC, method TEXT, snippet, status ('open'|'done'|'dismissed'),
+                  resolved_at, resolved_by → users.id
+```
+`settings` keys added: `sales_loss_lessons` (latest loss-insight patterns/recommendations,
+fed to the advisor), `payment_signal_last_message_id`, `payment_signal_last_interaction_id`.
+
 ### Finance module (כספים)
 ```
 finance_periods:          id, name, created_at            -- one reconciliation round
@@ -835,8 +847,19 @@ bot asks how many) → `confirmed`, or → `declined`.
 ### AI Chat (`/api/chat`) — auth inside the route
 | Method | Path | Description |
 |---|---|---|
-| POST | `/` | The assistant. SSE streaming, OpenAI tool calling, tools filtered by the user's roles |
-| GET | `/media` | Signed URL for a knowledge-base image/video the assistant referenced |
+| POST | `/` | The assistant. SSE streaming, OpenAI tool calling, tools filtered by the user's roles. SSE events: `text`, `tool_call`, `action` (a proposal card — see below), `done`, `error` |
+| GET | `/media` | Signed URL for a knowledge-base image/video the assistant referenced (`[[media:ID]]`) |
+| GET | `/files` | Knowledge files with a stored original (`ai_knowledge_files.stored_name`), signed 6h — rendered as `[[file:ID]]` chips |
+| POST | `/send` | Send a knowledge file / media item over WhatsApp: `{ kind: 'file'|'media', id, leadId? \| phone? \| toSelf? }`. Downloads from the private bucket, uploads once to Green API, `sendFileByUrl`; an external media URL (YouTube/Drive) goes as text. Logged on the lead's timeline when a lead is the recipient (`services/waOutbound.js`) |
+| POST | `/actions` | Execute a proposal the user confirmed: `{ kind: 'task'|'note'|'fault', …fields }` → `tasks` / `lead_interactions` (type note, `source='assistant'`) / `op_faults` (+ activity log "נפתח דרך העוזר"). Role-gated like the matching `propose_*` tool |
+
+### Payment signals (`/api/payment-signals`) — require auth
+| Method | Path | Description |
+|---|---|---|
+| GET | `/count` | Open "תשלום ללא מסמך" count — admin/manager/finance (others get 0) |
+| GET | `/` | Open list with lead name/event — admin/manager/finance |
+| GET | `/lead/:leadId` | Open signals of one lead (feeds the lead-card banner) |
+| POST | `/:id/dismiss` · `/:id/done` | "לא רלוונטי" / closed by hand |
 
 ### Drive (`/api/drive`) + Presence (`/api/presence`) — require auth
 | Method | Path | Description |
@@ -1030,15 +1053,28 @@ The prioritized call list. Ranking is **rule-based, not per-lead AI**:
 - tier 1 — contract sent, not signed
 - tier 2 — offer sent
 - tier 3 — urgent / hot
-- a near event (next 45 days) boosts the lead; within each tier, freshness sorts
+- inside a tier (since 2026-09-13): a near event (next 45 days) first, then the advisor's
+  temperature (hot > warm > unknown > cold), then the deal value (latest contract total, else
+  latest offer total — `offerTotal` / `contractTotal` in `salesAdvisor.js`), then freshness
 
-`sales` sees their own assigned leads; admin/manager/sales_manager see everything, tagged by rep.
-A second tab shows **loss insights** — aggregated reasons deals were lost.
+Each row shows the temperature pill and the deal value. `sales` sees their own assigned
+leads; admin/manager/sales_manager see everything, tagged by rep. A second tab shows
+**loss insights** — aggregated reasons deals were lost; the latest patterns +
+recommendations are also saved to `settings.sales_loss_lessons` so the per-lead advisor
+can apply them.
 
-**DealAdvisor** (in the lead's info tab) is the per-lead AI part: a `gpt-4o-mini`
-JSON response `{ temperature, headline, summary, next_action, draft_message }`,
-cached in `lead_ai_advice`. "השתמש בטיוטה" pushes `draft_message` into the WhatsApp
-composer via the `draftSeed` prop. **Draft-only — nothing is ever auto-sent to a customer.**
+**DealAdvisor** (in the lead's info tab, "יועץ עסקה") is the per-lead AI part
+(`gpt-4o-mini`, JSON, cached in `lead_ai_advice`). Since 2026-09-13 the model sees the
+**whole deal**: offer amount + lines, contract status / age / how many times the signing
+page was opened (`contract_views`), meetings, open tasks, who spoke last and the customer's
+average reply time, the sales playbook (`ai_instructions` + `ai_knowledge_text`) and the
+loss lessons. Response: `{ temperature, headline, summary, evidence[], next_action,
+suggested_task { title, due_in_days }, suggest_meeting, draft_message, deal_value }`.
+The card renders evidence bullets and turns the recommendation into buttons: **"צור
+משימה: …"** opens `AddTaskModal` prefilled (title + date, 10:00, `initial` prop),
+**"קבע פגישה"** opens `ScheduleMeetingModal`, "השתמש בטיוטה" pushes `draft_message` into
+the WhatsApp composer via the `draftSeed` prop. **Draft-only — nothing is ever auto-sent
+to a customer.**
 
 ### `FinancePage.jsx` (`/finance`) — "כספים" mode
 
@@ -1121,11 +1157,33 @@ per employee. Fed by `GET /api/analytics/employee-activity` and `user_sessions`.
 
 ### `AIChat.jsx` — the assistant
 Floating button, SSE streaming, OpenAI tool calling. Tools are filtered by the user's
-roles (`get_leads`, `get_lead_details`, `get_urgent_leads`, `get_my_tasks`,
-`get_today_schedule`, `get_schedule`, `get_op_tasks`, `get_maintenance`,
-`get_suppliers`, `get_rsvp_summary`). The admin-managed knowledge base
-(`ai_knowledge_files` + `ai_knowledge_text`) is injected into the system prompt, and the
-assistant can show knowledge media with a `[[media:ID]]` tag.
+roles:
+
+| Tool | Roles | What |
+|---|---|---|
+| `get_my_tasks` | all | open tasks / overdue |
+| `get_today_schedule`, `get_schedule`, `get_leads`, `get_lead_details` | admin/manager/sales_manager/sales/production | schedule + leads (own vs all by role) |
+| `get_lead_documents` | same | offers (date, total), contracts (status, total, signing-page opens), financial docs (pending + issued), files |
+| `get_urgent_leads`, `get_sales_worklist`, `get_analytics_kpis` | admin/manager/sales_manager/sales | leads without contact, the ranked AI worklist, period KPIs + sources |
+| `get_op_tasks`, `get_maintenance`, `get_event_brief` | admin/manager/operations/production | ops + the event brief (contract chef/bar/guests, brief data, suppliers, checklist, seating) |
+| `get_suppliers` / `get_rsvp_summary` | suppliers / rsvp roles | |
+| `get_finance_summary` | admin/manager/finance | pending approvals, open reconciliation items, invoices scanned (30d), payments without a document |
+| `get_employee_activity` | admin/manager | per-employee counts (calls, meetings, notes, WA, tasks, leads, contracts sent/signed) + tracked hours |
+| `propose_task` (all), `propose_note` (lead roles), `propose_fault` (ops roles) | | **proposals only** |
+
+**Actions with confirmation (2026-09-13).** The assistant never writes by itself: a
+`propose_*` tool returns a proposal, the route emits an SSE `action` event, and the chat
+renders an `ActionCard` (editable title / date / text, "אשר" / "בטל"). Only "אשר" calls
+`POST /api/chat/actions`, attributed to the confirming user. The tool result tells the
+model to describe the proposal and not to claim it was done.
+
+**Knowledge base.** The admin-managed knowledge base (`ai_knowledge_files` +
+`ai_knowledge_text`) is injected into the system prompt; the assistant can show
+knowledge media with a `[[media:ID]]` tag and — since 2026-09-13 — hand over a knowledge
+file with a `[[file:ID]]` tag, rendered as a chip (name, open via signed URL). Both media
+and file chips carry **"שלח בוואטסאפ"** (`SendSheet`): to the lead the user is looking at,
+to the user's own phone, or to any number (`POST /api/chat/send`). The system prompt
+lists the sendable files (only rows with `stored_name`; older uploads must be re-uploaded).
 
 > **KB media and the private bucket:** `crm-files` is private, so `getPublicUrl` output
 > 404s ("Bucket not found"). Every read — `GET /api/chat/media` and the admin
@@ -1182,6 +1240,24 @@ the approve/reject result until they dismiss it (`creator_seen`).
 | WhatsApp history sync | Every 30 min | `waSyncService.syncWhatsAppMessages()` — backfills messages Green API delivered while the server was down |
 | Meeting reminders | Every 60 min | `meetingReminderService.sendMeetingReminders()` |
 | Invoice scan | Daily 20:00 | `financeInvoiceScanner.startDailyInvoiceScan()` |
+| Payment-signal scan | Every 15 min | `paymentSignals.scanPaymentSignals()` — inbound WhatsApp + lead notes → "תשלום ללא מסמך" (see below) |
+
+### Payment signals — "תשלום ללא מסמך" (`server/services/paymentSignals.js`) ✅ Built 2026-09-13
+A customer writes "העברתי מקדמה" (or a rep notes it) and no receipt / invoice follows.
+- Cursor in `settings` (`payment_signal_last_message_id` / `_last_interaction_id`); scans
+  new inbound `messages` and `lead_interactions` of type note/call/whatsapp (last 7 days),
+  keyword prefilter (`KEYWORDS`, minus `NEGATIVE` — price questions, promises, our own
+  payment requests), then `gpt-4o-mini` JSON `{ is_payment_report, amount, method }`.
+- Skips when a קבלה/חשבונית file or a `pending_documents` row already exists on the lead
+  after the message, and keeps **one open signal per lead per 3 days** (one payment episode).
+- Rows in `payment_signals` (`status` open | done | dismissed). Auto-closes (`done`) once a
+  document appears; the receipt made from the banner calls `/done` explicitly.
+- UI: amber **banner at the top of the lead card** (amount, method, date, the quote) with
+  **"הפק קבלה ←"** — opens `InvoiceModal` prefilled (`initial` prop: type 400 קבלה, amount,
+  payment method mapped from the label, payment date = message date, item "מקדמה על חשבון
+  האירוע") — and **"לא רלוונטי"**. Header badge **"💸 N תשלומים ללא מסמך"** for
+  admin/manager/finance → `PaymentSignalsModal` (row opens the lead; dismiss inline).
+  Also surfaced by the assistant's `get_finance_summary`.
 
 ### Reminder Service (`server/services/reminderService.js`)
 
@@ -1683,6 +1759,32 @@ invoices with AI and files them into Drive by email date. New assignable `financ
 Rule-based worklist ranking, per-lead deal advice cached in `lead_ai_advice`, loss
 insights, and morning/evening WhatsApp briefings. **Draft-only — never auto-sends to a
 customer.**
+
+### Phase 31 — Assistant actions + documents, smarter deal advisor, payments without a document ✅ Built 2026-09-13
+Source: Oran's Claude-Design landing page for ProEvent (the `design_handoff_proevent_landing`
+package). The page described several features as better than they were; he picked what to
+build (briefing, staff attendance and the WhatsApp bot were explicitly left untouched):
+- **Assistant** (`routes/chat.js`, `AIChat.jsx`): 6 new read tools (lead documents, sales
+  worklist, analytics KPIs, finance summary, event brief, employee activity); **proposal
+  tools** `propose_task` / `propose_note` / `propose_fault` rendered as confirm cards, executed
+  only on "אשר" via `POST /api/chat/actions`; knowledge files handed over as `[[file:ID]]`
+  chips; **"שלח בוואטסאפ"** on media and file chips (`POST /api/chat/send`,
+  `services/waOutbound.js`). System prompt no longer says "read only"; it says actions are
+  proposals. `LEAD_SET` now includes `sales_manager`. `module.exports._executeTool` is
+  exposed for scripted tests.
+- **Deal advisor** (`services/salesAdvisor.js`): `buildLeadContext` returns offer/contract
+  totals, meetings, open tasks, contract opens and reply-speed signals; `analyzeLead` prompt
+  carries all of it + playbook + loss lessons; response adds `evidence`, `suggested_task`,
+  `suggest_meeting`, `deal_value`. `contract_views` written by the public signing GET.
+  Worklist ranking: near event → temperature → deal value → freshness; the page shows both.
+  `lossInsights` persists `settings.sales_loss_lessons`. Card buttons: create task
+  (prefilled `AddTaskModal`), schedule meeting.
+- **Payments without a document** — see "Payment signals" under Background Services.
+- Verified in a throwaway Postgres in the Claude cloud container: boot migrations, every new
+  tool, `/api/chat/actions` (task/note/fault), payment-signal scan with a mocked classifier
+  (detect → no duplicate → auto-close on receipt), `/api/payment-signals/*`, contract-view
+  logging, `vite build`. Not verified: real Green API sends from `/api/chat/send` and the
+  live OpenAI prompts — check after deploy.
 
 ### Phase 30 — Production: full payment, אחראי הפקה, production briefing, close reminders, "not ready" badge ✅ Built 2026-09-12
 Requested by Oran (2026-09-12):

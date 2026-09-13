@@ -1,7 +1,7 @@
 ---
 note_type: domain
 project: CRM
-updated: 2026-09-08
+updated: 2026-09-13
 ---
 
 # AI & Integrations
@@ -37,8 +37,24 @@ call is OpenAI: `gpt-4o-mini` almost everywhere, `gpt-4o` for /reply, `whisper-1
 voice notes. (Verified 2026-09-08 against the source; earlier notes here said Claude.)
 - AI chat assistant (`routes/chat.js`, floating button, SSE streaming, role-scoped tools).
 - WhatsApp sales briefings (`services/salesBriefingService.js`) are **deterministic, no AI text** since 2026-09-08; roles admin/manager/sales_manager get one aggregate briefing, plain `sales` their own leads.
-  Tools: get_leads, get_lead_details, get_urgent_leads, get_my_tasks, get_today_schedule,
-  get_schedule, get_op_tasks, get_maintenance, get_suppliers, get_rsvp_summary.
+  Tools: get_leads, get_lead_details, get_lead_documents, get_urgent_leads, get_my_tasks,
+  get_today_schedule, get_schedule, get_sales_worklist, get_analytics_kpis, get_op_tasks,
+  get_maintenance, get_event_brief, get_suppliers, get_rsvp_summary, get_finance_summary,
+  get_employee_activity — plus **proposal** tools propose_task / propose_note /
+  propose_fault (2026-09-13): they never write; the route emits an SSE `action` event, the
+  chat shows a confirm card, and only "אשר" hits `POST /api/chat/actions`.
+- Knowledge files with `stored_name` are listed in the prompt as `[[file:ID]]` and render as
+  chips; media/file chips have "שלח בוואטסאפ" → `POST /api/chat/send` (`services/waOutbound.js`,
+  Green API uploadFile + sendFileByUrl; external media URLs go as text).
+- Deal advisor (`services/salesAdvisor.js`): full-deal context (offer/contract totals via
+  `offerTotal`/`contractTotal`, signing-page opens in `contract_views`, meetings, tasks,
+  reply-speed), evidence + suggested_task + suggest_meeting in the response, worklist ranked
+  near-event → temperature → deal value → freshness. `settings.sales_loss_lessons` holds
+  the last loss-insight lessons for the advisor prompt.
+- Payment signals (`services/paymentSignals.js`, 15-min cron): "העברתי מקדמה" with no
+  receipt → `payment_signals` → amber banner in the lead card ("הפק קבלה" prefills
+  InvoiceModal) + header badge/modal for admin/manager/finance. Auto-closes when a
+  קבלה/חשבונית file or pending document appears after the message.
 - AI messaging helpers (`routes/ai.js`): transcribe (Whisper) / translate / reply / improve.
 - Server-side AI: salesAdvisor (deal advice + loss insights), salesBriefingService,
   eventCostService (cost lines, JSON mode), financeInvoiceScanner (invoice classification),

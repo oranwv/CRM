@@ -492,6 +492,31 @@ pool.query(`
     sent_on DATE NOT NULL,
     UNIQUE (kind, recipient, sent_on)
   );
+  -- 2026-09-13: opens of the public signing page (deal-advisor signal "החוזה נפתח N פעמים")
+  CREATE TABLE IF NOT EXISTS contract_views (
+    id SERIAL PRIMARY KEY,
+    contract_id INT REFERENCES contracts(id) ON DELETE CASCADE,
+    viewed_at TIMESTAMPTZ DEFAULT NOW(),
+    user_agent TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_contract_views_contract ON contract_views(contract_id, viewed_at);
+  -- 2026-09-13: a customer wrote that they paid, and no financial document followed
+  CREATE TABLE IF NOT EXISTS payment_signals (
+    id SERIAL PRIMARY KEY,
+    lead_id INT REFERENCES leads(id) ON DELETE CASCADE,
+    message_id INT REFERENCES messages(id) ON DELETE CASCADE,
+    interaction_id INT REFERENCES lead_interactions(id) ON DELETE CASCADE,
+    detected_at TIMESTAMPTZ DEFAULT NOW(),
+    said_at TIMESTAMPTZ,
+    amount NUMERIC,
+    method TEXT,
+    snippet TEXT,
+    status TEXT NOT NULL DEFAULT 'open',      -- open | done | dismissed
+    resolved_at TIMESTAMPTZ,
+    resolved_by INT REFERENCES users(id) ON DELETE SET NULL,
+    UNIQUE (message_id), UNIQUE (interaction_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_payment_signals_open ON payment_signals(status, lead_id);
   CREATE TABLE IF NOT EXISTS finance_missing_expenses (
     id SERIAL PRIMARY KEY,
     fingerprint TEXT UNIQUE NOT NULL,
@@ -653,6 +678,7 @@ app.get('/api/finance/gmail/oauth/callback', require('./services/financeInvoiceS
 app.use('/api/finance',             requireAuth, require('./routes/finance'));
 app.use('/api/ai',                  requireAuth, aiRoutes);
 app.use('/api/chat',               chatRoutes);  // auth applied inside route
+app.use('/api/payment-signals',    requireAuth, require('./routes/paymentSignals'));
 app.use('/api/calendar', (req, res, next) => {
   // ICS download and lead confirmation are public — no auth required
   if (/^\/meetings\/[^/]+\/(ics|confirm)$/.test(req.path)) return next();
@@ -749,6 +775,14 @@ function startCronJobs() {
     setInterval(syncWhatsAppMessages, 30 * 60 * 1000);
   }, 2 * 60 * 1000); // 2-minute startup delay
   console.log('[Cron] WhatsApp sync service started');
+
+  // Payment reports without a document ("העברתי מקדמה" and no receipt) — every 15 min
+  const { scanPaymentSignals } = require('./services/paymentSignals');
+  setTimeout(() => {
+    scanPaymentSignals();
+    setInterval(scanPaymentSignals, 15 * 60 * 1000);
+  }, 3 * 60 * 1000);
+  console.log('[Cron] Payment-signal scan started');
 
   // Meeting reminders — send WhatsApp 2 days before scheduled meeting, hourly check
   const { sendMeetingReminders } = require('./services/meetingReminderService');

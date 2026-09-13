@@ -12,6 +12,12 @@ const fmtDate = d => d ? new Date(d).toLocaleDateString('he-IL') : '—';
 const dayStr = d => d.toISOString().slice(0, 10);
 const shiftDays = n => { const d = new Date(); d.setDate(d.getDate() + n); return dayStr(d); };
 
+const TEMP_PILL = {
+  hot:  { label: '🔥 חם',   cls: 'bg-red-100 text-red-700' },
+  warm: { label: '🌤️ פושר', cls: 'bg-amber-100 text-amber-700' },
+  cold: { label: '❄️ קר',   cls: 'bg-sky-100 text-sky-700' },
+};
+
 const KIND_LABELS = {
   whatsapp: 'וואטסאפ', facebook: 'פייסבוק', instagram: 'אינסטגרם',
   call: 'שיחה', call_attempt: 'ניסיון שיחה', meeting: 'פגישה', email: 'אימייל', note: 'הערה',
@@ -39,8 +45,14 @@ function WorklistItem({ it, onOpen }) {
         <p className="font-bold text-slate-800 truncate min-w-0">
           {it.name}
           {it.near_event && <span className="mr-2 text-[10px] bg-red-100 text-red-700 rounded-full px-1.5 py-0.5 font-bold">אירוע קרוב</span>}
+          {it.temperature && TEMP_PILL[it.temperature] && (
+            <span className={`mr-2 text-[10px] rounded-full px-1.5 py-0.5 font-bold ${TEMP_PILL[it.temperature].cls}`}>{TEMP_PILL[it.temperature].label}</span>
+          )}
         </p>
-        {sentLine && <span className="text-xs font-semibold text-slate-600 shrink-0">{sentLine}</span>}
+        <span className="flex items-center gap-2 shrink-0">
+          {it.deal_value > 0 && <span className="text-xs font-black text-violet-700 tabular-nums">₪{Number(it.deal_value).toLocaleString('he-IL')}</span>}
+          {sentLine && <span className="text-xs font-semibold text-slate-600">{sentLine}</span>}
+        </span>
       </div>
       <p className="text-xs text-slate-500 mt-0.5">
         {it.event_type || 'אירוע'} · אירוע {fmtDate(it.event_date)}

@@ -12,10 +12,192 @@ const TOOL_LABELS = {
   get_maintenance:    'טוען לוח תחזוקה...',
   get_suppliers:      'מחפש ספקים...',
   get_rsvp_summary:   'טוען נתוני אישורי הגעה...',
+  get_lead_documents: 'בודק הצעות, חוזים ומסמכים...',
+  get_sales_worklist: 'טוען את רשימת AI מכירות...',
+  get_analytics_kpis: 'מחשב נתוני אנליטיקס...',
+  get_finance_summary:'טוען תמונת כספים...',
+  get_event_brief:    'טוען בריף אירוע...',
+  get_employee_activity: 'טוען פעילות עובדים...',
+  propose_task:       'מכין הצעת משימה...',
+  propose_note:       'מכין הערה...',
+  propose_fault:      'מכין דיווח תקלה...',
 };
 
+const ACTION_META = {
+  task:  { icon: '✅', title: 'משימה חדשה',   confirm: 'צור משימה' },
+  note:  { icon: '📝', title: 'הערה בליד',     confirm: 'הוסף הערה' },
+  fault: { icon: '🔧', title: 'תקלה לתפעול',  confirm: 'פתח תקלה' },
+};
+
+function toLocalInput(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// A proposal the assistant made (task / note / fault). Nothing exists until "אשר".
+function ActionCard({ action, onDone }) {
+  const meta = ACTION_META[action.kind] || { icon: '⚡', title: 'פעולה', confirm: 'אשר' };
+  const [form, setForm] = useState(() => ({
+    title: action.title || '', body: action.body || '', description: action.description || '',
+    due_at: toLocalInput(action.due_at),
+  }));
+  const [state, setState] = useState(action.state || 'pending'); // pending | saving | done | cancelled | error
+  const [error, setError] = useState('');
+  const inputCls = 'w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:border-violet-400';
+
+  async function confirm() {
+    setState('saving'); setError('');
+    try {
+      const token = localStorage.getItem('crm_token');
+      const payload = { kind: action.kind, lead_id: action.lead_id, assigned_to: action.assigned_to };
+      if (action.kind === 'task')  Object.assign(payload, { title: form.title, due_at: form.due_at ? new Date(form.due_at).toISOString() : null });
+      if (action.kind === 'note')  Object.assign(payload, { body: form.body });
+      if (action.kind === 'fault') Object.assign(payload, { title: form.title, description: form.description });
+      const r = await fetch('/api/chat/actions', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || 'שגיאה');
+      setState('done'); onDone?.('done');
+    } catch (e) {
+      setState('error'); setError(e.message || 'שגיאה');
+    }
+  }
+
+  if (state === 'done') {
+    return (
+      <div className="my-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 font-bold">
+        {meta.icon} {meta.title} — בוצע ✓{action.lead_name ? ` · ${action.lead_name}` : ''}
+      </div>
+    );
+  }
+  if (state === 'cancelled') {
+    return <div className="my-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">{meta.icon} {meta.title} — בוטל</div>;
+  }
+  return (
+    <div className="my-2 rounded-xl border border-violet-200 bg-violet-50/60 p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-black text-violet-800">{meta.icon} {meta.title}</span>
+        {action.lead_name && <span className="text-[11px] text-slate-500 truncate max-w-[55%]">{action.lead_name}</span>}
+      </div>
+      {(action.kind === 'task' || action.kind === 'fault') && (
+        <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} className={inputCls} placeholder="כותרת" />
+      )}
+      {action.kind === 'task' && (
+        <div className="flex items-center gap-2">
+          <input type="datetime-local" value={form.due_at} onChange={e => setForm(f => ({ ...f, due_at: e.target.value }))}
+            className={inputCls} style={{ direction: 'ltr' }} />
+        </div>
+      )}
+      {action.kind === 'task' && action.assigned_name && (
+        <p className="text-[11px] text-slate-500">אחראי: {action.assigned_name} · תזכורת בוואטסאפ</p>
+      )}
+      {action.kind === 'note' && (
+        <textarea value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))} rows={3} className={inputCls} />
+      )}
+      {action.kind === 'fault' && (
+        <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={3} className={inputCls} placeholder="תיאור התקלה" />
+      )}
+      {error && <p className="text-[11px] text-red-600">{error}</p>}
+      <div className="flex gap-2">
+        <button onClick={confirm} disabled={state === 'saving' || (!form.title && !form.body)}
+          className="flex-1 text-xs font-bold text-white rounded-lg py-1.5 disabled:opacity-50"
+          style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+          {state === 'saving' ? 'שומר...' : meta.confirm}
+        </button>
+        <button onClick={() => { setState('cancelled'); onDone?.('cancelled'); }} disabled={state === 'saving'}
+          className="text-xs font-bold text-slate-500 border border-slate-200 rounded-lg px-3 py-1.5 bg-white">
+          בטל
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// "שלח בוואטסאפ" for a knowledge file / media item: to the open lead, to me, or to a number.
+function SendSheet({ kind, id, name, leadId, leadName, onClose }) {
+  const [target, setTarget] = useState(leadId ? 'lead' : 'self');
+  const [phone, setPhone]   = useState('');
+  const [state, setState]   = useState('idle'); // idle | sending | sent | error
+  const [error, setError]   = useState('');
+
+  async function send() {
+    setState('sending'); setError('');
+    try {
+      const token = localStorage.getItem('crm_token');
+      const body = { kind, id };
+      if (target === 'lead')  body.leadId = leadId;
+      if (target === 'self')  body.toSelf = true;
+      if (target === 'phone') { body.phone = phone; if (leadId) body.leadId = leadId; }
+      const r = await fetch('/api/chat/send', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || 'השליחה נכשלה');
+      setState('sent');
+      setTimeout(onClose, 1200);
+    } catch (e) { setState('error'); setError(e.message); }
+  }
+
+  const opt = (val, label) => (
+    <label className={`flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg border cursor-pointer ${target === val ? 'border-violet-400 bg-white' : 'border-transparent'}`}>
+      <input type="radio" checked={target === val} onChange={() => setTarget(val)} />
+      <span>{label}</span>
+    </label>
+  );
+
+  return (
+    <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50/70 p-2.5 space-y-1.5" onClick={e => e.stopPropagation()}>
+      <p className="text-[11px] font-bold text-emerald-800 truncate">שליחה בוואטסאפ · {name}</p>
+      {leadId && opt('lead', `ללקוח${leadName ? ` — ${leadName}` : ''}`)}
+      {opt('self', 'אליי (לנייד שלי)')}
+      {opt('phone', 'למספר אחר')}
+      {target === 'phone' && (
+        <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="05x-xxxxxxx" inputMode="tel"
+          className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white" style={{ direction: 'ltr' }} />
+      )}
+      {error && <p className="text-[11px] text-red-600">{error}</p>}
+      <div className="flex gap-2 pt-0.5">
+        <button onClick={send} disabled={state === 'sending' || state === 'sent' || (target === 'phone' && phone.replace(/\D/g, '').length < 9)}
+          className="flex-1 text-xs font-bold text-white rounded-lg py-1.5 bg-emerald-600 disabled:opacity-50">
+          {state === 'sending' ? 'שולח...' : state === 'sent' ? 'נשלח ✓' : 'שלח'}
+        </button>
+        <button onClick={onClose} className="text-xs font-bold text-slate-500 border border-slate-200 rounded-lg px-3 py-1.5 bg-white">סגור</button>
+      </div>
+    </div>
+  );
+}
+
+// A knowledge file the assistant handed over — download + send over WhatsApp.
+function FileChip({ item, id, leadId, leadName }) {
+  const [sending, setSending] = useState(false);
+  if (!item) return <span className="text-xs text-slate-400">(קובץ {id} לא נמצא)</span>;
+  const ext = ((item.filename.match(/\.([a-z0-9]+)$/i) || [])[1] || '').toUpperCase();
+  return (
+    <div className="my-2">
+      <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
+        <span className="w-9 h-9 rounded-lg bg-violet-100 text-violet-700 flex items-center justify-center text-[10px] font-black shrink-0">{ext || '📄'}</span>
+        <a href={item.url} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0 text-sm font-bold text-slate-800 truncate hover:underline" title={item.filename}>
+          {item.filename}
+        </a>
+        <button onClick={() => setSending(v => !v)} title="שלח בוואטסאפ"
+          className="shrink-0 w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center hover:bg-emerald-600 transition">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2m0 18.15c-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.26 8.26 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24 4.54 0 8.24 3.7 8.24 8.24s-3.7 8.24-8.23 8.24m4.52-6.16c-.25-.12-1.47-.72-1.69-.81-.23-.08-.39-.12-.56.12-.17.25-.64.81-.78.97-.14.17-.29.19-.54.06-.25-.12-1.05-.39-1.99-1.23-.74-.66-1.23-1.47-1.38-1.72-.14-.25-.02-.38.11-.51.11-.11.25-.29.37-.43.12-.14.17-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.56-1.34-.76-1.84-.2-.48-.41-.42-.56-.43h-.48c-.17 0-.43.06-.66.31-.22.25-.86.85-.86 2.07 0 1.22.89 2.4 1.01 2.56.12.17 1.75 2.67 4.23 3.74.59.26 1.05.41 1.41.52.59.19 1.13.16 1.56.1.48-.07 1.47-.6 1.67-1.18.21-.58.21-1.07.14-1.18l-.47-.25"/></svg>
+        </button>
+      </div>
+      {sending && <SendSheet kind="file" id={id} name={item.filename} leadId={leadId} leadName={leadName} onClose={() => setSending(false)} />}
+    </div>
+  );
+}
+
 // Render a KB media item (image / uploaded video / YouTube / Google Drive).
-function MediaEmbed({ item }) {
+function MediaEmbed({ item, id, leadId, leadName }) {
+  const [sending, setSending] = useState(false);
   if (!item || !item.url) return null;
   const { url, media_type, title } = item;
   const yt = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/);
@@ -35,8 +217,14 @@ function MediaEmbed({ item }) {
   }
   return (
     <div className="my-2">
-      {title && <div className="text-xs font-bold text-slate-500 mb-1">{title}</div>}
+      <div className="flex items-center justify-between gap-2 mb-1">
+        {title ? <div className="text-xs font-bold text-slate-500 truncate">{title}</div> : <span />}
+        <button onClick={() => setSending(v => !v)} className="shrink-0 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 hover:bg-emerald-100 transition">
+          שלח בוואטסאפ
+        </button>
+      </div>
       {media}
+      {sending && <SendSheet kind="media" id={id} name={title || 'מדיה'} leadId={leadId} leadName={leadName} onClose={() => setSending(false)} />}
     </div>
   );
 }
@@ -81,15 +269,15 @@ function renderRuns(content, navigate, keyPrefix) {
   });
 }
 
-function MarkdownText({ content, mediaMap = {} }) {
+function MarkdownText({ content, mediaMap = {}, fileMap = {}, leadId, leadName }) {
   const navigate = useNavigate();
-  // Split out [[media:ID]] tags the assistant may emit, render each as an embed.
-  const mediaRe = /\[\[media:(\d+)\]\]/g;
+  // Split out [[media:ID]] / [[file:ID]] tags the assistant may emit, render each as an embed / chip.
+  const tagRe = /\[\[(media|file):(\d+)\]\]/g;
   const segments = [];
   let last = 0, mm;
-  while ((mm = mediaRe.exec(content)) !== null) {
+  while ((mm = tagRe.exec(content)) !== null) {
     if (mm.index > last) segments.push({ type: 'text', value: content.slice(last, mm.index) });
-    segments.push({ type: 'media', id: mm[1] });
+    segments.push({ type: mm[1], id: mm[2] });
     last = mm.index + mm[0].length;
   }
   if (last < content.length) segments.push({ type: 'text', value: content.slice(last) });
@@ -98,33 +286,43 @@ function MarkdownText({ content, mediaMap = {} }) {
     <>
       {segments.map((seg, si) =>
         seg.type === 'media'
-          ? <MediaEmbed key={`m-${si}`} item={mediaMap[seg.id]} />
+          ? <MediaEmbed key={`m-${si}`} id={seg.id} item={mediaMap[seg.id]} leadId={leadId} leadName={leadName} />
+          : seg.type === 'file'
+          ? <FileChip key={`f-${si}`} id={seg.id} item={fileMap[seg.id]} leadId={leadId} leadName={leadName} />
           : <span key={`t-${si}`}>{renderRuns(seg.value, navigate, `t-${si}`)}</span>
       )}
     </>
   );
 }
 
-function Message({ msg, mediaMap }) {
+function Message({ msg, mediaMap, fileMap, leadId, leadName }) {
   const isUser  = msg.role === 'user';
   const isError = msg.error;
+  const hasBubble = isUser || isError || (msg.content && msg.content.trim()) || msg.streaming;
   return (
-    <div className={`flex ${isUser ? 'justify-start' : 'justify-end'} mb-2`}>
-      <div
-        className={`max-w-[85%] px-3 py-2 rounded-2xl text-sm leading-relaxed ${
-          isUser
-            ? 'bg-violet-600 text-white rounded-br-sm'
-            : isError
-            ? 'bg-red-50 text-red-700 border border-red-200 rounded-bl-sm'
-            : 'bg-gray-100 text-gray-800 rounded-bl-sm'
-        }`}
-        dir="rtl"
-      >
-        {isUser ? msg.content : <MarkdownText content={msg.content} mediaMap={mediaMap} />}
-        {msg.streaming && (
-          <span className="inline-block w-1.5 h-3.5 bg-gray-400 ml-0.5 animate-pulse rounded-sm" />
-        )}
-      </div>
+    <div className={`flex flex-col ${isUser ? 'items-start' : 'items-end'} mb-2`}>
+      {hasBubble && (
+        <div
+          className={`max-w-[85%] px-3 py-2 rounded-2xl text-sm leading-relaxed ${
+            isUser
+              ? 'bg-violet-600 text-white rounded-br-sm'
+              : isError
+              ? 'bg-red-50 text-red-700 border border-red-200 rounded-bl-sm'
+              : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+          }`}
+          dir="rtl"
+        >
+          {isUser ? msg.content : <MarkdownText content={msg.content} mediaMap={mediaMap} fileMap={fileMap} leadId={leadId} leadName={leadName} />}
+          {msg.streaming && (
+            <span className="inline-block w-1.5 h-3.5 bg-gray-400 ml-0.5 animate-pulse rounded-sm" />
+          )}
+        </div>
+      )}
+      {msg.actions?.length > 0 && (
+        <div className="w-[92%]" dir="rtl">
+          {msg.actions.map(a => <ActionCard key={a.id} action={a} />)}
+        </div>
+      )}
     </div>
   );
 }
@@ -137,6 +335,8 @@ export default function AIChat() {
   const [open, setOpen]           = useState(false);
   const [messages, setMessages]   = useState([]);
   const [mediaMap, setMediaMap]   = useState({});
+  const [fileMap, setFileMap]     = useState({});
+  const [leadName, setLeadName]   = useState('');
   const [input, setInput]         = useState('');
   const [loading, setLoading]     = useState(false);
   const [toolLabel, setToolLabel] = useState('');
@@ -162,9 +362,25 @@ export default function AIChat() {
           .then(r => r.ok ? r.json() : [])
           .then(list => setMediaMap(Object.fromEntries((list || []).map(m => [String(m.id), m]))))
           .catch(() => {});
+        fetch('/api/chat/files', { headers: { Authorization: `Bearer ${token}` } })
+          .then(r => r.ok ? r.json() : [])
+          .then(list => setFileMap(Object.fromEntries((list || []).map(f => [String(f.id), f]))))
+          .catch(() => {});
       }
     }
   }, [open]);
+
+  // Name of the lead the user is looking at (for the "שלח ללקוח" option)
+  useEffect(() => {
+    if (!open || !openLeadId) return;
+    const token = localStorage.getItem('crm_token');
+    let alive = true;
+    fetch(`/api/leads/${openLeadId}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(l => { if (alive) setLeadName(l?.name || ''); })
+      .catch(() => { if (alive) setLeadName(''); });
+    return () => { alive = false; };
+  }, [open, openLeadId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -180,7 +396,7 @@ export default function AIChat() {
     const userMsg = { role: 'user', content: text };
     setMessages(prev => [...prev, userMsg]);
 
-    const history = messages.slice(-14).map(m => ({ role: m.role, content: m.content }));
+    const history = messages.slice(-14).filter(m => m.content).map(m => ({ role: m.role, content: m.content }));
     const token   = localStorage.getItem('crm_token');
     const ctrl    = new AbortController();
     abortRef.current = ctrl;
@@ -234,6 +450,15 @@ export default function AIChat() {
             });
           } else if (eventType === 'tool_call') {
             setToolLabel(TOOL_LABELS[data.name] || 'חושב...');
+          } else if (eventType === 'action') {
+            // A proposal card — attach it to the assistant message being built
+            setMessages(prev => {
+              const last = prev[prev.length - 1];
+              if (last?.role === 'assistant' && last.streaming) {
+                return [...prev.slice(0, -1), { ...last, actions: [...(last.actions || []), data] }];
+              }
+              return [...prev, { role: 'assistant', content: '', streaming: true, actions: [data] }];
+            });
           } else if (eventType === 'done') {
             setMessages(prev => {
               const last = prev[prev.length - 1];
@@ -258,7 +483,7 @@ export default function AIChat() {
       setLoading(false);
       setToolLabel('');
     }
-  }, [input, loading, messages, mode]);
+  }, [input, loading, messages, mode, openLeadId]);
 
   function handleKeyDown(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -346,10 +571,10 @@ export default function AIChat() {
           <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1" dir="rtl">
             {messages.length === 0 && (
               <div className="text-center text-gray-400 text-xs mt-8 px-4 leading-relaxed">
-                שלום! שאל אותי על הלידים, המשימות, הלוז שלך — כל מה שצריך.
+                שלום! שאל אותי על הלידים, המשימות, הלו"ז, הצעות וחוזים, כספים ומסמכי האולם — ואפשר גם לבקש ממני ליצור משימה, לרשום הערה או לפתוח תקלה.
               </div>
             )}
-            {messages.map((msg, i) => <Message key={i} msg={msg} mediaMap={mediaMap} />)}
+            {messages.map((msg, i) => <Message key={i} msg={msg} mediaMap={mediaMap} fileMap={fileMap} leadId={openLeadId || null} leadName={openLeadId ? leadName : ''} />)}
             {toolLabel && (
               <div className="flex justify-end mb-1">
                 <div className="text-xs text-gray-400 italic px-3 py-1.5 bg-gray-50 rounded-full border border-gray-100">

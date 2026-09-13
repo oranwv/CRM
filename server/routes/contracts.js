@@ -362,6 +362,9 @@ contractPublicRouter.get('/:token', async (req, res) => {
     if (!rows[0]) return res.status(404).json({ error: 'חוזה לא נמצא' });
     const c = rows[0];
     if (c.status === 'signed') return res.status(410).json({ error: 'החוזה כבר נחתם', signed: true });
+    // Deal-advisor signal: the customer opened the signing page (2026-09-13)
+    pool.query('INSERT INTO contract_views (contract_id, user_agent) VALUES ($1, $2)',
+      [c.id, String(req.headers['user-agent'] || '').slice(0, 200)]).catch(() => {});
     res.json({ contract_data: c.contract_data, lead_name: c.lead_name, status: c.status });
   } catch (err) {
     res.status(500).json({ error: err.message });

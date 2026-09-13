@@ -1,10 +1,47 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-09-12
+updated: 2026-09-13
 ---
 
 # Now
+
+## 2026-09-13 — Landing-page roadmap: assistant actions, smarter advisor, payments w/o document
+
+Oran designed a ProEvent landing page in Claude Design (package
+`design_handoff_proevent_landing`); it described the AI assistant and the deal advisor as
+better than the real thing. Gap analysis against the code, then he chose: build the
+assistant + advisor items and "payment reported, no document"; **do not touch** the
+briefing, staff attendance, the WhatsApp bot, Instagram/Facebook webhooks, or the landing
+page itself for now.
+
+Shipped (one commit, details in PRD Phase 31):
+- Assistant: 6 read tools (documents, worklist, KPIs, finance, event brief, employee
+  activity), propose_task/note/fault → `ActionCard` confirm → `POST /api/chat/actions`;
+  `[[file:ID]]` chips + "שלח בוואטסאפ" (`SendSheet`, `POST /api/chat/send`, new
+  `services/waOutbound.js`). The old "read-only" prompt rule is gone.
+- Advisor: `buildLeadContext` enriched; `contract_views` logged on the public signing GET;
+  response adds evidence / suggested_task / suggest_meeting / deal_value; card buttons open
+  `AddTaskModal` (new `initial` prop) and `ScheduleMeetingModal`; worklist ranking + pills.
+- Payment signals: `services/paymentSignals.js` cron + `routes/paymentSignals.js` +
+  `PaymentSignalsModal.jsx` + `PaymentSignalBanner` in LeadCard; `InvoiceModal` got an
+  `initial` prop for the prefilled receipt.
+
+Verification: the Claude cloud clone ran a throwaway Postgres 16; the server booted with
+the new migrations, every tool/route was exercised (see PRD), scan tested with a mocked
+OpenAI. Fresh-DB boot has pre-existing migration deadlocks (pending_documents, suppliers,
+RSVP) — irrelevant in production where the tables exist. Not tested live: Green API sends
+from the chat, real model output for the new prompts.
+
+After deploy, check: (1) ask the assistant "תשלח לי את תעודת הכשרות" — a chip with a
+WhatsApp button (needs a KB file that was uploaded after `stored_name` existed);
+(2) "צור לי משימה מחר להתקשר ללוי" → card → אשר → task appears; (3) open a lead with a
+sent contract → "נתח את הליד" → evidence bullets + "צור משימה" button; (4) an inbound
+"העברתי מקדמה" message → within 15 min the amber banner + header badge.
+
+Landing-page items still open (Oran's call, not scheduled): briefing insight line (no
+LLM text), clock-in/out attendance, multi-turn bot, Instagram/Facebook Graph webhooks,
+building the landing page with the demo form feeding a `landing` lead source.
 
 ## 2026-09-12 — Finance: "חבר תיבת מייל" button did nothing
 

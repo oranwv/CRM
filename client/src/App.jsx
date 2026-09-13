@@ -21,6 +21,7 @@ import ManagementPage   from './pages/ManagementPage';
 import FinancePage      from './pages/FinancePage';
 import AIChat           from './components/AIChat';
 import PendingDocsModal  from './components/PendingDocsModal';
+import PaymentSignalsModal from './components/PaymentSignalsModal';
 import UnreadyEventsModal from './components/UnreadyEventsModal';
 import { docTypeLabel }   from './utils/docTypes';
 import { AppModeProvider, useAppMode } from './context/AppModeContext';
@@ -45,6 +46,22 @@ function GlobalHeader() {
   const [showPending, setShowPending]   = useState(false);
   const [unreadyCount, setUnreadyCount] = useState(0);
   const [showUnready, setShowUnready]   = useState(false);
+  const isFinanceUser = isManager || userRoles.includes('finance');
+  const [paymentCount, setPaymentCount] = useState(0);
+  const [showPayments, setShowPayments] = useState(false);
+
+  // Amber "תשלומים ללא מסמך" badge — managers + finance
+  const loadPaymentCount = useCallback(() => {
+    if (!isFinanceUser || !localStorage.getItem('crm_token')) return;
+    api.get('/payment-signals/count').then(r => setPaymentCount(r.data.count || 0)).catch(() => {});
+  }, [isFinanceUser]);
+
+  useEffect(() => {
+    if (!isFinanceUser || !localStorage.getItem('crm_token')) return;
+    loadPaymentCount();
+    const t = setInterval(loadPaymentCount, 120_000);
+    return () => clearInterval(t);
+  }, [isFinanceUser, loadPaymentCount]);
   const [dropOpen, setDropOpen] = useState(false);
   const dropRef = useRef(null);
 
@@ -141,7 +158,18 @@ function GlobalHeader() {
             {unreadyCount > 99 ? '99+' : unreadyCount} אירועים לא מוכנים
           </button>
         )}
+        {isFinanceUser && paymentCount > 0 && (
+          <button
+            onClick={() => setShowPayments(true)}
+            className="bg-amber-400 text-amber-950 text-[10px] font-black rounded-full px-2 py-0.5 leading-none hover:bg-amber-300 transition cursor-pointer">
+            💸 {paymentCount > 99 ? '99+' : paymentCount} תשלומים ללא מסמך
+          </button>
+        )}
       </div>
+
+      {showPayments && (
+        <PaymentSignalsModal onClose={() => { setShowPayments(false); loadPaymentCount(); }} />
+      )}
 
       {showUnready && (
         <UnreadyEventsModal onClose={() => { setShowUnready(false); loadUnreadyCount(); }} />

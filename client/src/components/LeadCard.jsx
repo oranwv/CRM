@@ -197,6 +197,9 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
   const [showDeleteModal, setShowDeleteModal]   = useState(false);
   const [showAddTask, setShowAddTask]           = useState(false);
   const [taskDefaultAssignee, setTaskDefaultAssignee] = useState(null);
+  const [taskPrefill, setTaskPrefill] = useState(null);              // { title, due_date, due_time } from the AI advisor
+  const [paymentSignals, setPaymentSignals] = useState([]);          // "תשלום ללא מסמך" banners
+  const [invoicePrefill, setInvoicePrefill] = useState(null);        // receipt prefilled from a payment signal
   const [taskAction, setTaskAction]             = useState(null); // { task, mode: 'complete'|'reschedule'|'followup' }
   const [editing, setEditing]           = useState(false);
   const [editForm, setEditForm]         = useState({});
@@ -264,6 +267,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
       if (err?.code === 'ERR_CANCELED') return; // ignore aborts on unmount
     }
     api.get(`/greeninvoice/pending?leadId=${leadId}`, { signal }).then(r => setPendingDocs(r.data)).catch(() => {});
+    api.get(`/payment-signals/lead/${leadId}`, { signal }).then(r => setPaymentSignals(r.data || [])).catch(() => {});
     setLoading(false);
   }, [leadId]);
 
@@ -564,7 +568,21 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
           <div className="max-w-3xl mx-auto p-4 space-y-6">
 
             {/* AI deal advisor */}
-            <DealAdvisor leadId={leadId} onUseDraft={text => { setDraftSeed({ text, ts: Date.now() }); setActiveTab('whatsapp'); }} />
+            {paymentSignals.map(sig => (
+              <PaymentSignalBanner key={sig.id} signal={sig}
+                onMakeReceipt={() => { setInvoicePrefill(sig); setShowInvoice(true); }}
+                onResolved={() => setPaymentSignals(prev => prev.filter(x => x.id !== sig.id))} />
+            ))}
+
+            <DealAdvisor leadId={leadId}
+              onUseDraft={text => { setDraftSeed({ text, ts: Date.now() }); setActiveTab('whatsapp'); }}
+              onCreateTask={(title, dueInDays) => {
+                const d = new Date(); d.setDate(d.getDate() + (Number(dueInDays) || 0));
+                const pad = n => String(n).padStart(2, '0');
+                setTaskPrefill({ title, due_date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`, due_time: '10:00' });
+                setShowAddTask(true);
+              }}
+              onScheduleMeeting={() => setShowMeetingModal(true)} />
 
             {/* Status */}
             <Section title="סטטוס"
@@ -937,8 +955,22 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
           lead={lead}
           allPhones={allPhones}
           allPhoneLabels={allPhoneLabels}
-          onClose={() => setShowInvoice(false)}
-          onCreated={() => { load(); refreshPendingDocs(); }}
+          initial={invoicePrefill ? {
+            docType: 400,
+            amount: invoicePrefill.amount || '',
+            paymentMethod: PAYMENT_METHOD_BY_LABEL[invoicePrefill.method] || 4,
+            paymentDate: invoicePrefill.said_at ? String(invoicePrefill.said_at).slice(0, 10) : undefined,
+          } : null}
+          onClose={() => { setShowInvoice(false); setInvoicePrefill(null); }}
+          onCreated={() => {
+            load(); refreshPendingDocs();
+            if (invoicePrefill) {
+              const sid = invoicePrefill.id;
+              api.post(`/payment-signals/${sid}/done`).catch(() => {});
+              setPaymentSignals(prev => prev.filter(x => x.id !== sid));
+              setInvoicePrefill(null);
+            }
+          }}
         />
       )}
 
@@ -955,8 +987,9 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
         <AddTaskModal
           leadId={leadId} users={users}
           defaultAssignedTo={taskDefaultAssignee}
-          onClose={() => { setShowAddTask(false); setTaskDefaultAssignee(null); }}
-          onSaved={() => { setShowAddTask(false); setTaskDefaultAssignee(null); load(); onUpdated(); }}
+          initial={taskPrefill}
+          onClose={() => { setShowAddTask(false); setTaskDefaultAssignee(null); setTaskPrefill(null); }}
+          onSaved={() => { setShowAddTask(false); setTaskDefaultAssignee(null); setTaskPrefill(null); load(); onUpdated(); }}
         />
       )}
 
@@ -4137,8 +4170,45 @@ const TEMP_META = {
   cold: { label: 'קר', cls: 'bg-sky-100 text-sky-700',       emoji: '❄️' },
 };
 
-// AI deal advisor: temperature + summary + next action + a ready-to-send draft
-function DealAdvisor({ leadId, onUseDraft }) {
+// Map the payment-signal method label back to a GreenInvoice payment method code
+const PAYMENT_METHOD_BY_LABEL = { 'העברה בנקאית': 4, 'אשראי': 3, 'מזומן': 1, "צ'ק": 2, 'ביט': 10, 'פייבוקס': 10, 'אחר': 11 };
+
+// "תשלום ללא מסמך": the customer (or a note) said money was paid and no receipt / invoice followed.
+function PaymentSignalBanner({ signal, onMakeReceipt, onResolved }) {
+  const [busy, setBusy] = useState(false);
+  const when = signal.said_at ? new Date(signal.said_at).toLocaleDateString('he-IL') : '';
+  async function dismiss() {
+    setBusy(true);
+    try { await api.post(`/payment-signals/${signal.id}/dismiss`); onResolved(); }
+    catch { alert('שגיאה'); setBusy(false); }
+  }
+  return (
+    <div className="rounded-2xl border border-amber-300 bg-amber-50 p-3.5 flex flex-col gap-2" dir="rtl">
+      <div className="flex items-start gap-2">
+        <span className="text-xl leading-none">💸</span>
+        <div className="flex-1 min-w-0">
+          <p className="font-black text-amber-900 text-sm">
+            דווח על תשלום{signal.amount ? ` של ₪${Number(signal.amount).toLocaleString('he-IL')}` : ''}{signal.method ? ` (${signal.method})` : ''}{when ? ` · ${when}` : ''} — ולא הופק מסמך
+          </p>
+          {signal.snippet && <p className="text-xs text-amber-800/80 mt-0.5 wrap-anywhere">„{signal.snippet}”</p>}
+        </div>
+      </div>
+      <div className="flex gap-2 flex-wrap">
+        <button onClick={onMakeReceipt} disabled={busy}
+          className="text-xs px-3 py-1.5 rounded-lg bg-amber-500 text-white font-bold hover:bg-amber-600 transition disabled:opacity-50">
+          הפק קבלה ←
+        </button>
+        <button onClick={dismiss} disabled={busy}
+          className="text-xs px-3 py-1.5 rounded-lg border border-amber-300 text-amber-800 font-bold bg-white hover:bg-amber-100 transition disabled:opacity-50">
+          לא רלוונטי
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// AI deal advisor: temperature + evidence + next action (with one-click task / meeting) + a ready-to-send draft
+function DealAdvisor({ leadId, onUseDraft, onCreateTask, onScheduleMeeting }) {
   const [advice, setAdvice]   = useState(undefined); // undefined=loading, null=none yet
   const [busy, setBusy]       = useState(false);
 
@@ -4164,10 +4234,15 @@ function DealAdvisor({ leadId, onUseDraft }) {
 
   return (
     <div className="rounded-2xl border border-violet-200 bg-violet-50/50 p-4">
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <span className="font-black text-slate-800">🤖 יועץ AI</span>
+      <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-black text-slate-800">🤖 יועץ עסקה</span>
           {t && <span className={`text-xs font-bold rounded-full px-2 py-0.5 ${t.cls}`}>{t.emoji} {t.label}</span>}
+          {advice?.deal_value > 0 && (
+            <span className="text-xs font-bold rounded-full px-2 py-0.5 bg-white border border-violet-200 text-violet-800">
+              ₪{Number(advice.deal_value).toLocaleString('he-IL')}
+            </span>
+          )}
         </div>
         <button onClick={generate} disabled={busy}
           className="text-xs px-3 py-1 rounded-lg bg-violet-600 text-white font-bold hover:bg-violet-700 transition disabled:opacity-50">
@@ -4180,11 +4255,36 @@ function DealAdvisor({ leadId, onUseDraft }) {
       ) : !advice ? (
         <p className="text-xs text-slate-500">לחץ "נתח את הליד" כדי לקבל סיכום, המלצה לפעולה וטיוטת הודעה.</p>
       ) : (
-        <div className="space-y-2 text-sm">
+        <div className="space-y-2.5 text-sm">
           {advice.headline && <p className="font-bold text-slate-800">{advice.headline}</p>}
           {advice.summary && <p className="text-slate-600 whitespace-pre-wrap">{advice.summary}</p>}
+          {advice.evidence?.length > 0 && (
+            <ul className="space-y-0.5">
+              {advice.evidence.map((e, i) => (
+                <li key={i} className="text-xs text-slate-600 flex gap-1.5"><span className="text-violet-500 shrink-0">◆</span><span>{e}</span></li>
+              ))}
+            </ul>
+          )}
           {advice.next_action && (
-            <p className="text-slate-700"><span className="font-bold text-violet-700">הצעד הבא: </span>{advice.next_action}</p>
+            <div className="bg-white rounded-xl border border-violet-200 p-2.5">
+              <p className="text-slate-700"><span className="font-bold text-violet-700">הצעד הבא: </span>{advice.next_action}</p>
+              {(advice.suggested_task || advice.suggest_meeting) && (
+                <div className="flex gap-2 flex-wrap mt-2">
+                  {advice.suggested_task?.title && onCreateTask && (
+                    <button onClick={() => onCreateTask(advice.suggested_task.title, advice.suggested_task.due_in_days)}
+                      className="text-xs px-3 py-1.5 rounded-lg bg-violet-600 text-white font-bold hover:bg-violet-700 transition">
+                      ✅ צור משימה: {advice.suggested_task.title.length > 34 ? advice.suggested_task.title.slice(0, 34) + '…' : advice.suggested_task.title}
+                    </button>
+                  )}
+                  {advice.suggest_meeting && onScheduleMeeting && (
+                    <button onClick={onScheduleMeeting}
+                      className="text-xs px-3 py-1.5 rounded-lg border border-violet-300 text-violet-700 bg-white font-bold hover:bg-violet-50 transition">
+                      📅 קבע פגישה
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           )}
           {advice.draft_message && (
             <div className="bg-white rounded-xl border border-slate-200 p-2.5">
@@ -4197,7 +4297,7 @@ function DealAdvisor({ leadId, onUseDraft }) {
             </div>
           )}
           {advice.generated_at && (
-            <p className="text-[11px] text-slate-400">נוצר {new Date(advice.generated_at).toLocaleString('he-IL')}</p>
+            <p className="text-[11px] text-slate-400">נוצר {new Date(advice.generated_at).toLocaleString('he-IL')} · ה-AI מנסח טיוטות בלבד — שום הודעה לא נשלחת בלי אישורך</p>
           )}
         </div>
       )}
@@ -4904,8 +5004,8 @@ function CalendarSection({ lead, leadId, editForm, calStatus, onUpdated, allPhon
 }
 
 /* ── ADD TASK MODAL ── */
-function AddTaskModal({ leadId, users, onClose, onSaved, defaultAssignedTo }) {
-  const [form, setForm] = useState({ title: '', due_date: '', due_time: '', assigned_to: defaultAssignedTo ? String(defaultAssignedTo) : '', remind_via: 'whatsapp' });
+function AddTaskModal({ leadId, users, onClose, onSaved, defaultAssignedTo, initial = null }) {
+  const [form, setForm] = useState({ title: initial?.title || '', due_date: initial?.due_date || '', due_time: initial?.due_time || '', assigned_to: defaultAssignedTo ? String(defaultAssignedTo) : '', remind_via: 'whatsapp' });
   const [saving, setSaving] = useState(false);
   const cls = 'w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-violet-400 bg-white';
 

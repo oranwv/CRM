@@ -4,12 +4,14 @@ import { DOC_TYPES, PAYMENT_METHODS, VAT_OPTIONS, PAYMENT_DOC_TYPES } from '../u
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
-export default function InvoiceModal({ lead, allPhones, allPhoneLabels, onClose, onCreated }) {
-  const [docType,       setDocType]       = useState(300);
-  const [paymentMethod, setPaymentMethod] = useState(4);
-  const [items,         setItems]         = useState([{ description: 'אירוע', quantity: 1, price: '', vatType: 1 }]);
+// `initial` (optional): { docType, amount, paymentMethod, paymentDate } — e.g. a receipt
+// prefilled from a "תשלום ללא מסמך" banner in the lead card.
+export default function InvoiceModal({ lead, allPhones, allPhoneLabels, onClose, onCreated, initial = null }) {
+  const [docType,       setDocType]       = useState(initial?.docType || 300);
+  const [paymentMethod, setPaymentMethod] = useState(initial?.paymentMethod || 4);
+  const [items,         setItems]         = useState([{ description: initial?.docType === 400 ? 'מקדמה על חשבון האירוע' : 'אירוע', quantity: 1, price: initial?.amount ?? '', vatType: 1 }]);
   const [docDate,       setDocDate]       = useState(todayStr());
-  const [secondDate,    setSecondDate]    = useState(todayStr());
+  const [secondDate,    setSecondDate]    = useState(initial?.paymentDate || todayStr());
   const [sendByEmail,   setSendByEmail]   = useState(false);
   const [sendByWa,      setSendByWa]      = useState(false);
   const [waMessage,     setWaMessage]     = useState('');
