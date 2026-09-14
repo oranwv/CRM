@@ -143,6 +143,7 @@ function GlobalHeader() {
       dir="rtl"
     >
       <div className="flex items-center gap-2">
+        <img src="/logo/mark-mono-white.svg" alt="" className="w-5 h-5 opacity-90" />
         <span className="text-white font-black text-sm opacity-90">שרביה CRM</span>
         {isManager && pendingCount > 0 && (
           <button

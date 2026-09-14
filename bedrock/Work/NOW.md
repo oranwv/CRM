@@ -16,8 +16,9 @@ design package (static render, responsive rules added, SEO head, JSON-LD, GA slo
 `GA_MEASUREMENT_ID`), `routes/public.js`, source `landing` everywhere. Marketing plan
 written to the claude.ai Project doc `claude/proevent-marketing-plan.md`.
 
-Next for Oran: create GA4 + Search Console (verify via the HTML tag — send me the IDs),
-Google Ads account, decide on a logo, review the competitor names in the comparison
+Logo package received the same day and applied (client/public/logo, landing nav/footer,
+favicon, login page, top bar, PWA manifest, app title). Next for Oran: create GA4 +
+Search Console (verify via the HTML tag — send me the IDs), Google Ads account, review the competitor names in the comparison
 table (design default shows "Get Plany" / "iPlan" — his call whether to keep them public).
 ## 2026-09-14 — New website leads (FormSubmit) + extra-mailbox OAuth finally diagnosed
 

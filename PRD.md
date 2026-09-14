@@ -1488,6 +1488,18 @@ invoice card, burger nav, 36px h1) live in the page's own `<style>`.
 
 Form → `POST /api/public/demo-request` (see API). Thank-you state swaps in place.
 
+**Brand / logo (2026-09-14).** Oran's logo package lives in `client/public/logo/` (served at
+`/logo/*` for both the app and the landing page): `mark-gradient.svg` (bolt, gradient
+`#7c5cff → #d946ef`), mono marks (accent / white / black), horizontal logos, `favicon.svg`,
+`app-icon.svg` / `app-icon-512.png`, plus its README (wordmark = "proevent" in Manrope 700,
+"event" in `#d2cefd`). Used: landing nav (mark + wordmark, per the README snippet) and
+footer; `client/public/favicon.svg` replaced; app `index.html` → `<title>ProEvent CRM</title>`,
+`lang="he"`, apple-touch-icon, `manifest.webmanifest` (name ProEvent CRM, standalone, the
+512 icon) so "add to home screen" shows the icon; `LoginPage` shows the app icon above
+"שרביה CRM" with a small "proevent" wordmark; the app top bar shows the white mono mark next
+to "שרביה CRM". Contract / offer PDFs keep `client/public/logo.jpg` — that is Sharviya's
+logo on customer documents, not the product's.
+
 ## Runtime DB Migrations (boot)
 
 `server/index.js` runs a long series of `CREATE TABLE IF NOT EXISTS` / `ALTER TABLE ...
@@ -1814,8 +1826,8 @@ LeadsPage logout / api.js 401. Verified locally: `/` anonymous → landing (GA i
 the env var is set), `/` with cookie → app, `/?lead=5` → app, robots/sitemap/css/og 200,
 form → lead + note + admin WhatsApp attempt, honeypot swallowed, bad phone 400, repeat phone
 → note on the existing lead; desktop + 390px screenshots checked, no horizontal scroll.
-Not done: a real logo (the design's placeholder square is used), GA/Search Console
-verification (needs Oran's accounts), a `<title>` for the app itself (still "client").
+Later the same day: logo added everywhere (see the Brand paragraph), app title fixed.
+Not done: GA/Search Console verification (needs Oran's accounts).
 
 ### Phase 31 — Assistant actions + documents, smarter deal advisor, payments without a document ✅ Built 2026-09-13
 Source: Oran's Claude-Design landing page for ProEvent (the `design_handoff_proevent_landing`

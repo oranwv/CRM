@@ -1,0 +1,14 @@
+{
+  "name": "ProEvent CRM",
+  "short_name": "ProEvent",
+  "start_url": "/?source=pwa",
+  "display": "standalone",
+  "background_color": "#161826",
+  "theme_color": "#7c3aed",
+  "lang": "he",
+  "dir": "rtl",
+  "icons": [
+    { "src": "/logo/app-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/logo/app-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
