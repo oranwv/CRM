@@ -6,6 +6,22 @@ updated: 2026-09-14
 
 # Now
 
+## 2026-09-14 — New website leads (FormSubmit) + extra-mailbox OAuth finally diagnosed
+
+Oran rebuilt sharabiya.co.il; its forms now arrive from submissions@formsubmit.co with a
+label/value body (שם / שם מלא, טלפון, פרטי הפנייה, תאריך "ספטמבר 14, 2026", זמן, קישור
+לעמוד). Added `parseFormSubmit()` in gmailService (routed by sender + subject before the
+old-site parsers); event_date + event_time now saved on new leads. Tested with simulated
+bodies only (Gmail API unreachable from the Mac VM). The two test emails from 14/9 were
+already consumed by the OLD popup/form parsers before this change — the resulting test
+leads (if any) need deleting by hand; `processed_emails` will not re-parse them.
+
+Extra-mailbox OAuth: after the Web client + proevent.co.il redirect URI were set up, the
+remaining "invalid_request" was a LEADING SPACE in Railway's `SERVER_URL` (found by calling
+/finance/gmail/connect-url from Oran's Chrome). Server now trims SERVER_URL and the
+GOOGLE_WEB_* vars on boot (52a6b92); Oran also asked to fix the variable in Railway.
+Production domain is https://www.proevent.co.il (not the railway.app URL).
+
 ## 2026-09-14 — Payment signals: trigger is the employee's marking, not customer messages
 
 Oran: "זה לא צריך להיות על הודעה נכנסת 'העברתי מקדמה' — זה צריך להיות כשעובד מסמן

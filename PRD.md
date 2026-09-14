@@ -161,11 +161,21 @@ old error-marking bug; both leads already exist.
 - Guest count: `כמות מוזמנים: {value}`
 - Event type: `סוג האירוע: {value}`
 
-### Website Popup (subject contains "הודעה חדשה פופאפ")
+### New Sharviya website — FormSubmit (from `submissions@formsubmit.co`, added 2026-09-14)
+The rebuilt site delivers both forms through FormSubmit. Checked **before** the old-site
+rules (same subjects). Subject containing "פופאפ" → `website_popup`; "פנייה חדשה" →
+`website_form`. `parseFormSubmit()` reads "label:" / value pairs (value on the same line or
+the next one; a label has no digits and is followed by a space, so "6:00 am" and
+"https://…" are values): שם / שם מלא → name, טלפון → phone, פרטי הפנייה → notes,
+תאריך ("ספטמבר 14, 2026", Hebrew or English month names) → `event_date`, זמן → `event_time`
+(also appended to notes as "שעה: …"). Unknown labels are ignored. Old-site rules below still
+apply to non-FormSubmit senders.
+
+### Website Popup — old site (subject contains "הודעה חדשה פופאפ")
 - Uses line-position parsing: finds "אני" line, name = next line, phone = line after
 - Fallback: first two valid lines before "---" separator
 
-### Website Contact Form (subject contains "פנייה חדשה מאתר שרביה")
+### Website Contact Form — old site (subject contains "פנייה חדשה מאתר שרביה")
 - Name: `שם מלא: {value}`
 - Phone: `טלפון: {value}`
 - Notes: `פרטי הפנייה: {value}`

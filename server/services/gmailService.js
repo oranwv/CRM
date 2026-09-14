@@ -73,6 +73,65 @@ function parseWebsiteForm(body) {
   };
 }
 
+// New Sharviya website (Sep 2026) — forms are delivered by FormSubmit
+// (submissions@formsubmit.co). Body is a list of "label:" / value pairs
+// (label on one line, value on the next after HTML stripping — or on the
+// same line in the plain-text part). Labels: שם / שם מלא, טלפון,
+// פרטי הפנייה, תאריך ("ספטמבר 14, 2026"), זמן ("6:00 am"), קישור לעמוד.
+const HEBREW_MONTHS = { 'ינואר': 1, 'פברואר': 2, 'מרץ': 3, 'מרס': 3, 'אפריל': 4, 'מאי': 5, 'יוני': 6,
+  'יולי': 7, 'אוגוסט': 8, 'ספטמבר': 9, 'אוקטובר': 10, 'נובמבר': 11, 'דצמבר': 12 };
+
+function parseFormSubmitDate(str) {
+  if (!str) return null;
+  const numeric = parseHebrewDate(str);
+  if (numeric) return numeric;
+  // "ספטמבר 14, 2026" / "14 ספטמבר 2026" / "September 14, 2026"
+  const m = str.match(/(\d{4})/);
+  const d = str.match(/(?:^|[^\d])(\d{1,2})(?:[^\d]|$)/);
+  if (!m || !d) return null;
+  let month = null;
+  for (const [name, num] of Object.entries(HEBREW_MONTHS)) if (str.includes(name)) { month = num; break; }
+  if (!month) {
+    const en = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+    const idx = en.findIndex(n => str.toLowerCase().includes(n));
+    if (idx >= 0) month = idx + 1;
+  }
+  if (!month) return null;
+  return `${m[1]}-${String(month).padStart(2, '0')}-${d[1].padStart(2, '0')}`;
+}
+
+function parseFormSubmit(body, source) {
+  const lines = body.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  // A label line is "<text without digits>:" optionally followed by a space and
+  // the value. Digits are excluded so "6:00 am" is a value, and the space is
+  // required so "https://…" is a value too.
+  const LABEL_RE = /^([^:\d]{1,40}):(?:\s+(.*)|\s*)$/;
+  const fields = {};
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(LABEL_RE);
+    if (!m) continue;
+    const label = m[1].trim();
+    let value = (m[2] || '').trim();
+    if (!value && i + 1 < lines.length && !LABEL_RE.test(lines[i + 1])) value = lines[++i];
+    if (value && !fields[label]) fields[label] = value;
+  }
+  const pick = (...labels) => { for (const l of labels) if (fields[l]) return fields[l]; return null; };
+  const time = pick('זמן', 'שעה');
+  const details = pick('פרטי הפנייה', 'הודעה', 'פרטים');
+  const notes = [details, time ? `שעה: ${time}` : null].filter(Boolean).join('\n') || null;
+  return {
+    source,
+    name:       pick('שם מלא', 'שם'),
+    phone:      pick('טלפון', 'נייד'),
+    email:      pick('מייל', 'אימייל', 'Email', 'email'),
+    event_date: parseFormSubmitDate(pick('תאריך', 'תאריך האירוע')),
+    event_time: time,
+    guest_count: pick('כמות מוזמנים', 'מספר אורחים'),
+    event_type:  pick('סוג האירוע', 'סוג אירוע'),
+    notes,
+  };
+}
+
 function parseVonage(body) {
   const phoneMatch = body.match(/מספר\s+טלפון\s+שהתקשרו\s+ממנו[^:\n]*:\s*(\S+)/);
   const phone = phoneMatch ? phoneMatch[1].trim() : null;
@@ -197,9 +256,9 @@ async function upsertLead(parsed, emailId, emailTs) {
       );
     }).catch(() => {});
   } else {
-    const fields = ['source', 'stage', 'name', 'phone', 'email', 'event_date', 'event_type', 'guest_count', 'budget', 'notes', 'event_name'];
+    const fields = ['source', 'stage', 'name', 'phone', 'email', 'event_date', 'event_time', 'event_type', 'guest_count', 'budget', 'notes', 'event_name'];
     const values = [parsed.source, 'new', parsed.name, parsed.phone, parsed.email,
-                    parsed.event_date || null, parsed.event_type, parsed.guest_count, parsed.budget, parsed.notes, parsed.name];
+                    parsed.event_date || null, parsed.event_time || null, parsed.event_type, parsed.guest_count, parsed.budget, parsed.notes, parsed.name];
     const cols = fields.join(', ');
     const placeholders = fields.map((_, i) => `$${i+1}`).join(', ');
     const { rows: newRows } = await pool.query(`INSERT INTO leads (${cols}) VALUES (${placeholders}) RETURNING *`, values);
@@ -271,10 +330,14 @@ async function pollGmail() {
 
         if (from.includes('hafakot.co.il') && (subject.toUpperCase().includes('CALL EVENT') || body.includes('להלן פרטי הליד:'))) {
           parsed = parseCallEvent(body);
+        } else if (from.includes('formsubmit.co') && subject.includes('פופאפ')) {
+          parsed = parseFormSubmit(body, 'website_popup');           // new site (FormSubmit)
+        } else if (from.includes('formsubmit.co') && subject.includes('פנייה חדשה')) {
+          parsed = parseFormSubmit(body, 'website_form');            // new site (FormSubmit)
         } else if (subject.includes('הודעה חדשה פופאפ')) {
-          parsed = parseWebsitePopup(body);
+          parsed = parseWebsitePopup(body);                          // old site
         } else if (subject.includes('פנייה חדשה מאתר שרביה')) {
-          parsed = parseWebsiteForm(body);
+          parsed = parseWebsiteForm(body);                           // old site
         } else if (from.includes('telekol') && subject.includes('טלקול')) {
           parsed = parseTelekol(body);
         } else if (from.includes('dont-reply@ai.vonage.com')) {
@@ -359,4 +422,4 @@ async function sendEmail({ to, subject, body, attachments, attachmentBuffer, att
   await gmail.users.messages.send({ userId: 'me', requestBody: { raw } });
 }
 
-module.exports = { pollGmail, sendEmail, getAuth };
+module.exports = { pollGmail, sendEmail, getAuth, parseFormSubmit, parseFormSubmitDate };
