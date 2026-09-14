@@ -958,7 +958,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
           initial={invoicePrefill ? {
             docType: 400,
             amount: invoicePrefill.amount || '',
-            paymentMethod: PAYMENT_METHOD_BY_LABEL[invoicePrefill.method] || 4,
+            description: invoicePrefill.kind === 'full_payment' ? 'תשלום מלא עבור האירוע' : 'מקדמה על חשבון האירוע',
             paymentDate: invoicePrefill.said_at ? String(invoicePrefill.said_at).slice(0, 10) : undefined,
           } : null}
           onClose={() => { setShowInvoice(false); setInvoicePrefill(null); }}
@@ -4170,13 +4170,12 @@ const TEMP_META = {
   cold: { label: 'קר', cls: 'bg-sky-100 text-sky-700',       emoji: '❄️' },
 };
 
-// Map the payment-signal method label back to a GreenInvoice payment method code
-const PAYMENT_METHOD_BY_LABEL = { 'העברה בנקאית': 4, 'אשראי': 3, 'מזומן': 1, "צ'ק": 2, 'ביט': 10, 'פייבוקס': 10, 'אחר': 11 };
-
-// "תשלום ללא מסמך": the customer (or a note) said money was paid and no receipt / invoice followed.
+// "תשלום ללא מסמך": a deposit / full payment was marked as received in this card, and no receipt was issued yet.
+const SIGNAL_KIND = { deposit: 'מקדמה', full_payment: 'תשלום מלא' };
 function PaymentSignalBanner({ signal, onMakeReceipt, onResolved }) {
   const [busy, setBusy] = useState(false);
   const when = signal.said_at ? new Date(signal.said_at).toLocaleDateString('he-IL') : '';
+  const kind = SIGNAL_KIND[signal.kind] || 'תשלום';
   async function dismiss() {
     setBusy(true);
     try { await api.post(`/payment-signals/${signal.id}/dismiss`); onResolved(); }
@@ -4185,12 +4184,12 @@ function PaymentSignalBanner({ signal, onMakeReceipt, onResolved }) {
   return (
     <div className="rounded-2xl border border-amber-300 bg-amber-50 p-3.5 flex flex-col gap-2" dir="rtl">
       <div className="flex items-start gap-2">
-        <span className="text-xl leading-none">💸</span>
+        <span className="text-xl leading-none">🧾</span>
         <div className="flex-1 min-w-0">
           <p className="font-black text-amber-900 text-sm">
-            דווח על תשלום{signal.amount ? ` של ₪${Number(signal.amount).toLocaleString('he-IL')}` : ''}{signal.method ? ` (${signal.method})` : ''}{when ? ` · ${when}` : ''} — ולא הופק מסמך
+            {kind}{signal.amount ? ` של ₪${Number(signal.amount).toLocaleString('he-IL')}` : ''} סומנ{signal.kind === 'deposit' ? 'ה' : ''} כהתקבל{signal.kind === 'deposit' ? 'ה' : ''}{when ? ` (${when})` : ''} — ועדיין לא הופקה קבלה
           </p>
-          {signal.snippet && <p className="text-xs text-amber-800/80 mt-0.5 wrap-anywhere">„{signal.snippet}”</p>}
+          {signal.snippet && <p className="text-xs text-amber-800/80 mt-0.5">{signal.snippet}</p>}
         </div>
       </div>
       <div className="flex gap-2 flex-wrap">

@@ -204,7 +204,7 @@ const TOOL_DEFS = {
     type: 'function',
     function: {
       name: 'get_finance_summary',
-      description: 'תמונת מצב כספים: מסמכים פיננסיים שממתינים לאישור מנהל, הוצאות שחסרה להן חשבונית בהתאמה האחרונה, חשבוניות ספקים שנסרקו מהמייל החודש, ותשלומים שלקוחות דיווחו עליהם בלי שהופק מסמך.',
+      description: 'תמונת מצב כספים: מסמכים פיננסיים שממתינים לאישור מנהל, הוצאות שחסרה להן חשבונית בהתאמה האחרונה, חשבוניות ספקים שנסרקו מהמייל החודש, ומקדמות/תשלומים שסומנו כהתקבלו בכרטיס הליד בלי שהופקה קבלה.',
       parameters: { type: 'object', properties: {}, required: [] }
     }
   },
@@ -585,7 +585,7 @@ async function executeTool(name, args, user) {
                            (SELECT COALESCE(SUM(amount),0)::int FROM finance_missing_expenses e WHERE e.period_id = p.id AND e.resolved = false) AS open_amount
                     FROM finance_periods p ORDER BY p.created_at DESC LIMIT 1`),
         pool.query(`SELECT COUNT(*)::int AS n, MAX(created_at) AS last_at FROM finance_invoice_files WHERE created_at > NOW() - INTERVAL '30 days'`),
-        pool.query(`SELECT s.id, s.lead_id, l.name AS lead_name, s.amount, s.method, s.detected_at, s.snippet
+        pool.query(`SELECT s.id, s.lead_id, l.name AS lead_name, s.kind, s.amount, s.said_at, s.snippet
                     FROM payment_signals s JOIN leads l ON l.id = s.lead_id
                     WHERE s.status = 'open' ORDER BY s.detected_at DESC LIMIT 10`),
       ]);

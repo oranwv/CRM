@@ -500,7 +500,7 @@ pool.query(`
     user_agent TEXT
   );
   CREATE INDEX IF NOT EXISTS idx_contract_views_contract ON contract_views(contract_id, viewed_at);
-  -- 2026-09-13: a customer wrote that they paid, and no financial document followed
+  -- 2026-09-13/14: an employee marked a deposit / full payment as received, and no receipt followed
   CREATE TABLE IF NOT EXISTS payment_signals (
     id SERIAL PRIMARY KEY,
     lead_id INT REFERENCES leads(id) ON DELETE CASCADE,
@@ -517,6 +517,8 @@ pool.query(`
     UNIQUE (message_id), UNIQUE (interaction_id)
   );
   CREATE INDEX IF NOT EXISTS idx_payment_signals_open ON payment_signals(status, lead_id);
+  ALTER TABLE payment_signals ADD COLUMN IF NOT EXISTS kind TEXT;          -- deposit | full_payment
+  ALTER TABLE payment_signals ADD COLUMN IF NOT EXISTS marked_by INT REFERENCES users(id) ON DELETE SET NULL;
   CREATE TABLE IF NOT EXISTS finance_missing_expenses (
     id SERIAL PRIMARY KEY,
     fingerprint TEXT UNIQUE NOT NULL,
@@ -776,13 +778,14 @@ function startCronJobs() {
   }, 2 * 60 * 1000); // 2-minute startup delay
   console.log('[Cron] WhatsApp sync service started');
 
-  // Payment reports without a document ("העברתי מקדמה" and no receipt) — every 15 min
-  const { scanPaymentSignals } = require('./services/paymentSignals');
+  // "תשלום ללא מסמך": close open signals once their receipt exists — every 15 min
+  // (signals themselves are created synchronously in PATCH /api/leads/:id)
+  const { closeDocumentedPaymentSignals } = require('./services/paymentSignals');
   setTimeout(() => {
-    scanPaymentSignals();
-    setInterval(scanPaymentSignals, 15 * 60 * 1000);
+    closeDocumentedPaymentSignals();
+    setInterval(closeDocumentedPaymentSignals, 15 * 60 * 1000);
   }, 3 * 60 * 1000);
-  console.log('[Cron] Payment-signal scan started');
+  console.log('[Cron] Payment-signal close scan started');
 
   // Meeting reminders — send WhatsApp 2 days before scheduled meeting, hourly check
   const { sendMeetingReminders } = require('./services/meetingReminderService');

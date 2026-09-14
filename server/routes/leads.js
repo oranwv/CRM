@@ -182,18 +182,25 @@ router.patch('/:id', async (req, res) => {
   const TYPED = new Set(['deposit_amount', 'deposit_date', 'event_date', 'guest_count', 'budget', 'assigned_to']);
   const vals = fields.map(f => (TYPED.has(f) && req.body[f] === '') ? null : req.body[f]);
   try {
-    // Capture old stage before update so we can log the transition
-    let oldStage = null;
-    if (fields.includes('stage')) {
-      const { rows: cur } = await pool.query('SELECT stage FROM leads WHERE id = $1', [req.params.id]);
-      oldStage = cur[0]?.stage || null;
-    }
+    // Capture the row before the update: stage for the transition log, payment flags for
+    // the "תשלום ללא מסמך" signal
+    const { rows: cur } = await pool.query(
+      'SELECT stage, deposit_confirmed, full_payment_confirmed FROM leads WHERE id = $1', [req.params.id]
+    );
+    const prevRow  = cur[0] || null;
+    const oldStage = fields.includes('stage') ? (prevRow?.stage || null) : null;
 
     const { rows } = await pool.query(
       `UPDATE leads SET ${sets}, updated_at = NOW() WHERE id = $1 RETURNING *`,
       [req.params.id, ...vals]
     );
     const lead = rows[0];
+
+    // Deposit / full payment marked as received → open a payment signal unless a receipt exists
+    if (prevRow && fields.some(f => ['deposit_confirmed', 'full_payment_confirmed', 'stage'].includes(f))) {
+      const { onLeadUpdated } = require('../services/paymentSignals');
+      onLeadUpdated(prevRow, lead, req.user?.id).catch(() => {});
+    }
 
     // Re-sync calendar if event date/time/name/type changed (awaited so calStatus is fresh on reload)
     const calendarFields = ['event_date','event_time','event_end_time','event_type','name'];

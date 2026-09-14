@@ -1,7 +1,7 @@
 ---
 note_type: domain
 project: CRM
-updated: 2026-09-13
+updated: 2026-09-14
 ---
 
 # AI & Integrations
@@ -51,10 +51,12 @@ voice notes. (Verified 2026-09-08 against the source; earlier notes here said Cl
   reply-speed), evidence + suggested_task + suggest_meeting in the response, worklist ranked
   near-event → temperature → deal value → freshness. `settings.sales_loss_lessons` holds
   the last loss-insight lessons for the advisor prompt.
-- Payment signals (`services/paymentSignals.js`, 15-min cron): "העברתי מקדמה" with no
-  receipt → `payment_signals` → amber banner in the lead card ("הפק קבלה" prefills
-  InvoiceModal) + header badge/modal for admin/manager/finance. Auto-closes when a
-  קבלה/חשבונית file or pending document appears after the message.
+- Payment signals (`services/paymentSignals.js`): opened in `PATCH /leads/:id` when an
+  employee ticks "מקדמה התקבלה" / "תשלום מלא התקבל" or moves the stage to התקבלה מקדמה
+  and no receipt-type doc (קבלה / חשבונית-מס-קבלה / pending 400|320) covers it →
+  `payment_signals` (kind deposit|full_payment) → amber banner in the lead card ("הפק
+  קבלה" prefills InvoiceModal) + header badge/modal for admin/manager/finance. 15-min cron
+  closes signals once the receipt exists. NOT based on customer messages (Oran, 14.9).
 - AI messaging helpers (`routes/ai.js`): transcribe (Whisper) / translate / reply / improve.
 - Server-side AI: salesAdvisor (deal advice + loss insights), salesBriefingService,
   eventCostService (cost lines, JSON mode), financeInvoiceScanner (invoice classification),

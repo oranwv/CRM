@@ -492,13 +492,13 @@ lines — the model is never trusted to do arithmetic.
 ```
 contract_views:   id, contract_id → contracts.id, viewed_at, user_agent
                   -- one row per open of the public signing page (GET /api/contracts/:token)
-payment_signals:  id, lead_id → leads.id, message_id → messages.id UNIQUE,
-                  interaction_id → lead_interactions.id UNIQUE, detected_at, said_at,
-                  amount NUMERIC, method TEXT, snippet, status ('open'|'done'|'dismissed'),
-                  resolved_at, resolved_by → users.id
+payment_signals:  id, lead_id → leads.id, kind ('deposit'|'full_payment'), detected_at,
+                  said_at (the payment date entered), amount NUMERIC, snippet, marked_by → users.id,
+                  status ('open'|'done'|'dismissed'), resolved_at, resolved_by → users.id
+                  -- message_id / interaction_id / method exist from the first version, unused
 ```
-`settings` keys added: `sales_loss_lessons` (latest loss-insight patterns/recommendations,
-fed to the advisor), `payment_signal_last_message_id`, `payment_signal_last_interaction_id`.
+`settings` key added: `sales_loss_lessons` (latest loss-insight patterns/recommendations,
+fed to the advisor).
 
 ### Finance module (כספים)
 ```
@@ -1240,24 +1240,29 @@ the approve/reject result until they dismiss it (`creator_seen`).
 | WhatsApp history sync | Every 30 min | `waSyncService.syncWhatsAppMessages()` — backfills messages Green API delivered while the server was down |
 | Meeting reminders | Every 60 min | `meetingReminderService.sendMeetingReminders()` |
 | Invoice scan | Daily 20:00 | `financeInvoiceScanner.startDailyInvoiceScan()` |
-| Payment-signal scan | Every 15 min | `paymentSignals.scanPaymentSignals()` — inbound WhatsApp + lead notes → "תשלום ללא מסמך" (see below) |
+| Payment-signal close scan | Every 15 min | `paymentSignals.closeDocumentedPaymentSignals()` — closes "תשלום ללא מסמך" signals once their receipt exists (signals are opened synchronously in `PATCH /api/leads/:id`, see below) |
 
-### Payment signals — "תשלום ללא מסמך" (`server/services/paymentSignals.js`) ✅ Built 2026-09-13
-A customer writes "העברתי מקדמה" (or a rep notes it) and no receipt / invoice follows.
-- Cursor in `settings` (`payment_signal_last_message_id` / `_last_interaction_id`); scans
-  new inbound `messages` and `lead_interactions` of type note/call/whatsapp (last 7 days),
-  keyword prefilter (`KEYWORDS`, minus `NEGATIVE` — price questions, promises, our own
-  payment requests), then `gpt-4o-mini` JSON `{ is_payment_report, amount, method }`.
-- Skips when a קבלה/חשבונית file or a `pending_documents` row already exists on the lead
-  after the message, and keeps **one open signal per lead per 3 days** (one payment episode).
-- Rows in `payment_signals` (`status` open | done | dismissed). Auto-closes (`done`) once a
-  document appears; the receipt made from the banner calls `/done` explicitly.
-- UI: amber **banner at the top of the lead card** (amount, method, date, the quote) with
-  **"הפק קבלה ←"** — opens `InvoiceModal` prefilled (`initial` prop: type 400 קבלה, amount,
-  payment method mapped from the label, payment date = message date, item "מקדמה על חשבון
-  האירוע") — and **"לא רלוונטי"**. Header badge **"💸 N תשלומים ללא מסמך"** for
-  admin/manager/finance → `PaymentSignalsModal` (row opens the lead; dismiss inline).
-  Also surfaced by the assistant's `get_finance_summary`.
+### Payment signals — "תשלום ללא מסמך" (`server/services/paymentSignals.js`) ✅ Built 2026-09-13, reworked 2026-09-14
+An employee marks in the lead card that money was received, and no receipt follows.
+**Trigger = the employee's marking, not customer messages** (Oran, 2026-09-14):
+- `PATCH /api/leads/:id` compares the row before/after: `deposit_confirmed` false→true
+  **or** stage → `deposit` ("התקבלה מקדמה") opens a `deposit` signal (amount =
+  `deposit_amount`, date = `deposit_date`); `full_payment_confirmed` false→true opens a
+  `full_payment` signal. One open signal per (lead, kind).
+- Not opened / auto-closed when the lead already has enough **receipt-type documents**:
+  files named `קבלה-*` / `חשבונית-מס-קבלה-*` or `pending_documents` of type 400/320 (not
+  rejected). A deposit needs 1, a full payment needs 2 when a deposit was marked (else 1).
+  The 15-min cron `closeDocumentedPaymentSignals()` closes signals whose receipt appeared;
+  the receipt made from the banner calls `/done` explicitly.
+- Rows in `payment_signals` (`kind`, `amount`, `said_at` = the payment date entered,
+  `snippet` = "מקדמה סומנה כהתקבלה על ידי <עובד>", `marked_by`, `status` open | done |
+  dismissed). The `message_id` / `interaction_id` columns are unused since the rework.
+- UI: amber **banner at the top of the lead card** ("מקדמה של ₪8,000 סומנה כהתקבלה (10.9)
+  — ועדיין לא הופקה קבלה") with **"הפק קבלה ←"** — opens `InvoiceModal` prefilled
+  (`initial` prop: type 400 קבלה, amount, item "מקדמה על חשבון האירוע" / "תשלום מלא עבור
+  האירוע", payment date = the entered date) — and **"לא רלוונטי"**. Header badge
+  **"🧾 N תשלומים בלי קבלה"** for admin/manager/finance → `PaymentSignalsModal` (kind pill,
+  row opens the lead; dismiss inline). Also surfaced by the assistant's `get_finance_summary`.
 
 ### Reminder Service (`server/services/reminderService.js`)
 
@@ -1780,9 +1785,12 @@ build (briefing, staff attendance and the WhatsApp bot were explicitly left unto
   `lossInsights` persists `settings.sales_loss_lessons`. Card buttons: create task
   (prefilled `AddTaskModal`), schedule meeting.
 - **Payments without a document** — see "Payment signals" under Background Services.
+  First version (13.9) scanned customer WhatsApp messages with an AI classifier; Oran
+  corrected the trigger on 14.9: it must be the employee marking "מקדמה התקבלה" /
+  "תשלום מלא התקבל" (with the amount) or moving the stage to התקבלה מקדמה. Rebuilt that way.
 - Verified in a throwaway Postgres in the Claude cloud container: boot migrations, every new
   tool, `/api/chat/actions` (task/note/fault), payment-signal scan with a mocked classifier
-  (detect → no duplicate → auto-close on receipt), `/api/payment-signals/*`, contract-view
+  (mark deposit → signal → no duplicate → receipt file → closed; full payment needs a second receipt), `/api/payment-signals/*`, contract-view
   logging, `vite build`. Not verified: real Green API sends from `/api/chat/send` and the
   live OpenAI prompts — check after deploy.
 

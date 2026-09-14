@@ -1,10 +1,23 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-09-13
+updated: 2026-09-14
 ---
 
 # Now
+
+## 2026-09-14 — Payment signals: trigger is the employee's marking, not customer messages
+
+Oran: "זה לא צריך להיות על הודעה נכנסת 'העברתי מקדמה' — זה צריך להיות כשעובד מסמן
+התקבלה מקדמה והסכום או התקבל תשלום והסכום." Rebuilt `services/paymentSignals.js`: no
+message scan, no OpenAI. `PATCH /api/leads/:id` diffs `deposit_confirmed` /
+`full_payment_confirmed` / stage→deposit and opens a signal (kind, amount, entered date,
+"סומנה על ידי <עובד>") unless the lead already has enough receipt-type docs (deposit: 1;
+full payment: 2 when a deposit was marked). Cron only closes signals whose receipt
+appeared. Columns added: `kind`, `marked_by`. Banner/modal/badge copy now say "סומנה
+כהתקבלה … ועדיין לא הופקה קבלה" / "🧾 N תשלומים בלי קבלה"; receipt prefill item text by
+kind. Verified locally: mark → signal → no duplicate → receipt → done; full payment → 2nd
+signal → 2nd receipt → done; marking when a receipt already exists → nothing.
 
 ## 2026-09-13 — Landing-page roadmap: assistant actions, smarter advisor, payments w/o document
 
@@ -36,8 +49,8 @@ from the chat, real model output for the new prompts.
 After deploy, check: (1) ask the assistant "תשלח לי את תעודת הכשרות" — a chip with a
 WhatsApp button (needs a KB file that was uploaded after `stored_name` existed);
 (2) "צור לי משימה מחר להתקשר ללוי" → card → אשר → task appears; (3) open a lead with a
-sent contract → "נתח את הליד" → evidence bullets + "צור משימה" button; (4) an inbound
-"העברתי מקדמה" message → within 15 min the amber banner + header badge.
+sent contract → "נתח את הליד" → evidence bullets + "צור משימה" button; (4) tick "מקדמה
+התקבלה" with an amount on a lead without a receipt → banner appears on reload + header badge.
 
 Landing-page items still open (Oran's call, not scheduled): briefing insight line (no
 LLM text), clock-in/out attendance, multi-turn bot, Instagram/Facebook Graph webhooks,

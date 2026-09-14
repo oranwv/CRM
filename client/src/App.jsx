@@ -162,7 +162,7 @@ function GlobalHeader() {
           <button
             onClick={() => setShowPayments(true)}
             className="bg-amber-400 text-amber-950 text-[10px] font-black rounded-full px-2 py-0.5 leading-none hover:bg-amber-300 transition cursor-pointer">
-            💸 {paymentCount > 99 ? '99+' : paymentCount} תשלומים ללא מסמך
+            🧾 {paymentCount > 99 ? '99+' : paymentCount} תשלומים בלי קבלה
           </button>
         )}
       </div>
