@@ -17,6 +17,7 @@ api.interceptors.response.use(
     if (err.response?.status === 401) {
       localStorage.removeItem('crm_token');
       localStorage.removeItem('crm_user');
+      document.cookie = 'crm_app=; path=/; max-age=0';
       // Controlled redirect, and avoid a loop when already on the login page.
       if (!window.location.pathname.startsWith('/login')) {
         sessionStorage.setItem('crm_session_expired', '1');

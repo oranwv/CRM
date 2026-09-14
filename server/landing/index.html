@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ProEvent — CRM לאולמות אירועים ומפיקים | לידים, חוזים, כספים ו-AI מכירות</title>
+<meta name="description" content="ProEvent היא מערכת CRM לאולמות אירועים ולמפיקים: כל ליד נכנס אוטומטית מוואטסאפ, מהאתר ומהטלפון, הצעות מחיר וחוזים דיגיטליים, חשבוניות והתאמות בנק, רווח אמיתי לכל אירוע, סוכן AI למכירות, תפעול וניהול עובדים. בעברית, מהיום הראשון.">
+<link rel="canonical" href="https://www.proevent.co.il/">
+<meta name="robots" content="index,follow">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="he_IL">
+<meta property="og:site_name" content="ProEvent">
+<meta property="og:title" content="ProEvent — CRM לאולמות אירועים ומפיקים">
+<meta property="og:description" content="הלידים, הכסף והאירועים — מערכת אחת שסוגרת הכול. קליטת לידים אוטומטית, חוזים דיגיטליים, חשבוניות, רווח לכל אירוע וסוכן AI למכירות.">
+<meta property="og:url" content="https://www.proevent.co.il/">
+<meta property="og:image" content="https://www.proevent.co.il/site/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#161826">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Heebo:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="/site/nocturne.css">
+<style>
+body { margin:0; direction: rtl; font-family: "Inter","Heebo",system-ui,sans-serif; background:#161826; color:#e9e9ed; }
+h1,h2,h3,h4,h5,h6 { font-family: "Inter","Heebo",system-ui,sans-serif; }
+a { color: var(--color-accent); } a:hover { color: var(--color-accent-300); }
+html { scroll-behavior: smooth; }
+.navlink:hover { color: var(--color-accent-300) !important; }
+.lp-burger { display:none; background:none; border:1px solid var(--color-divider); color:var(--color-text); border-radius:8px; width:38px; height:38px; font-size:22px; align-items:center; justify-content:center; cursor:pointer; margin-inline-start:auto; }
+/* ---- Responsive (README: "מתחת ל-900px") ---- */
+@media (max-width: 900px) {
+  .lp-nav { padding:14px 20px !important; gap:12px !important; flex-wrap:wrap; }
+  .lp-burger { display:inline-flex; }
+  .lp-navcta { margin-inline-start:0 !important; }
+  .lp-navlinks { display:none !important; width:100%; flex-direction:column; gap:12px !important; margin:6px 0 0 !important; padding-top:12px; border-top:1px solid var(--color-divider); }
+  .lp-nav.open .lp-navlinks { display:flex !important; }
+  .lp-hero { grid-template-columns:1fr !important; padding:48px 20px 40px !important; gap:36px !important; }
+  .lp-hero h1 { font-size:36px !important; }
+  .lp-hero-visual .card.elev-md { margin-bottom:14px !important; max-width:none !important; }
+  .lp-float { position:static !important; inset-inline-start:auto !important; white-space:normal !important; width:auto !important; }
+  .lp-2col { grid-template-columns:1fr !important; padding:48px 20px !important; gap:28px !important; }
+  .lp-2col > .card { order:2 !important; }
+  .lp-2col > div:not(.card) { order:1 !important; }
+  section, footer { padding-left:20px !important; padding-right:20px !important; }
+  #flow { padding:56px 20px !important; }
+  #demo > .card { padding:28px 20px !important; }
+}
+@media (max-width: 480px) {
+  .lp-navcta { width:100%; justify-content:space-between; }
+  .lp-navcta .btn { flex:1; justify-content:center; text-align:center; }
+}
+</style>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "ProEvent", "applicationCategory": "BusinessApplication", "operatingSystem": "Web, iOS, Android", "description": "CRM לאולמות אירועים ומפיקים: קליטת לידים אוטומטית מוואטסאפ, מהאתר ומהטלפון, הצעות מחיר וחוזים דיגיטליים, חשבוניות, התאמות בנק, רווח לכל אירוע, סוכן AI למכירות, תפעול וניהול עובדים.", "url": "https://www.proevent.co.il/", "inLanguage": "he", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "ILS", "description": "הדגמה חינם, ללא התחייבות"}}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "כמה זמן לוקח לעלות על המערכת?", "acceptedAnswer": {"@type": "Answer", "text": "ימים, לא חודשים. מחברים את הוואטסאפ, המייל ויומן Google — ומהרגע הזה כל ליד חדש נכנס לבד. את ההיסטוריה הקיימת מייבאים יחד איתכם בליווי אישי."}}, {"@type": "Question", "name": "זה מחליף את הוואטסאפ שלנו?", "acceptedAnswer": {"@type": "Answer", "text": "לא — מתחבר אליו. ממשיכים להתכתב כרגיל, וכל שיחה, תמונה וקובץ נשמרים אוטומטית בכרטיס הליד. גם הודעות קוליות מתומללות לטקסט."}}, {"@type": "Question", "name": "יש הרשאות לפי תפקיד?", "acceptedAnswer": {"@type": "Answer", "text": "כן. מכירות, הפקה, תפעול, כספים, אישורי הגעה וניהול — כל עובד רואה את המסכים שלו, והמנהל רואה הכול, כולל דוח פעילות לכל עובד."}}, {"@type": "Question", "name": "ה-AI שולח הודעות ללקוחות בלי אישור?", "acceptedAnswer": {"@type": "Answer", "text": "לעולם לא. ה-AI מנסח טיוטות, מדרג לידים וממליץ — אבל כל הודעה ללקוח יוצאת רק אחרי שאתם מאשרים אותה."}}, {"@type": "Question", "name": "המערכת עובדת בנייד?", "acceptedAnswer": {"@type": "Answer", "text": "כן, נבנתה קודם כל לנייד. תזכורות משימה מגיעות בוואטסאפ עם כפתורי פעולה — הושלם, דחייה או משימת המשך — בלי לפתוח מחשב."}}]}</script>
+<!--GA-->
+</head>
+<body>
+
+<div style="min-height:100vh;background:var(--color-bg);color:var(--color-text)">
+
+  <nav class="lp-nav" style="display:flex;align-items:center;gap:24px;padding:18px 40px;border-bottom:1px solid var(--color-divider);position:sticky;top:0;background:color-mix(in srgb, var(--color-bg) 88%, transparent);backdrop-filter:blur(10px);z-index:50">
+    <div style="display:flex;align-items:center;gap:10px;font-weight:600;font-size:18px;letter-spacing:-0.01em">
+      <span style="width:10px;height:10px;border-radius:3px;background:var(--color-accent);box-shadow:0 0 12px var(--color-accent)"></span>
+      ProEvent
+    </div>
+    <div class="lp-navlinks" style="display:flex;gap:22px;font-size:14px;color:var(--color-neutral-400);margin-inline-start:24px">
+      <a href="#features" style="color:inherit;text-decoration:none" class="navlink">המערכת</a>
+      <a href="#ai" style="color:inherit;text-decoration:none" class="navlink">AI מכירות</a>
+      <a href="#finance" style="color:inherit;text-decoration:none" class="navlink">כספים</a>
+      <a href="#management" style="color:inherit;text-decoration:none" class="navlink">ניהול עובדים</a>
+      <a href="#compare" style="color:inherit;text-decoration:none" class="navlink">השוואה</a>
+    </div>
+    <button class="lp-burger" type="button" aria-label="תפריט" aria-expanded="false" onclick="var n=document.querySelector('.lp-nav');n.classList.toggle('open');this.setAttribute('aria-expanded',n.classList.contains('open'))"><span aria-hidden="true">☰</span></button>
+    <div class="lp-navcta" style="display:flex;align-items:center;gap:10px;margin-inline-start:auto">
+      <a href="/login" class="btn btn-ghost" style="display:inline-flex;align-items:center;gap:6px"><i class="ph ph-sign-in"></i>כניסה למערכת</a>
+      <a href="#demo" class="btn btn-primary">השאירו פרטים</a>
+    </div>
+  </nav>
+
+  <header class="lp-hero" style="display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:56px;align-items:center;max-width:1180px;margin:0 auto;padding:88px 40px 72px">
+    <div>
+      <span class="tag tag-accent" style="margin-bottom:18px">CRM לאולמות אירועים ומפיקים</span>
+      <h1 style="font-size:52px;line-height:1.08;margin:14px 0 20px;text-wrap:pretty">הלידים, הכסף והאירועים —<br><span style="color:var(--color-accent-400)">מערכת אחת שסוגרת הכול.</span></h1>
+      <p style="font-size:18px;line-height:1.65;color:var(--color-neutral-400);max-width:34em;text-wrap:pretty">ProEvent קולטת כל ליד אוטומטית מוואטסאפ, מהאתר ומהטלפון, מלווה אותו עד חוזה חתום — ואז מפיקה חשבונית, מתאימה מול הבנק ומראה לכם בדיוק כמה הרווחתם על כל אירוע.</p>
+      <div style="display:flex;gap:14px;margin-top:30px;flex-wrap:wrap">
+        <a href="#demo" class="btn btn-primary" style="font-size:16px;padding:12px 26px">רוצה לראות דמו ←</a>
+        <a href="#flow" class="btn btn-ghost" style="font-size:16px;padding:12px 26px">איך זה עובד</a>
+      </div>
+      <div style="display:flex;gap:20px;margin-top:26px;font-size:13px;color:var(--color-neutral-500);flex-wrap:wrap">
+        <span style="display:flex;align-items:center;gap:6px"><i class="ph ph-check-circle" style="color:var(--color-accent-400)"></i> מערכת אחת · 11 מודולים</span>
+        <span style="display:flex;align-items:center;gap:6px"><i class="ph ph-check-circle" style="color:var(--color-accent-400)"></i> עברית, מהיום הראשון</span>
+        <span style="display:flex;align-items:center;gap:6px"><i class="ph ph-check-circle" style="color:var(--color-accent-400)"></i> בנוי לנייד</span>
+      </div>
+    </div>
+    <div class="lp-hero-visual" style="position:relative;min-width:0">
+      <div class="card elev-md" style="padding:20px;max-width:400px;margin-bottom:64px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+          <span style="width:34px;height:34px;border-radius:10px;background:var(--color-accent-900);display:grid;place-items:center"><i class="ph ph-sparkle" style="color:var(--color-accent-400);font-size:18px"></i></span>
+          <div>
+            <div style="font-weight:600;font-size:14px">בריף בוקר · AI מכירות</div>
+            <div style="font-size:12px;color:var(--color-neutral-500)">נשלח בוואטסאפ · 08:00</div>
+          </div>
+        </div>
+        <div style="display:grid;gap:10px;font-size:13.5px;line-height:1.5">
+          <div style="display:flex;gap:8px;padding:10px 12px;background:var(--color-neutral-900);border-radius:var(--radius-md)"><i class="ph ph-fire" style="color:var(--color-accent-400);margin-top:2px"></i><span><b>3 חוזים ממתינים לחתימה</b> — הכי חם: דנה ויואב, חתונה 14.8, ₪86,000</span></div>
+          <div style="display:flex;gap:8px;padding:10px 12px;background:var(--color-neutral-900);border-radius:var(--radius-md)"><i class="ph ph-phone-outgoing" style="color:var(--color-accent-400);margin-top:2px"></i><span>5 לידים חדשים אתמול · 2 עדיין בלי מענה — מומלץ להתחיל מהם</span></div>
+          <div style="display:flex;gap:8px;padding:10px 12px;background:var(--color-neutral-900);border-radius:var(--radius-md)"><i class="ph ph-lightbulb" style="color:var(--color-accent-400);margin-top:2px"></i><span>המלצה: הצעות מעל ₪70K נסגרות פי 2 אחרי פגישה — קבעו פגישה למשפחת לוי</span></div>
+        </div>
+      </div>
+      <div class="card elev-lg lp-float" style="padding:14px 18px;position:absolute;bottom:0;inset-inline-start:-14px;width:max-content;max-width:100%;display:flex;align-items:center;gap:12px;font-size:13.5px;white-space:nowrap">
+        <i class="ph ph-file-text" style="color:var(--color-accent-400);font-size:22px"></i>
+        <div><b>חשבונית 2041 הופקה</b><div style="color:var(--color-neutral-500);font-size:12px">אוטומטית, מהודעת הוואטסאפ · תויקה בדרייב</div></div>
+        <i class="ph ph-check-circle" style="color:var(--color-accent-400);font-size:20px"></i>
+      </div>
+    </div>
+  </header>
+
+  <section style="max-width:1180px;margin:0 auto;padding:56px 40px">
+    <h6 style="color:var(--color-accent-400)">נשמע מוכר?</h6>
+    <h2 style="max-width:22em;text-wrap:pretty">האולם מלא, אבל הניהול עדיין באקסל, בוואטסאפ ובראש</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-top:32px">
+      <div class="card" style="padding:22px"><i class="ph ph-chat-teardrop-dots" style="font-size:26px;color:var(--color-accent-400)"></i><h4 style="font-size:17px;margin:12px 0 6px">לידים שנקברים בוואטסאפ</h4><p style="font-size:14px;color:var(--color-neutral-400);margin:0">פנייה לחתונה של 400 אורחים נעלמת מתחת ל-40 שיחות אחרות. איתה נעלמת גם העסקה.</p></div>
+      <div class="card" style="padding:22px"><i class="ph ph-receipt" style="font-size:26px;color:var(--color-accent-400)"></i><h4 style="font-size:17px;margin:12px 0 6px">חשבוניות שמופקות ידנית</h4><p style="font-size:14px;color:var(--color-neutral-400);margin:0">כל מקדמה דורשת התחשבנות ידנית, וסוף חודש מול רואה החשבון הופך לסיוט של ניירת.</p></div>
+      <div class="card" style="padding:22px"><i class="ph ph-question" style="font-size:26px;color:var(--color-accent-400)"></i><h4 style="font-size:17px;margin:12px 0 6px">אפס תמונת רווח</h4><p style="font-size:14px;color:var(--color-neutral-400);margin:0">כמה באמת הרווחתם על האירוע של שישי? אחרי קייטרינג, מלצרים ואבטחה — אף אחד לא יודע.</p></div>
+      <div class="card" style="padding:22px"><i class="ph ph-calendar-x" style="font-size:26px;color:var(--color-accent-400)"></i><h4 style="font-size:17px;margin:12px 0 6px">יומן שחי בכמה מקומות</h4><p style="font-size:14px;color:var(--color-neutral-400);margin:0">פגישה ביומן של המנהל, אופציה באקסל, אירוע סגור בראש של המכירות. התנגשות היא שאלה של זמן.</p></div>
+      <div class="card" style="padding:22px"><i class="ph ph-users-three" style="font-size:26px;color:var(--color-accent-400)"></i><h4 style="font-size:17px;margin:12px 0 6px">אישורי הגעה בטלפונים</h4><p style="font-size:14px;color:var(--color-neutral-400);margin:0">ימים של שיחות לאישורי הגעה, ובסוף פותחים שולחנות רזרבה כי המספר לא היה מדויק.</p></div>
+      <div class="card" style="padding:22px"><i class="ph ph-wrench" style="font-size:26px;color:var(--color-accent-400)"></i><h4 style="font-size:17px;margin:12px 0 6px">תקלות שמתגלות באירוע</h4><p style="font-size:14px;color:var(--color-neutral-400);margin:0">המזגן באגף המזרחי, התאורה בבמה — בלי מעקב תחזוקה, הכול צף ברגע הכי גרוע.</p></div>
+    </div>
+  </section>
+
+  <section id="features" style="max-width:1180px;margin:0 auto;padding:56px 40px">
+    <h6 style="color:var(--color-accent-400)">המערכת</h6>
+    <h2 style="max-width:24em;text-wrap:pretty">מהפנייה הראשונה ועד שורת הרווח — הכול בפנים</h2>
+    <p style="color:var(--color-neutral-400);max-width:38em">אחד-עשר מודולים שנבנו מתוך היום-יום של אולם אירועים אמיתי, לא מתוך מצגת.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-top:32px">
+      
+        <div class="card" style="padding:22px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <i class="ph ph-funnel" style="font-size:24px;color:var(--color-accent-400)"></i>
+            <h4 style="font-size:17px;margin:0">ניהול לידים ומכירות</h4>
+          </div>
+          <p style="font-size:14px;color:var(--color-neutral-400);margin:10px 0 0;line-height:1.6">פייפליין בשפה של אירועים: מפנייה ראשונה, דרך פגישה והצעה, עד מקדמה והפקה. כל שינוי שלב מתועד, כל ליד עם אחראי.</p>
+        </div>
+      
+        <div class="card" style="padding:22px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <i class="ph ph-file-signature" style="font-size:24px;color:var(--color-accent-400)"></i>
+            <h4 style="font-size:17px;margin:0">הצעות מחיר וחוזים דיגיטליים</h4>
+          </div>
+          <p style="font-size:14px;color:var(--color-neutral-400);margin:10px 0 0;line-height:1.6">מסמכים ממותגים בעברית ובאנגלית, חתימה דיגיטלית מהנייד, וה-PDF החתום חוזר אוטומטית לכל מי שקיבל את החוזה.</p>
+        </div>
+      
+        <div class="card" style="padding:22px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <i class="ph ph-receipt" style="font-size:24px;color:var(--color-accent-400)"></i>
+            <h4 style="font-size:17px;margin:0">חשבוניות אוטומטיות</h4>
+          </div>
+          <p style="font-size:14px;color:var(--color-neutral-400);margin:10px 0 0;line-height:1.6">הפקת מסמכי חשבונאות ישירות מהמערכת, כולל תהליך אישור מנהל — והחשבונית נשמרת בתיק הלקוח.</p>
+        </div>
+      
+        <div class="card" style="padding:22px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <i class="ph ph-sparkle" style="font-size:24px;color:var(--color-accent-400)"></i>
+            <h4 style="font-size:17px;margin:0">AI מכירות</h4>
+          </div>
+          <p style="font-size:14px;color:var(--color-neutral-400);margin:10px 0 0;line-height:1.6">בריף בוקר וערב בוואטסאפ, רשימת שיחות מדורגת, יועץ עסקה לכל ליד וניתוח סיבות של עסקאות שלא נסגרו.</p>
+        </div>
+      
+        <div class="card" style="padding:22px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <i class="ph ph-bank" style="font-size:24px;color:var(--color-accent-400)"></i>
+            <h4 style="font-size:17px;margin:0">כספים והתאמות</h4>
+          </div>
+          <p style="font-size:14px;color:var(--color-neutral-400);margin:10px 0 0;line-height:1.6">התאמת בנק ואשראי מול כרטסת רואה החשבון, וסריקת חשבוניות ספקים מהמייל ישירות לדרייב — אוטומטית, כל לילה.</p>
+        </div>
+      
+        <div class="card" style="padding:22px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <i class="ph ph-armchair" style="font-size:24px;color:var(--color-accent-400)"></i>
+            <h4 style="font-size:17px;margin:0">הושבה ובריף אירוע</h4>
+          </div>
+          <p style="font-size:14px;color:var(--color-neutral-400);margin:10px 0 0;line-height:1.6">סקיצות הושבה בגרירה על תרשים האולם שלכם, בריף שמתמלא לבד מהחוזה, וצ'קליסט הפקה עם חותמת מי-עשה-מתי.</p>
+        </div>
+      
+        <div class="card" style="padding:22px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <i class="ph ph-chats-circle" style="font-size:24px;color:var(--color-accent-400)"></i>
+            <h4 style="font-size:17px;margin:0">אישורי הגעה בוואטסאפ</h4>
+          </div>
+          <p style="font-size:14px;color:var(--color-neutral-400);margin:10px 0 0;line-height:1.6">קמפיין הזמנות ותזכורות אוטומטי לאורחים, עם ספירה חיה של מאשרים — בלי מוקד טלפוני ובלי אקסל.</p>
+        </div>
+      
+        <div class="card" style="padding:22px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <i class="ph ph-wrench" style="font-size:24px;color:var(--color-accent-400)"></i>
+            <h4 style="font-size:17px;margin:0">תפעול האולם</h4>
+          </div>
+          <p style="font-size:14px;color:var(--color-neutral-400);margin:10px 0 0;line-height:1.6">תחזוקה מונעת עם מחזורי טיפול, דיווח תקלות, צ'קליסטים לפני אירוע ותזכורות בוואטסאפ לצוות.</p>
+        </div>
+      
+        <div class="card" style="padding:22px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <i class="ph ph-users-three" style="font-size:24px;color:var(--color-accent-400)"></i>
+            <h4 style="font-size:17px;margin:0">ניהול עובדים ונוכחות</h4>
+          </div>
+          <p style="font-size:14px;color:var(--color-neutral-400);margin:10px 0 0;line-height:1.6">כניסה ויציאה מהנייד, הרשאות לפי תפקיד, ודשבורד פעילות למנהל: שיחות, פגישות, משימות ולידים לכל עובד.</p>
+        </div>
+      
+        <div class="card" style="padding:22px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <i class="ph ph-chat-centered-dots" style="font-size:24px;color:var(--color-accent-400)"></i>
+            <h4 style="font-size:17px;margin:0">עוזר AI לצוות ולתפעול</h4>
+          </div>
+          <p style="font-size:14px;color:var(--color-neutral-400);margin:10px 0 0;line-height:1.6">שואלים בשפה חופשית על הלו"ז, הלידים והמשימות. מתייקים מדריכי תפעול, פרטי חשבון, רישיון עסק ותעודת כשרות — והעוזר שולח את המסמך הנכון כשמבקשים.</p>
+        </div>
+      
+        <div class="card" style="padding:22px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <i class="ph ph-chart-bar" style="font-size:24px;color:var(--color-accent-400)"></i>
+            <h4 style="font-size:17px;margin:0">אנליטיקס ורווחים</h4>
+          </div>
+          <p style="font-size:14px;color:var(--color-neutral-400);margin:10px 0 0;line-height:1.6">משפך מכירות, ביצועי מקורות לידים, השוואה לתקופה קודמת — ורווח אמיתי לכל אירוע, אחרי כל העלויות.</p>
+        </div>
+      
+    </div>
+  </section>
+
+  <section id="ai" class="lp-2col" style="max-width:1180px;margin:0 auto;padding:72px 40px;display:grid;grid-template-columns:var(--cols-2, minmax(0,1fr) minmax(0,1fr));gap:56px;align-items:center">
+    <div>
+      <span class="tag tag-accent">הבידול שלנו · 1</span>
+      <h2 style="margin-top:16px;text-wrap:pretty">סוכן AI שמנהל את המכירות איתכם</h2>
+      <p style="color:var(--color-neutral-400);line-height:1.7;max-width:36em">אף מערכת אחרת בתחום לא עושה את זה: כל בוקר וכל ערב אנשי המכירות מקבלים בריף בוואטסאפ — מי חם, מי נעלם, ומה הצעד הבא. המנהל מקבל את התמונה הכוללת.</p>
+      <ul style="list-style:none;padding:0;margin:22px 0 0;display:grid;gap:12px;font-size:15px">
+        <li style="display:flex;gap:10px"><i class="ph ph-list-numbers" style="color:var(--color-accent-400);margin-top:3px"></i>רשימת שיחות מדורגת: חוזים פתוחים קודם, אחריהם הצעות, אחריהם לידים חמים</li>
+        <li style="display:flex;gap:10px"><i class="ph ph-strategy" style="color:var(--color-accent-400);margin-top:3px"></i>יועץ עסקה לכל ליד: סיכום, טמפרטורה, צעד מומלץ וטיוטת הודעה מוכנה</li>
+        <li style="display:flex;gap:10px"><i class="ph ph-chart-line-down" style="color:var(--color-accent-400);margin-top:3px"></i>ניתוח עסקאות שאבדו: למה לא סגרו, ומה לשנות</li>
+        <li style="display:flex;gap:10px"><i class="ph ph-robot" style="color:var(--color-accent-400);margin-top:3px"></i>בוט וואטסאפ שעונה לליד חדש, שואל את השאלות הנכונות וממלא את הפרטים לבד</li>
+      </ul>
+      <p style="font-size:13px;color:var(--color-neutral-500);margin-top:18px">ה-AI מנסח טיוטות בלבד — שום הודעה לא נשלחת ללקוח בלי אישור שלכם.</p>
+    </div>
+    <div class="card elev-md" style="padding:24px;min-width:0">
+      <div style="font-size:13px;color:var(--color-neutral-500);margin-bottom:14px;display:flex;align-items:center;gap:8px"><i class="ph ph-strategy" style="color:var(--color-accent-400)"></i>יועץ עסקה · משפחת לוי, בר מצווה 22.10</div>
+      <div style="display:grid;gap:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:var(--color-neutral-900);border-radius:var(--radius-md);font-size:14px"><span>טמפרטורת עסקה</span><span class="tag tag-accent">חמה · הצעה נצפתה 3 פעמים</span></div>
+        <div style="padding:12px 14px;background:var(--color-neutral-900);border-radius:var(--radius-md);font-size:14px;line-height:1.6"><b>הצעד הבא:</b> האבא ביקש הנחה על הבר — שלחו הצעה מעודכנת עם בר בסיסי ואופציית שדרוג, וקבעו שיחה למחר.</div>
+        <div style="padding:12px 14px;border:1px dashed var(--color-accent-700);border-radius:var(--radius-md);font-size:14px;line-height:1.6;color:var(--color-neutral-300)">"היי אבי, חשבנו על מה שדיברנו — הכנו לכם מסלול שמשאיר את הבר במסגרת התקציב. נוח לדבר מחר ב-11:00?"<div style="margin-top:10px"><span class="btn btn-secondary" style="font-size:12.5px;padding:6px 14px">השתמש בטיוטה</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="finance" class="lp-2col" style="max-width:1180px;margin:0 auto;padding:72px 40px;display:grid;grid-template-columns:var(--cols-2, minmax(0,1fr) minmax(0,1fr));gap:56px;align-items:center">
+    <div class="card elev-md" style="padding:24px;min-width:0;order:1">
+      <div style="font-size:13px;color:var(--color-neutral-500);margin-bottom:14px;display:flex;align-items:center;gap:8px"><i class="ph ph-bank" style="color:var(--color-accent-400)"></i>כספים · התאמת ספטמבר</div>
+      <div style="display:grid;gap:10px;font-size:14px">
+        <div style="display:flex;justify-content:space-between;padding:11px 14px;background:var(--color-neutral-900);border-radius:var(--radius-md)"><span>חשבוניות נסרקו מהמייל</span><b>47 <span style="color:var(--color-neutral-500);font-weight:400">· תויקו בדרייב</span></b></div>
+        <div style="display:flex;justify-content:space-between;padding:11px 14px;background:var(--color-neutral-900);border-radius:var(--radius-md)"><span>הוצאות בנק + אשראי</span><b>הותאמו מול הכרטסת</b></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 14px;background:var(--color-neutral-900);border-radius:var(--radius-md)"><span>חשבוניות חסרות</span><span class="tag tag-outline">3 פתוחות · ספק הגברה</span></div>
+        <div style="display:flex;justify-content:space-between;padding:11px 14px;border:1px solid var(--color-accent-800);border-radius:var(--radius-md)"><span>רווח נטו · אירוע 14.8</span><b style="color:var(--color-accent-300)">₪27,400 · ‎31%</b></div>
+      </div>
+    </div>
+    <div>
+      <span class="tag tag-accent">הבידול שלנו · 2</span>
+      <h2 style="margin-top:16px;text-wrap:pretty">הנהלת חשבונות שעובדת בשבילכם</h2>
+      <p style="color:var(--color-neutral-400);line-height:1.7;max-width:36em">מערכות אחרות עוצרות ב"מעקב תשלומים". ProEvent סוגרת את המעגל הפיננסי כולו — עד ההתאמה מול רואה החשבון.</p>
+      <ul style="list-style:none;padding:0;margin:22px 0 0;display:grid;gap:12px;font-size:15px">
+        <li style="display:flex;gap:10px"><i class="ph ph-file-text" style="color:var(--color-accent-400);margin-top:3px"></i>הפקת חשבוניות וקבלות ישירות מכרטיס הלקוח, עם אישור מנהל מובנה</li>
+        <li style="display:flex;gap:10px"><i class="ph ph-envelope-open" style="color:var(--color-accent-400);margin-top:3px"></i>סריקה אוטומטית של חשבוניות ספקים מהמייל — מזוהות ב-AI ומתויקות בדרייב לפי חודש</li>
+        <li style="display:flex;gap:10px"><i class="ph ph-bank" style="color:var(--color-accent-400);margin-top:3px"></i>התאמות מול דפי בנק וכרטיסי אשראי — המערכת מוצאת מה חסר לרואה החשבון</li>
+        <li style="display:flex;gap:10px"><i class="ph ph-chart-pie-slice" style="color:var(--color-accent-400);margin-top:3px"></i>רווח אמיתי לכל אירוע: הכנסות מול עלויות, כשה-AI בונה את שורות העלות מהחוזה</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="leads" class="lp-2col" style="max-width:1180px;margin:0 auto;padding:72px 40px;display:grid;grid-template-columns:var(--cols-2, minmax(0,1fr) minmax(0,1fr));gap:56px;align-items:center">
+    <div>
+      <span class="tag tag-accent">הבידול שלנו · 3</span>
+      <h2 style="margin-top:16px;text-wrap:pretty">כל ליד נכנס לבד. מכל מקום.</h2>
+      <p style="color:var(--color-neutral-400);line-height:1.7;max-width:36em">וואטסאפ, טפסי האתר, מוקד טלפוני, אינסטגרם וספקי לידים — כל פנייה הופכת אוטומטית לכרטיס ליד עם כל ההיסטוריה. מספר שכבר קיים? השיחה נצמדת לליד הקיים.</p>
+      <ul style="list-style:none;padding:0;margin:22px 0 0;display:grid;gap:12px;font-size:15px">
+        <li style="display:flex;gap:10px"><i class="ph ph-whatsapp-logo" style="color:var(--color-accent-400);margin-top:3px"></i>שיחת הוואטסאפ המלאה — כולל תמונות, קבצים והקלטות — בתוך כרטיס הליד</li>
+        <li style="display:flex;gap:10px"><i class="ph ph-microphone" style="color:var(--color-accent-400);margin-top:3px"></i>הודעות קוליות מתומללות לטקסט אוטומטית</li>
+        <li style="display:flex;gap:10px"><i class="ph ph-bell-ringing" style="color:var(--color-accent-400);margin-top:3px"></i>ליד בלי מענה 24 שעות? האחראי מקבל תזכורת בוואטסאפ</li>
+        <li style="display:flex;gap:10px"><i class="ph ph-calendar-check" style="color:var(--color-accent-400);margin-top:3px"></i>סנכרון דו-כיווני מלא עם יומן Google — אופציות, אירועים ופגישות</li>
+      </ul>
+    </div>
+    <div class="card elev-md" style="padding:24px;min-width:0">
+      <div style="font-size:13px;color:var(--color-neutral-500);margin-bottom:14px">ערוצי כניסה · היום</div>
+      <div style="display:grid;gap:10px;font-size:14px">
+        <div style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--color-neutral-900);border-radius:var(--radius-md)"><i class="ph ph-whatsapp-logo" style="color:var(--color-accent-400);font-size:18px"></i><span style="flex:1">"היי, כמה עולה חתונה ל-350?"</span><span class="tag tag-accent">ליד חדש</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--color-neutral-900);border-radius:var(--radius-md)"><i class="ph ph-globe" style="color:var(--color-accent-400);font-size:18px"></i><span style="flex:1">טופס אתר · בת מצווה, יוני 2027</span><span class="tag tag-accent">ליד חדש</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--color-neutral-900);border-radius:var(--radius-md)"><i class="ph ph-phone" style="color:var(--color-accent-400);font-size:18px"></i><span style="flex:1">הודעה קולית מהמוקד · תומללה</span><span class="tag tag-accent">ליד חדש</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--color-neutral-900);border-radius:var(--radius-md)"><i class="ph ph-instagram-logo" style="color:var(--color-accent-400);font-size:18px"></i><span style="flex:1">DM מאינסטגרם · הצטרף לליד קיים</span><span class="tag tag-neutral">עודכן</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="management" class="lp-2col" style="max-width:1180px;margin:0 auto;padding:72px 40px;display:grid;grid-template-columns:var(--cols-2, minmax(0,1fr) minmax(0,1fr));gap:56px;align-items:center">
+    <div class="card elev-md" style="padding:24px;min-width:0;order:1">
+      <div style="font-size:13px;color:var(--color-neutral-500);margin-bottom:14px;display:flex;align-items:center;gap:8px"><i class="ph ph-users-three" style="color:var(--color-accent-400)"></i>ניהול · פעילות צוות · השבוע</div>
+      <div style="display:grid;gap:8px;font-size:13.5px">
+        <div style="display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:8px;padding:0 12px 6px;color:var(--color-neutral-500);font-size:12px"><span>עובד</span><span>נוכחות</span><span>שיחות</span><span>עסקאות</span></div>
+        
+          <div style="display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:8px;align-items:center;padding:11px 12px;background:var(--color-neutral-900);border-radius:var(--radius-md)">
+            <span style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:var(--color-accent-400)"></span>נועה · מכירות</span>
+            <span style="color:var(--color-neutral-300)">5 ימים · 41 ש׳</span>
+            <span style="color:var(--color-neutral-300)">62</span>
+            <span style="color:var(--color-accent-300)">3 סגורות</span>
+          </div>
+        
+          <div style="display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:8px;align-items:center;padding:11px 12px;background:var(--color-neutral-900);border-radius:var(--radius-md)">
+            <span style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:var(--color-accent-400)"></span>רועי · מכירות</span>
+            <span style="color:var(--color-neutral-300)">4 ימים · 33 ש׳</span>
+            <span style="color:var(--color-neutral-300)">38</span>
+            <span style="color:var(--color-accent-300)">1 סגורה</span>
+          </div>
+        
+          <div style="display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:8px;align-items:center;padding:11px 12px;background:var(--color-neutral-900);border-radius:var(--radius-md)">
+            <span style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:var(--color-neutral-500)"></span>מאיה · הפקה</span>
+            <span style="color:var(--color-neutral-300)">5 ימים · 44 ש׳</span>
+            <span style="color:var(--color-neutral-300)">—</span>
+            <span style="color:var(--color-accent-300)">6 בריפים</span>
+          </div>
+        
+        <div style="display:flex;justify-content:space-between;padding:11px 14px;border:1px solid var(--color-accent-800);border-radius:var(--radius-md);margin-top:4px"><span>שיחות שבוצעו אך לא תועדו</span><b style="color:var(--color-accent-300)">4 · רועי</b></div>
+      </div>
+    </div>
+    <div>
+      <span class="tag tag-accent">הבידול שלנו · 4</span>
+      <h2 style="margin-top:16px;text-wrap:pretty">ניהול עובדים: מי נכח, מי עבד, מי סגר</h2>
+      <p style="color:var(--color-neutral-400);line-height:1.7;max-width:36em">כל עובד עושה כניסה ויציאה מהנייד, וכל פעולה שלו במערכת נרשמת. המנהל מקבל דשבורד אחד שמחבר נוכחות לתוצאות — בלי שעון נוכחות נפרד ובלי לשאול.</p>
+      <ul style="list-style:none;padding:0;margin:22px 0 0;display:grid;gap:12px;font-size:15px">
+        <li style="display:flex;gap:10px"><i class="ph ph-fingerprint" style="color:var(--color-accent-400);margin-top:3px"></i>כניסה ויציאה מהנייד — שעות נוכחות ותחילת/סיום פעילות לכל עובד</li>
+        <li style="display:flex;gap:10px"><i class="ph ph-shield-check" style="color:var(--color-accent-400);margin-top:3px"></i>הרשאות לפי תפקיד: מכירות, הפקה, תפעול, כספים, ניהול — כל אחד רואה את שלו</li>
+        <li style="display:flex;gap:10px"><i class="ph ph-chart-bar" style="color:var(--color-accent-400);margin-top:3px"></i>שיחות, פגישות, הודעות, משימות ולידים לכל עובד — כולל מה בוצע אבל לא תועד</li>
+        <li style="display:flex;gap:10px"><i class="ph ph-bell-ringing" style="color:var(--color-accent-400);margin-top:3px"></i>משימות עם תזכורת בוואטסאפ — "הושלם", "דחה" או "משימת המשך" בלחיצה, בלי להתחבר</li>
+      </ul>
+    </div>
+  </section>
+
+  <section style="max-width:1180px;margin:0 auto;padding:16px 40px 56px">
+    <div class="card elev-sm" style="padding:28px;display:grid;grid-template-columns:var(--cols-2b, minmax(0,1fr) minmax(0,1.2fr));gap:36px;align-items:center">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px"><i class="ph ph-chat-centered-dots" style="font-size:26px;color:var(--color-accent-400)"></i><h3 style="font-size:21px;margin:0">עוזר AI לכל השאלות</h3></div>
+        <p style="font-size:14.5px;color:var(--color-neutral-400);line-height:1.65;margin:12px 0 0">שואלים בעברית חופשית — "מה יש לי היום?", "איזה ליד דחוף?", "איך מדליקים את תאורת הבמה?" — ומקבלים תשובה מתוך הנתונים שלכם. כל עובד רואה רק מה שמותר לו.</p>
+        <p style="font-size:14.5px;color:var(--color-neutral-400);line-height:1.65;margin:10px 0 0">גם המסמכים של האולם מתויקים פנימה: מדריכי תפעול לתאורה, חשמל ומיזוג, פרטי חשבון להעברה, רישיון עסק ותעודת כשרות. כשלקוח או עובד מבקש — העוזר שולח את הקובץ הנכון.</p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px">
+          <span class="tag tag-outline">מדריכי תפעול</span><span class="tag tag-outline">פרטי חשבון בנק</span><span class="tag tag-outline">רישיון עסק</span><span class="tag tag-outline">תעודת כשרות</span><span class="tag tag-outline">נהלי בטיחות</span>
+        </div>
+      </div>
+      <div style="display:grid;gap:8px;font-size:13.5px">
+        <div style="justify-self:end;max-width:80%;padding:10px 14px;border:1px solid var(--color-accent-800);border-radius:var(--radius-md)">מה הלו"ז שלי להיום ומה הכי דחוף?</div>
+        <div style="justify-self:start;max-width:88%;padding:10px 14px;background:var(--color-neutral-900);border-radius:var(--radius-md);line-height:1.6"><b>3 דברים:</b> פגישה עם דנה ויואב ב-11:00 (הצעה 86K פתוחה), חוזה משפחת לוי מחכה לחתימה 4 ימים — כדאי שיחה, ובר מצווה של שבת בלי אישור הגברה.</div>
+        <div style="justify-self:end;max-width:80%;padding:10px 14px;border:1px solid var(--color-accent-800);border-radius:var(--radius-md)">הלקוח מבקש תעודת כשרות ופרטי חשבון למקדמה</div>
+        <div style="justify-self:start;max-width:88%;padding:10px 14px;background:var(--color-neutral-900);border-radius:var(--radius-md);line-height:1.6">הנה שניהם, מוכנים לשליחה:<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><span style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--color-divider);border-radius:var(--radius-md);font-size:12.5px"><i class="ph ph-file-pdf" style="color:var(--color-accent-400)"></i>תעודת-כשרות-2026.pdf</span><span style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--color-divider);border-radius:var(--radius-md);font-size:12.5px"><i class="ph ph-bank" style="color:var(--color-accent-400)"></i>פרטי חשבון להעברה</span></div></div>
+        <div style="justify-self:end;max-width:80%;padding:10px 14px;border:1px solid var(--color-accent-800);border-radius:var(--radius-md)">התאורה בבמה לא נדלקת, מה עושים?</div>
+        <div style="justify-self:start;max-width:88%;padding:10px 14px;background:var(--color-neutral-900);border-radius:var(--radius-md);line-height:1.6">לפי מדריך התאורה: לוח חשמל אגף מזרחי, מפסק 14 → "במה". אם עדיין לא — פותח תקלה לתפעול ומצרף את המדריך.</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="flow" style="background:linear-gradient(135deg,var(--color-section),var(--color-section-glow));margin:40px 0;padding:72px 40px">
+    <div style="max-width:1180px;margin:0 auto">
+      <h6 style="color:var(--color-accent-300)">איך זה עובד</h6>
+      <h2 style="max-width:22em;text-wrap:pretty">מליד ועד רווח — בלי להעתיק כלום פעמיים</h2>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:36px">
+        
+          <div style="padding:20px;background:color-mix(in srgb, var(--color-bg) 45%, transparent);border-radius:var(--radius-md);border:1px solid color-mix(in srgb, var(--color-accent-300) 18%, transparent)">
+            <div style="font-size:12px;color:var(--color-accent-300);letter-spacing:0.08em">שלב 1</div>
+            <h4 style="font-size:16px;margin:8px 0 6px">ליד נכנס לבד</h4>
+            <p style="font-size:13.5px;color:var(--color-neutral-300);margin:0;line-height:1.55">מוואטסאפ, מהאתר, מהמוקד או מאינסטגרם — נקלט אוטומטית עם כל הפרטים.</p>
+          </div>
+        
+          <div style="padding:20px;background:color-mix(in srgb, var(--color-bg) 45%, transparent);border-radius:var(--radius-md);border:1px solid color-mix(in srgb, var(--color-accent-300) 18%, transparent)">
+            <div style="font-size:12px;color:var(--color-accent-300);letter-spacing:0.08em">שלב 2</div>
+            <h4 style="font-size:16px;margin:8px 0 6px">הבוט עונה מיד</h4>
+            <p style="font-size:13.5px;color:var(--color-neutral-300);margin:0;line-height:1.55">מברך, שואל על התאריך והכמות, וממלא את כרטיס הליד עוד לפני שהרמתם טלפון.</p>
+          </div>
+        
+          <div style="padding:20px;background:color-mix(in srgb, var(--color-bg) 45%, transparent);border-radius:var(--radius-md);border:1px solid color-mix(in srgb, var(--color-accent-300) 18%, transparent)">
+            <div style="font-size:12px;color:var(--color-accent-300);letter-spacing:0.08em">שלב 3</div>
+            <h4 style="font-size:16px;margin:8px 0 6px">ה-AI מתעדף</h4>
+            <p style="font-size:13.5px;color:var(--color-neutral-300);margin:0;line-height:1.55">רשימת השיחות של הבוקר מוכנה: מי חם, מי ממתין לחתימה, מה הצעד הבא.</p>
+          </div>
+        
+          <div style="padding:20px;background:color-mix(in srgb, var(--color-bg) 45%, transparent);border-radius:var(--radius-md);border:1px solid color-mix(in srgb, var(--color-accent-300) 18%, transparent)">
+            <div style="font-size:12px;color:var(--color-accent-300);letter-spacing:0.08em">שלב 4</div>
+            <h4 style="font-size:16px;margin:8px 0 6px">הצעה ← חוזה חתום</h4>
+            <p style="font-size:13.5px;color:var(--color-neutral-300);margin:0;line-height:1.55">מסמך ממותג נשלח בוואטסאפ, הלקוח חותם מהנייד, המקדמה במעקב.</p>
+          </div>
+        
+          <div style="padding:20px;background:color-mix(in srgb, var(--color-bg) 45%, transparent);border-radius:var(--radius-md);border:1px solid color-mix(in srgb, var(--color-accent-300) 18%, transparent)">
+            <div style="font-size:12px;color:var(--color-accent-300);letter-spacing:0.08em">שלב 5</div>
+            <h4 style="font-size:16px;margin:8px 0 6px">ההפקה מתגלגלת</h4>
+            <p style="font-size:13.5px;color:var(--color-neutral-300);margin:0;line-height:1.55">בריף, ספקים, הושבה ואישורי הגעה — הכול נפתח לבד מהחוזה החתום.</p>
+          </div>
+        
+          <div style="padding:20px;background:color-mix(in srgb, var(--color-bg) 45%, transparent);border-radius:var(--radius-md);border:1px solid color-mix(in srgb, var(--color-accent-300) 18%, transparent)">
+            <div style="font-size:12px;color:var(--color-accent-300);letter-spacing:0.08em">שלב 6</div>
+            <h4 style="font-size:16px;margin:8px 0 6px">הכסף נסגר</h4>
+            <p style="font-size:13.5px;color:var(--color-neutral-300);margin:0;line-height:1.55">חשבונית מופקת, עלויות מחושבות, ההתאמה מול הבנק רצה — ורואים רווח אמיתי.</p>
+          </div>
+        
+      </div>
+    </div>
+  </section>
+
+  <section style="max-width:1180px;margin:0 auto;padding:56px 40px">
+    <h6 style="color:var(--color-accent-400)">למי זה מתאים</h6>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;margin-top:24px">
+      <div class="card elev-sm" style="padding:28px">
+        <i class="ph ph-buildings" style="font-size:30px;color:var(--color-accent-400)"></i>
+        <h3 style="font-size:22px;margin:14px 0 8px">אולמות וגני אירועים</h3>
+        <p style="font-size:14.5px;color:var(--color-neutral-400);line-height:1.65">צוות מכירות, הפקה, תפעול וכספים — לכל אחד המסך שלו, ולמנהל דשבורד שמראה מי עשה מה. כולל תחזוקת מבנה, תקלות וצ'קליסטים לפני כל אירוע.</p>
+        <ul style="list-style:none;padding:0;margin:14px 0 0;display:grid;gap:8px;font-size:13.5px;color:var(--color-neutral-300)">
+          <li style="display:flex;gap:8px"><i class="ph ph-check" style="color:var(--color-accent-400)"></i>נוכחות עובדים והרשאות לפי תפקיד</li>
+          <li style="display:flex;gap:8px"><i class="ph ph-check" style="color:var(--color-accent-400)"></i>תפעול: תחזוקה מונעת, תקלות, ציוד</li>
+          <li style="display:flex;gap:8px"><i class="ph ph-check" style="color:var(--color-accent-400)"></i>דשבורד פעילות עובדים למנהל</li>
+        </ul>
+      </div>
+      <div class="card elev-sm" style="padding:28px">
+        <i class="ph ph-confetti" style="font-size:30px;color:var(--color-accent-400)"></i>
+        <h3 style="font-size:22px;margin:14px 0 8px">מפיקים וחברות הפקה</h3>
+        <p style="font-size:14.5px;color:var(--color-neutral-400);line-height:1.65">מהצעת מחיר ממותגת ועד תיק הפקה: בריף אירוע שמתמלא לבד מהחוזה החתום, ספקים לפי קטגוריה, סידורי הושבה וצ'קליסט הפקה עם חותמת מי-עשה-מתי.</p>
+        <ul style="list-style:none;padding:0;margin:14px 0 0;display:grid;gap:8px;font-size:13.5px;color:var(--color-neutral-300)">
+          <li style="display:flex;gap:8px"><i class="ph ph-check" style="color:var(--color-accent-400)"></i>בריף אירוע אוטומטי מהחוזה</li>
+          <li style="display:flex;gap:8px"><i class="ph ph-check" style="color:var(--color-accent-400)"></i>מאגר ספקים + שליחת קבצים בוואטסאפ</li>
+          <li style="display:flex;gap:8px"><i class="ph ph-check" style="color:var(--color-accent-400)"></i>אישורי הגעה אוטומטיים לאורחים</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="compare" style="max-width:1180px;margin:0 auto;padding:56px 40px">
+    <h6 style="color:var(--color-accent-400)">למה ProEvent</h6>
+    <h2 style="max-width:24em;text-wrap:pretty">מערכות אחרות מנהלות חלק מהעסק. אנחנו את כולו.</h2>
+    <div style="overflow-x:auto;margin-top:28px">
+      <table class="table" style="min-width:640px;width:100%;font-size:14px">
+        <thead><tr>
+          <th style="text-align:right"></th>
+          <th style="text-align:center;color:var(--color-accent-300)">ProEvent</th>
+          <th style="text-align:center">Get Plany</th>
+          <th style="text-align:center">iPlan</th>
+        </tr></thead>
+        <tbody>
+          
+            <tr>
+              <td style="text-align:right">קליטת לידים אוטומטית מכל ערוץ</td>
+              <td style="text-align:center"><span class="tag tag-accent">מובנה</span></td>
+              <td style="text-align:center;color:var(--color-neutral-400)">וואטסאפ בלבד</td>
+              <td style="text-align:center;color:var(--color-neutral-400)">—</td>
+            </tr>
+          
+            <tr>
+              <td style="text-align:right">סוכן AI למכירות (בריפים, תעדוף, יועץ עסקה)</td>
+              <td style="text-align:center"><span class="tag tag-accent">מובנה</span></td>
+              <td style="text-align:center;color:var(--color-neutral-400)">—</td>
+              <td style="text-align:center;color:var(--color-neutral-400)">—</td>
+            </tr>
+          
+            <tr>
+              <td style="text-align:right">חשבוניות והנהלת חשבונות</td>
+              <td style="text-align:center"><span class="tag tag-accent">מובנה</span></td>
+              <td style="text-align:center;color:var(--color-neutral-400)">מעקב תשלומים</td>
+              <td style="text-align:center;color:var(--color-neutral-400)">—</td>
+            </tr>
+          
+            <tr>
+              <td style="text-align:right">התאמות בנק וסריקת חשבוניות מהמייל</td>
+              <td style="text-align:center"><span class="tag tag-accent">מובנה</span></td>
+              <td style="text-align:center;color:var(--color-neutral-400)">—</td>
+              <td style="text-align:center;color:var(--color-neutral-400)">—</td>
+            </tr>
+          
+            <tr>
+              <td style="text-align:right">הצעות מחיר + חתימה דיגיטלית</td>
+              <td style="text-align:center"><span class="tag tag-accent">מובנה</span></td>
+              <td style="text-align:center;color:var(--color-neutral-400)">מובנה</td>
+              <td style="text-align:center;color:var(--color-neutral-400)">—</td>
+            </tr>
+          
+            <tr>
+              <td style="text-align:right">אישורי הגעה לאורחים</td>
+              <td style="text-align:center"><span class="tag tag-accent">וואטסאפ</span></td>
+              <td style="text-align:center;color:var(--color-neutral-400)">חלקי</td>
+              <td style="text-align:center;color:var(--color-neutral-400)">סמס</td>
+            </tr>
+          
+            <tr>
+              <td style="text-align:right">סידורי הושבה וסקיצות</td>
+              <td style="text-align:center"><span class="tag tag-accent">מובנה</span></td>
+              <td style="text-align:center;color:var(--color-neutral-400)">מובנה</td>
+              <td style="text-align:center;color:var(--color-neutral-400)">מובנה</td>
+            </tr>
+          
+            <tr>
+              <td style="text-align:right">תפעול ותחזוקת האולם</td>
+              <td style="text-align:center"><span class="tag tag-accent">מובנה</span></td>
+              <td style="text-align:center;color:var(--color-neutral-400)">—</td>
+              <td style="text-align:center;color:var(--color-neutral-400)">—</td>
+            </tr>
+          
+            <tr>
+              <td style="text-align:right">ניהול עובדים: נוכחות + פעילות</td>
+              <td style="text-align:center"><span class="tag tag-accent">מובנה</span></td>
+              <td style="text-align:center;color:var(--color-neutral-400)">—</td>
+              <td style="text-align:center;color:var(--color-neutral-400)">—</td>
+            </tr>
+          
+            <tr>
+              <td style="text-align:right">עוזר AI בעברית + מאגר מסמכי האולם</td>
+              <td style="text-align:center"><span class="tag tag-accent">מובנה</span></td>
+              <td style="text-align:center;color:var(--color-neutral-400)">—</td>
+              <td style="text-align:center;color:var(--color-neutral-400)">—</td>
+            </tr>
+          
+            <tr>
+              <td style="text-align:right">רווחיות אמיתית לכל אירוע</td>
+              <td style="text-align:center"><span class="tag tag-accent">מובנה</span></td>
+              <td style="text-align:center;color:var(--color-neutral-400)">מובנה</td>
+              <td style="text-align:center;color:var(--color-neutral-400)">—</td>
+            </tr>
+          
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:12px;color:var(--color-neutral-600);margin-top:12px">נכון לספטמבר 2026, על בסיס המידע הפומבי באתרי המתחרים.</p>
+  </section>
+
+  <section style="max-width:860px;margin:0 auto;padding:56px 40px">
+    <h6 style="color:var(--color-accent-400)">שאלות נפוצות</h6>
+    <div style="display:grid;gap:10px;margin-top:20px">
+      
+        <details style="border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:16px 20px;background:var(--color-surface)">
+          <summary style="cursor:pointer;font-weight:500;font-size:15.5px">כמה זמן לוקח לעלות על המערכת?</summary>
+          <p style="margin:12px 0 0;font-size:14px;color:var(--color-neutral-400);line-height:1.65">ימים, לא חודשים. מחברים את הוואטסאפ, המייל ויומן Google — ומהרגע הזה כל ליד חדש נכנס לבד. את ההיסטוריה הקיימת מייבאים יחד איתכם בליווי אישי.</p>
+        </details>
+      
+        <details style="border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:16px 20px;background:var(--color-surface)">
+          <summary style="cursor:pointer;font-weight:500;font-size:15.5px">זה מחליף את הוואטסאפ שלנו?</summary>
+          <p style="margin:12px 0 0;font-size:14px;color:var(--color-neutral-400);line-height:1.65">לא — מתחבר אליו. ממשיכים להתכתב כרגיל, וכל שיחה, תמונה וקובץ נשמרים אוטומטית בכרטיס הליד. גם הודעות קוליות מתומללות לטקסט.</p>
+        </details>
+      
+        <details style="border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:16px 20px;background:var(--color-surface)">
+          <summary style="cursor:pointer;font-weight:500;font-size:15.5px">יש הרשאות לפי תפקיד?</summary>
+          <p style="margin:12px 0 0;font-size:14px;color:var(--color-neutral-400);line-height:1.65">כן. מכירות, הפקה, תפעול, כספים, אישורי הגעה וניהול — כל עובד רואה את המסכים שלו, והמנהל רואה הכול, כולל דוח פעילות לכל עובד.</p>
+        </details>
+      
+        <details style="border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:16px 20px;background:var(--color-surface)">
+          <summary style="cursor:pointer;font-weight:500;font-size:15.5px">ה-AI שולח הודעות ללקוחות בלי אישור?</summary>
+          <p style="margin:12px 0 0;font-size:14px;color:var(--color-neutral-400);line-height:1.65">לעולם לא. ה-AI מנסח טיוטות, מדרג לידים וממליץ — אבל כל הודעה ללקוח יוצאת רק אחרי שאתם מאשרים אותה.</p>
+        </details>
+      
+        <details style="border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:16px 20px;background:var(--color-surface)">
+          <summary style="cursor:pointer;font-weight:500;font-size:15.5px">המערכת עובדת בנייד?</summary>
+          <p style="margin:12px 0 0;font-size:14px;color:var(--color-neutral-400);line-height:1.65">כן, נבנתה קודם כל לנייד. תזכורות משימה מגיעות בוואטסאפ עם כפתורי פעולה — הושלם, דחייה או משימת המשך — בלי לפתוח מחשב.</p>
+        </details>
+      
+    </div>
+  </section>
+
+  <section id="demo" style="max-width:1180px;margin:0 auto;padding:72px 40px 96px">
+    <div class="card elev-md" style="padding:48px;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:40px;align-items:center">
+      <div>
+        <h2 style="text-wrap:pretty">רוצים לראות את זה על האולם שלכם?</h2>
+        <p style="color:var(--color-neutral-400);line-height:1.7">השאירו פרטים ונחזור אליכם לתיאום הדגמה קצרה — עם הלידים, האירועים והתהליכים שלכם, לא של מצגת.</p>
+        <div style="display:flex;gap:18px;font-size:13px;color:var(--color-neutral-500);margin-top:16px;flex-wrap:wrap">
+          <span style="display:flex;gap:6px;align-items:center"><i class="ph ph-clock" style="color:var(--color-accent-400)"></i>30 דקות</span>
+          <span style="display:flex;gap:6px;align-items:center"><i class="ph ph-hand-palm" style="color:var(--color-accent-400)"></i>ללא התחייבות</span>
+        </div>
+      </div>
+      <div id="demo-form-wrap">
+        <form id="demo-form" novalidate style="display:grid;gap:14px">
+          <div class="field"><label>שם מלא</label><input class="input" name="name" required placeholder="ישראל ישראלי"></div>
+          <div class="field"><label>טלפון</label><input class="input" name="phone" required type="tel" placeholder="050-0000000"></div>
+          <div class="field"><label>שם העסק</label><input class="input" name="business" placeholder="אולם / חברת הפקה"></div>
+          <input type="text" name="website" tabindex="-1" autocomplete="off" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none" aria-hidden="true">
+          <button class="btn btn-primary" type="submit" style="font-size:16px;padding:12px">קבעו לי דמו ←</button>
+          <p id="demo-error" style="margin:0;font-size:13px;color:#f4a3a3" hidden></p>
+        </form>
+      </div>
+      <div id="demo-sent" hidden>
+        <div style="text-align:center;padding:32px">
+          <i class="ph ph-check-circle" style="font-size:48px;color:var(--color-accent-400)"></i>
+          <h3 style="margin-top:14px">קיבלנו!</h3>
+          <p style="color:var(--color-neutral-400)">נחזור אליכם עוד היום לתיאום הדמו.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer style="border-top:1px solid var(--color-divider);padding:28px 40px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;font-size:13px;color:var(--color-neutral-500)">
+    <div style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:2px;background:var(--color-accent)"></span>ProEvent · CRM לעולם האירועים</div>
+    <div>© 2026 ProEvent. כל הזכויות שמורות.</div>
+  </footer>
+</div>
+
+<script>
+(function () {
+  var form = document.getElementById('demo-form');
+  if (!form) return;
+  var err = document.getElementById('demo-error');
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    err.hidden = true;
+    var fd = new FormData(form);
+    var name = (fd.get('name') || '').trim(), phone = (fd.get('phone') || '').trim(), business = (fd.get('business') || '').trim();
+    var digits = phone.replace(/\D/g, '');
+    if (name.length < 2) { err.textContent = 'נא למלא שם מלא'; err.hidden = false; return; }
+    if (!/^(0\d{8,9}|972\d{8,9})$/.test(digits)) { err.textContent = 'נא למלא מספר טלפון ישראלי תקין'; err.hidden = false; return; }
+    var btn = form.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'שולח...';
+    try {
+      var r = await fetch('/api/public/demo-request', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, phone: phone, business: business, website: fd.get('website') || '', page: location.href, ref: document.referrer }) });
+      if (!r.ok) throw new Error('bad');
+      document.getElementById('demo-form-wrap').hidden = true;
+      document.getElementById('demo-sent').hidden = false;
+      if (window.gtag) gtag('event', 'generate_lead', { method: 'demo_form' });
+    } catch (e2) {
+      err.textContent = 'משהו השתבש — נסו שוב בעוד רגע'; err.hidden = false;
+      btn.disabled = false; btn.textContent = 'קבעו לי דמו ←';
+    }
+  });
+})();
+</script>
+</body>
+</html>

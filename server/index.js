@@ -267,7 +267,7 @@ pool.query(`
 pool.query(`
   ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_source_check;
   ALTER TABLE leads ADD CONSTRAINT leads_source_check
-    CHECK (source IN ('website_popup','website_form','call_event','telekol','vonage','whatsapp','facebook','instagram','manual'));
+    CHECK (source IN ('website_popup','website_form','call_event','telekol','vonage','whatsapp','facebook','instagram','manual','landing'));
 `).catch(err => console.error('[DB] source constraint migration error:', err.message));
 
 pool.query(`
@@ -681,6 +681,7 @@ app.use('/api/finance',             requireAuth, require('./routes/finance'));
 app.use('/api/ai',                  requireAuth, aiRoutes);
 app.use('/api/chat',               chatRoutes);  // auth applied inside route
 app.use('/api/payment-signals',    requireAuth, require('./routes/paymentSignals'));
+app.use('/api/public',             require('./routes/public'));      // landing-page form, no auth
 app.use('/api/calendar', (req, res, next) => {
   // ICS download and lead confirmation are public — no auth required
   if (/^\/meetings\/[^/]+\/(ics|confirm)$/.test(req.path)) return next();
@@ -690,6 +691,30 @@ app.use('/api/calendar', (req, res, next) => {
 // Serve uploaded files — 404 handler prevents missing files falling through to React SPA
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use('/uploads', (req, res) => res.status(404).send('File not found'));
+
+// Public landing page (2026-09-14) — server/landing/. The root URL shows the marketing
+// page to visitors; anyone who has logged in on this browser carries the `crm_app`
+// cookie (set by LoginPage, cleared on logout) and keeps getting the app at `/`.
+// Deep links with a query string (/?lead=ID, /?pendingDocs=1) always go to the app.
+const landingDir  = path.join(__dirname, 'landing');
+let landingHtml = '';
+try {
+  landingHtml = fs.readFileSync(path.join(landingDir, 'index.html'), 'utf8');
+  const ga = process.env.GA_MEASUREMENT_ID;
+  if (ga) {
+    landingHtml = landingHtml.replace('<!--GA-->',
+      `<script async src="https://www.googletagmanager.com/gtag/js?id=${ga}"></script>\n<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${ga}');</script>`);
+  }
+} catch (e) { console.error('[Landing] index.html missing:', e.message); }
+app.use('/site', express.static(landingDir, { maxAge: '1d' }));
+app.get('/robots.txt',  (req, res) => res.sendFile(path.join(landingDir, 'robots.txt')));
+app.get('/sitemap.xml', (req, res) => res.sendFile(path.join(landingDir, 'sitemap.xml')));
+app.get('/', (req, res, next) => {
+  const hasApp = /(^|;\s*)crm_app=1/.test(req.headers.cookie || '');
+  if (hasApp || Object.keys(req.query).length || !landingHtml) return next();
+  res.set('Cache-Control', 'no-cache');
+  res.type('html').send(landingHtml);
+});
 
 // Serve React build
 const clientBuild = path.join(__dirname, '../client/dist');

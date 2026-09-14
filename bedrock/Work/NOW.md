@@ -6,6 +6,19 @@ updated: 2026-09-14
 
 # Now
 
+## 2026-09-14 — ProEvent landing page live on the root domain + marketing kickoff
+
+Oran's choices: root domain = landing page (logged-in browsers keep the app via the
+`crm_app` cookie; any query string → app), demo form → lead in the CRM with source
+`landing` + WhatsApp to admins, paid budget ₪500/month to start, nothing exists yet
+(no Google Ads account, no social pages, no logo). Built `server/landing/` from the
+design package (static render, responsive rules added, SEO head, JSON-LD, GA slot via
+`GA_MEASUREMENT_ID`), `routes/public.js`, source `landing` everywhere. Marketing plan
+written to the claude.ai Project doc `claude/proevent-marketing-plan.md`.
+
+Next for Oran: create GA4 + Search Console (verify via the HTML tag — send me the IDs),
+Google Ads account, decide on a logo, review the competitor names in the comparison
+table (design default shows "Get Plany" / "iPlan" — his call whether to keep them public).
 ## 2026-09-14 — New website leads (FormSubmit) + extra-mailbox OAuth finally diagnosed
 
 Oran rebuilt sharabiya.co.il; its forms now arrive from submissions@formsubmit.co with a

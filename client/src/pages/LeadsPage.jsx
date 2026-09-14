@@ -34,7 +34,7 @@ const SOURCE_LABELS = {
   website_popup: 'אתר (פופאפ)', website_form: 'אתר (טופס)',
   call_event: 'Call Event', telekol: 'טלקול',
   whatsapp: 'וואטסאפ', facebook: 'פייסבוק',
-  instagram: 'אינסטגרם', manual: 'ידני',
+  instagram: 'אינסטגרם', manual: 'ידני', landing: 'דף נחיתה',
 };
 
 const STAGE_STYLES = {
@@ -65,6 +65,7 @@ const SOURCE_COLORS = {
   facebook:      'bg-blue-100 text-blue-700',
   instagram:     'bg-pink-100 text-pink-700',
   manual:        'bg-slate-100 text-slate-600',
+  landing:       'bg-indigo-100 text-indigo-700',
 };
 
 const IL = { timeZone: 'Asia/Jerusalem' };
@@ -260,6 +261,7 @@ export default function LeadsPage() {
   function handleLogout() {
     localStorage.removeItem('crm_token');
     localStorage.removeItem('crm_user');
+    document.cookie = 'crm_app=; path=/; max-age=0';
     window.location.href = '/login';
   }
 

@@ -120,9 +120,10 @@ On every server boot, `server/index.js` reconstructs `credentials.json` and `goo
 | Facebook Messenger | Meta Graph API webhook | Planned |
 | Instagram DM | Meta Graph API webhook | Planned |
 | Manual entry | CRM form | Manual |
+| ProEvent landing page demo form | `POST /api/public/demo-request` (no auth) | Auto — source `landing`, stage new, priority hot, event_type "דמו ProEvent"; existing phone → note on the existing lead; admins get a WhatsApp |
 
 Allowed `leads.source` values: `website_popup`, `website_form`, `call_event`, `telekol`,
-`vonage`, `whatsapp`, `facebook`, `instagram`, `manual`.
+`vonage`, `whatsapp`, `facebook`, `instagram`, `manual`, `landing`.
 
 **Instagram** is not a webhook. Click-to-WhatsApp leads coming from Instagram are
 identified by the CTA text of the first inbound message (stored in `notes` as
@@ -863,6 +864,11 @@ bot asks how many) → `confirmed`, or → `declined`.
 | POST | `/send` | Send a knowledge file / media item over WhatsApp: `{ kind: 'file'|'media', id, leadId? \| phone? \| toSelf? }`. Downloads from the private bucket, uploads once to Green API, `sendFileByUrl`; an external media URL (YouTube/Drive) goes as text. Logged on the lead's timeline when a lead is the recipient (`services/waOutbound.js`) |
 | POST | `/actions` | Execute a proposal the user confirmed: `{ kind: 'task'|'note'|'fault', …fields }` → `tasks` / `lead_interactions` (type note, `source='assistant'`) / `op_faults` (+ activity log "נפתח דרך העוזר"). Role-gated like the matching `propose_*` tool |
 
+### Public (`/api/public`) — no auth
+| Method | Path | Description |
+|---|---|---|
+| POST | `/demo-request` | Landing-page form `{ name, phone, business, website (honeypot), page, ref }`. Israeli phone required; 5 requests / IP / hour; creates or annotates a lead (`source='landing'`) and WhatsApps every admin a link to it |
+
 ### Payment signals (`/api/payment-signals`) — require auth
 | Method | Path | Description |
 |---|---|---|
@@ -1458,6 +1464,30 @@ when there is nothing. Max 10 leads per tier, then `… ועוד N` with a link 
 
 ---
 
+## Public landing page (`server/landing/`) ✅ Built 2026-09-14
+
+The marketing site for ProEvent lives in the same Express app. Files: `index.html`
+(static render of Oran's Claude-Design package `design_handoff_proevent_landing` — the
+`sc-for`/`sc-if` loops expanded, texts verbatim, competitor names shown as designed),
+`nocturne.css` (the design tokens), `og.png`, `robots.txt`, `sitemap.xml`.
+
+**Routing rule (`server/index.js`):** `GET /` serves the landing page **unless** the
+request carries the `crm_app=1` cookie or any query string. `LoginPage` sets the cookie
+on login (1 year, `SameSite=Lax`); logout and the 401 interceptor clear it. So a logged-in
+browser keeps landing in the app at `/`, WhatsApp deep links (`/?lead=ID`, `/?pendingDocs=1`)
+always reach the app, and visitors / Googlebot get the marketing page. "כניסה למערכת" in the
+nav → `/login`. Assets under `/site/*` (1-day cache); `/robots.txt` disallows every app
+path and points to `/sitemap.xml`.
+
+SEO baked in: title/description, canonical `https://www.proevent.co.il/`, Open Graph +
+Twitter card (`/site/og.png`), JSON-LD `SoftwareApplication` + `FAQPage` (from the FAQ
+texts), Inter/Heebo via Google Fonts, Phosphor icons via unpkg. Set env
+`GA_MEASUREMENT_ID` (G-…) and the gtag snippet is injected at boot; the demo form fires
+`generate_lead` on success. Mobile: the README's "under 900px" rules (one column, static
+invoice card, burger nav, 36px h1) live in the page's own `<style>`.
+
+Form → `POST /api/public/demo-request` (see API). Thank-you state swaps in place.
+
 ## Runtime DB Migrations (boot)
 
 `server/index.js` runs a long series of `CREATE TABLE IF NOT EXISTS` / `ALTER TABLE ...
@@ -1774,6 +1804,18 @@ invoices with AI and files them into Drive by email date. New assignable `financ
 Rule-based worklist ranking, per-lead deal advice cached in `lead_ai_advice`, loss
 insights, and morning/evening WhatsApp briefings. **Draft-only — never auto-sends to a
 customer.**
+
+### Phase 32 — Public landing page + demo-request leads ✅ Built 2026-09-14
+Oran: put the Claude-Design landing page live on the main domain, with a login entry, and
+route demo requests into the CRM + WhatsApp to him. See "Public landing page" above.
+New: `server/landing/*`, `routes/public.js`, source `landing` (constraint + client labels
+in LeadsPage / LeadCard / AnalyticsPage / AddLeadModal), `crm_app` cookie in LoginPage /
+LeadsPage logout / api.js 401. Verified locally: `/` anonymous → landing (GA injected when
+the env var is set), `/` with cookie → app, `/?lead=5` → app, robots/sitemap/css/og 200,
+form → lead + note + admin WhatsApp attempt, honeypot swallowed, bad phone 400, repeat phone
+→ note on the existing lead; desktop + 390px screenshots checked, no horizontal scroll.
+Not done: a real logo (the design's placeholder square is used), GA/Search Console
+verification (needs Oran's accounts), a `<title>` for the app itself (still "client").
 
 ### Phase 31 — Assistant actions + documents, smarter deal advisor, payments without a document ✅ Built 2026-09-13
 Source: Oran's Claude-Design landing page for ProEvent (the `design_handoff_proevent_landing`

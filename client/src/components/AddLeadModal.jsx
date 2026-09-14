@@ -46,6 +46,7 @@ const SOURCE_OPTIONS = [
   { value: 'facebook', label: 'פייסבוק' },
   { value: 'instagram', label: 'אינסטגרם' },
   { value: 'manual', label: 'ידני' },
+  { value: 'landing', label: 'דף נחיתה (ProEvent)' },
 ];
 
 const EVENT_TYPES = ['חתונה', 'בר/בת מצווה', 'אירוסין', 'יום הולדת', 'כנס', 'אירוע חברה', 'חינה', 'אחר'];
