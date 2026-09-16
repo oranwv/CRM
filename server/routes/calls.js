@@ -47,8 +47,13 @@ api.use(requireAuth);
 // GET /api/calls/config — is calling available for this user, and their prefs
 api.get('/config', async (req, res) => {
   if (!tw.isEnabled()) return res.json({ enabled: false });
-  const u = await currentUser(req.user.id);
-  res.json({ enabled: true, number: process.env.TWILIO_PHONE_NUMBER, abroad_mode: !!u?.abroad_mode, has_phone: !!u?.phone });
+  try {
+    const u = await currentUser(req.user.id);
+    res.json({ enabled: true, number: process.env.TWILIO_PHONE_NUMBER, abroad_mode: !!u?.abroad_mode, has_phone: !!u?.phone });
+  } catch (err) {
+    console.error('[Calls] config error:', err.message);
+    res.status(500).json({ enabled: false, error: err.message });
+  }
 });
 
 // GET /api/calls/token — browser SDK access token
