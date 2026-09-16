@@ -3979,11 +3979,11 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, allPhon
           <div className="flex gap-2">
             <button onClick={() => setDir('outbound')}
               className={`flex-1 text-sm font-bold py-1.5 rounded-xl border-2 transition ${dir === 'outbound' ? 'bg-violet-600 text-white border-violet-600' : 'border-slate-200 text-slate-500'}`}>
-              יוצא ↗
+              {adding === 'call' ? 'תיעוד שיחה יוצאת ↗' : 'יוצא ↗'}
             </button>
             <button onClick={() => setDir('inbound')}
               className={`flex-1 text-sm font-bold py-1.5 rounded-xl border-2 transition ${dir === 'inbound' ? 'bg-sky-600 text-white border-sky-600' : 'border-slate-200 text-slate-500'}`}>
-              נכנס ↙
+              {adding === 'call' ? 'תיעוד שיחה נכנסת ↙' : 'נכנס ↙'}
             </button>
           </div>
           <textarea autoFocus value={body} onChange={e => setBody(e.target.value)}
@@ -5274,11 +5274,11 @@ function TaskActionModal({ task, leadId, lead, users, allPhones, allPhoneLabels,
             <div className="flex gap-2">
               <button onClick={() => setDir('outbound')}
                 className={`flex-1 text-sm font-bold py-1.5 rounded-xl border-2 transition ${dir === 'outbound' ? 'bg-violet-600 text-white border-violet-600' : 'border-slate-200 text-slate-500'}`}>
-                יוצא ↗
+                {outcomeType === 'call' ? 'תיעוד שיחה יוצאת ↗' : 'יוצא ↗'}
               </button>
               <button onClick={() => setDir('inbound')}
                 className={`flex-1 text-sm font-bold py-1.5 rounded-xl border-2 transition ${dir === 'inbound' ? 'bg-sky-600 text-white border-sky-600' : 'border-slate-200 text-slate-500'}`}>
-                נכנס ↙
+                {outcomeType === 'call' ? 'תיעוד שיחה נכנסת ↙' : 'נכנס ↙'}
               </button>
             </div>
             <textarea autoFocus value={body} onChange={e => setBody(e.target.value)}

@@ -929,6 +929,8 @@ and **סידור הושבה**, opened as overlays.)
 - Clicking a file calls `openFile(id)` → fetches signed URL → opens in new tab
 - Files never accessed via direct Supabase URL (always through CRM auth)
 
+**תיעוד שיחה** — in the log-interaction form (lead card and the task-outcome form), when the type is a call the direction buttons read "תיעוד שיחה יוצאת ↗" / "תיעוד שיחה נכנסת ↙" (2026-09-16); meeting/note keep "יוצא ↗" / "נכנס ↙".
+
 **פעילות (Timeline)**
 - Combined feed of `lead_interactions` + `messages`, newest-first
 - Every entry shows: timestamp, author name (who performed the action), direction badge, type badge
