@@ -25,7 +25,7 @@ async function generateLeadSummary(leadId, leadName, stage) {
   try {
     const key = process.env.OPENAI_API_KEY;
     if (!key) return null;
-    const client = new OpenAI({ apiKey: key });
+    const client = require('./openaiClient').openai('lead-summary');
 
     const { rows: interactions } = await pool.query(
       `SELECT direction, body FROM lead_interactions WHERE lead_id = $1 ORDER BY created_at DESC LIMIT 5`,

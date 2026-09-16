@@ -12,11 +12,8 @@ const { normalizePhone, findLeadByPhone } = require('../utils/phoneUtils');
 const { classifyInboundSource } = require('../utils/leadSource');
 const OpenAI = require('openai');
 
-let _oaiClient;
-function getOAI() {
-  if (!_oaiClient) _oaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  return _oaiClient;
-}
+const { openai: meteredOpenAI } = require('../services/openaiClient');
+const getOAI = () => meteredOpenAI('whatsapp-bot');
 
 async function extractLeadDetails(text) {
   const completion = await getOAI().chat.completions.create({

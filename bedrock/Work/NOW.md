@@ -6,6 +6,22 @@ updated: 2026-09-16
 
 # Now
 
+## 2026-09-16 (later) — Costs panel + full transcripts (Phase 34)
+
+First real call worked end-to-end (browser → mobile, recording, summary on the lead) but the
+summary was poor. Oran thinks the transcript is fine and the problem is elsewhere — so the
+full transcript is now stored (`calls.transcript`) and shown collapsed on the call interaction
+for him to judge. Whisper got a domain prompt; the summarizer must not invent and scores
+test calls 0. Twilio's recording copy is deleted after upload to Supabase.
+
+Oran also asked for a costs panel for every paid service → ניהול → **עלויות** (`/costs`):
+Twilio real billing via Usage Records (+ per-call estimate), OpenAI metered through the new
+`services/openaiClient.js` wrapper (`ai_usage` table, per feature/model), hand-entered fixed
+subscriptions, ₪ via editable rate. He estimates an average sales call at ~15 min
+(≈ $1.15 per outbound browser call, ≈ $0.35 if an inbound call is answered in the browser).
+Open: which Supabase plan he is on (storage budget for recordings); Twilio Usage Records
+untested against the real account until the deploy runs.
+
 ## 2026-09-16 — In-app calling over Twilio (Phase 33)
 
 Oran wanted click-to-call from the lead card over the internet showing an Israeli number,

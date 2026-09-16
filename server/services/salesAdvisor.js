@@ -6,11 +6,7 @@ const ACTIVE_EXCLUDE = ['deposit', 'production', 'completed', 'lost'];
 const STALE_DAYS = 3; // no contact for this long → counts as needing attention
 const NEAR_EVENT_DAYS = 45;
 
-function openai() {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) throw new Error('OPENAI_API_KEY is not set');
-  return new OpenAI({ apiKey: key });
-}
+const openai = () => require('./openaiClient').openai('deal-advisor');
 
 // Chronological, labeled conversation for one lead (messages + interactions)
 async function buildLeadContext(leadId) {

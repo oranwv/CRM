@@ -18,6 +18,7 @@ import RSVPsPage        from './pages/RSVPs/RSVPsPage';
 import RSVPDetailPage   from './pages/RSVPs/RSVPDetailPage';
 import OperationsPage    from './pages/OperationsPage';
 import ManagementPage   from './pages/ManagementPage';
+import CostsPage        from './pages/CostsPage';
 import FinancePage      from './pages/FinancePage';
 import AIChat           from './components/AIChat';
 import PendingDocsModal  from './components/PendingDocsModal';
@@ -299,6 +300,7 @@ function AppShellNav() {
     ? [
         { path: '/management',     icon: '📈', label: 'ניהול' },
         { path: '/sales-worklist', icon: '💡', label: 'AI מכירות' },
+        { path: '/costs',          icon: '💸', label: 'עלויות' },
       ]
     : isRSVP
     ? [{ path: '/rsvps', icon: '📋', label: 'אישורי הגעה', prefix: '/rsvps' }]
@@ -525,6 +527,16 @@ function AppRoutes() {
             <>
               <div className="pt-11" />
               <OperationsPage />
+              <AppShellNav />
+              <div className="pb-28" />
+            </>
+          </PrivateRoute>
+        } />
+        <Route path="/costs" element={
+          <PrivateRoute>
+            <>
+              <div className="pt-11" />
+              <CostsPage />
               <AppShellNav />
               <div className="pb-28" />
             </>

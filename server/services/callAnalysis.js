@@ -1,23 +1,19 @@
 // Post-call pipeline: download the Twilio recording → Supabase storage (files row)
 // → Whisper transcript (Hebrew) → GPT summary + sales insights → one `call`
-// interaction on the lead. The full transcript is NOT stored (Oran's choice) —
-// only the summary/insights JSON on `calls.analysis` and the readable text on the
-// interaction body.
+// interaction on the lead. The full transcript is kept on `calls.transcript` and shown
+// collapsed on the interaction (Oran asked for it on 2026-09-16 to judge summary quality);
+// the summary/insights JSON lives on `calls.analysis`.
 const fs     = require('fs');
 const os     = require('os');
 const path   = require('path');
 const axios  = require('axios');
-const { OpenAI, toFile } = require('openai');
+const { toFile } = require('openai');
 const pool   = require('../db/pool');
 const { uploadFile } = require('./storageService');
 
 const MIN_SECONDS_FOR_ANALYSIS = 15;
 
-function openai() {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) throw new Error('OPENAI_API_KEY is not set');
-  return new OpenAI({ apiKey: key });
-}
+const openai = () => require('./openaiClient').openai('call-analysis');
 
 function fmtDuration(sec) {
   sec = Number(sec) || 0;
@@ -34,9 +30,12 @@ async function downloadRecording(recordingUrl) {
   return tmp;
 }
 
-async function transcribe(tmpPath) {
+async function transcribe(tmpPath, durationSec) {
   const file = await toFile(fs.createReadStream(tmpPath), path.basename(tmpPath), { type: 'audio/mpeg' });
-  const t = await openai().audio.transcriptions.create({ model: 'whisper-1', file, language: 'he' });
+  const t = await openai().audio.transcriptions.create({
+    model: 'whisper-1', file, language: 'he', audioSeconds: durationSec,
+    prompt: 'שיחת טלפון בעברית בין נציג מכירות של שרביה, מקום אירועים ביפו, ללקוח שמתעניין באירוע: חתונה, בר מצווה, אירוע חברה, מחיר לאורח, תאריך, תפריט, בר.',
+  });
   return (t.text || '').trim();
 }
 
@@ -56,7 +55,7 @@ async function analyze({ transcript, direction, lead, repName, durationSec }) {
   "coaching_tips": ["2-3 טיפים קצרים ומעשיים לשיפור השיחה הבאה"],
   "event_details": { "date": "אם צוין", "guests": "אם צוין", "budget": "אם צוין", "event_type": "אם צוין" }
 }
-היה תמציתי, בעברית. אם התמלול לא ברור או קצר מדי — כתוב זאת בסיכום והשאר מערכים ריקים.
+היה תמציתי, בעברית. סכם רק מה שנאמר בפועל — אל תמציא ואל תנחש. אם התמלול לא ברור, קצר מדי, או נראה כמו שיחת בדיקה/ניסיון (אין לקוח אמיתי) — כתוב זאת בסיכום, השאר את המערכים ריקים ותן sales_score = 0.
 
 תמלול:
 """${transcript.slice(0, 24000)}"""`;
@@ -110,7 +109,7 @@ async function processRecording({ callId, recordingSid, recordingUrl, durationSe
   const repName = rep?.display_name || null;
 
   const voicemail = call.status === 'voicemail' || call.status === 'missed';
-  let tmp = null, fileMarker = null, fileId = null, analysis = null, vmTranscript = null;
+  let tmp = null, fileMarker = null, fileId = null, analysis = null, vmTranscript = null, transcript = null;
   try {
     tmp = await downloadRecording(recordingUrl);
     const fileName = `${voicemail ? 'הודעה קולית' : 'הקלטת שיחה'} ${new Date(call.started_at || Date.now()).toLocaleDateString('he-IL')}.mp3`;
@@ -122,11 +121,17 @@ async function processRecording({ callId, recordingSid, recordingUrl, durationSe
     );
     fileId = f.id;
     fileMarker = `[[FILE:${fileId}|${fileName}]]`;
+    // Our copy is safe in Supabase — drop Twilio's so we don't pay their storage too
+    if (recordingSid) {
+      require('./twilioService').getClient().recordings(recordingSid).remove()
+        .catch(err => console.warn('[Calls] could not delete Twilio recording:', err.message));
+    }
 
     if (voicemail) {
-      if (durationSec >= 2 && process.env.OPENAI_API_KEY) vmTranscript = await transcribe(tmp).catch(() => null);
+      if (durationSec >= 2 && process.env.OPENAI_API_KEY) vmTranscript = await transcribe(tmp, durationSec).catch(() => null);
+      transcript = vmTranscript;
     } else if (durationSec >= MIN_SECONDS_FOR_ANALYSIS && process.env.OPENAI_API_KEY) {
-      const transcript = await transcribe(tmp);
+      transcript = await transcribe(tmp, durationSec);
       if (transcript.length > 20) {
         analysis = await analyze({ transcript, direction: call.direction, lead, repName, durationSec });
       }
@@ -140,7 +145,7 @@ async function processRecording({ callId, recordingSid, recordingUrl, durationSe
   const body = renderBody({
     direction: call.direction, durationSec, repName, analysis, fileMarker, voicemail, transcript: vmTranscript,
     fromNumber: call.direction === 'inbound' ? call.from_number : null,
-  });
+  }) + (!voicemail && transcript ? `\n\n[[TRANSCRIPT]]\n${transcript}` : '');
 
   let interactionId = call.interaction_id;
   if (call.lead_id) {
@@ -159,8 +164,8 @@ async function processRecording({ callId, recordingSid, recordingUrl, durationSe
 
   await pool.query(
     `UPDATE calls SET recording_sid = $2, recording_file_id = $3, summary = $4, analysis = $5,
-                      interaction_id = $6, duration_sec = COALESCE(duration_sec, $7) WHERE id = $1`,
-    [callId, recordingSid, fileId, analysis?.summary || null, analysis ? JSON.stringify(analysis) : null, interactionId, durationSec]
+                      interaction_id = $6, duration_sec = COALESCE(duration_sec, $7), transcript = $8 WHERE id = $1`,
+    [callId, recordingSid, fileId, analysis?.summary || null, analysis ? JSON.stringify(analysis) : null, interactionId, durationSec, transcript]
   );
 }
 

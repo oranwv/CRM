@@ -5,11 +5,8 @@ const { OpenAI, toFile } = require('openai');
 
 const audioUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
-function getClient() {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) throw new Error('OPENAI_API_KEY is not set');
-  return new OpenAI({ apiKey: key });
-}
+const { openai: meteredOpenAI } = require('../services/openaiClient');
+const getClient = (feature = 'ai-tools') => meteredOpenAI(feature);
 
 // POST /api/ai/transcribe — voice recording → text (OpenAI Whisper, Hebrew)
 router.post('/transcribe', audioUpload.single('audio'), async (req, res) => {
@@ -17,7 +14,7 @@ router.post('/transcribe', audioUpload.single('audio'), async (req, res) => {
   if (!process.env.OPENAI_API_KEY) return res.status(503).json({ error: 'תמלול אינו זמין (OPENAI_API_KEY חסר)' });
   try {
     const file = await toFile(req.file.buffer, req.file.originalname || 'audio.webm', { type: req.file.mimetype || 'audio/webm' });
-    const transcription = await getClient().audio.transcriptions.create({ model: 'whisper-1', file, language: 'he' });
+    const transcription = await getClient('voice-note').audio.transcriptions.create({ model: 'whisper-1', file, language: 'he', audioSeconds: Math.round((req.file.size || 0) / 16000) });
     res.json({ text: transcription.text || '' });
   } catch (err) {
     console.error('[AI] transcribe error:', err.message);

@@ -58,7 +58,7 @@ async function generateEventCosts(leadId, userId = null, { onlyIfEmpty = false }
   ].filter(Boolean).join('\n');
 
   const docs = kbFiles.map(k => `## מסמך: ${k.filename}\n${k.content_text}`).join('\n\n');
-  const openai = new OpenAI({ apiKey: key });
+  const openai = require('./openaiClient').openai('event-cost');
   const completion = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
     max_tokens: 1024,

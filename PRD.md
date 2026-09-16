@@ -1820,6 +1820,27 @@ Rule-based worklist ranking, per-lead deal advice cached in `lead_ai_advice`, lo
 insights, and morning/evening WhatsApp briefings. **Draft-only — never auto-sends to a
 customer.**
 
+### Phase 34 — Costs panel + AI usage metering ✅ Built 2026-09-16
+Oran asked to see what every paid service costs per month, calls included. New tab **עלויות**
+in the ניהול mode (`/costs`, `client/src/pages/CostsPage.jsx`; API `routes/costs.js`, admins +
+managers). Three sources: **Twilio** — real monthly billed amounts from Twilio Usage Records
+(`usage.records.monthly`, cached 1h, category breakdown) with a per-call estimate from the
+`calls` table as fallback for the current month (list prices: inbound $0.0107, outbound mobile
+$0.0646 / landline $0.0294, browser leg $0.004, recording $0.0025 per minute, number $5.50);
+**OpenAI** — every call now goes through `services/openaiClient.js` (`openai(feature)`), a
+metered wrapper around the SDK that writes tokens / audio seconds / estimated USD to the new
+`ai_usage` table (feature tags: assistant-chat, deal-advisor, call-analysis, voice-note,
+whatsapp-bot, lead-summary, event-cost, invoice-classifier, ai-tools; streaming calls get
+`stream_options.include_usage`); **fixed subscriptions** — `cost_subscriptions` rows entered by
+hand (Railway, Supabase, Green API, GreenInvoice, domain…). USD is the source; ₪ via
+`settings.usd_ils_rate` (editable on the page, default 3.70). Usage before 2026-09-16 is not
+metered. Also: Twilio's own copy of each recording is deleted once ours is in Supabase.
+
+**Call transcript now kept** (`calls.transcript`) and appended to the call interaction body after
+a `[[TRANSCRIPT]]` marker; `BodyWithFile` renders it as a collapsed "תמלול מלא". Whisper gets a
+Hebrew domain prompt; the summary prompt is told not to invent content and to score test/unclear
+calls 0. Reason: the first real test produced a poor summary and Oran wants to see the raw text.
+
 ### Phase 33 — In-app calling (Twilio Voice) ✅ Built 2026-09-16
 Oran's ask: call a lead from inside the CRM over the internet showing an Israeli number,
 have calls to that number ring the lead's owner (also when the team is abroad), record every

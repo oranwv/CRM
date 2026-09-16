@@ -5,11 +5,8 @@ const requireAuth = require('../middleware/auth');
 const { sendText, configured: waConfigured } = require('../services/metaWhatsapp');
 const { getSignedUrl } = require('../services/storageService');
 
-function getClient() {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) throw new Error('OPENAI_API_KEY is not set');
-  return new OpenAI({ apiKey: key });
-}
+const { openai: meteredOpenAI } = require('../services/openaiClient');
+const getClient = () => meteredOpenAI('assistant-chat');
 
 const ADMIN_SET   = new Set(['admin', 'manager']);
 const SALES_SET   = new Set(['admin', 'manager', 'sales_manager', 'sales']);

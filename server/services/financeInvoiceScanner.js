@@ -179,7 +179,7 @@ function extractLinks(text, html) {
 
 async function classifyEmail({ subject, from, snippet, attachments, links }) {
   if (!process.env.OPENAI_API_KEY) return null; // caller falls back to keyword-only
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const openai = require('./openaiClient').openai('invoice-classifier');
   const prompt = `אתה מסווג מיילים עבור עסק אירועים בשם "שרביה". קבע האם המייל הבא הוא חשבונית/קבלה שספק שלח לעסק (הוצאה של העסק).
 
 חשוב: חשבוניות שהעסק עצמו הוציא ללקוחות שלו (למשל דרך GreenInvoice של שרביה, או מיילים שנשלחו על ידי שרביה) הן לא חשבוניות ספק — סווג אותן כ-false. מיילים שיווקיים שמזכירים "חשבונית" הם false.

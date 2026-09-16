@@ -1245,8 +1245,13 @@ function CallButtons({ lead }) {
   );
 }
 
-function BodyWithFile({ body }) {
-  if (!body) return null;
+function BodyWithFile({ body: rawBody }) {
+  const [showTranscript, setShowTranscript] = useState(false);
+  if (!rawBody) return null;
+  // Call interactions carry the full transcript after a [[TRANSCRIPT]] marker — shown collapsed
+  const tIdx = rawBody.indexOf('[[TRANSCRIPT]]');
+  const body = tIdx === -1 ? rawBody : rawBody.slice(0, tIdx);
+  const transcript = tIdx === -1 ? null : rawBody.slice(tIdx + '[[TRANSCRIPT]]'.length).trim();
   const FILE_RE = /\[\[FILE:([^\|]+)\|([^\]]+)\]\]/g;
   const text = body.replace(FILE_RE, '').trim();
   const files = [...body.matchAll(/\[\[FILE:([^\|]+)\|([^\]]+)\]\]/g)]
@@ -1263,6 +1268,17 @@ function BodyWithFile({ body }) {
           {fileIconByExt(f.name)} {f.name}
         </button>
       ))}
+      {transcript && (
+        <div className="mt-2">
+          <button onClick={e => { e.stopPropagation(); setShowTranscript(v => !v); }}
+            className="text-xs font-bold text-violet-600 hover:underline">
+            {showTranscript ? '▴ הסתר תמלול' : '▾ תמלול מלא'}
+          </button>
+          {showTranscript && (
+            <p className="mt-1 text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 whitespace-pre-wrap wrap-anywhere">{transcript}</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

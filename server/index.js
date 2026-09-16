@@ -299,6 +299,31 @@ pool.query(`
   CREATE INDEX IF NOT EXISTS idx_calls_lead ON calls(lead_id, started_at DESC);
   ALTER TABLE users ADD COLUMN IF NOT EXISTS abroad_mode BOOLEAN DEFAULT FALSE;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS call_queue_order INT;
+  ALTER TABLE calls ADD COLUMN IF NOT EXISTS transcript TEXT;
+  -- Metered AI usage (every OpenAI call goes through services/openaiClient.js)
+  CREATE TABLE IF NOT EXISTS ai_usage (
+    id SERIAL PRIMARY KEY,
+    provider VARCHAR(20) NOT NULL,
+    feature VARCHAR(40),
+    model VARCHAR(60),
+    input_tokens INT DEFAULT 0,
+    output_tokens INT DEFAULT 0,
+    audio_seconds INT DEFAULT 0,
+    cost_usd NUMERIC(10,6),
+    meta JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS idx_ai_usage_time ON ai_usage(created_at);
+  -- Fixed monthly subscriptions shown in the costs panel (edited in ניהול)
+  CREATE TABLE IF NOT EXISTS cost_subscriptions (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    amount NUMERIC(10,2) NOT NULL,
+    currency VARCHAR(3) DEFAULT 'USD',
+    note TEXT,
+    active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
 `).catch(err => console.error('[DB] calls migration error:', err.message));
 
 pool.query(`
@@ -716,6 +741,7 @@ app.use('/api/public',             require('./routes/public'));      // landing-
 const { callsApiRouter, callsHooksRouter } = require('./routes/calls');
 app.use('/api/calls', callsHooksRouter);                              // Twilio webhooks (signature-validated)
 app.use('/api/calls', callsApiRouter);                                // browser API (JWT)
+app.use('/api/costs',              requireAuth, require('./routes/costs')); // costs panel (managers)
 app.use('/api/calendar', (req, res, next) => {
   // ICS download and lead confirmation are public — no auth required
   if (/^\/meetings\/[^/]+\/(ics|confirm)$/.test(req.path)) return next();
