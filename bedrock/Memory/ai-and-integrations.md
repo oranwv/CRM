@@ -77,3 +77,14 @@ voice notes. (Verified 2026-09-08 against the source; earlier notes here said Cl
 - Gotcha: taxId must be **digits only** (strip ח.פ/ת.ז formatting) or GreenInvoice
   errors with `1111` (commit `77d184b`).
 - Issued doc PDFs are downloaded from the pre-signed URL and saved to lead files.
+
+## Telephony — Twilio Voice (added 2026-09-16)
+
+- Number **+972-3-382-3777** on Oran's Twilio account (`My First Twilio Account`). Env:
+  `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`. API key + TwiML app are
+  created by the server itself on boot (`twilioService.ensureSetup`) and kept in `settings`.
+- Flows, ring plan, recording → Whisper → gpt-4o summary: see `PRD.md` Phase 33 and
+  `server/routes/calls.js` header comment. Call log table: `calls`. Per-user routing prefs:
+  `users.abroad_mode` (skip mobile, ring browser only), `users.call_queue_order`.
+- Browser softphone = `@twilio/voice-sdk` in `client/src/context/CallContext.jsx`; rings only
+  while a CRM tab is open. Locked-phone ringing would need a native app (not built).

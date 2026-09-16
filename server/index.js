@@ -267,8 +267,39 @@ pool.query(`
 pool.query(`
   ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_source_check;
   ALTER TABLE leads ADD CONSTRAINT leads_source_check
-    CHECK (source IN ('website_popup','website_form','call_event','telekol','vonage','whatsapp','facebook','instagram','manual','landing'));
+    CHECK (source IN ('website_popup','website_form','call_event','telekol','vonage','whatsapp','facebook','instagram','manual','landing','phone_call'));
 `).catch(err => console.error('[DB] source constraint migration error:', err.message));
+
+// In-app calling (Twilio Voice) — call log + per-user routing prefs
+pool.query(`
+  CREATE TABLE IF NOT EXISTS calls (
+    id SERIAL PRIMARY KEY,
+    call_sid TEXT UNIQUE,
+    direction VARCHAR(10) NOT NULL,            -- inbound | outbound
+    mode VARCHAR(10),                          -- browser | bridge | inbound
+    lead_id INT REFERENCES leads(id) ON DELETE SET NULL,
+    user_id INT REFERENCES users(id) ON DELETE SET NULL,      -- who started the outbound call
+    answered_by INT REFERENCES users(id) ON DELETE SET NULL,  -- who picked up the inbound call
+    from_number TEXT,
+    to_number TEXT,
+    status TEXT DEFAULT 'initiated',           -- initiated|ringing|in-progress|completed|missed|voicemail|no-answer|busy|failed|canceled
+    ring_plan JSONB,
+    ring_step INT DEFAULT 0,
+    notified BOOLEAN DEFAULT FALSE,
+    started_at TIMESTAMPTZ DEFAULT NOW(),
+    ended_at TIMESTAMPTZ,
+    duration_sec INT,
+    recording_sid TEXT,
+    recording_file_id INT REFERENCES files(id) ON DELETE SET NULL,
+    summary TEXT,
+    analysis JSONB,
+    interaction_id INT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS idx_calls_lead ON calls(lead_id, started_at DESC);
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS abroad_mode BOOLEAN DEFAULT FALSE;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS call_queue_order INT;
+`).catch(err => console.error('[DB] calls migration error:', err.message));
 
 pool.query(`
   CREATE TABLE IF NOT EXISTS google_calendar_cache (
@@ -682,6 +713,9 @@ app.use('/api/ai',                  requireAuth, aiRoutes);
 app.use('/api/chat',               chatRoutes);  // auth applied inside route
 app.use('/api/payment-signals',    requireAuth, require('./routes/paymentSignals'));
 app.use('/api/public',             require('./routes/public'));      // landing-page form, no auth
+const { callsApiRouter, callsHooksRouter } = require('./routes/calls');
+app.use('/api/calls', callsHooksRouter);                              // Twilio webhooks (signature-validated)
+app.use('/api/calls', callsApiRouter);                                // browser API (JWT)
 app.use('/api/calendar', (req, res, next) => {
   // ICS download and lead confirmation are public — no auth required
   if (/^\/meetings\/[^/]+\/(ics|confirm)$/.test(req.path)) return next();
@@ -729,6 +763,8 @@ app.listen(PORT, async () => {
     if (rows[0]?.value) fs.writeFileSync(path.join(__dirname, 'google_token.json'), rows[0].value);
   } catch {}
   startCronJobs();
+  // Twilio: create the API key / TwiML app once and point the number's webhooks at us
+  require('./services/twilioService').ensureSetup().catch(err => console.error('[Twilio] setup error:', err.message));
 });
 
 function startCronJobs() {

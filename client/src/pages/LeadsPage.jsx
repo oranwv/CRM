@@ -34,7 +34,7 @@ const SOURCE_LABELS = {
   website_popup: 'אתר (פופאפ)', website_form: 'אתר (טופס)',
   call_event: 'Call Event', telekol: 'טלקול',
   whatsapp: 'וואטסאפ', facebook: 'פייסבוק',
-  instagram: 'אינסטגרם', manual: 'ידני', landing: 'דף נחיתה',
+  instagram: 'אינסטגרם', manual: 'ידני', landing: 'דף נחיתה', phone_call: 'שיחה נכנסת',
 };
 
 const STAGE_STYLES = {
@@ -66,6 +66,7 @@ const SOURCE_COLORS = {
   instagram:     'bg-pink-100 text-pink-700',
   manual:        'bg-slate-100 text-slate-600',
   landing:       'bg-indigo-100 text-indigo-700',
+  phone_call:    'bg-cyan-100 text-cyan-700',
 };
 
 const IL = { timeZone: 'Asia/Jerusalem' };

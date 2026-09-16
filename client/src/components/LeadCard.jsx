@@ -11,6 +11,7 @@ import PendingDocDetail from './PendingDocDetail';
 import AddSupplierModal from './AddSupplierModal';
 import SupplierCard from './SupplierCard';
 import { docTypeLabel } from '../utils/docTypes';
+import { useCalls } from '../context/CallContext';
 
 const STAGES = [
   { key: 'new',               label: 'חדש',                 active: 'bg-sky-500 text-white border-sky-500',          past: 'bg-sky-100 text-sky-600 border-sky-200',            future: 'bg-white text-slate-400 border-slate-200 hover:border-sky-300 hover:text-sky-500' },
@@ -40,7 +41,7 @@ const SOURCE_LABELS = {
   website_popup: 'אתר (פופאפ)', website_form: 'אתר (טופס)',
   call_event: 'Call Event', telekol: 'טלקול', vonage: 'מענה קולי',
   whatsapp: 'וואטסאפ', facebook: 'פייסבוק',
-  instagram: 'אינסטגרם', manual: 'ידני', landing: 'דף נחיתה',
+  instagram: 'אינסטגרם', manual: 'ידני', landing: 'דף נחיתה', phone_call: 'שיחה נכנסת',
 };
 
 const TYPE_META = {
@@ -687,12 +688,15 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <InfoRow label="טלפון">
                       {lead.phone ? (
-                        <a
-                          href={`tel:${lead.phone}`}
-                          className="text-violet-700 hover:underline font-medium"
-                          dir="ltr"
-                          onClick={() => api.post(`/leads/${lead.id}/interactions`, { type: 'call_attempt', direction: 'outbound', body: '', source: 'dial' }).then(load)}
-                        >{lead.phone}</a>
+                        <span className="inline-flex items-center gap-2 flex-wrap">
+                          <a
+                            href={`tel:${lead.phone}`}
+                            className="text-violet-700 hover:underline font-medium"
+                            dir="ltr"
+                            onClick={() => api.post(`/leads/${lead.id}/interactions`, { type: 'call_attempt', direction: 'outbound', body: '', source: 'dial' }).then(load)}
+                          >{lead.phone}</a>
+                          <CallButtons lead={lead} />
+                        </span>
                       ) : '—'}
                     </InfoRow>
                     <InfoRow label="אימייל">{lead.email || '—'}</InfoRow>
@@ -1190,6 +1194,57 @@ function FilesSection({ leadId, files, onChanged, isAdmin }) {
 }
 
 /* ── BODY WITH FILE ATTACHMENT ── */
+/* ── IN-APP CALL BUTTONS (Twilio) ── */
+// "התקשר" dials from the browser and shows the venue's Israeli number to the customer;
+// "דרך הנייד" makes Twilio ring the rep's own mobile first, then bridges to the lead.
+// Both are recorded and summarized onto the lead timeline by the server.
+function CallButtons({ lead }) {
+  const calls = useCalls();
+  const [busy, setBusy] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const [note, setNote] = useState('');
+  if (!calls.enabled) return null;
+
+  async function browserCall() {
+    setMenu(false); setBusy(true);
+    try { await calls.startCall(lead); }
+    catch (err) { setNote(err.message || 'לא ניתן להתקשר'); setTimeout(() => setNote(''), 4000); }
+    finally { setBusy(false); }
+  }
+  async function mobileCall() {
+    setMenu(false); setBusy(true);
+    try { await calls.bridgeCall(lead); setNote('📲 הנייד שלך מצלצל — ענה וניחבר אותך ללקוח'); setTimeout(() => setNote(''), 8000); }
+    catch (err) { setNote(err.response?.data?.error || err.message || 'לא ניתן להתקשר'); setTimeout(() => setNote(''), 4000); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <span className="relative inline-flex items-center gap-1">
+      <button
+        onClick={browserCall}
+        disabled={busy || !!calls.active || !calls.ready}
+        title={calls.ready ? 'התקשר מהמערכת (מוקלט, מוצג המספר של שרביה)' : 'הטלפון עוד לא מחובר'}
+        className="px-2.5 py-1 rounded-lg text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 transition"
+      >📞 התקשר</button>
+      <button
+        onClick={() => setMenu(m => !m)}
+        disabled={busy || !!calls.active}
+        className="px-1.5 py-1 rounded-lg text-xs font-black text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 disabled:opacity-40"
+        title="אפשרויות חיוג"
+      >▾</button>
+      {menu && (
+        <div className="absolute right-0 top-full mt-1 z-30 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden min-w-[190px]">
+          <button onClick={mobileCall} className="block w-full text-right px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
+            📲 דרך הנייד שלי
+            <span className="block text-[11px] font-normal text-slate-400">המערכת מתקשרת אליך ואז ללקוח</span>
+          </button>
+        </div>
+      )}
+      {note && <span className="text-xs text-slate-500 font-semibold">{note}</span>}
+    </span>
+  );
+}
+
 function BodyWithFile({ body }) {
   if (!body) return null;
   const FILE_RE = /\[\[FILE:([^\|]+)\|([^\]]+)\]\]/g;

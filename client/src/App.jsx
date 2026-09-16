@@ -25,6 +25,8 @@ import PaymentSignalsModal from './components/PaymentSignalsModal';
 import UnreadyEventsModal from './components/UnreadyEventsModal';
 import { docTypeLabel }   from './utils/docTypes';
 import { AppModeProvider, useAppMode } from './context/AppModeContext';
+import { CallProvider, useCalls } from './context/CallContext';
+import CallBar from './components/CallBar';
 import usePresencePing from './hooks/usePresencePing';
 import api from './api';
 
@@ -201,6 +203,8 @@ function GlobalHeader() {
         </div>
       )}
 
+      <div className="flex items-center gap-1.5">
+      <AbroadToggle />
       <div ref={dropRef} className="relative">
         <button
           onClick={() => setDropOpen(o => !o)}
@@ -239,7 +243,26 @@ function GlobalHeader() {
           </div>
         )}
       </div>
+      </div>
     </div>
+  );
+}
+
+// ✈️ "I'm abroad": incoming calls skip my mobile and ring straight in the app.
+function AbroadToggle() {
+  const { enabled, ready, config, setAbroad } = useCalls();
+  if (!enabled) return null;
+  const on = !!config.abroad_mode;
+  return (
+    <button
+      onClick={() => setAbroad(!on).catch(() => {})}
+      title={on ? 'מצב חו"ל פעיל — שיחות נכנסות מצלצלות רק באפליקציה' : 'מצב חו"ל כבוי — שיחות נכנסות מצלצלות קודם בנייד'}
+      className="flex items-center gap-1 text-[11px] font-black px-2 py-1.5 rounded-xl cursor-pointer hover:bg-white/25 transition"
+      style={{ background: on ? 'rgba(251,191,36,0.9)' : 'rgba(255,255,255,0.18)', color: on ? '#1e1b4b' : '#fff' }}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full ${ready ? 'bg-emerald-300' : 'bg-red-300'}`} title={ready ? 'הטלפון מחובר' : 'הטלפון לא מחובר'} />
+      ✈️{on ? ' חו"ל' : ''}
+    </button>
   );
 }
 
@@ -373,6 +396,7 @@ function AppRoutes() {
   return (
     <>
       <GlobalHeader />
+      <CallBar />
       <AIChat />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
@@ -533,9 +557,11 @@ function AppRoutes() {
 export default function App() {
   return (
     <AppModeProvider>
+      <CallProvider>
       <BrowserRouter>
         <AppRoutes />
       </BrowserRouter>
+      </CallProvider>
     </AppModeProvider>
   );
 }

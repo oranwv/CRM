@@ -1,10 +1,32 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-09-14
+updated: 2026-09-16
 ---
 
 # Now
+
+## 2026-09-16 — In-app calling over Twilio (Phase 33)
+
+Oran wanted click-to-call from the lead card over the internet showing an Israeli number,
+inbound calls routed to the lead's owner (also abroad), every call recorded, and an AI
+summary/insights per call. Decisions: Twilio (not Voicenter); number **03-382-3777** bought
+(Local TLV, $5.50/mo, no address/bundle required — the Israeli local inventory showed
+"Address Requirement: None"); inbound = owner mobile → owner browser → team queue → Hebrew
+voicemail; summary + insights only, no full transcript stored. Account upgraded by Oran
+(card + credit); 2FA moved off the Indonesian SIM to an authenticator app.
+
+Built end-to-end (`server/services/twilioService.js`, `callAnalysis.js`, `routes/calls.js`,
+`client/src/context/CallContext.jsx`, `components/CallBar.jsx`, `CallButtons` in LeadCard,
+✈️ abroad toggle in the header). Setup is self-service on boot (API key + TwiML app + number
+webhooks) — Oran only added `TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_PHONE_NUMBER` in
+Railway. Handlers dry-run against a mocked DB (ring plan, step fallthrough, voicemail,
+missed-call WhatsApp, outbound TwiML) — NOT yet tested with a real call.
+
+Next: first real test after deploy (browser mic permission, inbound ring on mobile + browser,
+recording → summary on the lead). Then: `call_queue_order` UI in admin users, per-rep call
+analytics from `calls.analysis`, optional "השיחה מוקלטת" announcement.
+
 
 ## 2026-09-14 — ProEvent landing page live on the root domain + marketing kickoff
 

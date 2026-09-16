@@ -98,6 +98,9 @@ Row 2 of the nav (admin only) holds ⚙️ הגדרות `/admin`.
 | `PUPPETEER_EXECUTABLE_PATH` | Chromium path for contract/offer PDF rendering (`puppeteer-core`) |
 | `GOOGLE_REFRESH_TOKEN` | Alternative to `GOOGLE_TOKEN_B64` — plain refresh token, token file built from it |
 | `PORT` | HTTP port (Railway sets it) |
+| `TWILIO_ACCOUNT_SID` | Twilio account — in-app calling (Phase 33). With the two below, enables calling |
+| `TWILIO_AUTH_TOKEN` | Twilio auth token — REST + webhook signature validation |
+| `TWILIO_PHONE_NUMBER` | The venue's Israeli number in E.164 (`+97233823777`). API key + TwiML app are self-created on boot and stored in `settings` |
 
 > **`ANTHROPIC_API_KEY` is no longer used.** The AI layer moved to OpenAI
 > (2026-06 onward). `@anthropic-ai/sdk` is still in `package.json` but nothing in
@@ -1816,6 +1819,60 @@ invoices with AI and files them into Drive by email date. New assignable `financ
 Rule-based worklist ranking, per-lead deal advice cached in `lead_ai_advice`, loss
 insights, and morning/evening WhatsApp briefings. **Draft-only — never auto-sends to a
 customer.**
+
+### Phase 33 — In-app calling (Twilio Voice) ✅ Built 2026-09-16
+Oran's ask: call a lead from inside the CRM over the internet showing an Israeli number,
+have calls to that number ring the lead's owner (also when the team is abroad), record every
+call, and get an AI summary + insights to analyze and improve. Decisions: Twilio; number
+**03-382-3777** (`+97233823777`, Local Tel Aviv, no regulatory bundle needed); inbound rings the
+owner's mobile first, then the owner's browser, then the rest of the sales team in queue order,
+then voicemail; summary + insights only (full transcript not stored).
+
+**Setup is self-service:** `twilioService.ensureSetup()` runs on boot when the three env vars
+are set — creates the API key and the TwiML App (SIDs/secret kept in `settings`:
+`twilio_api_key_sid/secret`, `twilio_twiml_app_sid`) and points the number's `voiceUrl` /
+`statusCallback` at `SERVER_URL`. Nothing to click in the Twilio console after buying the number.
+
+**Outbound.** `CallButtons` next to the phone on the lead card (only when `/calls/config` says
+enabled): "📞 התקשר" connects from the browser via `@twilio/voice-sdk` (`CallContext`), Twilio
+hits `POST /api/calls/twiml/outbound` (params `To`, `LeadId`, `From=client:user_<id>`) →
+`<Dial callerId=venue number record=record-from-answer-dual>`. "📲 דרך הנייד שלי" (`POST
+/api/calls/bridge`) makes Twilio ring the rep's own mobile and, when answered, dials the lead
+(`/twiml/bridge`). No-answer/busy → a `call_attempt` interaction (source `twilio`).
+
+**Inbound.** `POST /api/calls/twiml/inbound`: caller matched by phone (leads + lead_contacts);
+unknown numbers create a lead with source `phone_call` ("שיחה נכנסת <number>"). A ring plan is
+built once and stored on `calls.ring_plan`: owner mobile (20s, skipped when the owner has
+`abroad_mode`) → owner browser `<Client>user_<id>` (20s) → every other sales/manager/admin user
+in `users.call_queue_order` (NULLS LAST, then id), mobile + browser together (18s each) →
+Hebrew voicemail (`<Say Google.he-IL-Wavenet-A>` + `<Record maxLength=120>`). Each `<Dial>`
+returns to `/twiml/inbound/step?callId&i`; `DialCallStatus=completed` = answered → `answered_by`
+set. Reps see the customer's real number as caller ID. Missed/voicemail → `call_attempt`
+interaction (inbound, unread) + WhatsApp to the owner (or the admins) with a `/?lead=` link.
+
+**Recording → summary.** `POST /api/calls/recording` → `callAnalysis.processRecording`: mp3
+downloaded from Twilio (basic auth) → Supabase `crm-files` + `files` row → Whisper (he) →
+`gpt-4o` JSON (summary, customer_needs, objections, agreements, next_steps, sentiment,
+sales_score 1-10, coaching_tips, event_details) → one `call` interaction on the lead with the
+readable summary and the `[[FILE:id|…mp3]]` player link. Calls under 15s: recording only.
+Voicemails: transcribed verbatim onto the missed-call interaction. `calls.analysis` keeps the JSON
+for later per-rep analytics.
+
+**Client.** `CallProvider` (App root) registers one Twilio `Device` per logged-in tab and
+refreshes its token; `CallBar` shows the incoming prompt (ענה/דחה), the active-call bar (timer,
+mute, hang up, lead link) and errors. Header gets an ✈️ toggle (`PATCH /api/calls/me
+{abroad_mode}`) with a green/red dot for "softphone registered". Browser ringing works while a
+CRM tab is open (desktop, or mobile browser in the foreground) — a native app with push is the
+known gap for locked phones.
+
+**Data.** New table `calls` (call_sid, direction, mode browser|bridge|inbound, lead_id, user_id,
+answered_by, from/to, status, ring_plan/ring_step, notified, started/ended, duration_sec,
+recording_sid, recording_file_id, summary, analysis JSONB, interaction_id); `users.abroad_mode`,
+`users.call_queue_order`; `leads.source` gains `phone_call`. Webhooks are validated with
+`twilio.validateRequest` against `SERVER_URL + originalUrl` (`TWILIO_SKIP_VALIDATION=1` for local tests).
+
+**Legal note (not legal advice):** recording a call you are party to is lawful in Israel; the
+voicemail prompt does not announce recording — add a short "השיחה מוקלטת" `<Say>` if wanted.
 
 ### Phase 32 — Public landing page + demo-request leads ✅ Built 2026-09-14
 Oran: put the Claude-Design landing page live on the main domain, with a login entry, and

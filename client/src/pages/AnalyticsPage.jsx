@@ -5,7 +5,7 @@ const SOURCE_LABELS = {
   website_popup: 'גוגל - אתר (פופ אפ)', website_form: 'גוגל - אתר (טופס)',
   call_event: 'Call Event', telekol: 'טלקול', vonage: 'Vonage',
   whatsapp: 'וואטסאפ', facebook: 'פייסבוק',
-  instagram: 'אינסטגרם', manual: 'ידני', landing: 'דף נחיתה',
+  instagram: 'אינסטגרם', manual: 'ידני', landing: 'דף נחיתה', phone_call: 'שיחה נכנסת',
 };
 
 const LOST_REASON_LABELS = {
