@@ -6,6 +6,14 @@ updated: 2026-09-16
 
 # Now
 
+## 2026-09-16 (evening) — Speaker-separated transcripts, honest summaries, speaker button
+
+Second test call: the transcript was fine, the summary called it a "test call" — Oran wants
+the summary to describe the conversation as it was, and to know who said what. Done:
+dual-channel WAV → two Whisper passes → `נציג:/לקוח:` lines (`services/callTranscript.js`);
+summary prompt rewritten (describe, don't judge; score only real sales talk); 🔊 output picker
+in the call bar (where the browser allows). Untested on a real call yet — next call will show.
+
 ## 2026-09-16 (later) — Costs panel + full transcripts (Phase 34)
 
 First real call worked end-to-end (browser → mobile, recording, summary on the lead) but the

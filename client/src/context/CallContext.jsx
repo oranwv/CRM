@@ -14,6 +14,7 @@ export function CallProvider({ children }) {
   const [active, setActive]     = useState(null);         // { call, leadName, leadId, direction, startedAt }
   const [muted, setMuted]       = useState(false);
   const [error, setError]       = useState(null);
+  const [outputs, setOutputs]   = useState({ supported: false, devices: [], activeId: null }); // speakers/headset picker
   const deviceRef = useRef(null);
   const loggedIn = !!localStorage.getItem('crm_token');
 
@@ -53,6 +54,16 @@ export function CallProvider({ children }) {
           call.on('disconnect', () => { setIncoming(cur => (cur?.call === call ? null : cur)); setActive(cur => (cur?.call === call ? null : cur)); });
           call.on('reject', () => setIncoming(cur => (cur?.call === call ? null : cur)));
         });
+        // Output device picker (Chrome desktop / Android; iOS Safari has no setSinkId)
+        const refreshOutputs = () => {
+          const a = device.audio;
+          if (!a?.isOutputSelectionSupported) return setOutputs({ supported: false, devices: [], activeId: null });
+          const devices = [...a.availableOutputDevices.values()].map(d => ({ id: d.deviceId, label: d.label || 'רמקול' }));
+          const active = [...a.speakerDevices.get()][0]?.deviceId || devices[0]?.id || null;
+          setOutputs({ supported: true, devices, activeId: active });
+        };
+        device.audio?.on('deviceChange', refreshOutputs);
+        refreshOutputs();
         deviceRef.current = device;
         await device.register();
       } catch (err) {
@@ -107,6 +118,17 @@ export function CallProvider({ children }) {
     const next = !muted; active.call.mute(next); setMuted(next);
   }, [active, muted]);
 
+  // Route call audio (and the ringtone) to a specific speaker / headset
+  const setOutput = useCallback(async (deviceId) => {
+    const a = deviceRef.current?.audio;
+    if (!a?.isOutputSelectionSupported) return;
+    try {
+      await a.speakerDevices.set(deviceId);
+      await a.ringtoneDevices.set(deviceId).catch(() => {});
+      setOutputs(o => ({ ...o, activeId: deviceId }));
+    } catch (err) { setError('לא ניתן להחליף רמקול: ' + (err.message || '')); }
+  }, []);
+
   const setAbroad = useCallback(async (on) => {
     await api.patch('/calls/me', { abroad_mode: on });
     setConfig(c => ({ ...c, abroad_mode: on }));
@@ -114,7 +136,7 @@ export function CallProvider({ children }) {
 
   const value = {
     enabled: !!config.enabled, ready, config, error, clearError: () => setError(null),
-    incoming, active, muted,
+    incoming, active, muted, outputs, setOutput,
     startCall, bridgeCall, acceptIncoming, rejectIncoming, hangup, toggleMute, setAbroad, reloadConfig: loadConfig,
   };
   return <CallContext.Provider value={value}>{children}</CallContext.Provider>;

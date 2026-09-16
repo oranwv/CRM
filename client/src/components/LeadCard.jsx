@@ -1275,7 +1275,19 @@ function BodyWithFile({ body: rawBody }) {
             {showTranscript ? '▴ הסתר תמלול' : '▾ תמלול מלא'}
           </button>
           {showTranscript && (
-            <p className="mt-1 text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 whitespace-pre-wrap wrap-anywhere">{transcript}</p>
+            <div className="mt-1 text-sm bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 space-y-1.5">
+              {transcript.split('\n').filter(Boolean).map((line, i) => {
+                const m = /^(נציג|לקוח):\s*(.*)$/.exec(line);
+                if (!m) return <p key={i} className="text-slate-600 whitespace-pre-wrap wrap-anywhere">{line}</p>;
+                const rep = m[1] === 'נציג';
+                return (
+                  <div key={i} className="flex gap-2">
+                    <span className={`shrink-0 text-[11px] font-black px-1.5 py-0.5 rounded-md self-start ${rep ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'}`}>{m[1]}</span>
+                    <p className="flex-1 text-slate-700 whitespace-pre-wrap wrap-anywhere">{m[2]}</p>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       )}

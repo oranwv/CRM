@@ -17,9 +17,23 @@ function useTimer(startedAt) {
 }
 
 export default function CallBar() {
-  const { enabled, incoming, active, muted, error, clearError, acceptIncoming, rejectIncoming, hangup, toggleMute } = useCalls();
+  const { enabled, incoming, active, muted, error, clearError, acceptIncoming, rejectIncoming, hangup, toggleMute, outputs, setOutput } = useCalls();
   const navigate = useNavigate();
   const timer = useTimer(active?.startedAt);
+  const [pickOut, setPickOut] = useState(false);
+
+  // "Speaker" = the loud output (built-in speakers) vs a headset. One tap toggles when there are
+  // exactly two options; more options open a small picker.
+  const speakerish = (d) => /speaker|רמקול|built-in|internal|default/i.test(d.label);
+  const activeOut = outputs.devices.find(d => d.id === outputs.activeId);
+  const onSpeaker = activeOut ? speakerish(activeOut) : false;
+  function tapSpeaker() {
+    if (!outputs.supported || outputs.devices.length < 2) return;
+    if (outputs.devices.length === 2) {
+      const other = outputs.devices.find(d => d.id !== outputs.activeId);
+      if (other) setOutput(other.id);
+    } else setPickOut(v => !v);
+  }
 
   useEffect(() => {
     if (!error) return;
@@ -61,6 +75,24 @@ export default function CallBar() {
                 {active.direction === 'inbound' ? 'שיחה נכנסת' : 'שיחה יוצאת'} · {timer || 'מתקשר…'} · מוקלט
               </div>
             </div>
+            {outputs.supported && outputs.devices.length > 1 && (
+              <div className="relative">
+                <button onClick={tapSpeaker} title={activeOut ? `יציאת שמע: ${activeOut.label}` : 'רמקול'}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${onSpeaker ? 'bg-sky-400 text-slate-900' : 'bg-white/15 hover:bg-white/25'}`}>
+                  🔊
+                </button>
+                {pickOut && (
+                  <div className="absolute top-full mt-1 right-0 bg-white text-slate-800 rounded-xl shadow-xl border border-slate-200 overflow-hidden min-w-[200px] z-10">
+                    {outputs.devices.map(d => (
+                      <button key={d.id} onClick={() => { setOutput(d.id); setPickOut(false); }}
+                        className={`block w-full text-right px-3 py-2 text-sm hover:bg-slate-50 ${d.id === outputs.activeId ? 'font-black text-violet-700' : ''}`}>
+                        {speakerish(d) ? '🔊 ' : '🎧 '}{d.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             <button onClick={toggleMute} title={muted ? 'בטל השתקה' : 'השתק'}
               className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${muted ? 'bg-amber-400 text-slate-900' : 'bg-white/15 hover:bg-white/25'}`}>
               {muted ? '🔇' : '🎙️'}

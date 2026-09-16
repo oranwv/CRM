@@ -1836,6 +1836,18 @@ hand (Railway, Supabase, Green API, GreenInvoice, domain…). USD is the source;
 `settings.usd_ils_rate` (editable on the page, default 3.70). Usage before 2026-09-16 is not
 metered. Also: Twilio's own copy of each recording is deleted once ours is in Supabase.
 
+**Speaker-separated transcript (same day, after the first real test).** The dual-channel Twilio
+recording is downloaded as WAV (`RequestedChannels=2`), split into two mono WAVs in pure JS
+(`services/callTranscript.js`, no ffmpeg), each channel transcribed with Whisper
+`verbose_json` segments, and the segments interleaved by time into `נציג: … / לקוח: …` lines
+(channel 0 = the parent call: the rep on outbound/bridge, the customer on inbound). Falls back to
+a single mp3 transcript if the WAV path fails. `BodyWithFile` renders the lines with colored
+speaker chips. The summary prompt was rewritten to *describe what was actually said* (names,
+numbers, dates), including short/technical calls, and to give a sales score + tips only for real
+sales conversations (otherwise 0). Softphone bar gained a 🔊 output picker (built-in speakers vs
+headset) where the browser supports output selection (Chrome desktop/Android; not iOS Safari);
+mute already existed. Twilio's recording copy is deleted only after the transcript is done.
+
 **Call transcript now kept** (`calls.transcript`) and appended to the call interaction body after
 a `[[TRANSCRIPT]]` marker; `BodyWithFile` renders it as a collapsed "תמלול מלא". Whisper gets a
 Hebrew domain prompt; the summary prompt is told not to invent content and to score test/unclear

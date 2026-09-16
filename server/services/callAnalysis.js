@@ -10,6 +10,7 @@ const axios  = require('axios');
 const { toFile } = require('openai');
 const pool   = require('../db/pool');
 const { uploadFile } = require('./storageService');
+const { transcribeCall, WHISPER_PROMPT } = require('./callTranscript');
 
 const MIN_SECONDS_FOR_ANALYSIS = 15;
 
@@ -30,39 +31,48 @@ async function downloadRecording(recordingUrl) {
   return tmp;
 }
 
-async function transcribe(tmpPath, durationSec) {
+// Speaker-separated transcript (dual-channel WAV) with a plain mp3 fallback
+async function transcribe(tmpPath, durationSec, call, recordingUrl) {
+  if (call && recordingUrl) {
+    try {
+      const r = await transcribeCall({ openai: openai(), call, recordingUrl, durationSec });
+      if (r.text && r.text.trim()) return r.text.trim();
+    } catch (err) {
+      console.warn('[Calls] dual-channel transcript failed, falling back to mono:', err.message);
+    }
+  }
   const file = await toFile(fs.createReadStream(tmpPath), path.basename(tmpPath), { type: 'audio/mpeg' });
-  const t = await openai().audio.transcriptions.create({
-    model: 'whisper-1', file, language: 'he', audioSeconds: durationSec,
-    prompt: 'שיחת טלפון בעברית בין נציג מכירות של שרביה, מקום אירועים ביפו, ללקוח שמתעניין באירוע: חתונה, בר מצווה, אירוע חברה, מחיר לאורח, תאריך, תפריט, בר.',
-  });
+  const t = await openai().audio.transcriptions.create({ model: 'whisper-1', file, language: 'he', audioSeconds: durationSec, prompt: WHISPER_PROMPT });
   return (t.text || '').trim();
 }
 
 async function analyze({ transcript, direction, lead, repName, durationSec }) {
-  const prompt = `אתה מאמן מכירות של מקום אירועים (שרביה, יפו). לפניך תמלול של שיחת טלפון ${direction === 'inbound' ? 'נכנסת מלקוח' : 'יוצאת ללקוח'} באורך ${fmtDuration(durationSec)}.
+  const prompt = `אתה עוזר למנהל מכירות של שרביה — מקום אירועים ביפו. לפניך תמלול של שיחת טלפון ${direction === 'inbound' ? 'נכנסת מלקוח' : 'יוצאת ללקוח'} באורך ${fmtDuration(durationSec)}, עם סימון מי מדבר (נציג / לקוח) כשידוע.
 נציג: ${repName || 'לא ידוע'}. ליד: ${lead?.name || 'לא ידוע'}${lead?.event_type ? ', סוג אירוע: ' + lead.event_type : ''}${lead?.stage ? ', שלב: ' + lead.stage : ''}.
 
-החזר JSON בלבד (ללא טקסט נוסף) במבנה:
+המשימה: לתאר במדויק מה קרה בשיחה הזו, כך שמי שלא שמע אותה יבין מה נאמר, מה סוכם ומה צריך לעשות.
+כללים:
+- הסיכום מתאר את מה שנאמר בפועל, בסדר שקרה, כולל שמות, מספרים, תאריכים וסכומים שהוזכרו. לא להמציא, לא להכליל, לא לתת ציונים "מן הסתם".
+- גם שיחה קצרה או טכנית (לא שומעים, נתקשר אחר כך) מסוכמת כפי שהיא — למשל: "הנציג התקשר, הצד השני לא שמע אותו, סוכם שהנציג יתקשר שוב". לא לכתוב "שיחת בדיקה" אלא אם נאמר במפורש שזו בדיקה.
+- customer_needs / objections / agreements / next_steps — רק דברים שנאמרו בשיחה. אם לא היה — מערך ריק.
+- sales_score (1-10) והטיפים ניתנים רק אם הייתה שיחת מכירה אמיתית עם לקוח (הוצג מקום, מחיר, תאריך וכו'). אם השיחה לא הגיעה לתוכן מכירתי — sales_score = 0 וללא טיפים.
+
+החזר JSON בלבד במבנה:
 {
-  "summary": "סיכום של 2-4 משפטים — מה קרה בשיחה",
-  "customer_needs": ["מה הלקוח צריך / ביקש / חשוב לו"],
-  "objections": ["התנגדויות או חששות שעלו (ריק אם אין)"],
-  "agreements": ["מה סוכם או הובטח"],
-  "next_steps": ["צעדים הבאים מוצעים לנציג"],
+  "summary": "2-5 משפטים: מה קרה בשיחה, בעברית פשוטה",
+  "customer_needs": [], "objections": [], "agreements": [], "next_steps": [],
   "sentiment": "חיובי|נייטרלי|שלילי",
-  "sales_score": 1-10,
-  "coaching_tips": ["2-3 טיפים קצרים ומעשיים לשיפור השיחה הבאה"],
-  "event_details": { "date": "אם צוין", "guests": "אם צוין", "budget": "אם צוין", "event_type": "אם צוין" }
+  "sales_score": 0-10,
+  "coaching_tips": [],
+  "event_details": { "date": "", "guests": "", "budget": "", "event_type": "" }
 }
-היה תמציתי, בעברית. סכם רק מה שנאמר בפועל — אל תמציא ואל תנחש. אם התמלול לא ברור, קצר מדי, או נראה כמו שיחת בדיקה/ניסיון (אין לקוח אמיתי) — כתוב זאת בסיכום, השאר את המערכים ריקים ותן sales_score = 0.
 
 תמלול:
 """${transcript.slice(0, 24000)}"""`;
 
   const res = await openai().chat.completions.create({
     model: 'gpt-4o',
-    temperature: 0.3,
+    temperature: 0.2,
     response_format: { type: 'json_object' },
     messages: [{ role: 'user', content: prompt }],
   });
@@ -121,17 +131,12 @@ async function processRecording({ callId, recordingSid, recordingUrl, durationSe
     );
     fileId = f.id;
     fileMarker = `[[FILE:${fileId}|${fileName}]]`;
-    // Our copy is safe in Supabase — drop Twilio's so we don't pay their storage too
-    if (recordingSid) {
-      require('./twilioService').getClient().recordings(recordingSid).remove()
-        .catch(err => console.warn('[Calls] could not delete Twilio recording:', err.message));
-    }
 
     if (voicemail) {
-      if (durationSec >= 2 && process.env.OPENAI_API_KEY) vmTranscript = await transcribe(tmp, durationSec).catch(() => null);
+      if (durationSec >= 2 && process.env.OPENAI_API_KEY) vmTranscript = await transcribe(tmp, durationSec, null, null).catch(() => null);
       transcript = vmTranscript;
     } else if (durationSec >= MIN_SECONDS_FOR_ANALYSIS && process.env.OPENAI_API_KEY) {
-      transcript = await transcribe(tmp, durationSec);
+      transcript = await transcribe(tmp, durationSec, call, recordingUrl);
       if (transcript.length > 20) {
         analysis = await analyze({ transcript, direction: call.direction, lead, repName, durationSec });
       }
@@ -140,6 +145,12 @@ async function processRecording({ callId, recordingSid, recordingUrl, durationSe
     console.error('[Calls] recording pipeline error:', err.message);
   } finally {
     if (tmp) { try { fs.unlinkSync(tmp); } catch {} }
+  }
+  // Our copy is safe in Supabase and the transcript is done — drop Twilio's copy so we
+  // don't pay their storage too
+  if (fileId && recordingSid) {
+    require('./twilioService').getClient().recordings(recordingSid).remove()
+      .catch(err => console.warn('[Calls] could not delete Twilio recording:', err.message));
   }
 
   const body = renderBody({
