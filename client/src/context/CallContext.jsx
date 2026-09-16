@@ -15,6 +15,7 @@ export function CallProvider({ children }) {
   const [muted, setMuted]       = useState(false);
   const [error, setError]       = useState(null);
   const [outputs, setOutputs]   = useState({ supported: false, devices: [], activeId: null }); // speakers/headset picker
+  const [micLost, setMicLost]   = useState(false);        // OS suspended our microphone (phone went to another app)
   const deviceRef = useRef(null);
   const refreshOutputsRef = useRef(() => {});
   const loggedIn = !!localStorage.getItem('crm_token');
@@ -78,12 +79,47 @@ export function CallProvider({ children }) {
     return () => { cancelled = true; };
   }, [config.enabled]);
 
+  // Phones (Android Chrome especially) suspend the mic track when the tab goes to the
+  // background — the other side stops hearing us and nothing in the UI says so. Watch the
+  // local track; when it is muted by the OS, or when we come back to the foreground, re-acquire
+  // the microphone through the SDK so the call continues.
+  const reacquireMic = useCallback(async (call) => {
+    const a = deviceRef.current?.audio;
+    if (!a || !call) return;
+    try {
+      const current = a.inputDevice?.deviceId || 'default';
+      await a.setInputDevice(current);
+      if (call.isMuted && call.isMuted()) call.mute(false);
+      setMicLost(false);
+    } catch (err) { console.warn('[Calls] mic re-acquire failed:', err.message); }
+  }, []);
+
+  const watchMic = useCallback((call) => {
+    const check = () => {
+      const track = call.getLocalStream?.()?.getAudioTracks()[0];
+      const lost = !track || track.readyState === 'ended' || track.muted;
+      setMicLost(lost);
+      if (lost) reacquireMic(call);
+    };
+    const track = call.getLocalStream?.()?.getAudioTracks()[0];
+    if (track) {
+      track.addEventListener('mute', check);
+      track.addEventListener('unmute', () => setMicLost(false));
+      track.addEventListener('ended', check);
+    }
+    const onVisible = () => { if (document.visibilityState === 'visible') setTimeout(check, 300); };
+    document.addEventListener('visibilitychange', onVisible);
+    const poll = setInterval(check, 4000);
+    call.on('disconnect', () => { clearInterval(poll); document.removeEventListener('visibilitychange', onVisible); setMicLost(false); });
+  }, [reacquireMic]);
+
   const attachActive = useCallback((call, meta) => {
     setMuted(false);
     setActive({ call, ...meta, startedAt: null });
     call.on('accept', () => {
       setActive(cur => (cur?.call === call ? { ...cur, startedAt: Date.now() } : cur));
       [500, 2000, 5000].forEach(ms => setTimeout(() => refreshOutputsRef.current(), ms));
+      watchMic(call);
     });
     call.on('disconnect', () => setActive(cur => (cur?.call === call ? null : cur)));
     call.on('cancel', () => setActive(cur => (cur?.call === call ? null : cur)));
@@ -143,7 +179,7 @@ export function CallProvider({ children }) {
 
   const value = {
     enabled: !!config.enabled, ready, config, error, clearError: () => setError(null),
-    incoming, active, muted, outputs, setOutput,
+    incoming, active, muted, outputs, setOutput, micLost, fixMic: () => active && reacquireMic(active.call),
     startCall, bridgeCall, acceptIncoming, rejectIncoming, hangup, toggleMute, setAbroad, reloadConfig: loadConfig,
   };
   return <CallContext.Provider value={value}>{children}</CallContext.Provider>;

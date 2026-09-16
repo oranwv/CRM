@@ -27,7 +27,7 @@ function CallBtn({ onClick, label, icon, active, activeCls = '', className = '',
 }
 
 export default function CallBar() {
-  const { enabled, incoming, active, muted, error, clearError, acceptIncoming, rejectIncoming, hangup, toggleMute, outputs, setOutput } = useCalls();
+  const { enabled, incoming, active, muted, error, clearError, acceptIncoming, rejectIncoming, hangup, toggleMute, outputs, setOutput, micLost, fixMic } = useCalls();
   const navigate = useNavigate();
   const timer = useTimer(active?.startedAt);
   const [pickOut, setPickOut] = useState(false);
@@ -84,6 +84,11 @@ export default function CallBar() {
               <div className="text-xs text-slate-300">
                 {active.direction === 'inbound' ? 'שיחה נכנסת' : 'שיחה יוצאת'} · {timer || 'מתקשר…'} · מוקלט
               </div>
+              {micLost && (
+                <button onClick={fixMic} className="mt-1 text-[11px] font-black text-amber-300 bg-amber-500/20 border border-amber-400/40 rounded-lg px-2 py-0.5">
+                  ⚠️ המיקרופון נותק על ידי הטלפון — הקש לחידוש
+                </button>
+              )}
               {!(outputs.supported && outputs.devices.length > 1) && (
                 <div className="text-[10px] text-slate-400 truncate" title="יציאות שמע שהדפדפן מאפשר">
                   {outputs.supported ? (outputs.devices.length ? `יציאה: ${outputs.devices.map(d => d.label).join(' / ')}` : 'הדפדפן לא מציג יציאות שמע') : 'הדפדפן לא מאפשר בחירת רמקול'}
