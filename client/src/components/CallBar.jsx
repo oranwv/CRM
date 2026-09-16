@@ -16,6 +16,16 @@ function useTimer(startedAt) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
+// Round button with a phone-dialer style caption under it
+function CallBtn({ onClick, label, icon, active, activeCls = '', className = '', title }) {
+  return (
+    <button onClick={onClick} title={title} className="flex flex-col items-center gap-0.5 shrink-0">
+      <span className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${className || (active ? activeCls : 'bg-white/15 hover:bg-white/25')}`}>{icon}</span>
+      <span className="text-[10px] text-slate-300 leading-none">{label}</span>
+    </button>
+  );
+}
+
 export default function CallBar() {
   const { enabled, incoming, active, muted, error, clearError, acceptIncoming, rejectIncoming, hangup, toggleMute, outputs, setOutput } = useCalls();
   const navigate = useNavigate();
@@ -74,13 +84,16 @@ export default function CallBar() {
               <div className="text-xs text-slate-300">
                 {active.direction === 'inbound' ? 'שיחה נכנסת' : 'שיחה יוצאת'} · {timer || 'מתקשר…'} · מוקלט
               </div>
+              {!(outputs.supported && outputs.devices.length > 1) && (
+                <div className="text-[10px] text-slate-400 truncate" title="יציאות שמע שהדפדפן מאפשר">
+                  {outputs.supported ? (outputs.devices.length ? `יציאה: ${outputs.devices.map(d => d.label).join(' / ')}` : 'הדפדפן לא מציג יציאות שמע') : 'הדפדפן לא מאפשר בחירת רמקול'}
+                </div>
+              )}
             </div>
             {outputs.supported && outputs.devices.length > 1 && (
               <div className="relative">
-                <button onClick={tapSpeaker} title={activeOut ? `יציאת שמע: ${activeOut.label}` : 'רמקול'}
-                  className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${onSpeaker ? 'bg-sky-400 text-slate-900' : 'bg-white/15 hover:bg-white/25'}`}>
-                  🔊
-                </button>
+                <CallBtn onClick={tapSpeaker} label={onSpeaker ? 'רמקול' : 'אוזנייה'} icon="🔊"
+                  active={onSpeaker} activeCls="bg-sky-400 text-slate-900" title={activeOut ? `יציאת שמע: ${activeOut.label}` : 'רמקול'} />
                 {pickOut && (
                   <div className="absolute top-full mt-1 right-0 bg-white text-slate-800 rounded-xl shadow-xl border border-slate-200 overflow-hidden min-w-[200px] z-10">
                     {outputs.devices.map(d => (
@@ -93,12 +106,8 @@ export default function CallBar() {
                 )}
               </div>
             )}
-            <button onClick={toggleMute} title={muted ? 'בטל השתקה' : 'השתק'}
-              className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${muted ? 'bg-amber-400 text-slate-900' : 'bg-white/15 hover:bg-white/25'}`}>
-              {muted ? '🔇' : '🎙️'}
-            </button>
-            <button onClick={hangup} title="נתק"
-              className="w-10 h-10 rounded-full bg-red-500 hover:bg-red-400 flex items-center justify-center text-lg">📵</button>
+            <CallBtn onClick={toggleMute} label={muted ? 'מושתק' : 'השתק'} icon={muted ? '🔇' : '🎙️'} active={muted} activeCls="bg-amber-400 text-slate-900" title={muted ? 'בטל השתקה' : 'השתק'} />
+            <CallBtn onClick={hangup} label="נתק" icon="📵" className="bg-red-500 hover:bg-red-400" title="נתק" />
           </div>
         </div>
       )}

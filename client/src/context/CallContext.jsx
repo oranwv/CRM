@@ -16,6 +16,7 @@ export function CallProvider({ children }) {
   const [error, setError]       = useState(null);
   const [outputs, setOutputs]   = useState({ supported: false, devices: [], activeId: null }); // speakers/headset picker
   const deviceRef = useRef(null);
+  const refreshOutputsRef = useRef(() => {});
   const loggedIn = !!localStorage.getItem('crm_token');
 
   const loadConfig = useCallback(async () => {
@@ -64,6 +65,9 @@ export function CallProvider({ children }) {
         };
         device.audio?.on('deviceChange', refreshOutputs);
         refreshOutputs();
+        // Labels/devices only appear after the mic permission is granted (i.e. once a call
+        // starts) — re-read a few times after each call begins.
+        refreshOutputsRef.current = refreshOutputs;
         deviceRef.current = device;
         await device.register();
       } catch (err) {
@@ -77,7 +81,10 @@ export function CallProvider({ children }) {
   const attachActive = useCallback((call, meta) => {
     setMuted(false);
     setActive({ call, ...meta, startedAt: null });
-    call.on('accept', () => setActive(cur => (cur?.call === call ? { ...cur, startedAt: Date.now() } : cur)));
+    call.on('accept', () => {
+      setActive(cur => (cur?.call === call ? { ...cur, startedAt: Date.now() } : cur));
+      [500, 2000, 5000].forEach(ms => setTimeout(() => refreshOutputsRef.current(), ms));
+    });
     call.on('disconnect', () => setActive(cur => (cur?.call === call ? null : cur)));
     call.on('cancel', () => setActive(cur => (cur?.call === call ? null : cur)));
     call.on('error', e => { setError(e?.message || 'שגיאה בשיחה'); setActive(cur => (cur?.call === call ? null : cur)); });
