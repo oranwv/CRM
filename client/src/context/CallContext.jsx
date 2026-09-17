@@ -18,6 +18,10 @@ export function CallProvider({ children }) {
   const [micLost, setMicLost]   = useState(false);        // OS suspended our microphone (phone went to another app)
   const deviceRef = useRef(null);
   const refreshOutputsRef = useRef(() => {});
+  const refreshTokenRef = useRef(async () => false);
+  const tokenAtRef = useRef(0);
+  const activeRef = useRef(null);
+  const incomingRef = useRef(null);
   const loggedIn = !!localStorage.getItem('crm_token');
 
   const loadConfig = useCallback(async () => {
@@ -27,6 +31,23 @@ export function CallProvider({ children }) {
   }, []);
 
   useEffect(() => { loadConfig(); }, [loadConfig, loggedIn]);
+  useEffect(() => { activeRef.current = active; }, [active]);
+  useEffect(() => { incomingRef.current = incoming; }, [incoming]);
+
+  // Refresh the access token well before it expires, and whenever the tab comes back to the
+  // foreground with a stale one (phones freeze timers while the screen is off).
+  useEffect(() => {
+    if (!config.enabled) return;
+    const STALE = 3 * 60 * 60 * 1000;  // token lives 4h server-side
+    const maybeRefresh = () => {
+      if (!deviceRef.current || !tokenAtRef.current) return;
+      if (Date.now() - tokenAtRef.current > STALE) refreshTokenRef.current();
+    };
+    const t = setInterval(maybeRefresh, 5 * 60 * 1000);
+    const onVisible = () => { if (document.visibilityState === 'visible') maybeRefresh(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', onVisible); };
+  }, [config.enabled]);
 
   // Register the softphone once calling is enabled
   useEffect(() => {
@@ -43,10 +64,36 @@ export function CallProvider({ children }) {
         });
         device.on('registered', () => setReady(true));
         device.on('unregistered', () => setReady(false));
-        device.on('error', e => { console.error('[Calls]', e); setError(e?.message || 'שגיאת טלפוניה'); });
-        device.on('tokenWillExpire', async () => {
-          try { const r = await api.get('/calls/token'); device.updateToken(r.data.token); } catch {}
+        // Access tokens last an hour. A phone that slept, a backgrounded tab or a dropped
+        // network can miss the refresh, and Twilio then raises 20104/20101 repeatedly — which
+        // is our problem to fix silently, not a message for the user.
+        const refreshToken = async (attempt = 0) => {
+          if (cancelled) return false;
+          try {
+            const r = await api.get('/calls/token');
+            device.updateToken(r.data.token);
+            tokenAtRef.current = Date.now();
+            return true;
+          } catch (err) {
+            if (attempt < 3) {
+              setTimeout(() => refreshToken(attempt + 1), 3000 * (attempt + 1));
+            } else {
+              console.warn('[Calls] token refresh failed', err?.message);
+            }
+            return false;
+          }
+        };
+        refreshTokenRef.current = refreshToken;
+
+        const TOKEN_ERRORS = [20101, 20103, 20104, 31204, 31205];
+        device.on('error', e => {
+          const code = e?.code;
+          if (TOKEN_ERRORS.includes(code)) { console.info('[Calls] token expired — refreshing'); refreshToken(); return; }
+          console.error('[Calls]', e);
+          // Only surface errors the user can act on: something went wrong during a live call.
+          if (activeRef.current || incomingRef.current) setError(e?.message || 'שגיאת טלפוניה');
         });
+        device.on('tokenWillExpire', () => refreshToken());
         device.on('incoming', call => {
           const p = call.customParameters || new Map();
           const leadName = p.get('leadName') || '';
@@ -70,6 +117,7 @@ export function CallProvider({ children }) {
         // starts) — re-read a few times after each call begins.
         refreshOutputsRef.current = refreshOutputs;
         deviceRef.current = device;
+        tokenAtRef.current = Date.now();
         await device.register();
       } catch (err) {
         console.error('[Calls] device init failed', err);
@@ -130,6 +178,7 @@ export function CallProvider({ children }) {
   const startCall = useCallback(async (lead) => {
     if (!deviceRef.current) throw new Error('הטלפון לא מוכן');
     if (active) throw new Error('יש כבר שיחה פעילה');
+    if (Date.now() - tokenAtRef.current > 3 * 60 * 60 * 1000) await refreshTokenRef.current();
     const call = await deviceRef.current.connect({ params: { To: lead.phone, LeadId: String(lead.id) } });
     attachActive(call, { leadName: lead.name, leadId: lead.id, direction: 'outbound' });
     setActive(cur => (cur ? { ...cur, startedAt: Date.now() } : cur)); // ringing counts from now for the UI

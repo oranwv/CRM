@@ -1865,6 +1865,14 @@ sales conversations (otherwise 0). Softphone bar gained a 🔊 output picker (bu
 headset) where the browser supports output selection (Chrome desktop/Android; not iOS Safari);
 mute already existed. Twilio's recording copy is deleted only after the transcript is done.
 
+**Token expiry no longer shows red toasts (2026-09-17).** Access tokens now last 4h
+(`TOKEN_TTL` in twilioService) instead of 1h; the client refreshes proactively (every 5 min it
+checks whether the token is older than 3h, also on `visibilitychange` and before an outbound
+call), retries a failed refresh 3 times with backoff, and treats Twilio codes 20101/20103/20104/
+31204/31205 as "refresh silently" rather than an error. Device errors are only shown to the user
+while a call is live or ringing — otherwise they are logged. Reason: a phone that sleeps misses
+the `tokenWillExpire` event and Twilio then raised AccessTokenExpired on a loop.
+
 **Extra phones (2026-09-17).** All of a lead's phones (main + `lead_contacts` type phone) are
 listed in the "טלפון" row, each with its own `tel:` link and 📞 call buttons (`CallButtons`
 takes a `phone` override; `POST /calls/bridge` accepts `phone` and checks it belongs to the

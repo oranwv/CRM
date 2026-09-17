@@ -33,6 +33,20 @@ lookup + force-rescan; (2) "needs manual download" list with upload-to-Drive + "
 invoice" dismiss. He has not yet fixed the SERVER_URL leading space in Railway; no extra
 mailbox is connected yet.
 
+## 2026-09-17 — Calling polish from Oran's phone testing
+
+All phones of a lead (main + lead_contacts) now sit in the "טלפון" row with their own call
+buttons, and they are added/removed inside the edit form. Mic re-acquire when Android suspends
+the tab. AccessTokenExpired toasts fixed (4h tokens + silent refresh + errors only during a
+live call).
+
+Established with Oran that a browser cannot control speaker/earpiece or call volume on a phone
+(Chrome Android reports no output selection; iOS Safari likewise) and cannot hold the mic in the
+background. Decision pending: make "📲 דרך הנייד שלי" the default on phones, and/or build a small
+dedicated dialer app (React Native + Twilio Voice SDK + FCM/CallKit push) that only does calls —
+the CRM stays a web app. Oran has iPhone users on the team, so an Apple Developer account is the
+long pole.
+
 ## 2026-09-16 (evening) — Speaker-separated transcripts, honest summaries, speaker button
 
 Second test call: the transcript was fine, the summary called it a "test call" — Oran wants

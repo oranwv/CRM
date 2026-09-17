@@ -105,14 +105,16 @@ const userIdFromIdentity = (identity) => {
   return m ? Number(m[1]) : null;
 };
 
-// Short-lived JWT the browser SDK registers with (1 hour; the client refreshes it).
+// JWT the browser SDK registers with. Twilio allows up to 24h; 4 hours keeps phones that
+// sleep through a refresh from waking up to an expired token (the client also refreshes).
+const TOKEN_TTL = 4 * 60 * 60;
 async function accessToken(userId) {
   const [keySid, keySecret, appSid] = await Promise.all([
     getSetting(SETTINGS.keySid), getSetting(SETTINGS.keySecret), getSetting(SETTINGS.appSid),
   ]);
   if (!keySid || !keySecret || !appSid) throw new Error('Twilio setup incomplete — check server logs');
   const { AccessToken } = twilio.jwt;
-  const token = new AccessToken(process.env.TWILIO_ACCOUNT_SID, keySid, keySecret, { identity: identityFor(userId), ttl: 3600 });
+  const token = new AccessToken(process.env.TWILIO_ACCOUNT_SID, keySid, keySecret, { identity: identityFor(userId), ttl: TOKEN_TTL });
   token.addGrant(new AccessToken.VoiceGrant({ outgoingApplicationSid: appSid, incomingAllow: true }));
   return token.toJwt();
 }
