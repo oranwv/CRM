@@ -482,7 +482,7 @@ contractPublicRouter.post('/:token/sign', async (req, res) => {
       '',
       'תודה על החתימה! החוזה החתום מצורף.',
       ...(customBody   ? ['', customBody]               : []),
-      ...(bankDetails  ? ['', 'פרטי תשלום:', bankDetails] : []),
+      ...(bankDetails  ? ['', 'פרטי חשבון לביצוע העברה:', bankDetails] : []),
       '',
       'בברכה, צוות שרביה',
     ].join('\n');

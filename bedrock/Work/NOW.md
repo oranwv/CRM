@@ -6,6 +6,13 @@ updated: 2026-09-16
 
 # Now
 
+## 2026-09-17 — Signed-contract message: bank block heading
+
+Oran: the post-signature message to the client said "פרטי תשלום:" above the admin-panel bank
+text; renamed to "פרטי חשבון לביצוע העברה:" (contracts.js, one line — same body is used for
+both the email and the WhatsApp copy). The admin field's own label ("פרטי תשלום / חשבון
+בנק") was left as-is; ask before renaming it.
+
 ## 2026-09-17 — "שלח לרואה חשבון" + invoice-scan gaps investigated
 
 Built per Oran's spec: button under the invoice-scan card → choose MM-YYYY Drive folders →

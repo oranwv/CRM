@@ -553,7 +553,7 @@ settings:              key TEXT PRIMARY KEY, value TEXT, updated_at
 | `ai_instructions` | tone/style rules injected into every AI reply/improve prompt |
 | `ai_knowledge_text` | free-text knowledge appended to the AI chat system prompt |
 | `staff_signature` | signature image printed on contracts |
-| `contract_email_body` / `contract_email_bank` | default contract email text + bank payment details |
+| `contract_email_body` / `contract_email_bank` | default contract email text + bank details; the bank block is headed "פרטי חשבון לביצוע העברה:" in the signed-contract email/WhatsApp (renamed from "פרטי תשלום" 2026-09-17) |
 | `wa_chatbot_enabled` / `wa_chatbot_greeting` / `wa_chatbot_followup` | WhatsApp auto-reply bot |
 | `sales_briefing_enabled` / `sales_briefing_morning_hour` / `sales_briefing_evening_hour` | AI sales briefings (default 8 / 18, Asia/Jerusalem) |
 | `finance_exclusions` | rows never counted as missing expenses |
