@@ -1850,6 +1850,13 @@ sales conversations (otherwise 0). Softphone bar gained a 🔊 output picker (bu
 headset) where the browser supports output selection (Chrome desktop/Android; not iOS Safari);
 mute already existed. Twilio's recording copy is deleted only after the transcript is done.
 
+**Extra phones (2026-09-17).** All of a lead's phones (main + `lead_contacts` type phone) are
+listed in the "טלפון" row, each with its own `tel:` link and 📞 call buttons (`CallButtons`
+takes a `phone` override; `POST /calls/bridge` accepts `phone` and checks it belongs to the
+lead). The edit form gained "טלפונים נוספים" (add with optional label / remove — saved
+immediately through the contacts API). The old "📞 טלפונים נוספים" block below the details is
+gone; "✉️ אימיילים נוספים" stays.
+
 **Call transcript now kept** (`calls.transcript`) and appended to the call interaction body after
 a `[[TRANSCRIPT]]` marker; `BodyWithFile` renders it as a collapsed "תמלול מלא". Whisper gets a
 Hebrew domain prompt; the summary prompt is told not to invent content and to score test/unclear

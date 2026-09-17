@@ -138,7 +138,7 @@ export function CallProvider({ children }) {
 
   // "Call my mobile first" — Twilio rings the rep's phone, then bridges to the lead
   const bridgeCall = useCallback(async (lead) => {
-    const r = await api.post('/calls/bridge', { leadId: lead.id });
+    const r = await api.post('/calls/bridge', { leadId: lead.id, phone: lead.phone });
     return r.data;
   }, []);
 

@@ -682,21 +682,31 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
             <Section title="פרטי לקוח"
               action={!editing && <button onClick={() => setEditing(true)} className="text-sm text-violet-600 hover:underline font-semibold">✏️ עריכה</button>}>
               {editing ? (
-                <EditForm form={editForm} setForm={setEditForm} users={users} onSave={saveEdit} onCancel={() => setEditing(false)} />
+                <EditForm form={editForm} setForm={setEditForm} users={users} onSave={saveEdit} onCancel={() => setEditing(false)}
+                  leadId={leadId} contacts={contacts}
+                  onContactsChanged={() => api.get(`/leads/${leadId}/contacts`).then(r => setContacts(r.data)).catch(() => {})} />
               ) : (
                 <>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <InfoRow label="טלפון">
-                      {lead.phone ? (
-                        <span className="inline-flex items-center gap-2 flex-wrap">
-                          <a
-                            href={`tel:${lead.phone}`}
-                            className="text-violet-700 hover:underline font-medium"
-                            dir="ltr"
-                            onClick={() => api.post(`/leads/${lead.id}/interactions`, { type: 'call_attempt', direction: 'outbound', body: '', source: 'dial' }).then(load)}
-                          >{lead.phone}</a>
-                          <CallButtons lead={lead} />
-                        </span>
+                      {lead.phone || contacts.some(c => c.type === 'phone') ? (
+                        <div className="space-y-1.5">
+                          {[
+                            ...(lead.phone ? [{ id: 'main', value: lead.phone, label: null }] : []),
+                            ...contacts.filter(c => c.type === 'phone'),
+                          ].map(p => (
+                            <div key={p.id} className="flex items-center gap-2 flex-wrap">
+                              {p.label && <span className="text-sm font-semibold text-slate-500 shrink-0">{p.label}</span>}
+                              <a
+                                href={`tel:${p.value}`}
+                                className="text-violet-700 hover:underline font-medium"
+                                dir="ltr"
+                                onClick={() => api.post(`/leads/${lead.id}/interactions`, { type: 'call_attempt', direction: 'outbound', body: '', source: 'dial' }).then(load)}
+                              >{p.value}</a>
+                              <CallButtons lead={lead} phone={p.value} />
+                            </div>
+                          ))}
+                        </div>
                       ) : '—'}
                     </InfoRow>
                     <InfoRow label="אימייל">{lead.email || '—'}</InfoRow>
@@ -1198,8 +1208,9 @@ function FilesSection({ leadId, files, onChanged, isAdmin }) {
 // "התקשר" dials from the browser and shows the venue's Israeli number to the customer;
 // "דרך הנייד" makes Twilio ring the rep's own mobile first, then bridges to the lead.
 // Both are recorded and summarized onto the lead timeline by the server.
-function CallButtons({ lead }) {
+function CallButtons({ lead, phone }) {
   const calls = useCalls();
+  const target = { ...lead, phone: phone || lead.phone };
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState(false);
   const [note, setNote] = useState('');
@@ -1207,13 +1218,13 @@ function CallButtons({ lead }) {
 
   async function browserCall() {
     setMenu(false); setBusy(true);
-    try { await calls.startCall(lead); }
+    try { await calls.startCall(target); }
     catch (err) { setNote(err.message || 'לא ניתן להתקשר'); setTimeout(() => setNote(''), 4000); }
     finally { setBusy(false); }
   }
   async function mobileCall() {
     setMenu(false); setBusy(true);
-    try { await calls.bridgeCall(lead); setNote('📲 הנייד שלך מצלצל — ענה וניחבר אותך ללקוח'); setTimeout(() => setNote(''), 8000); }
+    try { await calls.bridgeCall(target); setNote('📲 הנייד שלך מצלצל — ענה וניחבר אותך ללקוח'); setTimeout(() => setNote(''), 8000); }
     catch (err) { setNote(err.response?.data?.error || err.message || 'לא ניתן להתקשר'); setTimeout(() => setNote(''), 4000); }
     finally { setBusy(false); }
   }
@@ -4673,6 +4684,47 @@ function WhatsAppTab({ leadId, allPhones, allPhoneLabels = {}, allEmails = [], l
 }
 
 /* ── SHARED ── */
+// Extra phone numbers inside the edit form. They are separate rows (lead_contacts), so
+// add/remove hit the API right away — the main form's "שמור" is not needed for them.
+function ExtraPhonesEdit({ leadId, contacts, onChanged, cls }) {
+  const phones = contacts.filter(c => c.type === 'phone');
+  const [value, setValue] = useState('');
+  const [label, setLabel] = useState('');
+  const [saving, setSaving] = useState(false);
+  async function add() {
+    if (!value.trim()) return;
+    setSaving(true);
+    try {
+      await api.post(`/leads/${leadId}/contacts`, { type: 'phone', value: value.trim(), label: label.trim() || undefined });
+      setValue(''); setLabel('');
+      await onChanged();
+    } catch {}
+    setSaving(false);
+  }
+  async function remove(id) { await api.delete(`/leads/${leadId}/contacts/${id}`); await onChanged(); }
+  return (
+    <div className="col-span-2">
+      <label className="text-sm text-slate-500">טלפונים נוספים</label>
+      <div className="space-y-1.5 mt-0.5">
+        {phones.map(c => (
+          <div key={c.id} className="flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-1.5 border border-slate-200">
+            {c.label && <span className="text-sm font-semibold text-slate-500 shrink-0">{c.label}</span>}
+            <span className="flex-1 text-base text-slate-700" dir="ltr">{c.value}</span>
+            <button type="button" onClick={() => remove(c.id)} className="text-slate-300 hover:text-red-400 text-sm px-1">🗑️</button>
+          </div>
+        ))}
+        <div className="flex gap-2">
+          <input value={label} onChange={e => setLabel(e.target.value)} className={cls + ' w-1/3'} placeholder="שם (אופציונלי)" />
+          <input value={value} onChange={e => setValue(e.target.value)} onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), add())}
+            className={cls + ' flex-1'} placeholder="מספר נוסף…" dir="ltr" />
+          <button type="button" onClick={add} disabled={saving || !value.trim()}
+            className="bg-violet-600 text-white text-sm font-bold px-3 rounded-xl disabled:opacity-50 shrink-0">{saving ? '…' : '+ הוסף'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function InfoRow({ label, children }) {
   return (
     <div className="bg-white rounded-xl px-3 py-2 border border-slate-100">
@@ -4682,7 +4734,7 @@ function InfoRow({ label, children }) {
   );
 }
 
-function EditForm({ form, setForm, users, onSave, onCancel }) {
+function EditForm({ form, setForm, users, onSave, onCancel, leadId, contacts = [], onContactsChanged = () => {} }) {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const cls = 'w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-violet-400 transition bg-white';
   return (
@@ -4690,6 +4742,7 @@ function EditForm({ form, setForm, users, onSave, onCancel }) {
       <div className="grid grid-cols-2 gap-2">
         <div><label className="text-sm text-slate-500">שם</label><input value={form.name || ''} onChange={e => set('name', e.target.value)} className={cls} /></div>
         <div><label className="text-sm text-slate-500">טלפון</label><input value={form.phone || ''} onChange={e => set('phone', e.target.value)} className={cls} dir="ltr" /></div>
+        {leadId && <ExtraPhonesEdit leadId={leadId} contacts={contacts} onChanged={onContactsChanged} cls={cls} />}
         <div className="col-span-2"><label className="text-sm text-slate-500">שם האירוע</label><input value={form.event_name || ''} onChange={e => set('event_name', e.target.value)} className={cls} placeholder="שם האירוע" /></div>
         <div><label className="text-sm text-slate-500">אימייל</label><input value={form.email || ''} onChange={e => set('email', e.target.value)} className={cls} dir="ltr" /></div>
         <div><label className="text-sm text-slate-500">תאריך אירוע</label><DateInput value={form.event_date_text || ''} onChange={v => set('event_date_text', v)} className={cls} /></div>
@@ -5766,8 +5819,9 @@ function LostModal({ onClose, onConfirm }) {
 }
 
 /* ── ADDITIONAL CONTACTS ── */
+// Extra phones are shown (and called) inside the "טלפון" row and edited in the edit form;
+// this block only carries the extra emails now.
 function AdditionalContacts({ leadId, contacts, onChanged }) {
-  const phones = contacts.filter(c => c.type === 'phone');
   const emails = contacts.filter(c => c.type === 'email');
 
   async function remove(id) {
@@ -5777,8 +5831,6 @@ function AdditionalContacts({ leadId, contacts, onChanged }) {
 
   return (
     <div className="mt-3 space-y-3">
-      <ContactGroup label="📞 טלפונים נוספים" type="phone" items={phones} leadId={leadId}
-        onRemove={remove} onAdded={onChanged} placeholder="מספר טלפון..." inputDir="ltr" />
       <ContactGroup label="✉️ אימיילים נוספים" type="email" items={emails} leadId={leadId}
         onRemove={remove} onAdded={onChanged} placeholder="כתובת אימייל..." inputDir="ltr" />
     </div>

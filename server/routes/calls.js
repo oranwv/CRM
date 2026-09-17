@@ -76,13 +76,22 @@ api.post('/bridge', async (req, res) => {
   if (!tw.isEnabled()) return res.status(503).json({ error: 'שיחות אינן מופעלות' });
   const lead = await leadSummary(req.body.leadId);
   const user = await currentUser(req.user.id);
-  if (!lead?.phone) return res.status(400).json({ error: 'לליד אין מספר טלפון' });
+  if (!lead) return res.status(404).json({ error: 'ליד לא נמצא' });
+  // Optional: one of the lead's extra numbers (lead_contacts) instead of the main phone
+  let target = lead.phone;
+  if (req.body.phone) {
+    const { rows: extra } = await pool.query(`SELECT value FROM lead_contacts WHERE lead_id = $1 AND type = 'phone'`, [lead.id]);
+    const ok = [lead.phone, ...extra.map(e => e.value)].some(v => v && normalizePhone(v) === normalizePhone(req.body.phone));
+    if (!ok) return res.status(400).json({ error: 'המספר לא שייך לליד' });
+    target = req.body.phone;
+  }
+  if (!target) return res.status(400).json({ error: 'לליד אין מספר טלפון' });
   if (!user?.phone) return res.status(400).json({ error: 'אין לך מספר נייד במערכת' });
   try {
     const { rows: [call] } = await pool.query(
       `INSERT INTO calls (direction, lead_id, user_id, from_number, to_number, status, mode)
        VALUES ('outbound', $1, $2, $3, $4, 'initiated', 'bridge') RETURNING id`,
-      [lead.id, user.id, process.env.TWILIO_PHONE_NUMBER, tw.toE164(lead.phone)]
+      [lead.id, user.id, process.env.TWILIO_PHONE_NUMBER, tw.toE164(target)]
     );
     const c = await tw.getClient().calls.create({
       to: tw.toE164(user.phone), from: process.env.TWILIO_PHONE_NUMBER,
