@@ -351,6 +351,166 @@ function InvoiceScanSection() {
   );
 }
 
+// "שלח לרואה חשבון" — pick MM-YYYY Drive folders, enter the accountant's
+// email, and the server mails the files (from the business Gmail, split into
+// several emails when they exceed Gmail's size limit). Runs in the background.
+function AccountantSendSection() {
+  const [open, setOpen]         = useState(false);
+  const [months, setMonths]     = useState([]);
+  const [loading, setLoading]   = useState(false);
+  const [selected, setSelected] = useState([]);
+  const [email, setEmail]       = useState('');
+  const [note, setNote]         = useState('');
+  const [sending, setSending]   = useState(false);
+  const [progress, setProgress] = useState(null);
+  const [result, setResult]     = useState(null);
+  const [error, setError]       = useState(null);
+  const [history, setHistory]   = useState([]);
+
+  const fmtSize = (b) => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.round(b / 1024)} KB`);
+  const loadHistory = () => api.get('/finance/accountant/history').then(r => setHistory(r.data)).catch(() => {});
+
+  async function openPanel() {
+    setOpen(true); setLoading(true); setError(null);
+    try {
+      const { data } = await api.get('/finance/accountant/months');
+      setMonths(data.months);
+      if (data.lastEmail && !email) setEmail(data.lastEmail);
+      loadHistory();
+      // resume progress display if a send is already running
+      const st = await api.get('/finance/accountant/status');
+      if (st.data.running) { setSending(true); setProgress(st.data.progress); setTimeout(pollSend, 3000); }
+    } catch (err) {
+      setError(err.response?.data?.error || 'שגיאה בטעינת התיקיות מהדרייב');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const toggle = (key) => setSelected(s => (s.includes(key) ? s.filter(k => k !== key) : [...s, key]));
+  const chosen = months.filter(m => selected.includes(m.key));
+  const totalFiles = chosen.reduce((n, m) => n + m.files, 0);
+  const totalBytes = chosen.reduce((n, m) => n + m.bytes, 0);
+
+  async function pollSend() {
+    try {
+      const { data } = await api.get('/finance/accountant/status');
+      if (data.progress) setProgress(data.progress);
+      if (data.running) { setTimeout(pollSend, 3000); return; }
+      if (data.error) setError(data.error);
+      else { setResult(data.result); setSelected([]); loadHistory(); }
+      setSending(false);
+    } catch {
+      setTimeout(pollSend, 5000);
+    }
+  }
+
+  async function send() {
+    if (!chosen.length) { setError('יש לבחור לפחות חודש אחד'); return; }
+    if (!email.trim()) { setError('יש להזין כתובת מייל של רואה החשבון'); return; }
+    if (!confirm(`לשלוח ${totalFiles} קבצים (${chosen.map(m => m.label).join(', ')}) אל ${email.trim()}?`)) return;
+    setSending(true); setError(null); setResult(null); setProgress({ downloaded: 0, total: totalFiles, emailsSent: 0 });
+    try {
+      await api.post('/finance/accountant/send', { months: selected, email: email.trim(), note });
+      setTimeout(pollSend, 2000);
+    } catch (err) {
+      setError(err.response?.data?.error || 'שגיאה בשליחה');
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-violet-100 shadow-sm p-4 space-y-3">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div>
+          <p className="font-bold text-slate-800 text-sm">שליחת חשבוניות לרואה חשבון</p>
+          <p className="text-xs text-slate-400">שולח את קבצי החשבוניות מהתיקיות החודשיות בדרייב כקבצים מצורפים, מהמייל של העסק.</p>
+        </div>
+        {!open && (
+          <button type="button" onClick={openPanel}
+            className="bg-violet-600 text-white text-sm font-bold rounded-xl px-4 py-2 hover:bg-violet-700 transition">
+            שלח לרואה חשבון
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div className="space-y-3">
+          {loading && <p className="text-xs text-slate-400">טוען תיקיות מהדרייב…</p>}
+
+          {!loading && months.length > 0 && (
+            <div>
+              <p className="text-xs font-bold text-slate-600 mb-1.5">בחר חודשים לשליחה</p>
+              <div className="flex flex-wrap gap-1.5">
+                {months.map(m => {
+                  const on = selected.includes(m.key);
+                  return (
+                    <button key={m.key} type="button" onClick={() => toggle(m.key)} disabled={sending || m.files === 0}
+                      className={`text-xs font-bold px-2.5 py-1.5 rounded-lg border transition disabled:opacity-40 ${on ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>
+                      {m.label} <span className={on ? 'text-violet-200' : 'text-slate-400'}>({m.files})</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {!loading && months.length === 0 && !error && <p className="text-xs text-slate-400">לא נמצאו תיקיות חודשיות בדרייב עדיין</p>}
+
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} disabled={sending}
+              placeholder="המייל של רואה החשבון" dir="ltr"
+              className="flex-1 border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
+            <input type="text" value={note} onChange={e => setNote(e.target.value)} disabled={sending}
+              placeholder="הערה למייל (לא חובה)"
+              className="flex-1 border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
+          </div>
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <button type="button" onClick={send} disabled={sending || !chosen.length}
+              className="bg-violet-600 text-white text-sm font-bold rounded-xl px-4 py-2 hover:bg-violet-700 transition disabled:opacity-50">
+              {sending ? 'שולח…' : 'שלח'}
+            </button>
+            {chosen.length > 0 && !sending && (
+              <span className="text-xs text-slate-500">{totalFiles} קבצים · {fmtSize(totalBytes)}{totalBytes > 18 * 1024 * 1024 ? ' · יישלח בכמה מיילים' : ''}</span>
+            )}
+            <button type="button" onClick={() => { setOpen(false); setError(null); setResult(null); }} disabled={sending}
+              className="text-xs text-slate-400 underline">סגור</button>
+          </div>
+
+          {sending && progress && (
+            <div className="flex items-center gap-2 text-sm bg-sky-50 border border-sky-200 text-sky-700 rounded-xl px-3 py-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-sky-500" />
+              </span>
+              <span className="font-bold">מוריד קבצים מהדרייב ושולח… {progress.downloaded}/{progress.total} קבצים · {progress.emailsSent} מיילים נשלחו</span>
+            </div>
+          )}
+          {error && <p className="text-sm text-red-600 font-bold">{error}</p>}
+          {result && (
+            <p className="text-sm bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-3 py-2">
+              ✓ נשלחו {result.files} קבצים ({result.period}) ב-{result.emailsSent} {result.emailsSent === 1 ? 'מייל' : 'מיילים'} אל {email}
+            </p>
+          )}
+
+          {history.length > 0 && (
+            <div>
+              <p className="text-xs font-bold text-slate-600 mb-1">שליחות קודמות</p>
+              <div className="space-y-1 max-h-40 overflow-y-auto">
+                {history.map(h => (
+                  <div key={h.id} className="text-xs text-slate-500 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-100">
+                    {new Date(h.created_at).toLocaleDateString('he-IL')} · {h.months.join(', ')} · {h.files_count} קבצים → <span dir="ltr">{h.email}</span>{h.created_by_name ? ` · ${h.created_by_name}` : ''}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function FinancePage() {
   const [items, setItems]           = useState([]);
   const [showResolved, setShowResolved] = useState(false);
@@ -476,6 +636,7 @@ export default function FinancePage() {
         </div>
 
         <InvoiceScanSection />
+        <AccountantSendSection />
 
         {/* Period selector — each reconciliation round is a saved workspace */}
         <div className="bg-white rounded-2xl border border-violet-100 shadow-sm p-4 space-y-2">

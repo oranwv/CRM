@@ -469,4 +469,4 @@ function startDailyInvoiceScan() {
   }, 60 * 60 * 1000);
 }
 
-module.exports = { scanRange, scanStatus, startDailyInvoiceScan, buildConnectUrl, oauthCallbackHandler };
+module.exports = { scanRange, scanStatus, startDailyInvoiceScan, buildConnectUrl, oauthCallbackHandler, primaryAuth, getRootFolderId };

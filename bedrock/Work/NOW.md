@@ -6,6 +6,26 @@ updated: 2026-09-16
 
 # Now
 
+## 2026-09-17 — "שלח לרואה חשבון" + invoice-scan gaps investigated
+
+Built per Oran's spec: button under the invoice-scan card → choose MM-YYYY Drive folders →
+enter accountant email → files emailed from the business Gmail as attachments (split into
+≤18 MB emails), logged in `finance_accountant_sends`, last email remembered in settings.
+Files: `services/accountantSendService.js`, routes in `finance.js`, `AccountantSendSection`
+in FinancePage, table in index.js. Not run against Drive/Gmail from the Mac VM (network
+blocked) — node --check + eslint only. After deploy verify: months list loads with counts;
+a small month sends and arrives with attachments; history row appears.
+
+Invoice-scan gaps (checked via the live API from Oran's Chrome): 25 attachment invoices
+saved, 5 link invoices saved (Rivhit/GreenInvoice work), 16 link failures = Canva ×3 (403),
+PayPro/Green-API ×2 (login page), מי אביבים ×3 (timeout), payplus (Cloudflare block — also
+blocks a real browser), morning.co, + 5 noise rows (Re:/FW: on one Ezyphone invoice,
+Paperless notice). Rivhit invoice 50741 of 5.7 is absent entirely — most likely never
+scanned (oldest row is 8.7). Proposed, awaiting Oran: (1) "why didn't this invoice enter"
+lookup + force-rescan; (2) "needs manual download" list with upload-to-Drive + "not an
+invoice" dismiss. He has not yet fixed the SERVER_URL leading space in Railway; no extra
+mailbox is connected yet.
+
 ## 2026-09-16 (evening) — Speaker-separated transcripts, honest summaries, speaker button
 
 Second test call: the transcript was fine, the summary called it a "test call" — Oran wants

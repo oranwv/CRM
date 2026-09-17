@@ -628,6 +628,17 @@ pool.query(`
       UPDATE finance_missing_expenses SET period_id = pid WHERE period_id IS NULL;
     END IF;
   END $$;
+  -- 2026-09-17: "שלח לרואה חשבון" — log of invoice batches emailed to the accountant
+  CREATE TABLE IF NOT EXISTS finance_accountant_sends (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) NOT NULL,
+    months TEXT[] NOT NULL,
+    files_count INT NOT NULL DEFAULT 0,
+    emails_sent INT NOT NULL DEFAULT 0,
+    note TEXT,
+    created_by INT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
   CREATE TABLE IF NOT EXISTS finance_gmail_accounts (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,

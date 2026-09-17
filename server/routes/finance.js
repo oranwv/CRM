@@ -3,6 +3,7 @@ const pool   = require('../db/pool');
 const multer = require('multer');
 const { reconcile, parseKartesetAny, findMissing, fingerprint, DEFAULT_EXCLUSIONS } = require('../services/financeReconcile');
 const { scanRange, scanStatus, buildConnectUrl } = require('../services/financeInvoiceScanner');
+const { listMonths, sendToAccountant, sendStatus } = require('../services/accountantSendService');
 
 // Unified status for karteset-driven auto-resolves (full compare + rekarteset)
 function kartesetResolvedStatus(now = new Date()) {
@@ -425,6 +426,49 @@ router.delete('/gmail/accounts/:id', async (req, res) => {
   try {
     await pool.query('DELETE FROM finance_gmail_accounts WHERE id = $1', [req.params.id]);
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── שלח לרואה חשבון ──────────────────────────────────────────────────────────
+
+// GET /api/finance/accountant/months — MM-YYYY folders in Drive with file counts,
+// plus the last accountant email used.
+router.get('/accountant/months', async (req, res) => {
+  try {
+    const months = await listMonths();
+    const { rows } = await pool.query("SELECT value FROM settings WHERE key = 'finance_accountant_email'");
+    res.json({ months, lastEmail: rows[0]?.value || '' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/finance/accountant/send { months: ['06-2026', ...], email, note }
+// Runs in the background (downloads + several emails); poll /accountant/status.
+router.post('/accountant/send', (req, res) => {
+  const { months, email, note } = req.body || {};
+  if (!Array.isArray(months) || !months.length || !months.every(m => /^\d{2}-\d{4}$/.test(m))) {
+    return res.status(400).json({ error: 'יש לבחור לפחות חודש אחד' });
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email || '')) return res.status(400).json({ error: 'כתובת מייל לא תקינה' });
+  if (sendStatus.running) return res.status(409).json({ error: 'שליחה כבר רצה — המתן לסיומה' });
+  sendToAccountant({ months, email: email.trim(), note: (note || '').trim(), userId: req.user.id })
+    .catch(err => console.error('[Finance] accountant send error:', err.message));
+  res.json({ started: true });
+});
+
+router.get('/accountant/status', (req, res) => res.json(sendStatus));
+
+// GET /api/finance/accountant/history — last sends
+router.get('/accountant/history', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT s.id, s.email, s.months, s.files_count, s.emails_sent, s.note, s.created_at, u.name AS created_by_name
+       FROM finance_accountant_sends s LEFT JOIN users u ON u.id = s.created_by
+       ORDER BY s.created_at DESC LIMIT 20`);
+    res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

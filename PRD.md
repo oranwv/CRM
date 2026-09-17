@@ -524,6 +524,7 @@ finance_missing_expenses: id, period_id, fingerprint, entry_date, name, descript
                           deferred_from_period_id, created_at
                           UNIQUE INDEX (period_id, fingerprint)
 finance_expense_notes:    id, expense_id, body, created_by, created_at
+finance_accountant_sends: id, email, months TEXT[], files_count, emails_sent, note, created_by, created_at
 finance_gmail_accounts:   id, email UNIQUE, token_json, active, last_scan_at, created_at
 finance_scanned_emails:   gmail_id PRIMARY KEY, account_email, is_invoice, scanned_at
 finance_invoice_files:    id, gmail_message_id, account_email, email_subject, email_from,
@@ -810,6 +811,7 @@ The issued PDF is downloaded from the pre-signed URL and saved to the lead's fil
 | POST | `/scan` · GET `/scan/status` | Invoice email scan — runs in the background with live progress |
 | GET | `/invoices` | Scanned invoice files and where they landed in Drive |
 | GET | `/gmail/accounts` · `/gmail/connect-url` · DELETE `/gmail/accounts/:id` | Extra OAuth-connected mailboxes to scan |
+| GET/POST | `/accountant/months` · `/accountant/send` · `/accountant/status` · `/accountant/history` | Email the Drive month folders' files to the accountant (background) |
 | GET | `/api/finance/gmail/oauth/callback` | Public OAuth callback (mounted outside the auth guard) |
 
 ### Operations (`/api/operations`) — require auth
@@ -1132,6 +1134,19 @@ whose authorized redirect URI is `${SERVER_URL}/api/finance/gmail/oauth/callback
 refresh for extra mailboxes goes through the same web client. Without these env vars the
 button returns a clear error. The Google account must be a test user while the OAuth app is
 in Testing mode.
+
+**3. Send to accountant** (`accountantSendService.js`, added 2026-09-17). Card under the
+invoice-scan card: "שלח לרואה חשבון" opens a panel listing the `MM-YYYY` folders under the
+Drive invoices root (`GET /finance/accountant/months`, with file count + size per month and
+the last accountant email from `settings.finance_accountant_email`). The user picks months,
+enters the accountant's email (+ optional note) and confirms; `POST /finance/accountant/send`
+runs in the background (`GET /finance/accountant/status` polled): every file in the chosen
+folders is downloaded from Drive and emailed **from the business Gmail** as attachments,
+packed into as many emails as needed (~18 MB of files each, "חלק i מתוך n" in the subject).
+Attachment names are prefixed with the month (`06-2026 - <file>`). Each send is logged in
+`finance_accountant_sends` (email, months[], files_count, emails_sent, note, created_by) and
+shown as "שליחות קודמות". Manually uploaded files in the Drive folders are included too —
+the source of truth is the folder, not `finance_invoice_files`.
 
 ### `OperationsPage.jsx` (`/operations`) — "תפעול" mode
 Tasks / maintenance / faults, each with a status lifecycle and a dedicated detail view
