@@ -6,6 +6,30 @@ updated: 2026-09-16
 
 # Now
 
+## 2026-09-19 — שומר שבת per user + blocked users confirmed out of the briefings
+
+Oran: a user blocked in the admin panel must not receive the WhatsApp sales briefings,
+and he wants a "שומר שבת" option that stops those briefings on Friday and Saturday.
+
+- **Blocked was already handled** — both recipient queries in `runSalesBriefings` carry
+  `NOT COALESCE(blocked, false)` (same in productionBriefingService). Left as is and
+  documented. NOTE for later: `services/reminderService.js` (24h lead reminder, task
+  reminders, op reminders) does *not* filter blocked — Oran chose to keep the change
+  scoped to the two sales briefings, so that stays open.
+- **New `users.shabbat_mode`** (migration in server/index.js next to `abroad_mode`),
+  carried through the admin GET/POST/PUT user routes, a sky-blue toggle under the
+  "חסום" toggle in AdminPage + a "שומר שבת" badge in the user row.
+- The skip is inside the two loops, before `alreadySent`, so **nothing is written to
+  `sales_briefing_log`** for the skipped day — deliberate: no catch-up is owed and
+  Sunday behaves normally. Weekday via `Intl` with `timeZone: 'Asia/Jerusalem'`
+  (verified 17-20.9 incl. Friday 23:00 IL, which is still Friday there).
+- Scope decision (Oran, explicit): only the sales morning/evening briefings. Production
+  briefings, task reminders and operations reminders are untouched.
+
+Verified: node --check on the three server files, esbuild on AdminPage.jsx, weekday
+table across Thu-Sun. `vite build` still cannot run in the Claude VM (arm64 vs the Mac
+node_modules).
+
 ## 2026-09-17 — Signed-contract message: bank block heading
 
 Oran: the post-signature message to the client said "פרטי תשלום:" above the admin-panel bank

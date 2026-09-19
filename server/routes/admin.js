@@ -71,7 +71,7 @@ router.get('/whatsapp-status', adminOnly, async (req, res) => {
 router.get('/users', adminOnly, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT id, username, display_name, email, phone, role, roles, blocked, created_at FROM users ORDER BY display_name'
+      'SELECT id, username, display_name, email, phone, role, roles, blocked, shabbat_mode, created_at FROM users ORDER BY display_name'
     );
     res.json(rows);
   } catch (err) {
@@ -81,16 +81,16 @@ router.get('/users', adminOnly, async (req, res) => {
 
 // POST /api/admin/users
 router.post('/users', adminOnly, async (req, res) => {
-  const { username, display_name, email, phone, roles, blocked, password } = req.body;
+  const { username, display_name, email, phone, roles, blocked, shabbat_mode, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'שם משתמש וסיסמה הם שדות חובה' });
   const rolesArr = Array.isArray(roles) && roles.length ? roles : ['sales'];
   const primaryRole = deriveRole(rolesArr);
   try {
     const hash = await bcrypt.hash(password, 10);
     const { rows } = await pool.query(
-      `INSERT INTO users (username, display_name, email, phone, role, roles, blocked, password_hash)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, username, display_name, email, phone, role, roles, blocked, created_at`,
-      [username, display_name || null, email || null, phone || null, primaryRole, rolesArr, blocked || false, hash]
+      `INSERT INTO users (username, display_name, email, phone, role, roles, blocked, shabbat_mode, password_hash)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, username, display_name, email, phone, role, roles, blocked, shabbat_mode, created_at`,
+      [username, display_name || null, email || null, phone || null, primaryRole, rolesArr, blocked || false, shabbat_mode || false, hash]
     );
     res.json(rows[0]);
   } catch (err) {
@@ -101,24 +101,24 @@ router.post('/users', adminOnly, async (req, res) => {
 
 // PUT /api/admin/users/:id
 router.put('/users/:id', adminOnly, async (req, res) => {
-  const { username, display_name, email, phone, roles, blocked, password } = req.body;
+  const { username, display_name, email, phone, roles, blocked, shabbat_mode, password } = req.body;
   const rolesArr = Array.isArray(roles) && roles.length ? roles : ['sales'];
   const primaryRole = deriveRole(rolesArr);
   try {
     if (password && password.trim()) {
       const hash = await bcrypt.hash(password, 10);
       await pool.query(
-        `UPDATE users SET username=$1, display_name=$2, email=$3, phone=$4, role=$5, roles=$6, blocked=$7, password_hash=$8 WHERE id=$9`,
-        [username, display_name || null, email || null, phone || null, primaryRole, rolesArr, blocked || false, hash, req.params.id]
+        `UPDATE users SET username=$1, display_name=$2, email=$3, phone=$4, role=$5, roles=$6, blocked=$7, shabbat_mode=$8, password_hash=$9 WHERE id=$10`,
+        [username, display_name || null, email || null, phone || null, primaryRole, rolesArr, blocked || false, shabbat_mode || false, hash, req.params.id]
       );
     } else {
       await pool.query(
-        `UPDATE users SET username=$1, display_name=$2, email=$3, phone=$4, role=$5, roles=$6, blocked=$7 WHERE id=$8`,
-        [username, display_name || null, email || null, phone || null, primaryRole, rolesArr, blocked || false, req.params.id]
+        `UPDATE users SET username=$1, display_name=$2, email=$3, phone=$4, role=$5, roles=$6, blocked=$7, shabbat_mode=$8 WHERE id=$9`,
+        [username, display_name || null, email || null, phone || null, primaryRole, rolesArr, blocked || false, shabbat_mode || false, req.params.id]
       );
     }
     const { rows } = await pool.query(
-      'SELECT id, username, display_name, email, phone, role, roles, blocked, created_at FROM users WHERE id=$1',
+      'SELECT id, username, display_name, email, phone, role, roles, blocked, shabbat_mode, created_at FROM users WHERE id=$1',
       [req.params.id]
     );
     res.json(rows[0]);

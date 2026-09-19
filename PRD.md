@@ -358,6 +358,7 @@ password_hash TEXT
 role VARCHAR(20)             -- admin | manager | sales | production (legacy single role)
 roles TEXT[] DEFAULT '{}'    -- current multi-role field: admin|manager|sales_manager|sales|production|operations|suppliers|rsvp|finance
 blocked BOOLEAN DEFAULT FALSE
+shabbat_mode BOOLEAN DEFAULT FALSE  -- שומר שבת: no sales briefings on Friday/Saturday
 phone VARCHAR(50)
 email VARCHAR(255)
 created_at TIMESTAMPTZ
@@ -1453,6 +1454,16 @@ sent_on)`); hours come from `sales_briefing_morning_hour` /
 gated on `sales_briefing_enabled`. The cron runs every 15 minutes and checks whether
 the hour has arrived.
 
+**Who is skipped (2026-09-19).** Both recipient queries require
+`NOT COALESCE(blocked, false)`, so a user blocked in the admin panel gets no briefing.
+A user with `users.shabbat_mode` (שומר שבת, the toggle next to "חסום" in ניהול →
+משתמשים) is skipped on **Friday and Saturday** Israel time — the weekday comes from
+`Intl.DateTimeFormat(..., { timeZone: 'Asia/Jerusalem', weekday: 'short' })`, so DST
+never shifts it. Such a skip deliberately does **not** write to `sales_briefing_log`:
+nothing is owed for that day, and Sunday's briefing goes out normally. The flag covers
+only these two sales briefings — production briefings, task and operations reminders are
+unaffected (Oran, 2026-09-19).
+
 **Format (2026-09-08) — no AI text at all.** The gpt-4o-mini "motivating opener" was
 removed; the message is fully deterministic (`buildBriefingText`):
 
@@ -1836,6 +1847,13 @@ invoices with AI and files them into Drive by email date. New assignable `financ
 Rule-based worklist ranking, per-lead deal advice cached in `lead_ai_advice`, loss
 insights, and morning/evening WhatsApp briefings. **Draft-only — never auto-sends to a
 customer.**
+
+### Phase 35 — שומר שבת per user ✅ Built 2026-09-19
+Requested by Oran: a blocked user must get no sales briefings (already the case — both
+recipient queries filter `blocked`), and a new per-user "שומר שבת" toggle that stops the
+morning/evening sales briefings on Friday and Saturday. `users.shabbat_mode` + the toggle
+in the admin user editor (plus a badge in the user row); the skip lives in
+`runSalesBriefings`. Scope limited to the two sales briefings by Oran's explicit choice.
 
 ### Phase 34 — Costs panel + AI usage metering ✅ Built 2026-09-16
 Oran asked to see what every paid service costs per month, calls included. New tab **עלויות**

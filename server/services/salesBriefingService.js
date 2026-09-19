@@ -15,6 +15,18 @@ function israelHour() {
   return parseInt(parts.find(p => p.type === 'hour').value, 10);
 }
 
+// 0=Sunday … 5=Friday, 6=Saturday, in Israel time
+function israelWeekday() {
+  const short = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', weekday: 'short' }).format(new Date());
+  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(short);
+}
+
+// שומר שבת — users with shabbat_mode get no briefing on Friday or Saturday
+function isShabbatDay() {
+  const d = israelWeekday();
+  return d === 5 || d === 6;
+}
+
 function israelDateStr() {
   const p = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -183,18 +195,22 @@ async function runSalesBriefings() {
     if (!kind) return;
 
     const day = israelDateStr();
+    const shabbat = isShabbatDay();
     const baseUrl = process.env.SERVER_URL || 'https://www.proevent.co.il';
 
+    // Recipients: never a blocked user (NOT COALESCE(blocked, false) in both queries below),
+    // and on Friday/Saturday never a user with shabbat_mode.
     // Users who see everyone's leads (admin / manager / sales manager) get ONE aggregate
     // briefing — even if they also hold the sales role. They are excluded from the rep loop
     // below; otherwise the rep loop sent them their own leads only and marked them as sent.
     const ALL_SCOPE = ['admin', 'manager', 'sales_manager'];
     const { rows: mgrs } = await pool.query(
-      `SELECT id, display_name, phone FROM users
+      `SELECT id, display_name, phone, shabbat_mode FROM users
        WHERE phone IS NOT NULL AND NOT COALESCE(blocked, false)
          AND (roles && $1::text[] OR role = ANY($1::text[]))`, [ALL_SCOPE]
     );
     for (const mgr of mgrs) {
+      if (shabbat && mgr.shabbat_mode) continue; // not marked as sent — nothing is owed for this day
       if (await alreadySent(kind, mgr.id, day)) continue;
       await buildAndSend(kind, mgr, { id: mgr.id, roles: ['manager'] }, baseUrl, 'כל הנציגים');
       await markSent(kind, mgr.id, day);
@@ -202,12 +218,13 @@ async function runSalesBriefings() {
 
     // Sales reps → their own worklist
     const { rows: reps } = await pool.query(
-      `SELECT id, display_name, phone FROM users
+      `SELECT id, display_name, phone, shabbat_mode FROM users
        WHERE phone IS NOT NULL AND NOT COALESCE(blocked, false)
          AND ('sales' = ANY(roles) OR role = 'sales')
          AND NOT (roles && $1::text[] OR role = ANY($1::text[]))`, [ALL_SCOPE]
     );
     for (const rep of reps) {
+      if (shabbat && rep.shabbat_mode) continue;
       if (await alreadySent(kind, rep.id, day)) continue;
       await buildAndSend(kind, rep, { id: rep.id, roles: ['sales'] }, baseUrl, rep.display_name ? `הלידים של ${rep.display_name}` : '');
       await markSent(kind, rep.id, day); // also when nothing to send — avoid re-checking this hour

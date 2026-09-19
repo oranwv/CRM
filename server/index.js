@@ -298,6 +298,8 @@ pool.query(`
   );
   CREATE INDEX IF NOT EXISTS idx_calls_lead ON calls(lead_id, started_at DESC);
   ALTER TABLE users ADD COLUMN IF NOT EXISTS abroad_mode BOOLEAN DEFAULT FALSE;
+  -- שומר שבת: no automated WhatsApp briefings on Friday/Saturday (Asia/Jerusalem)
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS shabbat_mode BOOLEAN DEFAULT FALSE;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS call_queue_order INT;
   ALTER TABLE calls ADD COLUMN IF NOT EXISTS transcript TEXT;
   -- Metered AI usage (every OpenAI call goes through services/openaiClient.js)

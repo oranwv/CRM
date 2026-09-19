@@ -310,7 +310,7 @@ const DEFAULT_CHATBOT_GREETING = `היי תודה שפנית לשרביה
 מספר האורחים המשוער?`;
 
 const DEFAULT_CHATBOT_FOLLOWUP = `תודה רבה! ניצור אתכם קשר בהקדם`;
-const emptyUser = { username: '', display_name: '', email: '', phone: '', roles: ['sales'], blocked: false, password: '' };
+const emptyUser = { username: '', display_name: '', email: '', phone: '', roles: ['sales'], blocked: false, shabbat_mode: false, password: '' };
 
 export default function AdminPage() {
   const [aiInstructions, setAiInstructions] = useState('');
@@ -735,12 +735,15 @@ export default function AdminPage() {
                   {u.blocked && (
                     <span className="text-xs font-black px-2 py-0.5 rounded-full bg-red-100 text-red-600">חסום</span>
                   )}
+                  {u.shabbat_mode && (
+                    <span className="text-xs font-black px-2 py-0.5 rounded-full bg-sky-100 text-sky-700">שומר שבת</span>
+                  )}
                   {(u.roles?.length ? u.roles : [u.role]).map(r => (
                     <span key={r} className={`text-xs font-bold px-2 py-0.5 rounded-full ${ROLE_COLORS[r] || 'bg-slate-100 text-slate-600'}`}>
                       {ROLE_LABELS[r] || r}
                     </span>
                   ))}
-                  <button onClick={() => { setEditingUser({ ...u, roles: u.roles?.length ? u.roles : [u.role], blocked: u.blocked || false, password: '' }); setUserError(''); }} className="text-slate-400 hover:text-violet-600 text-sm">✏️</button>
+                  <button onClick={() => { setEditingUser({ ...u, roles: u.roles?.length ? u.roles : [u.role], blocked: u.blocked || false, shabbat_mode: u.shabbat_mode || false, password: '' }); setUserError(''); }} className="text-slate-400 hover:text-violet-600 text-sm">✏️</button>
                   <button onClick={() => handleUserDelete(u.id)} className="text-slate-400 hover:text-red-500 text-sm">🗑</button>
                 </div>
               </div>
@@ -1281,6 +1284,17 @@ export default function AdminPage() {
               </div>
               <span className={`text-sm font-bold ${editingUser.blocked ? 'text-red-600' : 'text-slate-500'}`}>
                 {editingUser.blocked ? 'חסום — לא יכול להיכנס למערכת' : 'פעיל'}
+              </span>
+            </label>
+            <label className="flex items-center gap-3 cursor-pointer select-none px-1">
+              <div
+                className={`relative w-10 h-5 rounded-full transition-colors ${editingUser.shabbat_mode ? 'bg-sky-500' : 'bg-slate-200'}`}
+                onClick={() => setEditingUser(u => ({ ...u, shabbat_mode: !u.shabbat_mode }))}
+              >
+                <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${editingUser.shabbat_mode ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              </div>
+              <span className={`text-sm font-bold ${editingUser.shabbat_mode ? 'text-sky-700' : 'text-slate-500'}`}>
+                {editingUser.shabbat_mode ? 'שומר שבת — לא נשלחות הודעות בשישי ובשבת' : 'שומר שבת'}
               </span>
             </label>
             <input className={inputCls} placeholder={editingUser.id ? 'סיסמה חדשה (השאר ריק לשמירה)' : 'סיסמה *'}
