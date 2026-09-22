@@ -366,6 +366,7 @@ function AccountantSendSection() {
   const [result, setResult]     = useState(null);
   const [error, setError]       = useState(null);
   const [history, setHistory]   = useState([]);
+  const [primaryEmail, setPrimaryEmail] = useState('');
 
   const fmtSize = (b) => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.round(b / 1024)} KB`);
   const loadHistory = () => api.get('/finance/accountant/history').then(r => setHistory(r.data)).catch(() => {});
@@ -375,6 +376,7 @@ function AccountantSendSection() {
     try {
       const { data } = await api.get('/finance/accountant/months');
       setMonths(data.months);
+      setPrimaryEmail(data.primaryEmail || '');
       if (data.lastEmail && !email) setEmail(data.lastEmail);
       loadHistory();
       // resume progress display if a send is already running
@@ -408,10 +410,24 @@ function AccountantSendSection() {
   async function send() {
     if (!chosen.length) { setError('יש לבחור לפחות חודש אחד'); return; }
     if (!email.trim()) { setError('יש להזין כתובת מייל של רואה החשבון'); return; }
-    if (!confirm(`לשלוח ${totalFiles} קבצים (${chosen.map(m => m.label).join(', ')}) אל ${email.trim()}?`)) return;
-    setSending(true); setError(null); setResult(null); setProgress({ downloaded: 0, total: totalFiles, emailsSent: 0 });
+    // Files are filed per mailbox inside each month folder. When the chosen
+    // months hold more than one mailbox, ask whether to send all of them or
+    // only the business mailbox.
+    const boxes = [...new Set(chosen.flatMap(m => m.mailboxes.map(b => b.email)))];
+    let mailboxes = 'all';
+    let sendFiles = totalFiles;
+    if (boxes.length > 1) {
+      const all = confirm(`נמצאו חשבוניות מ-${boxes.length} תיבות מייל:\n${boxes.join('\n')}\n\nלשלוח מכל תיבות המייל?\n(ביטול = לשלוח רק מתיבת העסק${primaryEmail ? ` ${primaryEmail}` : ''})`);
+      if (!all) {
+        mailboxes = [primaryEmail || boxes[0]];
+        sendFiles = chosen.reduce((n, m) => n + m.mailboxes.filter(b => mailboxes.includes(b.email)).reduce((k, b) => k + b.files, 0), 0);
+        if (!sendFiles) { setError('אין קבצים מתיבת העסק בחודשים שנבחרו'); return; }
+      }
+    }
+    if (!confirm(`לשלוח ${sendFiles} קבצים (${chosen.map(m => m.label).join(', ')}) אל ${email.trim()}?`)) return;
+    setSending(true); setError(null); setResult(null); setProgress({ downloaded: 0, total: sendFiles, emailsSent: 0 });
     try {
-      await api.post('/finance/accountant/send', { months: selected, email: email.trim(), note });
+      await api.post('/finance/accountant/send', { months: selected, email: email.trim(), note, mailboxes });
       setTimeout(pollSend, 2000);
     } catch (err) {
       setError(err.response?.data?.error || 'שגיאה בשליחה');
@@ -499,7 +515,7 @@ function AccountantSendSection() {
               <div className="space-y-1 max-h-40 overflow-y-auto">
                 {history.map(h => (
                   <div key={h.id} className="text-xs text-slate-500 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-100">
-                    {new Date(h.created_at).toLocaleDateString('he-IL')} · {h.months.join(', ')} · {h.files_count} קבצים → <span dir="ltr">{h.email}</span>{h.created_by_name ? ` · ${h.created_by_name}` : ''}
+                    {new Date(h.created_at).toLocaleDateString('he-IL')} · {h.months.join(', ')} · {h.files_count} קבצים{h.mailboxes ? ` · תיבות: ${h.mailboxes.join(', ')}` : ''} → <span dir="ltr">{h.email}</span>{h.created_by_name ? ` · ${h.created_by_name}` : ''}
                   </div>
                 ))}
               </div>

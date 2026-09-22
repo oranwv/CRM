@@ -1,5 +1,7 @@
 // Finance invoice scanner — scans Gmail accounts for supplier invoices and files
-// them into Google Drive, one folder per month ("MM-YYYY") under a "חשבוניות" root.
+// them into Google Drive, one folder per month ("MM-YYYY") under a "חשבוניות" root,
+// with a sub-folder per mailbox address inside each month (since 2026-09-22;
+// older files sit directly in the month folder and count as the business mailbox).
 //
 // Pipeline per email: cheap keyword/attachment prefilter → AI confirmation
 // (Claude, structured JSON) → download the invoice (attachment or link) →
@@ -302,6 +304,15 @@ async function scanRange(from, to) {
 
   for (const account of await listScanAccounts()) {
     const gmail = google.gmail({ version: 'v1', auth: account.auth });
+    // Files are filed per mailbox: חשבוניות / MM-YYYY / <mailbox address> / file.
+    // The primary account is labelled 'primary' internally — resolve its real address.
+    let mailboxName = account.email;
+    if (mailboxName === 'primary') {
+      try { mailboxName = (await gmail.users.getProfile({ userId: 'me' })).data.emailAddress || 'primary'; } catch { /* keep label */ }
+      await pool.query(
+        `INSERT INTO settings (key, value, updated_at) VALUES ('finance_primary_email', $1, NOW())
+         ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`, [mailboxName]).catch(() => {});
+    }
     summary.accounts.push(account.email);
     let pageToken;
     do {
@@ -368,7 +379,9 @@ async function scanRange(from, to) {
             summary.invoices++;
             const monthKey = `${String(emailDate.getMonth() + 1).padStart(2, '0')}-${emailDate.getFullYear()}`;
             if (!monthFolders[monthKey]) monthFolders[monthKey] = await ensureFolder(drive, monthKey, rootId);
-            const folderId = monthFolders[monthKey];
+            const boxKey = `${monthKey}/${mailboxName}`;
+            if (!monthFolders[boxKey]) monthFolders[boxKey] = await ensureFolder(drive, mailboxName, monthFolders[monthKey]);
+            const folderId = monthFolders[boxKey];
             const datePrefix = emailDate.toISOString().slice(0, 10);
             const files = [];
 
@@ -400,7 +413,7 @@ async function scanRange(from, to) {
                 const uploaded = await uploadToDrive(drive, folderId, f.name, f.buffer, f.mimeType);
                 await recordFile(m.id, account.email, {
                   subject, from: fromH, emailDate, filename: f.name, kind: f.kind,
-                  status: 'saved', driveFileId: uploaded.id, driveLink: uploaded.webViewLink, driveFolder: monthKey,
+                  status: 'saved', driveFileId: uploaded.id, driveLink: uploaded.webViewLink, driveFolder: boxKey,
                 });
                 summary.filesSaved++;
               } catch (err) {

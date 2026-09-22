@@ -21,39 +21,66 @@ async function listAll(drive, q, fields) {
   return out;
 }
 
-// Month folders under the invoices root, newest first, with file count + size.
+const FILE_Q = "trashed = false and mimeType != 'application/vnd.google-apps.folder'";
+const FOLDER_Q = "trashed = false and mimeType = 'application/vnd.google-apps.folder'";
+
+async function primaryEmail() {
+  const { rows } = await pool.query("SELECT value FROM settings WHERE key = 'finance_primary_email'").catch(() => ({ rows: [] }));
+  return rows[0]?.value || 'primary';
+}
+
+// Month folders under the invoices root, newest first. Each month lists its
+// mailboxes: one entry per mailbox sub-folder, plus files lying directly in
+// the month folder (pre-2026-09-22 layout) which belong to the business mailbox.
 async function listMonths() {
   const drive = google.drive({ version: 'v3', auth: primaryAuth() });
   const rootId = await getRootFolderId(drive);
-  const folders = await listAll(drive,
-    `'${rootId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`, 'id, name');
+  const primary = await primaryEmail();
+  const folders = await listAll(drive, `'${rootId}' in parents and ${FOLDER_Q}`, 'id, name');
   const months = [];
   for (const f of folders) {
     if (!/^\d{2}-\d{4}$/.test(f.name)) continue;
-    const files = await listAll(drive, `'${f.id}' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'`, 'id, size');
-    months.push({ key: f.name, label: monthLabel(f.name), folderId: f.id, files: files.length,
-      bytes: files.reduce((s, x) => s + Number(x.size || 0), 0) });
+    const sum = (files) => files.reduce((s, x) => s + Number(x.size || 0), 0);
+    const rootFiles = await listAll(drive, `'${f.id}' in parents and ${FILE_Q}`, 'id, size');
+    const boxes = {};
+    if (rootFiles.length) boxes[primary] = { email: primary, folderIds: [f.id], files: rootFiles.length, bytes: sum(rootFiles) };
+    const subs = await listAll(drive, `'${f.id}' in parents and ${FOLDER_Q}`, 'id, name');
+    for (const sf of subs) {
+      const files = await listAll(drive, `'${sf.id}' in parents and ${FILE_Q}`, 'id, size');
+      const b = boxes[sf.name] || (boxes[sf.name] = { email: sf.name, folderIds: [], files: 0, bytes: 0 });
+      b.folderIds.push(sf.id); b.files += files.length; b.bytes += sum(files);
+    }
+    const mailboxes = Object.values(boxes).map(b => ({ ...b, isPrimary: b.email === primary }))
+      .sort((a, b) => (b.isPrimary - a.isPrimary) || a.email.localeCompare(b.email));
+    months.push({ key: f.name, label: monthLabel(f.name), folderId: f.id, mailboxes,
+      files: mailboxes.reduce((n, b) => n + b.files, 0), bytes: mailboxes.reduce((n, b) => n + b.bytes, 0) });
   }
   months.sort((a, b) => (b.key.slice(3) + b.key.slice(0, 2)).localeCompare(a.key.slice(3) + a.key.slice(0, 2)));
-  return months;
+  return { months, primaryEmail: primary };
 }
 
 const sendStatus = { running: false, startedAt: null, finishedAt: null, progress: null, result: null, error: null };
 
-async function sendToAccountant({ months, email, note, userId }) {
+// mailboxes: 'all' (default) or an array of mailbox addresses to include.
+async function sendToAccountant({ months, email, note, userId, mailboxes = 'all' }) {
   if (sendStatus.running) throw new Error('שליחה כבר רצה — המתן לסיומה');
   Object.assign(sendStatus, { running: true, startedAt: new Date().toISOString(), finishedAt: null, progress: { downloaded: 0, total: 0, emailsSent: 0 }, result: null, error: null });
   try {
     const drive = google.drive({ version: 'v3', auth: primaryAuth() });
-    const all = await listMonths();
+    const { months: all } = await listMonths();
     const chosen = months.map(k => all.find(m => m.key === k)).filter(Boolean);
     if (!chosen.length) throw new Error('לא נבחרו חודשים קיימים');
+    const wanted = (b) => mailboxes === 'all' || (Array.isArray(mailboxes) && mailboxes.includes(b.email));
 
-    // Collect files (month by month, so the accountant sees them grouped)
+    // Collect files (month by month, mailbox by mailbox, so the accountant sees them grouped)
     const files = [];
     for (const m of chosen) {
-      const list = await listAll(drive, `'${m.folderId}' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'`, 'id, name, size, mimeType');
-      for (const f of list) files.push({ ...f, month: m.key });
+      for (const b of m.mailboxes.filter(wanted)) {
+        for (const folderId of b.folderIds) {
+          const list = await listAll(drive, `'${folderId}' in parents and ${FILE_Q}`, 'id, name, size, mimeType');
+          for (const f of list) files.push({ ...f, month: m.key, mailbox: b.email });
+        }
+      }
     }
     sendStatus.progress.total = files.length;
     if (!files.length) throw new Error('אין קבצים בחודשים שנבחרו');
@@ -82,11 +109,17 @@ async function sendToAccountant({ months, email, note, userId }) {
       }
       const part = batches.length > 1 ? ` (חלק ${i + 1} מתוך ${batches.length})` : '';
       const byMonth = chosen.map(m => `${monthLabel(m.key)}: ${batches[i].filter(f => f.month === m.key).length} קבצים`).filter(s => !/: 0 קבצים$/.test(s)).join('\n');
+      const boxesInBatch = [...new Set(batches[i].map(f => f.mailbox))];
+      const byMailbox = boxesInBatch.length > 1
+        ? boxesInBatch.map(b => `${b}: ${batches[i].filter(f => f.mailbox === b).length} קבצים`).join('\n') : null;
       const body = [
         'שלום,',
         '',
         `מצורפות חשבוניות הספקים של ${businessName} עבור ${period}${part}.`,
         byMonth,
+        byMailbox ? '' : null,
+        byMailbox ? 'לפי תיבת מייל:' : null,
+        byMailbox,
         '',
         note ? note : null,
         note ? '' : null,
@@ -98,9 +131,10 @@ async function sendToAccountant({ months, email, note, userId }) {
     }
 
     await pool.query(
-      `INSERT INTO finance_accountant_sends (email, months, files_count, emails_sent, note, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [email, chosen.map(m => m.key), files.length, emailsSent, note || null, userId || null]);
+      `INSERT INTO finance_accountant_sends (email, months, files_count, emails_sent, note, created_by, mailboxes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [email, chosen.map(m => m.key), files.length, emailsSent, note || null, userId || null,
+       mailboxes === 'all' ? null : mailboxes]);
     await pool.query(
       `INSERT INTO settings (key, value, updated_at) VALUES ('finance_accountant_email', $1, NOW())
        ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`, [email]);

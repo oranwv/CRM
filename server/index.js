@@ -641,6 +641,7 @@ pool.query(`
     created_by INT REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
   );
+  ALTER TABLE finance_accountant_sends ADD COLUMN IF NOT EXISTS mailboxes TEXT[]; -- NULL = all mailboxes
   CREATE TABLE IF NOT EXISTS finance_gmail_accounts (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,

@@ -6,6 +6,17 @@ updated: 2026-09-16
 
 # Now
 
+## 2026-09-22 — Invoices filed per mailbox; accountant send asks which mailboxes
+
+Oran: files from each mailbox go in their own Drive folder named by the address, under the
+month folder (MM-YYYY/<address>); and when sending to the accountant with >1 mailbox, ask
+whether to send from all mailboxes. Done in financeInvoiceScanner (ensureFolder per mailbox,
+primary address resolved via getProfile → settings.finance_primary_email), accountantSendService
+(listMonths returns mailboxes per month incl. legacy root files as the business mailbox;
+sendToAccountant takes mailboxes 'all' | [addresses]), finance.js, index.js (mailboxes column),
+FinancePage (confirm dialog; cancel = business mailbox only). Untested against Drive — after
+deploy: run a scan for one day and check the new sub-folder appears; open the send panel.
+
 ## 2026-09-19 — שומר שבת per user + blocked users confirmed out of the briefings
 
 Oran: a user blocked in the admin panel must not receive the WhatsApp sales briefings,

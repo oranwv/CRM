@@ -525,7 +525,7 @@ finance_missing_expenses: id, period_id, fingerprint, entry_date, name, descript
                           deferred_from_period_id, created_at
                           UNIQUE INDEX (period_id, fingerprint)
 finance_expense_notes:    id, expense_id, body, created_by, created_at
-finance_accountant_sends: id, email, months TEXT[], files_count, emails_sent, note, created_by, created_at
+finance_accountant_sends: id, email, months TEXT[], mailboxes TEXT[] (NULL = all), files_count, emails_sent, note, created_by, created_at
 finance_gmail_accounts:   id, email UNIQUE, token_json, active, last_scan_at, created_at
 finance_scanned_emails:   gmail_id PRIMARY KEY, account_email, is_invoice, scanned_at
 finance_invoice_files:    id, gmail_message_id, account_email, email_subject, email_from,
@@ -1122,7 +1122,8 @@ accountant's updated karteset auto-resolves everything it now covers.
 extra OAuth-connected mailboxes: keyword prefilter → `gpt-4o-mini` JSON mode confirms it is
 a supplier invoice → downloads attachments and follows body links (including invoice landing
 pages) to the real PDF → files into Drive by **email date**, under the folder configured in
-AdminPage ("תיקיית חשבוניות בדרייב") with `MM-YYYY` subfolders. Runs nightly at 20:00 server
+AdminPage ("תיקיית חשבוניות בדרייב") with `MM-YYYY` subfolders and a sub-folder per mailbox
+address inside each month (since 2026-09-22). Runs nightly at 20:00 server
 time, or manually with presets. Runs in the background with a live progress indicator.
 Extra mailboxes: "+ חבר תיבת מייל" on the Finance page opens Google OAuth (gmail.readonly);
 the token is stored in `finance_gmail_accounts` and every scan covers all active mailboxes
@@ -1148,6 +1149,14 @@ Attachment names are prefixed with the month (`06-2026 - <file>`). Each send is 
 `finance_accountant_sends` (email, months[], files_count, emails_sent, note, created_by) and
 shown as "שליחות קודמות". Manually uploaded files in the Drive folders are included too —
 the source of truth is the folder, not `finance_invoice_files`.
+**Per-mailbox folders (2026-09-22):** the scanner now files each invoice under
+`חשבוניות / MM-YYYY / <mailbox address> /` (the business mailbox's real address is resolved
+via `users.getProfile` and cached in `settings.finance_primary_email`; `drive_folder` stores
+`MM-YYYY/<address>`). Files that sit directly in a month folder (older layout) count as the
+business mailbox. `/accountant/months` returns `mailboxes[]` per month; on send, when the
+chosen months hold more than one mailbox the client asks "לשלוח מכל תיבות המייל?" (cancel =
+business mailbox only) and posts `mailboxes: 'all' | [addresses]`; the choice is logged in
+`finance_accountant_sends.mailboxes` (NULL = all) and the email body lists counts per mailbox.
 
 ### `OperationsPage.jsx` (`/operations`) — "תפעול" mode
 Tasks / maintenance / faults, each with a status lifecycle and a dedicated detail view

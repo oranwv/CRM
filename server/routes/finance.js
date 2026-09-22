@@ -437,9 +437,9 @@ router.delete('/gmail/accounts/:id', async (req, res) => {
 // plus the last accountant email used.
 router.get('/accountant/months', async (req, res) => {
   try {
-    const months = await listMonths();
+    const { months, primaryEmail } = await listMonths();
     const { rows } = await pool.query("SELECT value FROM settings WHERE key = 'finance_accountant_email'");
-    res.json({ months, lastEmail: rows[0]?.value || '' });
+    res.json({ months, primaryEmail, lastEmail: rows[0]?.value || '' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -448,13 +448,16 @@ router.get('/accountant/months', async (req, res) => {
 // POST /api/finance/accountant/send { months: ['06-2026', ...], email, note }
 // Runs in the background (downloads + several emails); poll /accountant/status.
 router.post('/accountant/send', (req, res) => {
-  const { months, email, note } = req.body || {};
+  const { months, email, note, mailboxes } = req.body || {};
+  if (mailboxes !== undefined && mailboxes !== 'all' && !(Array.isArray(mailboxes) && mailboxes.every(m => typeof m === 'string'))) {
+    return res.status(400).json({ error: 'בחירת תיבות לא תקינה' });
+  }
   if (!Array.isArray(months) || !months.length || !months.every(m => /^\d{2}-\d{4}$/.test(m))) {
     return res.status(400).json({ error: 'יש לבחור לפחות חודש אחד' });
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email || '')) return res.status(400).json({ error: 'כתובת מייל לא תקינה' });
   if (sendStatus.running) return res.status(409).json({ error: 'שליחה כבר רצה — המתן לסיומה' });
-  sendToAccountant({ months, email: email.trim(), note: (note || '').trim(), userId: req.user.id })
+  sendToAccountant({ months, email: email.trim(), note: (note || '').trim(), userId: req.user.id, mailboxes: mailboxes || 'all' })
     .catch(err => console.error('[Finance] accountant send error:', err.message));
   res.json({ started: true });
 });
@@ -465,7 +468,7 @@ router.get('/accountant/status', (req, res) => res.json(sendStatus));
 router.get('/accountant/history', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT s.id, s.email, s.months, s.files_count, s.emails_sent, s.note, s.created_at, u.name AS created_by_name
+      `SELECT s.id, s.email, s.months, s.mailboxes, s.files_count, s.emails_sent, s.note, s.created_at, u.name AS created_by_name
        FROM finance_accountant_sends s LEFT JOIN users u ON u.id = s.created_by
        ORDER BY s.created_at DESC LIMIT 20`);
     res.json(rows);
