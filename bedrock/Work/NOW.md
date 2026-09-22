@@ -6,6 +6,16 @@ updated: 2026-09-16
 
 # Now
 
+## 2026-09-22 — Decision: dedicated calling app, iPhone first (Phase 36, planned)
+
+Browser calling on phones judged unusable. Plan written to PRD Phase 36: minimal Expo +
+Twilio Voice RN SDK app (login, register, native CallKit incoming, call screen with
+speaker/mute, outbound only via deep link from the CRM, abroad toggle). Oran has no Apple
+Developer account yet — enrolling now (Individual, ~1–2 days). Team 4–10 → TestFlight, App
+Store only if ProEvent customers need it. Next: create `~/Projects/proevent-dialer`, server
+`pushCredentialSid` support, LeadCard deep link on iOS.
+
+
 ## 2026-09-22 — Contract / price-offer: leading zero, editable package cost lines, VAT basis
 
 Built: `numVal` strips the "06" leading zero on every number input in both wizards; package

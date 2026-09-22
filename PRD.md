@@ -1893,6 +1893,58 @@ morning/evening sales briefings on Friday and Saturday. `users.shabbat_mode` + t
 in the admin user editor (plus a badge in the user row); the skip lives in
 `runSalesBriefings`. Scope limited to the two sales briefings by Oran's explicit choice.
 
+### Phase 36 — "ProEvent Dialer" mobile app (iPhone first) 📋 Planned 2026-09-22
+Why: the browser softphone is unusable on phones — no speaker/earpiece control, low volume,
+mic suspended in the background, no ringing when locked (Phase 33 notes). Oran decided on a
+separate, calling-only native app; the CRM itself stays a web app. iPhone first (part of the
+team is on iPhone), Android later from the same code.
+
+**Scope v1 (deliberately minimal)**
+- Login with the CRM username/password (existing `POST /api/auth/login`), JWT in SecureStore.
+- Register for calls: `GET /api/calls/token?platform=ios` → `voice.register(token)`; the SDK
+  handles PushKit + CallKit, so an incoming call shows the native iOS call screen even when the
+  phone is locked or the app is killed.
+- Incoming call: answer/decline on the native screen → in-app call screen: lead name, timer,
+  **speaker / earpiece / Bluetooth**, mute, keypad-less, hang up, "פתח ליד ב-CRM" (opens Safari at
+  `/?lead=<id>`).
+- Outbound: only from the CRM in the browser. Tapping "התקשר" on iOS opens the deep link
+  `proeventdialer://call?to=<E.164>&lead=<id>&name=<name>`; the app dials through the same
+  TwiML App (`/twiml/outbound`) as the browser, so recording + summary are unchanged.
+- Settings: ✈️ abroad toggle (`PATCH /api/calls/me`), registration status, logout.
+- Not in v1: lead list/search, call history, chat, anything else that lives in the CRM.
+
+**Stack:** Expo (managed workflow, TypeScript) + `@twilio/voice-react-native-sdk` 2.x (has
+official Expo support via config plugin) + EAS Build (cloud builds, no Xcode needed locally) +
+TestFlight for distribution. Repo: `~/Projects/proevent-dialer`, own bedrock, same git protocol.
+
+**Server changes (CRM):** `accessToken(userId, platform)` adds `pushCredentialSid` to the
+VoiceGrant when `platform=ios` (env `TWILIO_IOS_PUSH_CREDENTIAL_SID`); `/calls/config` returns
+`ios_app_link` so the web can show the deep link; LeadCard `CallButtons` on iOS Safari opens the
+deep link instead of the browser Device (falls back to the browser if the app is not installed).
+Ring plan unchanged — `<Client>user_<id>` already reaches every registered endpoint of that
+identity (browser tab and phone app ring together).
+
+**Apple side (Oran, guided):** 1) Apple Developer Program enrollment — *Individual* is approved
+in ~1–2 days; *Organization* needs a D-U-N-S number (free, 1–2 weeks) and can be switched to
+later. 2) App ID `co.il.proevent.dialer` with Push Notifications + VoIP capabilities. 3) VoIP
+Services certificate → export `.p12` → Twilio Console → Push Credentials → APNS VoIP (production,
+no `--sandbox`; TestFlight uses production APNs) → SID into Railway. 4) Expo account (free) for
+EAS; EAS can manage signing certificates with the Apple login. 5) TestFlight testers = team
+emails (up to 100 internal / 10,000 via public link; builds expire after 90 days → rebuild).
+
+**Distribution:** TestFlight is enough for 4–10 people and for "more later" up to thousands.
+App Store publication is only needed for ProEvent customers outside the team: App Review
+(1–3 days), privacy policy URL, screenshots, a support page; same code. Decide when relevant.
+
+**Costs:** Apple $99/year; Expo EAS free tier (limited monthly builds, slower queue) or $19/mo;
+per-minute Twilio same as browser calls (mobile app leg $0.004/min + lead leg).
+
+**Order of work:** (a) Oran: Apple enrollment + Expo account. (b) Claude, in parallel: app repo,
+server token change, deep link in LeadCard — all testable in the iOS Simulator except push.
+(c) When Apple approves: App ID + VoIP cert + Twilio credential (30 min together), first EAS
+build → TestFlight → real iPhone test of a locked-phone incoming call, speaker, background.
+(d) Android build (FCM, same code) afterwards.
+
 ### Phase 34 — Costs panel + AI usage metering ✅ Built 2026-09-16
 Oran asked to see what every paid service costs per month, calls included. New tab **עלויות**
 in the ניהול mode (`/costs`, `client/src/pages/CostsPage.jsx`; API `routes/costs.js`, admins +
