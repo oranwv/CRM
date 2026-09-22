@@ -83,7 +83,12 @@ function ContractDisplay({ data }) {
 
       <div>
         <p className="font-bold">2. {L.costsH}</p>
-        {isPackage ? (
+        {isPackage && texts?.packageCostLine ? (
+          <div className="space-y-1">
+            <p>{texts.packageCostLine}</p>
+            {(texts.packageExtraLine || '').trim() && <p>{texts.packageExtraLine}</p>}
+          </div>
+        ) : isPackage ? (
           <div className="space-y-1">
             <p>{en
               ? `Package cost for ${packageGuests} guests - ${fmt(packageTotal)} ${cur} incl. VAT`

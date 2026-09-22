@@ -1875,7 +1875,9 @@ Requested by Oran (with the leading-zero screenshot from the contract wizard):
   (`texts.packageCostLine` / `packageExtraLine`), generated from the wizard numbers when the
   preview opens and regenerated only when guests / prices / VAT basis change
   (`packageLinesSig`), so manual edits survive going back. The server renders those texts
-  when present and falls back to the old fixed lines for contracts saved before this.
+  when present and falls back to the old fixed lines for contracts saved before this. The
+  client-facing signing page (`SignaturePage.jsx`) renders the same edited lines (fix
+  2026-09-23 — it still showed "70,000 כולל מע"מ" for an amount typed excl.).
 - **VAT basis for package prices**: wizard labels renamed to "מחיר החבילה" and "מחיר אורח
   נוסף", each with a לא כולל / כולל מע"מ toggle (`fields.packageTotalIncl` /
   `packageExtraIncl`, default incl. = previous behaviour). The typed amount is kept as typed;
