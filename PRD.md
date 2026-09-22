@@ -1152,7 +1152,13 @@ the source of truth is the folder, not `finance_invoice_files`.
 **Per-mailbox folders (2026-09-22):** the scanner now files each invoice under
 `חשבוניות / MM-YYYY / <mailbox address> /` (the business mailbox's real address is resolved
 via `users.getProfile` and cached in `settings.finance_primary_email`; `drive_folder` stores
-`MM-YYYY/<address>`). Files that sit directly in a month folder (older layout) count as the
+`MM-YYYY/<address>`; the column was widened from VARCHAR(20) to TEXT after the first
+per-mailbox scan failed every `recordFile()` with "value too long" — the Drive uploads had
+already succeeded, so `uploadToDrive()` is now idempotent: a same-named file already in the
+target folder is reused, never duplicated). Scan failures carry `gmailId` / `account` /
+`emailDate`; the UI links each failure to the email ("פתח מייל", Gmail `?authuser=` + `#all/<id>`)
+and can expand the full failure list; failed rows in the saved-invoices list link to the email
+too. Files that sit directly in a month folder (older layout) count as the
 business mailbox. `/accountant/months` returns `mailboxes[]` per month; on send, when the
 chosen months hold more than one mailbox the client asks "לשלוח מכל תיבות המייל?" (cancel =
 business mailbox only) and posts `mailboxes: 'all' | [addresses]`; the choice is logged in

@@ -673,6 +673,9 @@ pool.query(`
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (gmail_message_id, filename)
   );
+  -- 2026-09-22: drive_folder now holds "MM-YYYY/<mailbox address>" — VARCHAR(20) truncation
+  -- made every recordFile() fail ("value too long") right after the upload succeeded.
+  ALTER TABLE finance_invoice_files ALTER COLUMN drive_folder TYPE TEXT;
   CREATE TABLE IF NOT EXISTS ai_knowledge_media (
     id SERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,

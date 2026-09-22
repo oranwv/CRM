@@ -145,6 +145,13 @@ async function getRootFolderId(drive) {
 }
 
 async function uploadToDrive(drive, folderId, filename, buffer, mimeType) {
+  // Idempotent: a file with this name already in the folder (e.g. uploaded by
+  // a run whose DB record failed afterwards) is reused instead of duplicated.
+  const { data: existing } = await drive.files.list({
+    q: `'${folderId}' in parents and name = '${filename.replace(/'/g, "\\'")}' and trashed = false`,
+    fields: 'files(id, webViewLink)', pageSize: 1,
+  });
+  if (existing.files?.length) return existing.files[0];
   const body = new stream.PassThrough();
   body.end(buffer);
   const { data } = await drive.files.create({
@@ -322,7 +329,7 @@ async function scanRange(from, to) {
           userId: 'me', q: `after:${afterEpoch} before:${beforeEpoch}`, maxResults: 100, pageToken,
         }));
       } catch (err) {
-        summary.failures.push({ account: account.email, error: `Gmail: ${err.message}` });
+        summary.failures.push({ account: mailboxName, error: `Gmail: ${err.message}` });
         break;
       }
       pageToken = list.nextPageToken;
@@ -390,7 +397,7 @@ async function scanRange(from, to) {
                 const { data: attData } = await gmail.users.messages.attachments.get({ userId: 'me', messageId: m.id, id: att.attachmentId });
                 files.push({ name: `${datePrefix} ${att.filename}`, buffer: b64urlDecode(attData.data), mimeType: att.mimeType || 'application/pdf', kind: 'attachment' });
               } catch (err) {
-                summary.failures.push({ subject, error: `צרופה: ${err.message}` });
+                summary.failures.push({ subject, error: `צרופה: ${err.message}`, gmailId: m.id, account: mailboxName, emailDate });
               }
             }
             for (const link of invoiceLinks.slice(0, 3)) {
@@ -398,7 +405,7 @@ async function scanRange(from, to) {
                 const dl = await downloadFromLink(link);
                 files.push({ name: `${datePrefix} ${sanitize(subject) || 'חשבונית'}.pdf`, buffer: dl.buffer, mimeType: dl.mimeType, kind: 'link' });
               } catch (err) {
-                summary.failures.push({ subject, error: `קישור: ${err.message}` });
+                summary.failures.push({ subject, error: `קישור: ${err.message}`, gmailId: m.id, account: mailboxName, emailDate });
                 await recordFile(m.id, account.email, { subject, from: fromH, emailDate, filename: link, kind: 'link', status: 'failed', error: err.message });
               }
             }
@@ -417,7 +424,7 @@ async function scanRange(from, to) {
                 });
                 summary.filesSaved++;
               } catch (err) {
-                summary.failures.push({ subject, error: `דרייב: ${err.message}` });
+                summary.failures.push({ subject, error: `דרייב: ${err.message}`, gmailId: m.id, account: mailboxName, emailDate });
                 await recordFile(m.id, account.email, { subject, from: fromH, emailDate, filename: f.name, kind: f.kind, status: 'failed', error: err.message });
               }
             }
@@ -426,7 +433,7 @@ async function scanRange(from, to) {
         } catch (err) {
           // Do NOT mark as scanned — a transient failure (Drive/OpenAI/network)
           // must not permanently consume the email; it will retry on the next scan.
-          summary.failures.push({ account: account.email, error: err.message });
+          summary.failures.push({ account: mailboxName, error: err.message, gmailId: m.id });
         }
       }
     } while (pageToken);

@@ -153,6 +153,11 @@ function ExpenseRow({ item, onChanged, periods = [], periodId }) {
 }
 
 // ── Invoice email scanning (Gmail → Drive monthly folders) ───────────────────
+// Link to the email in the mailbox it came from (authuser selects the Google
+// account when several are signed in). Old rows store 'primary' as the account.
+const gmailLink = (gmailId, account) =>
+  `https://mail.google.com/mail/${account && account !== 'primary' ? `?authuser=${encodeURIComponent(account)}` : ''}#all/${gmailId}`;
+
 function InvoiceScanSection() {
   const todayStr = () => new Date().toISOString().slice(0, 10);
   const shift = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
@@ -180,6 +185,7 @@ function InvoiceScanSection() {
   const [error, setError]       = useState(null);
   const [invoices, setInvoices] = useState([]);
   const [showInvoices, setShowInvoices] = useState(false);
+  const [showAllFailures, setShowAllFailures] = useState(false);
 
   const loadAccounts = () => api.get('/finance/gmail/accounts').then(r => setAccounts(r.data)).catch(() => {});
   const loadInvoices = () => api.get('/finance/invoices').then(r => setInvoices(r.data)).catch(() => {});
@@ -315,9 +321,21 @@ function InvoiceScanSection() {
           <p>נסרקו <strong>{result.scanned}</strong> מיילים · זוהו <strong>{result.invoices}</strong> חשבוניות · נשמרו <strong>{result.filesSaved}</strong> קבצים בדרייב</p>
           {!result.aiUsed && <p className="text-amber-700 text-xs">⚠️ סיווג AI לא פעיל (OPENAI_API_KEY חסר) — זיהוי לפי מילות מפתח בלבד</p>}
           {result.failures?.length > 0 && (
-            <div className="text-xs text-red-600 pt-1">
-              {result.failures.slice(0, 5).map((f, i) => <p key={i}>✗ {f.subject || f.account}: {f.error}</p>)}
-              {result.failures.length > 5 && <p>ועוד {result.failures.length - 5} כשלונות...</p>}
+            <div className="text-xs text-red-600 pt-1 space-y-0.5">
+              {(showAllFailures ? result.failures : result.failures.slice(0, 5)).map((f, i) => (
+                <p key={i}>
+                  ✗ {f.subject || f.account}: {f.error}
+                  {f.gmailId && (
+                    <a href={gmailLink(f.gmailId, f.account)} target="_blank" rel="noreferrer"
+                      className="text-violet-600 font-bold underline mr-1.5 whitespace-nowrap">פתח מייל</a>
+                  )}
+                </p>
+              ))}
+              {result.failures.length > 5 && (
+                <button type="button" onClick={() => setShowAllFailures(v => !v)} className="font-bold underline">
+                  {showAllFailures ? 'הצג פחות' : `ועוד ${result.failures.length - 5} כשלונות — הצג הכול`}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -342,7 +360,7 @@ function InvoiceScanSection() {
               </div>
               {inv.status === 'saved' && inv.drive_link
                 ? <a href={inv.drive_link} target="_blank" rel="noreferrer" className="text-violet-600 font-bold shrink-0">פתח בדרייב</a>
-                : <span className="text-red-500 font-bold shrink-0">✗</span>}
+                : <a href={gmailLink(inv.gmail_message_id, inv.account_email)} target="_blank" rel="noreferrer" className="text-red-500 font-bold shrink-0 underline">✗ פתח מייל</a>}
             </div>
           ))}
         </div>

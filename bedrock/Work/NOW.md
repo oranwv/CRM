@@ -6,6 +6,22 @@ updated: 2026-09-16
 
 # Now
 
+## 2026-09-22 (later) — First per-mailbox scan: 90 invoices, 0 saved — fixed
+
+Oran's 1.7–31.8 scan over both mailboxes: 1630 scanned, 90 invoices, 0 saved, 79 failures.
+59 were `דרייב: value too long for type character varying(20)` — `drive_folder` VARCHAR(20)
+vs the new `MM-YYYY/<address>` value; the upload had succeeded before recordFile threw, so
+those files ARE in Drive with no DB row and the emails are not marked scanned. Fix: column →
+TEXT; uploadToDrive reuses a same-named file in the folder (no duplicates on rescan). Oran
+should rerun the same range after deploy — it will record the existing files and mark the
+emails. The other 20: link failures (Canva 403, PayPro, מי אביבים, payplus, morning, Railway
+receipts 404/410, Airbnb/Grab) and personal receipts from the oranwv mailbox that the AI
+classifies as supplier invoices (Anthropic, Airbnb, Grab, insurance threads, "וייס אורן") —
+plus Sharviya's OWN morning invoices (חשבונית מס / קבלה 6068x - שרביה) despite the prompt.
+Oran also asked for links to the failed emails → failures now carry gmailId/account and the
+UI links "פתח מייל" + "הצג הכול". Still open: classification noise from the personal
+mailbox (consider a per-mailbox sender allow/deny list or stricter prompt) — ask Oran.
+
 ## 2026-09-22 — Invoices filed per mailbox; accountant send asks which mailboxes
 
 Oran: files from each mailbox go in their own Drive folder named by the address, under the
