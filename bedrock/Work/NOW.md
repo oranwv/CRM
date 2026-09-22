@@ -6,6 +6,16 @@ updated: 2026-09-16
 
 # Now
 
+## 2026-09-22 — Contract / price-offer: leading zero, editable package cost lines, VAT basis
+
+Built: `numVal` strips the "06" leading zero on every number input in both wizards; package
+contract cost lines are free-text EditableCells (server renders `texts.packageCostLine` /
+`packageExtraLine`, falls back to fixed lines for older contracts); package price and
+extra-guest price have an excl./incl. VAT toggle in contract + price offer, amounts typed excl.
+show both figures in the document. Labels renamed to מחיר החבילה / מחיר אורח נוסף.
+Note: editing the number inside the free-text line does not change the totals — the totals
+come from the wizard fields (same as the price offer already worked).
+
 ## 2026-09-22 (later) — First per-mailbox scan: 90 invoices, 0 saved — fixed
 
 Oran's 1.7–31.8 scan over both mailboxes: 1630 scanned, 90 invoices, 0 saved, 79 failures.

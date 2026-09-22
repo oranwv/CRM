@@ -1863,6 +1863,29 @@ Rule-based worklist ranking, per-lead deal advice cached in `lead_ai_advice`, lo
 insights, and morning/evening WhatsApp briefings. **Draft-only — never auto-sends to a
 customer.**
 
+### Phase 36 — Contract / price-offer number entry + package VAT basis ✅ Built 2026-09-22
+Requested by Oran (with the leading-zero screenshot from the contract wizard):
+- **Leading zero**: every number field in the contract and price-offer wizards (qty, unit
+  price, package price, guests, deposit %, percent rows, new-row inputs) showed `06` when
+  typing 6 over a `0` value — the browser keeps "06" because it equals 6. `numVal(e)` strips
+  the leading zeros and writes the cleaned string back into the input. Payment fields
+  elsewhere in the lead card were left as they were (out of scope).
+- **Package contract, costs section**: the two lines ("עלות החבילה עבור X אורחים - …" and
+  "כל אורח נוסף מעל …") are now full free-text `EditableCell`s in the preview
+  (`texts.packageCostLine` / `packageExtraLine`), generated from the wizard numbers when the
+  preview opens and regenerated only when guests / prices / VAT basis change
+  (`packageLinesSig`), so manual edits survive going back. The server renders those texts
+  when present and falls back to the old fixed lines for contracts saved before this.
+- **VAT basis for package prices**: wizard labels renamed to "מחיר החבילה" and "מחיר אורח
+  נוסף", each with a לא כולל / כולל מע"מ toggle (`fields.packageTotalIncl` /
+  `packageExtraIncl`, default incl. = previous behaviour). The typed amount is kept as typed;
+  when excl. is chosen the calculations use typed × 1.18 and the document line shows both:
+  "50,000 ש"ח לא כולל מע"מ (59,000 ש"ח כולל מע"מ)".
+- **Price offer (package)**: same rename and toggle (`packagePriceIncl` / `packageExtraIncl`),
+  shown only when the offer is with VAT (an offer without VAT keeps "לא כולל מע"מ" as before);
+  lines show both amounts when typed excl. Import between contract ↔ price offer carries the
+  basis. Also fixed a literal `{cur}` that leaked into the Hebrew package lines.
+
 ### Phase 35 — שומר שבת per user ✅ Built 2026-09-19
 Requested by Oran: a blocked user must get no sales briefings (already the case — both
 recipient queries filter `blocked`), and a new per-user "שומר שבת" toggle that stops the

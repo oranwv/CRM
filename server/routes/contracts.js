@@ -126,7 +126,10 @@ ${logoB64 ? `<div style="text-align:center;margin-bottom:10pt;"><img src="data:i
 
 ${tArr('eventExtraLines').map(l => (l && l.trim()) ? `<p>${esc(l)}</p>` : '').join('\n')}
 <h3>2. ${en ? 'Costs:' : '&#x05E2;&#x05DC;&#x05D5;&#x05D9;&#x05D5;&#x05EA;:'}</h3>
-${isPackage ? `
+${isPackage ? (texts.packageCostLine ? `
+<p>${esc(texts.packageCostLine)}</p>
+${texts.packageExtraLine && texts.packageExtraLine.trim() ? `<p>${esc(texts.packageExtraLine)}</p>` : ''}
+` : `
 <p>${en
   ? `Package cost for ${esc(String(packageGuests || ''))} guests - ${money(packageTotal)} incl. VAT`
   : `&#x05E2;&#x05DC;&#x05D5;&#x05EA; &#x05D4;&#x05D7;&#x05D1;&#x05D9;&#x05DC;&#x05D4; &#x05E2;&#x05D1;&#x05D5;&#x05E8; ${esc(String(packageGuests || ''))} &#x05D0;&#x05D5;&#x05E8;&#x05D7;&#x05D9;&#x05DD; - ${money(packageTotal)} &#x05DB;&#x05D5;&#x05DC;&#x05DC; &#x05DE;&#x05E2;"&#x05DE;`}</p>
@@ -135,7 +138,7 @@ ${packageExtraGuestPrice && Number(packageExtraGuestPrice) > 0
       ? `Each additional guest above ${esc(String(packageGuests || ''))} guests at ${money(packageExtraGuestPrice)} incl. VAT`
       : `&#x05DB;&#x05DC; &#x05D0;&#x05D5;&#x05E8;&#x05D7; &#x05E0;&#x05D5;&#x05E1;&#x05E3; &#x05DE;&#x05E2;&#x05DC; ${esc(String(packageGuests || ''))} &#x05D0;&#x05D5;&#x05E8;&#x05D7;&#x05D9;&#x05DD; &#x05D1;&#x05EA;&#x05D5;&#x05E1;&#x05E4;&#x05EA; &#x05E9;&#x05DC; ${money(packageExtraGuestPrice)} &#x05DB;&#x05D5;&#x05DC;&#x05DC; &#x05DE;&#x05E2;"&#x05DE;`}</p>`
   : ''}
-` : `
+`) : `
 <table style="margin-bottom:6pt;">
   <thead>
     <tr>

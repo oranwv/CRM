@@ -1311,10 +1311,21 @@ function BodyWithFile({ body: rawBody }) {
 // stored VAT-inclusive (gross). These convert a typed amount between the two.
 const toNet   = (v) => Math.round((Number(v) || 0) / 1.18);
 const toGross = (v) => Math.round((Number(v) || 0) * 1.18);
+// Number inputs: a controlled value of 0 plus a typed digit yields "06" — the
+// browser keeps that string because 06 == 6. Strip leading zeros and push the
+// cleaned string back into the DOM so the field shows "6".
+const numVal = (e) => {
+  const v = e.target.value;
+  const c = v.replace(/^(-?)0+(?=\d)/, '$1');
+  if (c !== v) e.target.value = c;
+  return c;
+};
 
 // Segmented "לא כולל מע"מ / כולל מע"מ" toggle + live conversion hint.
 // mode 'net'  → default excl; picking incl means the typed amount is VAT-inclusive
 //               and will be stored as its pre-VAT value (typed / 1.18).
+// mode 'gross' → the amount is kept as typed; when excl is picked the hint shows
+//               the VAT-inclusive equivalent (typed * 1.18).
 function VatToggle({ incl, onChange, amount, cur, mode = 'net' }) {
   const n = Number(amount) || 0;
   return (
@@ -1327,6 +1338,9 @@ function VatToggle({ incl, onChange, amount, cur, mode = 'net' }) {
       </div>
       {mode === 'net' && incl && n > 0 && (
         <p className="text-xs text-slate-400">= {toNet(n).toLocaleString()} {cur} לפני מע"מ</p>
+      )}
+      {mode === 'gross' && !incl && n > 0 && (
+        <p className="text-xs text-slate-400">= {toGross(n).toLocaleString()} {cur} כולל מע"מ</p>
       )}
     </div>
   );
@@ -1450,8 +1464,8 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
     { key: 'startTime',              label: 'שעת כניסה',                      type: 'time'   },
     { key: 'endTime',                label: 'שעת סיום האירוע',                type: 'time'   },
     { key: 'packageGuests',          label: 'מינימום אורחים בחבילה',          type: 'number' },
-    { key: 'packageTotal',           label: 'מחיר החבילה כולל מע"מ (₪)',      type: 'number' },
-    { key: 'packageExtraGuestPrice', label: 'מחיר אורח נוסף כולל מע"מ (₪)',  type: 'number' },
+    { key: 'packageTotal',           label: 'מחיר החבילה',                    type: 'number' },
+    { key: 'packageExtraGuestPrice', label: 'מחיר אורח נוסף',                 type: 'number' },
     { key: 'chefMenu',               label: 'תפריט שף',                       type: 'text'   },
     { key: 'barMenu',                label: 'תפריט בר',                       type: 'text'   },
     { key: 'depositPercent',         label: 'אחוז מקדמה (%)',                 type: 'number' },
@@ -1481,6 +1495,8 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
     packageGuests:          '',
     packageTotal:           '',
     packageExtraGuestPrice: '',
+    packageTotalIncl:       true,  // package price typed VAT-inclusive (false → excl., gross = typed * 1.18)
+    packageExtraIncl:       true,  // extra-guest price typed VAT-inclusive
   });
   const [contractType, setContractType] = useState(null); // null | 'regular' | 'package'
   const [language, setLanguage]               = useState('he'); // 'he' | 'en'
@@ -1539,6 +1555,9 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
     therefore: 'לפיכך הוסכם והותנה בין הצדדים:',
     preamble: 'המבוא להסכם זה וכל הנספחים, בין המצורפים במועד חתימת הסכם זה ובין שיצורפו אליו בעתיד, מהווים חלק בלתי נפרד הימנו.',
     includesHeader: 'המחיר כולל בתוכו:',
+    packageCostLine: '',   // package contract, costs section — full editable text; regenerated when the numbers change
+    packageExtraLine: '',
+    packageLinesSig: '',
     extraGuestPre: 'כל אורח מעל',
     extraGuestMid: 'אורחים בעלות של',
     extraGuestSuffix: 'לא כולל מע"מ',
@@ -1664,7 +1683,10 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
   const progressPct = Math.min(100, Math.round((step / (totalSteps || 1)) * 100));
 
   // Calculated values
-  const pkgTotal           = Number(fields.packageTotal) || 0;
+  const pkgTotalTyped      = Number(fields.packageTotal) || 0;
+  const pkgTotal           = fields.packageTotalIncl === false ? toGross(pkgTotalTyped) : pkgTotalTyped; // gross (incl. VAT)
+  const pkgExtraTyped      = Number(fields.packageExtraGuestPrice) || 0;
+  const pkgExtraGross      = fields.packageExtraIncl === false ? toGross(pkgExtraTyped) : pkgExtraTyped;
   const cFixedSubtotal     = isPackage
     ? Math.round(pkgTotal / 1.18)
     : rows.filter(r => !r.isPct).reduce((s, r) => s + (r.qty || 0) * (r.price || 0), 0);
@@ -1685,6 +1707,27 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
   const cur = en ? 'NIS' : 'ש"ח';
   const docDir = en ? 'ltr' : 'rtl';
   const mark = (s) => en ? s : ('‫' + s + '‬');
+
+  // Package contract, costs section: two free-text lines the user can edit in
+  // the preview. Built from the wizard numbers when reaching the preview; rebuilt
+  // only if guests / prices / VAT basis changed since they were last generated,
+  // so manual edits survive going back and forth.
+  useEffect(() => {
+    if (!isPreviewStep || !isPackage) return;
+    const sig = [language, fields.packageGuests, fields.packageTotal, fields.packageTotalIncl !== false, fields.packageExtraGuestPrice, fields.packageExtraIncl !== false].join('|');
+    if (contractTexts.packageLinesSig === sig && contractTexts.packageCostLine) return;
+    const g = fields.packageGuests || '';
+    const amt = (typed, incl, gross) => incl
+      ? (en ? `${fmtNum(typed)} ${cur} incl. VAT` : `${fmtNum(typed)} ${cur} כולל מע"מ`)
+      : (en ? `${fmtNum(typed)} ${cur} excl. VAT (${fmtNum(gross)} ${cur} incl. VAT)` : `${fmtNum(typed)} ${cur} לא כולל מע"מ (${fmtNum(gross)} ${cur} כולל מע"מ)`);
+    const totalTxt = amt(pkgTotalTyped, fields.packageTotalIncl !== false, pkgTotal);
+    const extraTxt = amt(pkgExtraTyped, fields.packageExtraIncl !== false, pkgExtraGross);
+    const costLine  = en ? `Package cost for ${g} guests - ${totalTxt}` : `עלות החבילה עבור ${g} אורחים - ${totalTxt}`;
+    const extraLine = pkgExtraTyped > 0
+      ? (en ? `Each additional guest above ${g} guests at ${extraTxt}` : `כל אורח נוסף מעל ${g} אורחים בתוספת של ${extraTxt}`)
+      : '';
+    setContractTexts(t => ({ ...t, packageCostLine: costLine, packageExtraLine: extraLine, packageLinesSig: sig }));
+  }, [isPreviewStep, isPackage, language, fields.packageGuests, fields.packageTotal, fields.packageTotalIncl, fields.packageExtraGuestPrice, fields.packageExtraIncl]);
   const CL = en ? {
     eventH: 'The Event:', eventDateL: 'Event date:', venueL: 'Venue: Sharabiya, 3 Rabbi Pinchas Ben Yair St., Tel Aviv–Yafo',
     startL: 'Start time:', endL: 'End time:', costsH: 'Costs:',
@@ -1779,6 +1822,8 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
         packageGuests:          f.packageGuests          != null ? String(f.packageGuests)          : '',
         packageTotal:           f.packagePrice           != null ? String(f.packagePrice)           : '',
         packageExtraGuestPrice: f.packageExtraGuestPrice != null ? String(f.packageExtraGuestPrice) : '',
+        packageTotalIncl:       f.withVat === false ? false : f.packagePriceIncl !== false,
+        packageExtraIncl:       f.withVat === false ? false : f.packageExtraIncl !== false,
         chefMenu:               f.chefMenu               || '',
         barMenu:                f.barMenu                || '',
       }));
@@ -1957,12 +2002,30 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                 <PickerDateInput value={fields[currentDef.key]} onChange={v => setField(currentDef.key, v)} className={cls} />
               ) : currentDef.type === 'time' ? (
                 <PickerTimeInput value={fields[currentDef.key]} onChange={v => setField(currentDef.key, v)} className={cls} />
+              ) : (currentDef.key === 'packageTotal' || currentDef.key === 'packageExtraGuestPrice') ? (
+                (() => {
+                  const inclKey = currentDef.key === 'packageTotal' ? 'packageTotalIncl' : 'packageExtraIncl';
+                  const incl = fields[inclKey] !== false;
+                  return (
+                    <>
+                      <input
+                        type="number"
+                        value={fields[currentDef.key] ?? ''}
+                        onChange={e => setField(currentDef.key, numVal(e))}
+                        className={cls}
+                        autoFocus
+                        onKeyDown={e => e.key === 'Enter' && setStep(s => s + 1)}
+                      />
+                      <VatToggle incl={incl} onChange={v => setField(inclKey, v)} amount={fields[currentDef.key]} cur={cur} mode="gross" />
+                    </>
+                  );
+                })()
               ) : currentDef.key === 'extraGuestPrice' ? (
                 <>
                   <input
                     type="number"
                     value={entryIncl ? String(toGross(fields.extraGuestPrice)) : (fields.extraGuestPrice ?? '')}
-                    onChange={e => setField('extraGuestPrice', entryIncl ? String(toNet(e.target.value)) : e.target.value)}
+                    onChange={e => setField('extraGuestPrice', entryIncl ? String(toNet(numVal(e))) : numVal(e))}
                     className={cls}
                     autoFocus
                     onKeyDown={e => e.key === 'Enter' && setStep(s => s + 1)}
@@ -1974,7 +2037,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                 <input
                   type={currentDef.type}
                   value={fields[currentDef.key]}
-                  onChange={e => setField(currentDef.key, e.target.value)}
+                  onChange={e => setField(currentDef.key, currentDef.type === 'number' ? numVal(e) : e.target.value)}
                   className={cls}
                   autoFocus
                   onKeyDown={e => e.key === 'Enter' && setStep(s => s + 1)}
@@ -2025,7 +2088,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                 <div>
                   <label className="text-xs font-bold text-slate-500 mb-1 block">כמות</label>
                   <input type="number" min="0" value={currentRow.qty}
-                    onChange={e => setRows(rs => rs.map(r => r.id === currentRow.id ? { ...r, qty: Number(e.target.value) } : r))}
+                    onChange={e => setRows(rs => rs.map(r => r.id === currentRow.id ? { ...r, qty: Number(numVal(e)) } : r))}
                     className={cls} autoFocus
                     onKeyDown={e => e.key === 'Enter' && setStep(s => s + 1)} />
                 </div>
@@ -2033,7 +2096,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                   <label className="text-xs font-bold text-slate-500 mb-1 block">מחיר ליחידה (ש"ח)</label>
                   <input type="number" min="0"
                     value={entryIncl ? String(toGross(currentRow.price)) : currentRow.price}
-                    onChange={e => { const p = entryIncl ? toNet(e.target.value) : Number(e.target.value); setRows(rs => rs.map(r => r.id === currentRow.id ? { ...r, price: p } : r)); }}
+                    onChange={e => { const v = numVal(e); const p = entryIncl ? toNet(v) : Number(v); setRows(rs => rs.map(r => r.id === currentRow.id ? { ...r, price: p } : r)); }}
                     className={cls}
                     onKeyDown={e => e.key === 'Enter' && setStep(s => s + 1)} />
                 </div>
@@ -2062,12 +2125,12 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                 </button>
               </div>
               {newRow.isPct ? (
-                <input type="number" placeholder="אחוזים %" min="0" value={newRow.pct} onChange={e => setNewRow(r => ({ ...r, pct: Number(e.target.value) }))} className={cls} />
+                <input type="number" placeholder="אחוזים %" min="0" value={newRow.pct} onChange={e => setNewRow(r => ({ ...r, pct: Number(numVal(e)) }))} className={cls} />
               ) : (
                 <>
                 <div className="grid grid-cols-2 gap-3">
-                  <input type="number" placeholder="כמות" min="0" value={newRow.qty} onChange={e => setNewRow(r => ({ ...r, qty: Number(e.target.value) }))} className={cls} />
-                  <input type="number" placeholder="מחיר" min="0" value={newRow.price} onChange={e => setNewRow(r => ({ ...r, price: Number(e.target.value) }))} className={cls} />
+                  <input type="number" placeholder="כמות" min="0" value={newRow.qty} onChange={e => setNewRow(r => ({ ...r, qty: Number(numVal(e)) }))} className={cls} />
+                  <input type="number" placeholder="מחיר" min="0" value={newRow.price} onChange={e => setNewRow(r => ({ ...r, price: Number(numVal(e)) }))} className={cls} />
                 </div>
                 <VatToggle incl={newRow.inclVat} onChange={v => setNewRow(r => ({ ...r, inclVat: v }))} amount={newRow.price} cur={cur} />
                 </>
@@ -2199,13 +2262,9 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
 
                 {isPackage ? (
                   <div style={{ marginBottom: 8 }}>
-                    <p>{en
-                      ? <>Package cost for <EditableCell value={String(fields.packageGuests || '')} onChange={v => setField('packageGuests', v)} /> guests - <EditableCell value={String(fields.packageTotal || '')} onChange={v => setField('packageTotal', v)} /> {cur} incl. VAT</>
-                      : <>עלות החבילה עבור <EditableCell value={String(fields.packageGuests || '')} onChange={v => setField('packageGuests', v)} /> אורחים - <EditableCell value={String(fields.packageTotal || '')} onChange={v => setField('packageTotal', v)} /> ש"ח כולל מע"מ</>}</p>
-                    {Number(fields.packageExtraGuestPrice) > 0 && (
-                      <p>{en
-                        ? <>Each additional guest above {fields.packageGuests} guests at <EditableCell value={String(fields.packageExtraGuestPrice || '')} onChange={v => setField('packageExtraGuestPrice', v)} /> {cur} incl. VAT</>
-                        : <>כל אורח נוסף מעל {fields.packageGuests} אורחים בתוספת של <EditableCell value={String(fields.packageExtraGuestPrice || '')} onChange={v => setField('packageExtraGuestPrice', v)} /> ש"ח כולל מע"מ</>}</p>
+                    <p><EditableCell value={contractTexts.packageCostLine || ''} onChange={v => setTxt('packageCostLine', v)} multiline /></p>
+                    {(contractTexts.packageExtraLine || '').trim() && (
+                      <p><EditableCell value={contractTexts.packageExtraLine} onChange={v => setTxt('packageExtraLine', v)} multiline /></p>
                     )}
                   </div>
                 ) : (
@@ -2656,6 +2715,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
     eventDate: lead.event_date_text || '', doorTime: lead.event_time || '',
     endTime: lead.event_end_time || '', guests: '', chefMenu: '', barMenu: '', notes: '', extraGuestPrice: '',
     packagePrice: '', packageGuests: '', packageExtraGuestPrice: '',
+    packagePriceIncl: true, packageExtraIncl: true, // VAT basis of the typed package prices (only meaningful when withVat)
   });
   const [rows, setRows] = useState([
     { id: 1, label: 'מחיר אורח', desc: 'כולל שכירות המקום, תפריט קייטרינג, תפריט בר', qty: 0, price: 395 },
@@ -2843,6 +2903,8 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
       packagePrice: f.packagePrice != null ? String(f.packagePrice) : '',
       packageGuests: f.packageGuests != null ? String(f.packageGuests) : '',
       packageExtraGuestPrice: f.packageExtraGuestPrice != null ? String(f.packageExtraGuestPrice) : '',
+      packagePriceIncl: f.packagePriceIncl !== false,
+      packageExtraIncl: f.packageExtraIncl !== false,
     }));
     if (data.rows?.length) setRows(srcEn ? offerRowsHe(data.rows) : data.rows);
     if (data.includes?.length && !srcEn) setTexts(t => ({ ...t, includes: data.includes }));
@@ -2867,6 +2929,8 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
       packagePrice: cf.packageTotal != null ? String(cf.packageTotal) : '',
       packageGuests: cf.packageGuests != null ? String(cf.packageGuests) : '',
       packageExtraGuestPrice: cf.packageExtraGuestPrice != null ? String(cf.packageExtraGuestPrice) : '',
+      packagePriceIncl: cf.packageTotalIncl !== false,
+      packageExtraIncl: cf.packageExtraIncl !== false,
     }));
     if (!srcPackage && data.rows?.length) setRows(srcEn ? offerRowsHe(data.rows) : data.rows);
     beginImported({ type: srcPackage ? 'package' : 'regular', lang: srcEn ? 'en' : 'he', vat: (data.calculated?.vat || 0) > 0 });
@@ -2924,16 +2988,25 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
 
   useEffect(() => {
     if (!isPreviewStep || offerType !== 'package' || texts.packageCostLines.length > 0) return;
-    const vatLabel = en ? (withVat ? 'incl. VAT' : 'excl. VAT') : (withVat ? 'כולל מע"מ' : 'לא כולל מע"מ');
+    // Amount text: offer without VAT → "excl. VAT"; with VAT → as typed, and when
+    // typed excl. VAT also the VAT-inclusive equivalent in brackets.
+    const amt = (typed, incl) => {
+      const n = Number(typed) || 0;
+      if (!withVat) return en ? `${n.toLocaleString()} ${cur} excl. VAT` : `${n.toLocaleString()} ${cur} לא כולל מע"מ`;
+      if (incl)     return en ? `${n.toLocaleString()} ${cur} incl. VAT` : `${n.toLocaleString()} ${cur} כולל מע"מ`;
+      return en
+        ? `${n.toLocaleString()} ${cur} excl. VAT (${toGross(n).toLocaleString()} ${cur} incl. VAT)`
+        : `${n.toLocaleString()} ${cur} לא כולל מע"מ (${toGross(n).toLocaleString()} ${cur} כולל מע"מ)`;
+    };
     const lines = [];
     if (fields.packageGuests && fields.packagePrice)
       lines.push(en
-        ? `Package cost for ${fields.packageGuests} guests - ${Number(fields.packagePrice).toLocaleString()} ${cur} ${vatLabel}`
-        : `עלות החבילה עבור ${fields.packageGuests} אורחים - ${Number(fields.packagePrice).toLocaleString()} {cur} ${vatLabel}`);
+        ? `Package cost for ${fields.packageGuests} guests - ${amt(fields.packagePrice, fields.packagePriceIncl !== false)}`
+        : `עלות החבילה עבור ${fields.packageGuests} אורחים - ${amt(fields.packagePrice, fields.packagePriceIncl !== false)}`);
     if (fields.packageGuests && fields.packageExtraGuestPrice)
       lines.push(en
-        ? `Each additional guest above ${fields.packageGuests} guests adds - ${Number(fields.packageExtraGuestPrice).toLocaleString()} ${cur} ${vatLabel}`
-        : `כל אורח נוסף מעל ${fields.packageGuests} אורחים בתוספת של - ${Number(fields.packageExtraGuestPrice).toLocaleString()} {cur} ${vatLabel}`);
+        ? `Each additional guest above ${fields.packageGuests} guests adds - ${amt(fields.packageExtraGuestPrice, fields.packageExtraIncl !== false)}`
+        : `כל אורח נוסף מעל ${fields.packageGuests} אורחים בתוספת של - ${amt(fields.packageExtraGuestPrice, fields.packageExtraIncl !== false)}`);
     if (lines.length) setTexts(t => ({ ...t, packageCostLines: lines }));
   }, [isPreviewStep]);
 
@@ -3146,7 +3219,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
                       className="w-full border-2 border-amber-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-amber-500 resize-none" />
                   ) : (
                   <input autoFocus type={def.type} value={val}
-                    onChange={e => setFields(f => ({ ...f, [def.key]: e.target.value }))}
+                    onChange={e => setFields(f => ({ ...f, [def.key]: def.type === 'number' ? numVal(e) : e.target.value }))}
                     onKeyDown={e => e.key === 'Enter' && advance()}
                     className="w-full border-2 border-amber-300 rounded-xl px-4 py-3 text-lg focus:outline-none focus:border-amber-500"
                     dir={isLtr ? 'ltr' : 'rtl'} />
@@ -3170,7 +3243,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
               <input
                 autoFocus type="number"
                 value={withVat && entryIncl ? String(toGross(fields.extraGuestPrice)) : (fields.extraGuestPrice ?? '')}
-                onChange={e => setFields(f => ({ ...f, extraGuestPrice: (withVat && entryIncl) ? String(toNet(e.target.value)) : e.target.value }))}
+                onChange={e => setFields(f => ({ ...f, extraGuestPrice: (withVat && entryIncl) ? String(toNet(numVal(e))) : numVal(e) }))}
                 onKeyDown={e => e.key === 'Enter' && advance()}
                 placeholder="לדוגמה: 400"
                 className="w-full border-2 border-amber-300 rounded-xl px-4 py-3 text-lg focus:outline-none focus:border-amber-500"
@@ -3226,14 +3299,18 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
           {/* ── Package: package price step ── */}
           {isPkgPriceStep && (
             <div className="space-y-5">
-              <p className="text-slate-400 text-sm font-semibold">עלות החבילה ({withVat ? 'כולל מע"מ' : 'לא כולל מע"מ'})</p>
+              <p className="text-slate-400 text-sm font-semibold">מחיר החבילה{!withVat && ' (לא כולל מע"מ)'}</p>
               <input
                 autoFocus type="number" value={fields.packagePrice}
-                onChange={e => setFields(f => ({ ...f, packagePrice: e.target.value }))}
+                onChange={e => setFields(f => ({ ...f, packagePrice: numVal(e) }))}
                 onKeyDown={e => e.key === 'Enter' && advance()}
                 placeholder="לדוגמה: 50000"
                 className="w-full border-2 border-amber-300 rounded-xl px-4 py-3 text-lg focus:outline-none focus:border-amber-500"
               />
+              {withVat && (
+                <VatToggle incl={fields.packagePriceIncl !== false} onChange={v => setFields(f => ({ ...f, packagePriceIncl: v }))}
+                  amount={fields.packagePrice} cur={cur} mode="gross" />
+              )}
               <div className="flex gap-2">
                 <button onClick={back} className="border-2 border-slate-200 text-slate-500 font-bold py-2.5 px-4 rounded-xl">חזור</button>
                 <button onClick={advance} className="flex-1 bg-amber-500 text-white font-bold py-2.5 rounded-xl">המשך</button>
@@ -3247,7 +3324,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
               <p className="text-slate-400 text-sm font-semibold">כמות האורחים בחבילה</p>
               <input
                 autoFocus type="number" value={fields.packageGuests}
-                onChange={e => setFields(f => ({ ...f, packageGuests: e.target.value }))}
+                onChange={e => setFields(f => ({ ...f, packageGuests: numVal(e) }))}
                 onKeyDown={e => e.key === 'Enter' && advance()}
                 placeholder="לדוגמה: 130"
                 className="w-full border-2 border-amber-300 rounded-xl px-4 py-3 text-lg focus:outline-none focus:border-amber-500"
@@ -3262,14 +3339,18 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
           {/* ── Package: extra guest cost step ── */}
           {isPkgExtraStep && (
             <div className="space-y-5">
-              <p className="text-slate-400 text-sm font-semibold">עלות אורח נוסף ({withVat ? 'כולל מע"מ' : 'לא כולל מע"מ'})</p>
+              <p className="text-slate-400 text-sm font-semibold">מחיר אורח נוסף{!withVat && ' (לא כולל מע"מ)'}</p>
               <input
                 autoFocus type="number" value={fields.packageExtraGuestPrice}
-                onChange={e => setFields(f => ({ ...f, packageExtraGuestPrice: e.target.value }))}
+                onChange={e => setFields(f => ({ ...f, packageExtraGuestPrice: numVal(e) }))}
                 onKeyDown={e => e.key === 'Enter' && advance()}
                 placeholder="לדוגמה: 400"
                 className="w-full border-2 border-amber-300 rounded-xl px-4 py-3 text-lg focus:outline-none focus:border-amber-500"
               />
+              {withVat && (
+                <VatToggle incl={fields.packageExtraIncl !== false} onChange={v => setFields(f => ({ ...f, packageExtraIncl: v }))}
+                  amount={fields.packageExtraGuestPrice} cur={cur} mode="gross" />
+              )}
               <p className="text-xs text-slate-400">אופציונלי — אם לא רלוונטי, השאר ריק</p>
               <div className="flex gap-2">
                 <button onClick={back} className="border-2 border-slate-200 text-slate-500 font-bold py-2.5 px-4 rounded-xl">חזור</button>
@@ -3369,14 +3450,14 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
                     <div className="flex gap-2">
                       <div className="flex-1">
                         <p className="text-xs text-slate-400 mb-1">כמות</p>
-                        <input type="number" value={row.qty} onChange={e => updateRow(rowIdx, { qty: parseFloat(e.target.value) || 0 })}
+                        <input type="number" value={row.qty} onChange={e => updateRow(rowIdx, { qty: parseFloat(numVal(e)) || 0 })}
                           className="w-full border-2 border-amber-300 rounded-xl px-3 py-2 text-base focus:outline-none" />
                       </div>
                       <div className="flex-1">
                         <p className="text-xs text-slate-400 mb-1">מחיר ש"ח</p>
                         <input type="number"
                           value={withVat && entryIncl ? String(toGross(row.price)) : row.price}
-                          onChange={e => updateRow(rowIdx, { price: (withVat && entryIncl) ? toNet(e.target.value) : (parseFloat(e.target.value) || 0) })}
+                          onChange={e => { const v = numVal(e); updateRow(rowIdx, { price: (withVat && entryIncl) ? toNet(v) : (parseFloat(v) || 0) }); }}
                           className="w-full border-2 border-amber-300 rounded-xl px-3 py-2 text-base focus:outline-none" />
                       </div>
                     </div>
@@ -3428,19 +3509,19 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
                 {newRow.isPct ? (
                   <div>
                     <p className="text-xs text-slate-400 mb-1">אחוזים מסכום השורות הקבועות</p>
-                    <input type="number" value={newRow.pct} onChange={e => setNewRow(r => ({ ...r, pct: parseFloat(e.target.value) || 0 }))}
+                    <input type="number" value={newRow.pct} onChange={e => setNewRow(r => ({ ...r, pct: parseFloat(numVal(e)) || 0 }))}
                       className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-amber-400" placeholder="לדוגמה: 10" />
                   </div>
                 ) : (
                   <div className="flex gap-2">
                     <div className="flex-1">
                       <p className="text-xs text-slate-400 mb-1">כמות</p>
-                      <input type="number" value={newRow.qty} onChange={e => setNewRow(r => ({ ...r, qty: parseFloat(e.target.value) || 0 }))}
+                      <input type="number" value={newRow.qty} onChange={e => setNewRow(r => ({ ...r, qty: parseFloat(numVal(e)) || 0 }))}
                         className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-amber-400" />
                     </div>
                     <div className="flex-1">
                       <p className="text-xs text-slate-400 mb-1">מחיר ש"ח</p>
-                      <input type="number" value={newRow.price} onChange={e => setNewRow(r => ({ ...r, price: parseFloat(e.target.value) || 0 }))}
+                      <input type="number" value={newRow.price} onChange={e => setNewRow(r => ({ ...r, price: parseFloat(numVal(e)) || 0 }))}
                         className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-amber-400" />
                     </div>
                   </div>
