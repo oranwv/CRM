@@ -158,6 +158,31 @@ function ExpenseRow({ item, onChanged, periods = [], periodId }) {
 const gmailLink = (gmailId, account) =>
   `https://mail.google.com/mail/${account && account !== 'primary' ? `?authuser=${encodeURIComponent(account)}` : ''}#all/${gmailId}`;
 
+// Preview images are plain <img> tags (fast, cached by the browser, work on
+// phones). They need a short-lived token in the URL; fetched once per page load.
+let _previewToken = null;
+let _previewTokenPromise = null;
+function getPreviewToken() {
+  if (_previewToken) return Promise.resolve(_previewToken);
+  if (!_previewTokenPromise) {
+    _previewTokenPromise = api.get('/finance/review/preview-token')
+      .then(r => { _previewToken = r.data.token; return _previewToken; })
+      .catch(() => { _previewTokenPromise = null; return null; });
+  }
+  return _previewTokenPromise;
+}
+const previewUrl = (driveFileId, token, size = 'full') =>
+  token && driveFileId ? `/api/finance/invoice-preview/${driveFileId}?size=${size}&t=${encodeURIComponent(token)}` : null;
+
+// Thumbnail for a list row — grey box until the image arrives, hidden on error
+function InvoiceThumb({ driveFileId, token, link }) {
+  const [failed, setFailed] = useState(false);
+  const src = previewUrl(driveFileId, token, 'thumb');
+  if (!src || failed) return <div className="w-10 h-12 rounded-md bg-slate-200 shrink-0" />;
+  const img = <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} className="w-10 h-12 rounded-md object-cover object-top bg-white border border-slate-200 shrink-0" />;
+  return link ? <a href={link} target="_blank" rel="noreferrer" className="shrink-0">{img}</a> : img;
+}
+
 function InvoiceScanSection() {
   const todayStr = () => new Date().toISOString().slice(0, 10);
   const shift = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
@@ -186,6 +211,8 @@ function InvoiceScanSection() {
   const [invoices, setInvoices] = useState([]);
   const [showInvoices, setShowInvoices] = useState(false);
   const [showAllFailures, setShowAllFailures] = useState(false);
+  const [previewToken, setPreviewToken] = useState(null);
+  useEffect(() => { getPreviewToken().then(setPreviewToken); }, []);
 
   const loadAccounts = () => api.get('/finance/gmail/accounts').then(r => setAccounts(r.data)).catch(() => {});
   const loadInvoices = () => api.get('/finance/invoices').then(r => setInvoices(r.data)).catch(() => {});
@@ -350,7 +377,8 @@ function InvoiceScanSection() {
           {invoices.length === 0 && <p className="text-xs text-slate-400">אין חשבוניות שמורות עדיין</p>}
           {invoices.map(inv => (
             <div key={inv.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-100 text-xs">
-              <div className="min-w-0">
+              {inv.status === 'saved' && inv.drive_file_id && <InvoiceThumb driveFileId={inv.drive_file_id} token={previewToken} link={inv.drive_link} />}
+              <div className="min-w-0 flex-1">
                 <p className="font-medium text-slate-700 truncate">{inv.email_subject || inv.filename}</p>
                 <p className="text-slate-400 truncate">
                   {inv.email_date ? new Date(inv.email_date).toLocaleDateString('he-IL') : ''}
@@ -555,15 +583,15 @@ function InvoiceReviewSection() {
   const [files, setFiles]       = useState([]);
   const [idx, setIdx]           = useState(0);
   const [loading, setLoading]   = useState(false);
-  const [previewUrl, setPreviewUrl] = useState(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewToken, setPreviewToken] = useState(null);
+  const [previewState, setPreviewState] = useState('loading'); // loading | ok | failed
   const [busy, setBusy]         = useState(false);
   const [error, setError]       = useState(null);
   const [trash, setTrash]       = useState(null); // null = hidden, [] = shown
   const [trashOpenMonth, setTrashOpenMonth] = useState(null);
-  const previewRef = useRef(null);
 
   const current = files[idx] || null;
+  useEffect(() => { getPreviewToken().then(setPreviewToken); }, []);
   const fmtSize = (b) => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.round(b / 1024)} KB`);
 
   async function openPanel() {
@@ -576,7 +604,7 @@ function InvoiceReviewSection() {
   }
 
   async function pickMonth(key) {
-    setMonth(key); setFiles([]); setIdx(0); setLoading(true); setError(null); clearPreview();
+    setMonth(key); setFiles([]); setIdx(0); setLoading(true); setError(null);
     try {
       const { data } = await api.get('/finance/review/files', { params: { month: key } });
       setFiles(data);
@@ -584,28 +612,16 @@ function InvoiceReviewSection() {
     finally { setLoading(false); }
   }
 
-  function clearPreview() {
-    if (previewRef.current) { URL.revokeObjectURL(previewRef.current); previewRef.current = null; }
-    setPreviewUrl(null);
-  }
-
-  // Load the preview of the current file as a blob (the API needs the auth header, an <iframe> can't send it)
+  // New file on screen → loading state; and warm the browser cache with the next two
   useEffect(() => {
-    clearPreview();
-    if (!current) return undefined;
-    let cancelled = false;
-    setPreviewLoading(true);
-    api.get(`/finance/review/file/${current.driveFileId}`, { responseType: 'blob' })
-      .then(r => {
-        if (cancelled) return;
-        const url = URL.createObjectURL(r.data);
-        previewRef.current = url; setPreviewUrl(url);
-      })
-      .catch(() => { if (!cancelled) setPreviewUrl(null); })
-      .finally(() => { if (!cancelled) setPreviewLoading(false); });
-    return () => { cancelled = true; };
+    setPreviewState('loading');
+    if (!previewToken) return;
+    for (const f of files.slice(idx + 1, idx + 3)) {
+      const src = previewUrl(f.driveFileId, previewToken);
+      if (src) { const im = new Image(); im.src = src; }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current?.driveFileId]);
+  }, [current?.driveFileId, previewToken]);
 
   async function trashCurrent() {
     if (!current || busy) return;
@@ -638,8 +654,7 @@ function InvoiceReviewSection() {
     finally { setBusy(false); }
   }
 
-  const isPdf = current && /pdf/i.test(current.mimeType || current.name);
-  const isImage = current && /^image\//i.test(current.mimeType || '');
+  const currentSrc = current && previewToken ? previewUrl(current.driveFileId, previewToken) : null;
 
   return (
     <div className="bg-white rounded-2xl border border-violet-100 shadow-sm p-4 space-y-3">
@@ -669,7 +684,7 @@ function InvoiceReviewSection() {
               className={`text-xs font-bold px-2.5 py-1.5 rounded-lg border transition ${trash ? 'bg-slate-700 text-white border-slate-700' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>
               🗑 פח
             </button>
-            <button type="button" onClick={() => { setOpen(false); setMonth(null); setFiles([]); setTrash(null); clearPreview(); }} disabled={busy}
+            <button type="button" onClick={() => { setOpen(false); setMonth(null); setFiles([]); setTrash(null); }} disabled={busy}
               className="text-xs text-slate-400 underline mr-auto">סגור</button>
           </div>
 
@@ -685,12 +700,15 @@ function InvoiceReviewSection() {
                 <span dir="ltr" className="truncate">{current.mailbox}</span>
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-slate-50 overflow-hidden" style={{ height: '60vh', minHeight: 320 }}>
-                {previewLoading && <div className="h-full flex items-center justify-center text-xs text-slate-400">טוען תצוגה מקדימה…</div>}
-                {!previewLoading && previewUrl && isPdf && <iframe title="preview" src={previewUrl} className="w-full h-full" />}
-                {!previewLoading && previewUrl && isImage && <img src={previewUrl} alt="" className="w-full h-full object-contain" />}
-                {!previewLoading && (!previewUrl || (!isPdf && !isImage)) && (
-                  <div className="h-full flex flex-col items-center justify-center gap-2 text-xs text-slate-400">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 overflow-y-auto relative" style={{ height: '60vh', minHeight: 320 }}>
+                {previewState === 'loading' && <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-400">טוען תצוגה מקדימה…</div>}
+                {currentSrc && previewState !== 'failed' && (
+                  <img key={current.driveFileId} src={currentSrc} alt=""
+                    onLoad={() => setPreviewState('ok')} onError={() => setPreviewState('failed')}
+                    className={`w-full h-auto bg-white ${previewState === 'ok' ? '' : 'opacity-0'}`} />
+                )}
+                {previewState === 'failed' && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-xs text-slate-400">
                     <span>אין תצוגה מקדימה לקובץ הזה</span>
                     <a href={current.driveLink} target="_blank" rel="noreferrer" className="text-violet-600 font-bold underline">פתח בדרייב</a>
                   </div>
@@ -707,7 +725,7 @@ function InvoiceReviewSection() {
                 </p>
                 <p className="flex gap-3">
                   {current.gmailId && <a href={gmailLink(current.gmailId, current.account)} target="_blank" rel="noreferrer" className="text-violet-600 font-bold underline">פתח מייל</a>}
-                  <a href={current.driveLink} target="_blank" rel="noreferrer" className="text-violet-600 font-bold underline">פתח בדרייב</a>
+                  <a href={current.driveLink} target="_blank" rel="noreferrer" className="text-violet-600 font-bold underline">פתח את הקובץ המלא</a>
                 </p>
               </div>
 

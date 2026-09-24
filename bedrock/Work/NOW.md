@@ -6,6 +6,20 @@ updated: 2026-09-16
 
 # Now
 
+## 2026-09-24 (evening) — Invoice previews as images (phone couldn't open PDFs)
+
+Oran's phone showed "PDF / Open" instead of the invoice in the review screen. Agreed plan:
+first page only, stored in Postgres (not Drive), thumbnails also in the saved list. Built
+`invoicePreviewService` (pdf-parse getScreenshot + @napi-rs/canvas → JPEG 1000px + 200px),
+`finance_invoice_previews`, unauthenticated preview route with a query JWT, scanner stores
+previews at upload, lazy render for old files, `<img>`-based viewer with prefetch. Verified
+rendering in the cloud container (linux x64) — the Mac VM has darwin bindings only. Railway
+is Alpine (musl): @napi-rs/canvas-linux-x64-musl is in the lockfile as an optional dep.
+After deploy verify: review screen shows the image on the phone; first open of an old file
+takes ~1–2s (lazy render), second is instant; thumbnails in "חשבוניות שנשמרו". If the
+image 500s on Railway, check the server log for "[FinancePreview] render failed" — likely
+the musl binding; fallback would be Chromium (already in the image) via puppeteer-core.
+
 ## 2026-09-24 (later) — Why non-invoices entered: sibling PDFs + sent mail loop
 
 Oran's screenshots: an electrical inspection report and an ERAN safety certificate. Cause:

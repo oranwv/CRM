@@ -53,6 +53,14 @@ async function fileStream(driveFileId) {
   return { stream: res.data, name: meta.name, mimeType: meta.mimeType || 'application/pdf' };
 }
 
+// Whole file as a buffer (for lazy preview rendering of pre-existing files)
+async function downloadFile(driveFileId) {
+  const drive = driveClient();
+  const { data: meta } = await drive.files.get({ fileId: driveFileId, fields: 'mimeType' });
+  const res = await drive.files.get({ fileId: driveFileId, alt: 'media' }, { responseType: 'arraybuffer' });
+  return { buffer: Buffer.from(res.data), mimeType: meta.mimeType || 'application/pdf' };
+}
+
 async function trashFolderFor(drive, monthKey, mailbox) {
   const rootId = await getRootFolderId(drive);
   const trashId = await ensureFolder(drive, TRASH_FOLDER_NAME, rootId);
@@ -111,4 +119,4 @@ async function restoreFile(trashId) {
   return { ok: true };
 }
 
-module.exports = { listMonths, listMonthFiles, fileStream, trashFile, listTrash, restoreFile };
+module.exports = { listMonths, listMonthFiles, fileStream, downloadFile, trashFile, listTrash, restoreFile };

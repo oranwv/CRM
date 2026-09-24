@@ -5,6 +5,7 @@ const { reconcile, parseKartesetAny, findMissing, fingerprint, DEFAULT_EXCLUSION
 const { scanRange, scanStatus, buildConnectUrl } = require('../services/financeInvoiceScanner');
 const { listMonths, sendToAccountant, sendStatus } = require('../services/accountantSendService');
 const review = require('../services/invoiceReviewService');
+const previews = require('../services/invoicePreviewService');
 
 // Unified status for karteset-driven auto-resolves (full compare + rekarteset)
 function kartesetResolvedStatus(now = new Date()) {
@@ -518,4 +519,28 @@ router.post('/review/restore/:id', async (req, res) => {
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET /api/finance/review/preview-token — short-lived token for <img src> URLs
+router.get('/review/preview-token', (req, res) => res.json({ token: previews.issuePreviewToken(req.user.id) }));
+
+// GET /api/finance/invoice-preview/:driveId?size=full|thumb&t=<token>
+// Mounted in index.js WITHOUT requireAuth (an <img> cannot send headers);
+// the query token is verified here. Rendered lazily for files that predate previews.
+async function previewHandler(req, res) {
+  try {
+    previews.verifyPreviewToken(String(req.query.t || ''));
+  } catch { return res.status(401).end(); }
+  try {
+    const img = await previews.getPreview(req.params.driveId, req.query.size === 'thumb' ? 'thumb' : 'full', review.downloadFile);
+    if (!img) return res.status(404).end();
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+    res.end(img);
+  } catch (err) {
+    console.error('[Finance] preview error:', err.message);
+    res.status(500).end();
+  }
+}
+
+// GET /api/finance/invoices — add whether a preview exists (for thumbnails)
+router.previewHandler = previewHandler;
 module.exports = router;

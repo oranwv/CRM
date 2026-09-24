@@ -527,6 +527,7 @@ finance_missing_expenses: id, period_id, fingerprint, entry_date, name, descript
 finance_expense_notes:    id, expense_id, body, created_by, created_at
 finance_accountant_sends: id, email, months TEXT[], mailboxes TEXT[] (NULL = all), files_count, emails_sent, note, created_by, created_at
 finance_invoice_trash:    id, drive_file_id, name, month, mailbox, original_folder_id, size, email_subject, email_from, email_date, gmail_message_id, trashed_by, trashed_at, restored_at
+finance_invoice_previews: drive_file_id PK, image BYTEA (1000px JPEG), thumb BYTEA (200px), width, height, created_at
 finance_gmail_accounts:   id, email UNIQUE, token_json, active, last_scan_at, created_at
 finance_scanned_emails:   gmail_id PRIMARY KEY, account_email, is_invoice, scanned_at
 finance_invoice_files:    id, gmail_message_id, account_email, email_subject, email_from,
@@ -1162,6 +1163,21 @@ re-uploads it. The "פח" view groups trashed items by month; "שחזר" moves t
 folder is not an `MM-YYYY` folder, so the accountant send never includes it. Motivation:
 private purchases and Sharviya's own outgoing invoices (copied to the business mailbox) get
 classified as supplier invoices.
+
+**2c. Invoice previews** (`invoicePreviewService.js`, 2026-09-24). Phones cannot render a PDF
+inside the page (Chrome/Android and Safari offer "Open" → download), so every invoice file
+gets its **first page rendered to JPEG** — `pdf-parse` `getScreenshot()` (pdfjs +
+`@napi-rs/canvas`, now an explicit dependency so `npm ci` installs the Alpine musl binding)
+→ two sizes, 1000px (viewer) and 200px (list thumbnail) — stored in Postgres
+`finance_invoice_previews` (BYTEA, ~100–200 KB per invoice). Rendered inline by the scanner
+right after the Drive upload (`storePreviewSafe`, never fails the scan); files that predate
+previews are rendered lazily on first request and stored. Served by
+`GET /api/finance/invoice-preview/:driveId?size=full|thumb&t=<token>` — mounted **without**
+`requireAuth` because an `<img>` can't send headers; `t` is a 12h JWT with
+`purpose: 'invoice-preview'` issued by `GET /finance/review/preview-token`; response is
+`Cache-Control: private, max-age=86400`. The review screen shows the image (and pre-warms the
+next two via `new Image()`), "פתח את הקובץ המלא" opens Drive for multi-page invoices; the
+saved-invoices list shows a 40px thumbnail per row.
 
 **3. Send to accountant** (`accountantSendService.js`, added 2026-09-17). Card under the
 invoice-scan card: "שלח לרואה חשבון" opens a panel listing the `MM-YYYY` folders under the

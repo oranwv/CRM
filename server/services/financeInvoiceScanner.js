@@ -477,6 +477,7 @@ async function scanRange(from, to) {
               if (alreadySaved.length) continue;
               try {
                 const uploaded = await uploadToDrive(drive, folderId, f.name, f.buffer, f.mimeType);
+                await require('./invoicePreviewService').storePreviewSafe(uploaded.id, f.buffer, f.mimeType);
                 await recordFile(m.id, account.email, {
                   subject, from: fromH, emailDate, filename: f.name, kind: f.kind,
                   status: 'saved', driveFileId: uploaded.id, driveLink: uploaded.webViewLink, driveFolder: boxKey,

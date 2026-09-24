@@ -642,6 +642,15 @@ pool.query(`
     created_at TIMESTAMPTZ DEFAULT NOW()
   );
   ALTER TABLE finance_accountant_sends ADD COLUMN IF NOT EXISTS mailboxes TEXT[]; -- NULL = all mailboxes
+  -- 2026-09-24: first-page JPEG previews of invoice files (viewer + list thumbnails)
+  CREATE TABLE IF NOT EXISTS finance_invoice_previews (
+    drive_file_id TEXT PRIMARY KEY,
+    image BYTEA NOT NULL,
+    thumb BYTEA NOT NULL,
+    width INT,
+    height INT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
   -- 2026-09-24: invoice review trash (files moved to Drive "פח"/MM-YYYY/<mailbox>, restorable)
   CREATE TABLE IF NOT EXISTS finance_invoice_trash (
     id SERIAL PRIMARY KEY,
@@ -767,6 +776,7 @@ app.use('/api/greeninvoice',        requireAuth, require('./routes/greeninvoice'
 // Public OAuth callback for connecting extra finance mailboxes (Google redirects
 // the browser here; access is validated via the signed `state` param).
 app.get('/api/finance/gmail/oauth/callback', require('./services/financeInvoiceScanner').oauthCallbackHandler);
+app.get('/api/finance/invoice-preview/:driveId', require('./routes/finance').previewHandler); // token in query, see route
 app.use('/api/finance',             requireAuth, require('./routes/finance'));
 app.use('/api/ai',                  requireAuth, aiRoutes);
 app.use('/api/chat',               chatRoutes);  // auth applied inside route
