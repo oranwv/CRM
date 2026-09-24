@@ -6,6 +6,16 @@ updated: 2026-09-16
 
 # Now
 
+## 2026-09-24 (later) — Why non-invoices entered: sibling PDFs + sent mail loop
+
+Oran's screenshots: an electrical inspection report and an ERAN safety certificate. Cause:
+all PDFs of an invoice email were saved. Fix: per-attachment text check (pdf-parse +
+keyword rules, AI when ambiguous). Also found via the live API that the accountant email
+"חשבוניות שרביה — אוגוסט 2026 – יולי 2026" (sent from the business mailbox on 17.9) was
+scanned as an invoice email and its 35 attachments re-saved into 09-2026 — a loop. Query now
+excludes in:sent/in:drafts. Those 35 duplicates in 09-2026 must be removed by hand (or via
+the new review/trash screen) — tell Oran. Tested classifier with simulated texts only.
+
 ## 2026-09-24 — Invoice review with a restorable trash
 
 Oran: irrelevant files land in the invoice folders (private purchases, Sharviya's own outgoing

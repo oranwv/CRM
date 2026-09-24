@@ -222,6 +222,52 @@ async function classifyEmail({ subject, from, snippet, attachments, links }) {
   }
 }
 
+// ── Per-attachment confirmation ───────────────────────────────────────────────
+// An invoice email often carries other PDFs too (inspection reports, safety
+// certificates, appendices). The email-level verdict says "this email has an
+// invoice"; this decides, per PDF, whether the document itself is one.
+async function pdfText(buffer, maxChars = 2500) {
+  let parser;
+  try {
+    const { PDFParse } = require('pdf-parse');
+    parser = new PDFParse({ data: buffer });
+    const result = await parser.getText();
+    const text = (result.pages && result.pages.length) ? result.pages.map(p => p.text || '').join('\n') : String(result.text || '');
+    return text.replace(/\s+/g, ' ').trim().slice(0, maxChars);
+  } catch { return ''; }
+  finally { try { await parser?.destroy(); } catch { /* ignore */ } }
+}
+
+const DOC_KEYWORDS = ['חשבונית', 'קבלה', 'invoice', 'receipt', 'חשבון עסקה', 'tax invoice', 'זיכוי'];
+const NON_INVOICE_HINTS = ['דו"ח בדיקה', 'דוח בדיקה', 'אישור יועץ', 'אישור בטיחות', 'תעודת', 'נספח', 'הסכם', 'חוזה', 'פוליסה', 'פרוטוקול', 'הצעת מחיר'];
+
+async function classifyAttachment({ filename, text, subject, from }) {
+  const t = (text || '').toLowerCase();
+  if (!t) return true; // scanned / image-only PDF — can't tell, keep it (the review screen exists for that)
+  const kw = DOC_KEYWORDS.some(k => t.includes(k.toLowerCase()));
+  const nonInv = NON_INVOICE_HINTS.some(k => t.includes(k.toLowerCase()));
+  if (kw && !nonInv) return true;   // clearly an invoice
+  if (!kw && nonInv) return false;  // clearly something else
+  if (!process.env.OPENAI_API_KEY) return kw;
+  try {
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const resp = await openai.chat.completions.create({
+      model: 'gpt-4o-mini', max_tokens: 120, response_format: { type: 'json_object' },
+      messages: [{ role: 'user', content: `המסמך הבא הגיע כקובץ מצורף במייל (מאת: ${from}, נושא: ${subject}, שם קובץ: ${filename}). קבע האם המסמך עצמו הוא חשבונית / קבלה / חשבון עסקה / חשבונית זיכוי (מסמך כספי שספק הוציא). דו"ח בדיקה, אישור, תעודה, נספח, הסכם, פוליסה או הצעת מחיר אינם חשבונית.
+
+תחילת המסמך:
+${text}
+
+השב JSON בלבד: {"is_invoice": boolean, "reason": string}` }],
+    });
+    const parsed = JSON.parse(resp.choices[0]?.message?.content || '{}');
+    return !!parsed.is_invoice;
+  } catch (err) {
+    console.error('[FinanceScan] attachment classify error:', err.message);
+    return kw;
+  }
+}
+
 // ── Invoice download (links) ──────────────────────────────────────────────────
 
 const isPdfBuffer = (buf) => buf && buf.length > 4 && buf.slice(0, 5).toString('latin1') === '%PDF-';
@@ -326,7 +372,7 @@ async function scanRange(from, to) {
       let list;
       try {
         ({ data: list } = await gmail.users.messages.list({
-          userId: 'me', q: `after:${afterEpoch} before:${beforeEpoch}`, maxResults: 100, pageToken,
+          userId: 'me', q: `after:${afterEpoch} before:${beforeEpoch} -in:sent -in:drafts`, maxResults: 100, pageToken,
         }));
       } catch (err) {
         summary.failures.push({ account: mailboxName, error: `Gmail: ${err.message}` });
@@ -391,12 +437,20 @@ async function scanRange(from, to) {
             const folderId = monthFolders[boxKey];
             const datePrefix = emailDate.toISOString().slice(0, 10);
             const files = [];
+            let failedHere = false;
 
             for (const att of pdfAttachments) {
               try {
                 const { data: attData } = await gmail.users.messages.attachments.get({ userId: 'me', messageId: m.id, id: att.attachmentId });
-                files.push({ name: `${datePrefix} ${att.filename}`, buffer: b64urlDecode(attData.data), mimeType: att.mimeType || 'application/pdf', kind: 'attachment' });
+                const buffer = b64urlDecode(attData.data);
+                // Only the PDFs that are themselves invoices — not the report /
+                // certificate / appendix that came along in the same email.
+                const text = await pdfText(buffer);
+                const ok = await classifyAttachment({ filename: att.filename, text, subject, from: fromH });
+                if (!ok) { summary.skippedAttachments = (summary.skippedAttachments || 0) + 1; console.log(`[FinanceScan] skipped non-invoice attachment: ${att.filename} (${subject})`); continue; }
+                files.push({ name: `${datePrefix} ${att.filename}`, buffer, mimeType: att.mimeType || 'application/pdf', kind: 'attachment' });
               } catch (err) {
+                failedHere = true;
                 summary.failures.push({ subject, error: `צרופה: ${err.message}`, gmailId: m.id, account: mailboxName, emailDate });
               }
             }
@@ -405,10 +459,15 @@ async function scanRange(from, to) {
                 const dl = await downloadFromLink(link);
                 files.push({ name: `${datePrefix} ${sanitize(subject) || 'חשבונית'}.pdf`, buffer: dl.buffer, mimeType: dl.mimeType, kind: 'link' });
               } catch (err) {
+                failedHere = true;
                 summary.failures.push({ subject, error: `קישור: ${err.message}`, gmailId: m.id, account: mailboxName, emailDate });
                 await recordFile(m.id, account.email, { subject, from: fromH, emailDate, filename: link, kind: 'link', status: 'failed', error: err.message });
               }
             }
+
+            // Every PDF turned out to be a report/certificate and no invoice link
+            // was found: treat the email as "not an invoice" so it is not retried forever.
+            if (!files.length && !failedHere) isInvoice = false;
 
             for (const f of files) {
               // Already saved in a previous (partial) run — don't duplicate in Drive
@@ -489,4 +548,4 @@ function startDailyInvoiceScan() {
   }, 60 * 60 * 1000);
 }
 
-module.exports = { scanRange, scanStatus, startDailyInvoiceScan, buildConnectUrl, oauthCallbackHandler, primaryAuth, getRootFolderId, ensureFolder };
+module.exports = { classifyAttachment, pdfText, scanRange, scanStatus, startDailyInvoiceScan, buildConnectUrl, oauthCallbackHandler, primaryAuth, getRootFolderId, ensureFolder };

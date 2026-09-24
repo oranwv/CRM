@@ -1139,6 +1139,15 @@ refresh for extra mailboxes goes through the same web client. Without these env 
 button returns a clear error. The Google account must be a test user while the OAuth app is
 in Testing mode.
 
+**Attachment-level filtering (2026-09-24).** An invoice email often carries other PDFs
+(inspection report, safety certificate, appendix); previously every PDF in an invoice email
+was saved. Now each PDF's text is extracted (`pdf-parse`) and `classifyAttachment()` decides
+per document: keyword rules first (חשבונית/קבלה/invoice/receipt vs דו"ח בדיקה/אישור/תעודה/
+נספח/הסכם/פוליסה/הצעת מחיר), `gpt-4o-mini` only when ambiguous; image-only PDFs are kept.
+If nothing in the email survives and nothing failed, the email is marked *not an invoice*.
+The Gmail query also excludes `in:sent` / `in:drafts` — the accountant batches the business
+mailbox itself sent were being scanned back in as "invoices" with all 35 attachments.
+
 **2b. Invoice review + trash** (`invoiceReviewService.js`, added 2026-09-24). Card between
 the scan and the accountant send: "סקור חשבוניות" lists the month folders; picking one loads
 every file in it (root + per-mailbox sub-folders, manual uploads included) joined with
