@@ -656,6 +656,20 @@ function InvoiceReviewSection() {
     finally { setBusy(false); }
   }
 
+  // Touch swipe on the preview (RTL: swipe left = next, swipe right = previous).
+  // Horizontal-only: a mostly-vertical move is a scroll of the page/preview.
+  const touchRef = useRef(null);
+  const onTouchStart = (e) => { const t = e.touches[0]; touchRef.current = { x: t.clientX, y: t.clientY }; };
+  const onTouchEnd = (e) => {
+    const start = touchRef.current; touchRef.current = null;
+    if (!start || busy) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - start.x, dy = t.clientY - start.y;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    if (dx < 0) setIdx(i => Math.min(files.length - 1, i + 1));
+    else setIdx(i => Math.max(0, i - 1));
+  };
+
   const currentSrc = current && previewToken ? previewUrl(current.driveFileId, previewToken) : null;
   const previewState = current && previewDone?.id === current.driveFileId ? previewDone.status : 'loading';
   const markPreview = (status) => (e) => {
@@ -703,11 +717,12 @@ function InvoiceReviewSection() {
           {current && (
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2 flex-wrap text-xs text-slate-500">
-                <span className="font-bold text-slate-700">{idx + 1} / {files.length}</span>
+                <span className="font-bold text-slate-700">{idx + 1} / {files.length} <span className="font-normal text-slate-400 sm:hidden">· החלק ימינה/שמאלה לדפדוף</span></span>
                 <span dir="ltr" className="truncate">{current.mailbox}</span>
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-slate-50 overflow-y-auto relative" style={{ height: '60vh', minHeight: 320 }}>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 overflow-y-auto relative select-none" style={{ height: '60vh', minHeight: 320, touchAction: 'pan-y' }}
+                onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
                 {previewState === 'loading' && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-xs text-slate-400">
                     <span>טוען תצוגה מקדימה…</span>
