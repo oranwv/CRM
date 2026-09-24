@@ -642,6 +642,23 @@ pool.query(`
     created_at TIMESTAMPTZ DEFAULT NOW()
   );
   ALTER TABLE finance_accountant_sends ADD COLUMN IF NOT EXISTS mailboxes TEXT[]; -- NULL = all mailboxes
+  -- 2026-09-24: invoice review trash (files moved to Drive "פח"/MM-YYYY/<mailbox>, restorable)
+  CREATE TABLE IF NOT EXISTS finance_invoice_trash (
+    id SERIAL PRIMARY KEY,
+    drive_file_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    month VARCHAR(7) NOT NULL,
+    mailbox VARCHAR(255) NOT NULL,
+    original_folder_id TEXT NOT NULL,
+    size BIGINT DEFAULT 0,
+    email_subject TEXT,
+    email_from TEXT,
+    email_date TIMESTAMPTZ,
+    gmail_message_id TEXT,
+    trashed_by INT REFERENCES users(id) ON DELETE SET NULL,
+    trashed_at TIMESTAMPTZ DEFAULT NOW(),
+    restored_at TIMESTAMPTZ
+  );
   CREATE TABLE IF NOT EXISTS finance_gmail_accounts (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,

@@ -6,6 +6,18 @@ updated: 2026-09-16
 
 # Now
 
+## 2026-09-24 — Invoice review with a restorable trash
+
+Oran: irrelevant files land in the invoice folders (private purchases, Sharviya's own outgoing
+invoices copied to the business mailbox); wants to page through a month's invoices one by one,
+delete with a button, and have a per-month trash with restore. Built `invoiceReviewService`
+(Drive is the source of truth; trash = Drive folder פח/MM-YYYY/<mailbox> + `finance_invoice_trash`),
+preview streamed via the API into an iframe blob, `InvoiceReviewSection` in FinancePage.
+Scanner now treats `status='trashed'` as handled. He mentioned screenshots of odd entries but
+none arrived in that message — ask again if needed. Not tested against Drive from the VM.
+Verify after deploy: pick a month → preview renders → מחק moves the file (check Drive פח) →
+פח lists it → שחזר brings it back → a rescan of that day does NOT re-upload the trashed file.
+
 ## 2026-09-22 — Decision: dedicated calling app, iPhone first (Phase 36, planned)
 
 Browser calling on phones judged unusable. Plan written to PRD Phase 36: minimal Expo +

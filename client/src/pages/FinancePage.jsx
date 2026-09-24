@@ -545,6 +545,220 @@ function AccountantSendSection() {
   );
 }
 
+// סקירת חשבוניות — browse a month's files one at a time (preview + email
+// context) and throw irrelevant ones into the Drive trash folder; the trash
+// is listed by month and any item can be restored.
+function InvoiceReviewSection() {
+  const [open, setOpen]         = useState(false);
+  const [months, setMonths]     = useState([]);
+  const [month, setMonth]       = useState(null);
+  const [files, setFiles]       = useState([]);
+  const [idx, setIdx]           = useState(0);
+  const [loading, setLoading]   = useState(false);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [busy, setBusy]         = useState(false);
+  const [error, setError]       = useState(null);
+  const [trash, setTrash]       = useState(null); // null = hidden, [] = shown
+  const [trashOpenMonth, setTrashOpenMonth] = useState(null);
+  const previewRef = useRef(null);
+
+  const current = files[idx] || null;
+  const fmtSize = (b) => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.round(b / 1024)} KB`);
+
+  async function openPanel() {
+    setOpen(true); setLoading(true); setError(null);
+    try {
+      const { data } = await api.get('/finance/review/months');
+      setMonths(data.months);
+    } catch (err) { setError(err.response?.data?.error || 'שגיאה בטעינת החודשים'); }
+    finally { setLoading(false); }
+  }
+
+  async function pickMonth(key) {
+    setMonth(key); setFiles([]); setIdx(0); setLoading(true); setError(null); clearPreview();
+    try {
+      const { data } = await api.get('/finance/review/files', { params: { month: key } });
+      setFiles(data);
+    } catch (err) { setError(err.response?.data?.error || 'שגיאה בטעינת הקבצים'); }
+    finally { setLoading(false); }
+  }
+
+  function clearPreview() {
+    if (previewRef.current) { URL.revokeObjectURL(previewRef.current); previewRef.current = null; }
+    setPreviewUrl(null);
+  }
+
+  // Load the preview of the current file as a blob (the API needs the auth header, an <iframe> can't send it)
+  useEffect(() => {
+    clearPreview();
+    if (!current) return undefined;
+    let cancelled = false;
+    setPreviewLoading(true);
+    api.get(`/finance/review/file/${current.driveFileId}`, { responseType: 'blob' })
+      .then(r => {
+        if (cancelled) return;
+        const url = URL.createObjectURL(r.data);
+        previewRef.current = url; setPreviewUrl(url);
+      })
+      .catch(() => { if (!cancelled) setPreviewUrl(null); })
+      .finally(() => { if (!cancelled) setPreviewLoading(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current?.driveFileId]);
+
+  async function trashCurrent() {
+    if (!current || busy) return;
+    setBusy(true); setError(null);
+    try {
+      await api.post('/finance/review/trash', { driveFileId: current.driveFileId, month: current.month, mailbox: current.mailbox });
+      const next = files.filter((_, i) => i !== idx);
+      setFiles(next);
+      setIdx(i => Math.min(i, Math.max(0, next.length - 1)));
+      setMonths(ms => ms.map(m => (m.key === month ? { ...m, files: Math.max(0, m.files - 1) } : m)));
+      if (trash) loadTrash();
+    } catch (err) { setError(err.response?.data?.error || 'המחיקה נכשלה'); }
+    finally { setBusy(false); }
+  }
+
+  async function loadTrash() {
+    try { const { data } = await api.get('/finance/review/trash'); setTrash(data); }
+    catch (err) { setError(err.response?.data?.error || 'שגיאה בטעינת הפח'); }
+  }
+
+  async function restore(item) {
+    if (busy) return;
+    setBusy(true); setError(null);
+    try {
+      await api.post(`/finance/review/restore/${item.id}`);
+      await loadTrash();
+      if (item.month === month) pickMonth(month);
+      setMonths(ms => ms.map(m => (m.key === item.month ? { ...m, files: m.files + 1 } : m)));
+    } catch (err) { setError(err.response?.data?.error || 'השחזור נכשל'); }
+    finally { setBusy(false); }
+  }
+
+  const isPdf = current && /pdf/i.test(current.mimeType || current.name);
+  const isImage = current && /^image\//i.test(current.mimeType || '');
+
+  return (
+    <div className="bg-white rounded-2xl border border-violet-100 shadow-sm p-4 space-y-3">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div>
+          <p className="font-bold text-slate-800 text-sm">סקירת חשבוניות</p>
+          <p className="text-xs text-slate-400">עוברים על החשבוניות שנשמרו בדרייב אחת-אחת ומוחקים את הלא-רלוונטיות (שימוש פרטי, חשבוניות שהוצאנו בעצמנו). מה שנמחק עובר לפח ואפשר לשחזר.</p>
+        </div>
+        {!open && (
+          <button type="button" onClick={openPanel}
+            className="bg-violet-600 text-white text-sm font-bold rounded-xl px-4 py-2 hover:bg-violet-700 transition">
+            סקור חשבוניות
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-1.5 items-center">
+            {months.map(m => (
+              <button key={m.key} type="button" onClick={() => pickMonth(m.key)} disabled={busy}
+                className={`text-xs font-bold px-2.5 py-1.5 rounded-lg border transition ${month === m.key ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>
+                {m.label} <span className={month === m.key ? 'text-violet-200' : 'text-slate-400'}>({m.files})</span>
+              </button>
+            ))}
+            <button type="button" onClick={() => (trash ? setTrash(null) : loadTrash())}
+              className={`text-xs font-bold px-2.5 py-1.5 rounded-lg border transition ${trash ? 'bg-slate-700 text-white border-slate-700' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>
+              🗑 פח
+            </button>
+            <button type="button" onClick={() => { setOpen(false); setMonth(null); setFiles([]); setTrash(null); clearPreview(); }} disabled={busy}
+              className="text-xs text-slate-400 underline mr-auto">סגור</button>
+          </div>
+
+          {loading && <p className="text-xs text-slate-400">טוען…</p>}
+          {error && <p className="text-sm text-red-600 font-bold">{error}</p>}
+
+          {month && !loading && files.length === 0 && <p className="text-xs text-slate-400">אין קבצים בחודש הזה</p>}
+
+          {current && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2 flex-wrap text-xs text-slate-500">
+                <span className="font-bold text-slate-700">{idx + 1} / {files.length}</span>
+                <span dir="ltr" className="truncate">{current.mailbox}</span>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 overflow-hidden" style={{ height: '60vh', minHeight: 320 }}>
+                {previewLoading && <div className="h-full flex items-center justify-center text-xs text-slate-400">טוען תצוגה מקדימה…</div>}
+                {!previewLoading && previewUrl && isPdf && <iframe title="preview" src={previewUrl} className="w-full h-full" />}
+                {!previewLoading && previewUrl && isImage && <img src={previewUrl} alt="" className="w-full h-full object-contain" />}
+                {!previewLoading && (!previewUrl || (!isPdf && !isImage)) && (
+                  <div className="h-full flex flex-col items-center justify-center gap-2 text-xs text-slate-400">
+                    <span>אין תצוגה מקדימה לקובץ הזה</span>
+                    <a href={current.driveLink} target="_blank" rel="noreferrer" className="text-violet-600 font-bold underline">פתח בדרייב</a>
+                  </div>
+                )}
+              </div>
+
+              <div className="text-xs text-slate-600 space-y-0.5">
+                <p className="font-bold text-slate-800 truncate">{current.subject || current.name}</p>
+                {current.subject && <p className="text-slate-400 truncate">{current.name}</p>}
+                <p className="text-slate-400 truncate">
+                  {current.from ? <span dir="ltr">{current.from}</span> : 'הועלה ידנית / ללא מייל'}
+                  {current.emailDate ? ` · ${new Date(current.emailDate).toLocaleDateString('he-IL')}` : ''}
+                  {current.size ? ` · ${fmtSize(current.size)}` : ''}
+                </p>
+                <p className="flex gap-3">
+                  {current.gmailId && <a href={gmailLink(current.gmailId, current.account)} target="_blank" rel="noreferrer" className="text-violet-600 font-bold underline">פתח מייל</a>}
+                  <a href={current.driveLink} target="_blank" rel="noreferrer" className="text-violet-600 font-bold underline">פתח בדרייב</a>
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <button type="button" onClick={() => setIdx(i => Math.max(0, i - 1))} disabled={idx === 0 || busy}
+                  className="text-sm font-bold px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40">→ הקודם</button>
+                <button type="button" onClick={() => setIdx(i => Math.min(files.length - 1, i + 1))} disabled={idx >= files.length - 1 || busy}
+                  className="text-sm font-bold px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40">הבא ←</button>
+                <button type="button" onClick={trashCurrent} disabled={busy}
+                  className="text-sm font-bold px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 mr-auto">
+                  {busy ? '…' : '🗑 מחק'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {trash && (
+            <div className="border-t border-slate-100 pt-3 space-y-2">
+              <p className="text-xs font-bold text-slate-700">פח — לפי חודשים</p>
+              {trash.length === 0 && <p className="text-xs text-slate-400">הפח ריק</p>}
+              {trash.map(g => (
+                <div key={g.key} className="rounded-xl border border-slate-200">
+                  <button type="button" onClick={() => setTrashOpenMonth(o => (o === g.key ? null : g.key))}
+                    className="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-slate-700">
+                    <span>{g.label} <span className="text-slate-400 font-normal">({g.items.length})</span></span>
+                    <span className="text-slate-400">{trashOpenMonth === g.key ? '▲' : '▼'}</span>
+                  </button>
+                  {trashOpenMonth === g.key && (
+                    <div className="px-3 pb-2 space-y-1">
+                      {g.items.map(t => (
+                        <div key={t.id} className="flex items-center justify-between gap-2 text-xs bg-slate-50 border border-slate-100 rounded-lg px-2 py-1.5">
+                          <div className="min-w-0">
+                            <p className="font-medium text-slate-700 truncate">{t.email_subject || t.name}</p>
+                            <p className="text-slate-400 truncate" dir="ltr">{t.mailbox} · {new Date(t.trashed_at).toLocaleDateString('he-IL')}{t.trashed_by_name ? ` · ${t.trashed_by_name}` : ''}</p>
+                          </div>
+                          <button type="button" onClick={() => restore(t)} disabled={busy}
+                            className="text-violet-600 font-bold shrink-0 underline disabled:opacity-50">שחזר</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function FinancePage() {
   const [items, setItems]           = useState([]);
   const [showResolved, setShowResolved] = useState(false);
@@ -670,6 +884,7 @@ export default function FinancePage() {
         </div>
 
         <InvoiceScanSection />
+        <InvoiceReviewSection />
         <AccountantSendSection />
 
         {/* Period selector — each reconciliation round is a saved workspace */}

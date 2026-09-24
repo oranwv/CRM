@@ -526,6 +526,7 @@ finance_missing_expenses: id, period_id, fingerprint, entry_date, name, descript
                           UNIQUE INDEX (period_id, fingerprint)
 finance_expense_notes:    id, expense_id, body, created_by, created_at
 finance_accountant_sends: id, email, months TEXT[], mailboxes TEXT[] (NULL = all), files_count, emails_sent, note, created_by, created_at
+finance_invoice_trash:    id, drive_file_id, name, month, mailbox, original_folder_id, size, email_subject, email_from, email_date, gmail_message_id, trashed_by, trashed_at, restored_at
 finance_gmail_accounts:   id, email UNIQUE, token_json, active, last_scan_at, created_at
 finance_scanned_emails:   gmail_id PRIMARY KEY, account_email, is_invoice, scanned_at
 finance_invoice_files:    id, gmail_message_id, account_email, email_subject, email_from,
@@ -812,6 +813,7 @@ The issued PDF is downloaded from the pre-signed URL and saved to the lead's fil
 | POST | `/scan` · GET `/scan/status` | Invoice email scan — runs in the background with live progress |
 | GET | `/invoices` | Scanned invoice files and where they landed in Drive |
 | GET | `/gmail/accounts` · `/gmail/connect-url` · DELETE `/gmail/accounts/:id` | Extra OAuth-connected mailboxes to scan |
+| GET/POST | `/review/months` · `/review/files?month=` · `/review/file/:driveId` · `/review/trash` (POST = trash, GET = list) · `/review/restore/:id` | Review month files one by one, trash / restore |
 | GET/POST | `/accountant/months` · `/accountant/send` · `/accountant/status` · `/accountant/history` | Email the Drive month folders' files to the accountant (background) |
 | GET | `/api/finance/gmail/oauth/callback` | Public OAuth callback (mounted outside the auth guard) |
 
@@ -1136,6 +1138,21 @@ whose authorized redirect URI is `${SERVER_URL}/api/finance/gmail/oauth/callback
 refresh for extra mailboxes goes through the same web client. Without these env vars the
 button returns a clear error. The Google account must be a test user while the OAuth app is
 in Testing mode.
+
+**2b. Invoice review + trash** (`invoiceReviewService.js`, added 2026-09-24). Card between
+the scan and the accountant send: "סקור חשבוניות" lists the month folders; picking one loads
+every file in it (root + per-mailbox sub-folders, manual uploads included) joined with
+`finance_invoice_files` for subject / sender / email link. The user pages through them one at a
+time — the file is streamed through `GET /finance/review/file/:driveId` and shown in an
+`<iframe>` (PDF) or `<img>` via a blob URL, because Drive links need Drive permissions — and
+"מחק" moves the file in Drive to `חשבוניות / פח / MM-YYYY / <mailbox>` and inserts a
+`finance_invoice_trash` row (original folder id kept); the matching `finance_invoice_files`
+row becomes `status = 'trashed'`, which the scanner treats as handled so a rescan never
+re-uploads it. The "פח" view groups trashed items by month; "שחזר" moves the file back
+(recreating the month/mailbox folder if it was deleted) and sets `restored_at`. The trash
+folder is not an `MM-YYYY` folder, so the accountant send never includes it. Motivation:
+private purchases and Sharviya's own outgoing invoices (copied to the business mailbox) get
+classified as supplier invoices.
 
 **3. Send to accountant** (`accountantSendService.js`, added 2026-09-17). Card under the
 invoice-scan card: "שלח לרואה חשבון" opens a panel listing the `MM-YYYY` folders under the

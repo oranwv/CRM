@@ -4,6 +4,7 @@ const multer = require('multer');
 const { reconcile, parseKartesetAny, findMissing, fingerprint, DEFAULT_EXCLUSIONS } = require('../services/financeReconcile');
 const { scanRange, scanStatus, buildConnectUrl } = require('../services/financeInvoiceScanner');
 const { listMonths, sendToAccountant, sendStatus } = require('../services/accountantSendService');
+const review = require('../services/invoiceReviewService');
 
 // Unified status for karteset-driven auto-resolves (full compare + rekarteset)
 function kartesetResolvedStatus(now = new Date()) {
@@ -475,6 +476,46 @@ router.get('/accountant/history', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── סקירת חשבוניות (מחיקה לפח / שחזור) ──────────────────────────────────────
+
+router.get('/review/months', async (req, res) => {
+  try { const { months, primaryEmail } = await review.listMonths(); res.json({ months, primaryEmail }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/review/files', async (req, res) => {
+  try { res.json(await review.listMonthFiles(String(req.query.month || ''))); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Streams the file so the client can preview it without Drive permissions
+router.get('/review/file/:driveId', async (req, res) => {
+  try {
+    const { stream, name, mimeType } = await review.fileStream(req.params.driveId);
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(name)}`);
+    stream.on('error', (e) => { console.error('[Finance] preview stream:', e.message); res.end(); });
+    stream.pipe(res);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/review/trash', async (req, res) => {
+  const { driveFileId, month, mailbox } = req.body || {};
+  if (!driveFileId || !/^\d{2}-\d{4}$/.test(month || '') || !mailbox) return res.status(400).json({ error: 'פרטי קובץ חסרים' });
+  try { res.json(await review.trashFile({ driveFileId, month, mailbox, userId: req.user.id })); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/review/trash', async (req, res) => {
+  try { res.json(await review.listTrash()); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/review/restore/:id', async (req, res) => {
+  try { res.json(await review.restoreFile(Number(req.params.id))); }
+  catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 module.exports = router;

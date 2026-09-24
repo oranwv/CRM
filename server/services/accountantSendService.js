@@ -150,4 +150,4 @@ async function sendToAccountant({ months, email, note, userId, mailboxes = 'all'
   }
 }
 
-module.exports = { listMonths, sendToAccountant, sendStatus };
+module.exports = { listMonths, sendToAccountant, sendStatus, listAll, monthLabel, primaryEmail, FILE_Q, FOLDER_Q };

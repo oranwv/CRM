@@ -340,7 +340,7 @@ async function scanRange(from, to) {
         // Drive-readonly token) is reprocessed.
         const { rows: seen } = await pool.query(
           `SELECT s.is_invoice,
-                  COUNT(f.*) FILTER (WHERE f.status = 'saved')::int  AS saved_count,
+                  COUNT(f.*) FILTER (WHERE f.status IN ('saved', 'trashed'))::int  AS saved_count,
                   COUNT(f.*) FILTER (WHERE f.status = 'failed')::int AS failed_count
            FROM finance_scanned_emails s
            LEFT JOIN finance_invoice_files f ON f.gmail_message_id = s.gmail_id
@@ -413,7 +413,7 @@ async function scanRange(from, to) {
             for (const f of files) {
               // Already saved in a previous (partial) run — don't duplicate in Drive
               const { rows: alreadySaved } = await pool.query(
-                "SELECT 1 FROM finance_invoice_files WHERE gmail_message_id = $1 AND filename = $2 AND status = 'saved'",
+                "SELECT 1 FROM finance_invoice_files WHERE gmail_message_id = $1 AND filename = $2 AND status IN ('saved', 'trashed')",
                 [m.id, f.name]);
               if (alreadySaved.length) continue;
               try {
@@ -489,4 +489,4 @@ function startDailyInvoiceScan() {
   }, 60 * 60 * 1000);
 }
 
-module.exports = { scanRange, scanStatus, startDailyInvoiceScan, buildConnectUrl, oauthCallbackHandler, primaryAuth, getRootFolderId };
+module.exports = { scanRange, scanStatus, startDailyInvoiceScan, buildConnectUrl, oauthCallbackHandler, primaryAuth, getRootFolderId, ensureFolder };
