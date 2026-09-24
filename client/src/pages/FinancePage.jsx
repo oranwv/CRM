@@ -589,6 +589,7 @@ function InvoiceReviewSection() {
   // before the effect can't be overwritten back to "loading" and hang the viewer.
   const [previewDone, setPreviewDone] = useState(null);
   const [busy, setBusy]         = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   const [error, setError]       = useState(null);
   const [trash, setTrash]       = useState(null); // null = hidden, [] = shown
   const [trashOpenMonth, setTrashOpenMonth] = useState(null);
@@ -614,6 +615,20 @@ function InvoiceReviewSection() {
     } catch (err) { setError(err.response?.data?.error || 'שגיאה בטעינת הקבצים'); }
     finally { setLoading(false); }
   }
+
+  // Fullscreen mode: Esc closes, arrows page, page scroll locked behind the overlay
+  useEffect(() => {
+    if (!fullscreen) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') setFullscreen(false);
+      if (e.key === 'ArrowLeft') setIdx(i => Math.min(files.length - 1, i + 1));
+      if (e.key === 'ArrowRight') setIdx(i => Math.max(0, i - 1));
+    };
+    window.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow; document.body.style.overflow = 'hidden';
+    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
+  }, [fullscreen, files.length]);
+  useEffect(() => { if (!current) setFullscreen(false); }, [current]);
 
   // Warm the browser cache with the next two files
   useEffect(() => {
@@ -718,7 +733,11 @@ function InvoiceReviewSection() {
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2 flex-wrap text-xs text-slate-500">
                 <span className="font-bold text-slate-700">{idx + 1} / {files.length} <span className="font-normal text-slate-400 sm:hidden">· החלק ימינה/שמאלה לדפדוף</span></span>
-                <span dir="ltr" className="truncate">{current.mailbox}</span>
+                <span className="flex items-center gap-2">
+                  <span dir="ltr" className="truncate">{current.mailbox}</span>
+                  <button type="button" onClick={() => setFullscreen(true)} title="הגדל"
+                    className="text-xs font-bold px-2 py-1 rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50">⛶ הגדל</button>
+                </span>
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-slate-50 overflow-y-auto relative select-none" style={{ height: '60vh', minHeight: 320, touchAction: 'pan-y' }}
@@ -767,6 +786,47 @@ function InvoiceReviewSection() {
                   {busy ? '…' : '🗑 מחק'}
                 </button>
               </div>
+
+              {/* Fullscreen viewer: the image fills the screen, translucent controls float over it */}
+              {fullscreen && (
+                <div className="fixed inset-0 z-50 bg-black" dir="rtl"
+                  onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+                  <div className="absolute inset-0 overflow-y-auto" style={{ touchAction: 'pan-y' }}>
+                    {currentSrc && previewState !== 'failed' && (
+                      <img key={`fs-${current.driveFileId}`} src={currentSrc} alt="" data-file-id={current.driveFileId}
+                        onLoad={markPreview('ok')} onError={markPreview('failed')}
+                        className="w-full h-auto min-h-full object-contain bg-black" />
+                    )}
+                    {previewState === 'failed' && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-slate-300">
+                        <span>אין תצוגה מקדימה לקובץ הזה</span>
+                        <a href={current.driveLink} target="_blank" rel="noreferrer" className="text-violet-300 font-bold underline">פתח בדרייב</a>
+                      </div>
+                    )}
+                    {previewState === 'loading' && <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-300 pointer-events-none">טוען…</div>}
+                  </div>
+
+                  {/* top bar: close + counter */}
+                  <button type="button" onClick={() => setFullscreen(false)} aria-label="סגור"
+                    className="absolute top-3 left-3 w-9 h-9 rounded-full bg-white/25 backdrop-blur text-white text-lg font-bold flex items-center justify-center hover:bg-white/40">✕</button>
+                  <div className="absolute top-3 right-3 px-3 py-1.5 rounded-full bg-white/25 backdrop-blur text-white text-xs font-bold pointer-events-none">
+                    {idx + 1} / {files.length}
+                  </div>
+
+                  {/* bottom bar: prev / delete / next */}
+                  <div className="absolute bottom-0 inset-x-0 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex items-center justify-between gap-2"
+                    style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.55), rgba(0,0,0,0))' }}>
+                    <button type="button" onClick={() => setIdx(i => Math.max(0, i - 1))} disabled={idx === 0 || busy}
+                      className="px-4 py-2.5 rounded-full bg-white/25 backdrop-blur text-white text-sm font-bold disabled:opacity-30 hover:bg-white/40">→ הקודם</button>
+                    <button type="button" onClick={trashCurrent} disabled={busy}
+                      className="px-5 py-2.5 rounded-full bg-red-600/70 backdrop-blur text-white text-sm font-bold disabled:opacity-50 hover:bg-red-600/90">
+                      {busy ? '…' : '🗑 מחק'}
+                    </button>
+                    <button type="button" onClick={() => setIdx(i => Math.min(files.length - 1, i + 1))} disabled={idx >= files.length - 1 || busy}
+                      className="px-4 py-2.5 rounded-full bg-white/25 backdrop-blur text-white text-sm font-bold disabled:opacity-30 hover:bg-white/40">הבא ←</button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

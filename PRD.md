@@ -1179,7 +1179,10 @@ previews are rendered lazily on first request and stored. Served by
 next two via `new Image()`), "פתח את הקובץ המלא" opens Drive for multi-page invoices; the
 saved-invoices list shows a 40px thumbnail per row. On touch devices the preview box
 supports horizontal swipe (≥60px, mostly horizontal; `touch-action: pan-y` keeps vertical
-scrolling): swipe left = next, right = previous.
+scrolling): swipe left = next, right = previous. "⛶ הגדל" opens a fullscreen viewer (fixed
+overlay, black background, image at full width, vertical scroll for tall pages) with
+translucent floating controls: ✕ top-left, counter top-right, הקודם / מחק / הבא at the bottom;
+swipe and ←/→ keys page, Esc closes; page scroll is locked behind it.
 
 **3. Send to accountant** (`accountantSendService.js`, added 2026-09-17). Card under the
 invoice-scan card: "שלח לרואה חשבון" opens a panel listing the `MM-YYYY` folders under the
