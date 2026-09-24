@@ -1177,7 +1177,9 @@ previews are rendered lazily on first request and stored. Served by
 `purpose: 'invoice-preview'` issued by `GET /finance/review/preview-token`; response is
 `Cache-Control: private, max-age=86400`. The review screen shows the image (and pre-warms the
 next two via `new Image()`), "פתח את הקובץ המלא" opens Drive for multi-page invoices; the
-saved-invoices list shows a 40px thumbnail per row.
+saved-invoices list shows a 40px thumbnail per row. On touch devices the preview box
+supports horizontal swipe (≥60px, mostly horizontal; `touch-action: pan-y` keeps vertical
+scrolling): swipe left = next, right = previous.
 
 **3. Send to accountant** (`accountantSendService.js`, added 2026-09-17). Card under the
 invoice-scan card: "שלח לרואה חשבון" opens a panel listing the `MM-YYYY` folders under the
