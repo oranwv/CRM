@@ -6,6 +6,13 @@ updated: 2026-09-16
 
 # Now
 
+## 2026-09-24 (night) — Review viewer hung on "טוען" after מחק
+
+Race: after trash the next file's image was already prefetched; its onLoad fired before the
+effect that reset state to 'loading', so the reset won and the viewer hung. Fix: preview
+state is keyed by file id ({id,status}); no effect reset; ref checks `img.complete` for
+cached images. Loading overlay now also offers "פתח בדרייב".
+
 ## 2026-09-24 (evening) — Invoice previews as images (phone couldn't open PDFs)
 
 Oran's phone showed "PDF / Open" instead of the invoice in the review screen. Agreed plan:

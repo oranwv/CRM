@@ -584,7 +584,10 @@ function InvoiceReviewSection() {
   const [idx, setIdx]           = useState(0);
   const [loading, setLoading]   = useState(false);
   const [previewToken, setPreviewToken] = useState(null);
-  const [previewState, setPreviewState] = useState('loading'); // loading | ok | failed
+  // { id, status: 'ok' | 'failed' } for the file whose image finished; anything else = loading.
+  // Keyed by file id (not reset in an effect) so a cached image whose onLoad fires
+  // before the effect can't be overwritten back to "loading" and hang the viewer.
+  const [previewDone, setPreviewDone] = useState(null);
   const [busy, setBusy]         = useState(false);
   const [error, setError]       = useState(null);
   const [trash, setTrash]       = useState(null); // null = hidden, [] = shown
@@ -612,9 +615,8 @@ function InvoiceReviewSection() {
     finally { setLoading(false); }
   }
 
-  // New file on screen → loading state; and warm the browser cache with the next two
+  // Warm the browser cache with the next two files
   useEffect(() => {
-    setPreviewState('loading');
     if (!previewToken) return;
     for (const f of files.slice(idx + 1, idx + 3)) {
       const src = previewUrl(f.driveFileId, previewToken);
@@ -655,6 +657,11 @@ function InvoiceReviewSection() {
   }
 
   const currentSrc = current && previewToken ? previewUrl(current.driveFileId, previewToken) : null;
+  const previewState = current && previewDone?.id === current.driveFileId ? previewDone.status : 'loading';
+  const markPreview = (status) => (e) => {
+    const id = e.currentTarget.dataset.fileId;
+    setPreviewDone({ id, status });
+  };
 
   return (
     <div className="bg-white rounded-2xl border border-violet-100 shadow-sm p-4 space-y-3">
@@ -701,10 +708,16 @@ function InvoiceReviewSection() {
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-slate-50 overflow-y-auto relative" style={{ height: '60vh', minHeight: 320 }}>
-                {previewState === 'loading' && <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-400">טוען תצוגה מקדימה…</div>}
+                {previewState === 'loading' && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-xs text-slate-400">
+                    <span>טוען תצוגה מקדימה…</span>
+                    <a href={current.driveLink} target="_blank" rel="noreferrer" className="text-violet-400 underline">פתח בדרייב</a>
+                  </div>
+                )}
                 {currentSrc && previewState !== 'failed' && (
-                  <img key={current.driveFileId} src={currentSrc} alt=""
-                    onLoad={() => setPreviewState('ok')} onError={() => setPreviewState('failed')}
+                  <img key={current.driveFileId} src={currentSrc} alt="" data-file-id={current.driveFileId}
+                    ref={el => { if (el && el.complete && el.naturalWidth > 0 && previewDone?.id !== current.driveFileId) setPreviewDone({ id: current.driveFileId, status: 'ok' }); }}
+                    onLoad={markPreview('ok')} onError={markPreview('failed')}
                     className={`w-full h-auto bg-white ${previewState === 'ok' ? '' : 'opacity-0'}`} />
                 )}
                 {previewState === 'failed' && (
