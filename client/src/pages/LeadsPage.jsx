@@ -111,6 +111,38 @@ function formatDateTime(d) {
   };
 }
 
+// "Why did this lead match?" tags shown under the name when the search is a number
+// (phone and/or payment amount). amount_matches comes from the server as 'key:amount'.
+const AMOUNT_MATCH_LABELS = {
+  deposit_contract: 'מקדמה בחוזה',
+  balance_contract: 'יתרה בחוזה',
+  total_contract:   'סה"כ חוזה',
+  deposit_received: 'מקדמה שהתקבלה',
+  full_payment:     'תשלום מלא',
+  balance_manual:   'יתרה ידנית',
+};
+function SearchMatchTags({ lead, search }) {
+  if ((search || '').replace(/\D/g, '').length < 3) return null;
+  const tags = [];
+  if (lead.phone_match) tags.push({ key: 'phone', text: '📞 טלפון', cls: 'bg-violet-100 text-violet-700 border-violet-200' });
+  const seen = new Set();
+  for (const m of lead.amount_matches || []) {
+    const [key, amt] = String(m).split(':');
+    const label = AMOUNT_MATCH_LABELS[key];
+    if (!label || seen.has(key)) continue;
+    seen.add(key);
+    tags.push({ key, text: `💰 ${label} · ₪${amt}`, cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' });
+  }
+  if (!tags.length) return null;
+  return (
+    <div className="flex flex-wrap gap-1 mt-1">
+      {tags.map(t => (
+        <span key={t.key} className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border whitespace-nowrap ${t.cls}`}>{t.text}</span>
+      ))}
+    </div>
+  );
+}
+
 function DateTimeCell({ value }) {
   const parts = formatDateTime(value);
   if (!parts) return <span>—</span>;
@@ -445,6 +477,7 @@ export default function LeadsPage() {
                         )}
                         <span>{lead.event_name || lead.name || '—'}</span>
                       </div>
+                      <SearchMatchTags lead={lead} search={debouncedSearch} />
                     </td>
                     <td className="px-2 py-3">
                       {(() => {

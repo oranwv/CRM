@@ -6,6 +6,21 @@ updated: 2026-09-16
 
 # Now
 
+## 2026-09-25 — Amount search + lead edit pickers + call-log button labels
+
+- Leads search: an amount (3–7 digits, commas/₪ allowed) matches contract amounts
+  (LATERAL join on the signed/latest contract, JSONB `calculated.*`) and the card's
+  deposit / full-payment / manual-balance fields, ±1 ₪. Phone matching unchanged, so a
+  number can hit both; `amount_matches` + `phone_match` columns drive `SearchMatchTags`
+  under the name in LeadsPage. Verified the generated SQL by stubbing the pool (no DB
+  in the Mac VM).
+- Lead edit form: `PickerDateInput`/`PickerTimeInput` for date, start, end; save now
+  writes `event_date` too (was text-only → the card "didn't update until refresh"
+  because the DATE column and the calendar popup still had the old date). Info row
+  shows 18:00–23:00.
+- Call log buttons: "תיעוד שיחה יוצאת/נכנסת".
+
+
 ## 2026-09-24 (night) — Review viewer hung on "טוען" after מחק
 
 Race: after trash the next file's image was already prefetched; its onLoad fired before the

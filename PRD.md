@@ -2137,6 +2137,18 @@ build (briefing, staff attendance and the WhatsApp bot were explicitly left unto
   logging, `vite build`. Not verified: real Green API sends from `/api/chat/send` and the
   live OpenAI prompts — check after deploy.
 
+### Phase 31 — Search by payment amount ✅ Built 2026-09-25
+Typing an amount in the leads search (`15000`, `15,000`, `₪15,000`, 3–7 digits, optional
+decimals) also matches leads whose money fields are within ±1 ₪: the contract (signed,
+else latest) `calculated.depositAmount` / `depositAmountVat` / `remainingBalance` / `total`
+/ `subtotal`, and the card fields `deposit_amount`, `full_payment_amount`,
+`remaining_balance_override`. Works in every tab (search already spans all stages). The
+same number still matches phones, so both kinds of leads show; each row gets tags under the
+name saying why it matched — `📞 טלפון` and/or `💰 <field> · ₪<amount>` (מקדמה בחוזה /
+יתרה בחוזה / סה"כ חוזה / מקדמה שהתקבלה / תשלום מלא / יתרה ידנית). Tags appear only when
+the search contains ≥3 digits. Ranking: name > phone > amount (+30). Server: `GET
+/api/leads?search=` returns `amount_matches text[]` ('key:formatted') and `phone_match`.
+
 ### Phase 30 — Production: full payment, אחראי הפקה, production briefing, close reminders, "not ready" badge ✅ Built 2026-09-12
 Requested by Oran (2026-09-12):
 - **Full payment** next to the deposit in the card's תשלומים section: `full_payment_amount`,

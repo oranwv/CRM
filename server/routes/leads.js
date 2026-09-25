@@ -38,6 +38,9 @@ router.get('/', async (req, res) => {
   // Relevance score expression, populated for a free-text (non-date) search so the
   // most likely lead floats to the top. 0 otherwise (falls back to date ordering).
   let rankSelect = '0 AS search_rank';
+  // Extra SELECT columns / joins used by the amount search (see below)
+  let matchSelect = `NULL::text[] AS amount_matches, false AS phone_match`;
+  let extraJoins  = '';
 
   if (stages) {
     const placeholders = stages.map((_, i) => `$${i + 1}`).join(',');
@@ -79,7 +82,46 @@ router.get('/', async (req, res) => {
         WHERE lc.lead_id = l.id
           AND (lc.value ILIKE $${likeIdx} OR lc.label ILIKE $${likeIdx}${contactNormCondition})
       )`;
-      conditions.push(`(l.name ILIKE $${likeIdx} OR l.phone ILIKE $${likeIdx} OR l.email ILIKE $${likeIdx} OR l.event_name ILIKE $${likeIdx} OR l.event_type ILIKE $${likeIdx} OR l.notes ILIKE $${likeIdx}${phoneNormCondition} OR ${contactsMatch})`);
+      // Amount search: "15000", "15,000", "₪15,000", "15000.5" → match payment amounts (±1 ₪) in the
+      // lead's contract (signed, else latest) and in the deposit / full-payment / manual-balance fields.
+      // A number that also looks like a phone still goes through the phone match above — both show.
+      const amountRaw = search.replace(/[₪\s,]/g, '');
+      const amountVal = /^\d{3,7}(\.\d{1,2})?$/.test(amountRaw) ? Number(amountRaw) : null;
+      let amountCondition = '';
+      let amountRank = '';
+      const phoneMatchExpr = `(l.phone ILIKE $${likeIdx}${phoneNormCondition} OR EXISTS (
+        SELECT 1 FROM lead_contacts lc WHERE lc.lead_id = l.id AND lc.type = 'phone'
+          AND (lc.value ILIKE $${likeIdx}${contactNormCondition})))`;
+      if (amountVal != null) {
+        params.push(amountVal);
+        const amtIdx = params.length;
+        const num = (expr) => `NULLIF(REGEXP_REPLACE(COALESCE(${expr}, ''), '[^0-9.]', '', 'g'), '')::numeric`;
+        const near = (expr) => `ABS(${num(expr)} - $${amtIdx}) <= 1`;
+        const fmt  = (expr) => `TO_CHAR(ROUND(${num(expr)}), 'FM999,999,999')`;
+        const AMOUNT_FIELDS = [
+          ['deposit_contract',   `ct.contract_data->'calculated'->>'depositAmountVat'`],
+          ['deposit_contract',   `ct.contract_data->'calculated'->>'depositAmount'`],
+          ['balance_contract',   `ct.contract_data->'calculated'->>'remainingBalance'`],
+          ['total_contract',     `ct.contract_data->'calculated'->>'total'`],
+          ['total_contract',     `ct.contract_data->'calculated'->>'subtotal'`],
+          ['deposit_received',   `l.deposit_amount::text`],
+          ['full_payment',       `l.full_payment_amount::text`],
+          ['balance_manual',     `l.remaining_balance_override::text`],
+        ];
+        extraJoins = `
+    LEFT JOIN LATERAL (
+      SELECT contract_data FROM contracts
+      WHERE lead_id = l.id
+      ORDER BY (status = 'signed') DESC, created_at DESC LIMIT 1
+    ) ct ON TRUE`;
+        amountCondition = ' OR ' + AMOUNT_FIELDS.map(([, e]) => `(${near(e)})`).join(' OR ');
+        matchSelect = `ARRAY_REMOVE(ARRAY[${AMOUNT_FIELDS.map(([k, e]) => `CASE WHEN ${near(e)} THEN '${k}:' || ${fmt(e)} END`).join(', ')}], NULL) AS amount_matches,
+           ${phoneMatchExpr} AS phone_match`;
+        amountRank = ` + (CASE WHEN ${AMOUNT_FIELDS.map(([, e]) => `(${near(e)})`).join(' OR ')} THEN 30 ELSE 0 END)`;
+      } else {
+        matchSelect = `NULL::text[] AS amount_matches, ${phoneMatchExpr} AS phone_match`;
+      }
+      conditions.push(`(l.name ILIKE $${likeIdx} OR l.phone ILIKE $${likeIdx} OR l.email ILIKE $${likeIdx} OR l.event_name ILIKE $${likeIdx} OR l.event_type ILIKE $${likeIdx} OR l.notes ILIKE $${likeIdx}${phoneNormCondition} OR ${contactsMatch}${amountCondition})`);
       // Rank: a hit on the lead/event name is the most likely intended lead; a hit
       // only in the free-text notes is the least likely. Contact fields sit between.
       rankSelect = `(
@@ -89,7 +131,7 @@ router.get('/', async (req, res) => {
         (CASE WHEN ${contactsMatch}               THEN 55  ELSE 0 END) +
         (CASE WHEN l.email      ILIKE $${likeIdx} THEN 50  ELSE 0 END) +
         (CASE WHEN l.event_type ILIKE $${likeIdx} THEN 40  ELSE 0 END) +
-        (CASE WHEN l.notes      ILIKE $${likeIdx} THEN 20  ELSE 0 END)
+        (CASE WHEN l.notes      ILIKE $${likeIdx} THEN 20  ELSE 0 END)${amountRank}
       ) AS search_rank`;
     }
   }
@@ -111,9 +153,10 @@ router.get('/', async (req, res) => {
            ) AS received_at,
            (SELECT COUNT(*) FROM messages WHERE lead_id = l.id AND direction='inbound' AND is_read=false) +
            (SELECT COUNT(*) FROM lead_interactions WHERE lead_id = l.id AND direction='inbound' AND is_read=false) AS unread_count,
-           ${rankSelect}
+           ${rankSelect},
+           ${matchSelect}
     FROM leads l
-    LEFT JOIN users u ON u.id = l.assigned_to
+    LEFT JOIN users u ON u.id = l.assigned_to${extraJoins}
   `;
 
   if (conditions.length) query += ' WHERE ' + conditions.join(' AND ');
