@@ -925,7 +925,7 @@ and **סידור הושבה**, opened as overlays.)
   - **בטל פגישה**: enter reason → deletes GCal event, clears `meeting_event_id`, logs `❌ פגישה בוטלה` to activity
   - **דחה פגישה**: enter reason + new date (calendar picker) + start/end time (time picker) + delivery channel (WhatsApp/Email) → updates GCal event, sends updated invite, logs `🔄 פגישה נדחתה` to activity
 
-**פרטי ליד** — all lead fields, inline notes editor
+**פרטי ליד** — all lead fields, inline notes editor. Event date/time are picked with the calendar + clock pickers (`PickerDateInput` / `PickerTimeInput`); saving writes both `event_date` (DATE) and `event_date_text` (DD/MM/YYYY) plus `event_time` / `event_end_time`, so the calendar re-syncs server-side. The info row shows "date · 18:00–23:00" when an end time exists (2026-09-25).
 
 **תשלומים / הפקה** — אחראי הפקה dropdown, deposit amount + date + confirmed, full payment amount + date + confirmed (both amounts auto-filled from the signed contract incl. VAT when empty), יתרה לתשלום, production notes (stages deposit/production/completed)
 

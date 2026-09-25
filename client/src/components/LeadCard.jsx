@@ -97,18 +97,6 @@ function parseTimeIL(str) {
   if (h > 23 || mi > 59) return null;
   return `${String(h).padStart(2,'0')}:${String(mi).padStart(2,'0')}`;
 }
-function DateInput({ value, onChange, className }) {
-  return (
-    <input type="text" value={value || ''} onChange={e => onChange(e.target.value)}
-      placeholder="DD/MM/YYYY" className={className} dir="ltr" />
-  );
-}
-function TimeInput({ value, onChange, className }) {
-  return (
-    <input type="text" value={value || ''} onChange={e => onChange(e.target.value)}
-      placeholder="HH:MM" className={className} dir="ltr" />
-  );
-}
 // Calendar + clock pickers — for task/meeting modals where exact datetime is required
 function PickerDateInput({ value, onChange, className }) {
   const ref = useRef(null);
@@ -372,7 +360,12 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
 
   async function saveEdit() {
     const payload = { ...editForm };
-    delete payload.event_date; // managed only by CalendarSection (DATE column)
+    // The DATE column follows the date picked in the form (DD/MM/YYYY text → YYYY-MM-DD).
+    // An unparseable/empty text leaves the stored date untouched.
+    const iso = parseDateIL(payload.event_date_text || '');
+    if (iso) payload.event_date = iso; else delete payload.event_date;
+    if (payload.event_time)     payload.event_time     = parseTimeIL(payload.event_time)     || payload.event_time;
+    if (payload.event_end_time) payload.event_end_time = parseTimeIL(payload.event_end_time) || payload.event_end_time;
     await api.patch(`/leads/${leadId}`, payload);
     setEditing(false);
     await load(); onUpdated();
@@ -710,7 +703,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
                       ) : '—'}
                     </InfoRow>
                     <InfoRow label="אימייל">{lead.email || '—'}</InfoRow>
-                    <InfoRow label="תאריך אירוע">{lead.event_date_text || formatDate(lead.event_date)}{lead.event_time ? ` · ${lead.event_time}` : ''}</InfoRow>
+                    <InfoRow label="תאריך אירוע">{lead.event_date_text || formatDate(lead.event_date)}{lead.event_time ? ` · ${lead.event_time}${lead.event_end_time ? `–${lead.event_end_time}` : ''}` : ''}</InfoRow>
                     <InfoRow label="סוג אירוע">{lead.event_type || '—'}</InfoRow>
                     <InfoRow label="מוזמנים">{lead.guest_count || '—'}</InfoRow>
                     <InfoRow label="תקציב">{lead.budget || '—'}</InfoRow>
@@ -4826,9 +4819,14 @@ function EditForm({ form, setForm, users, onSave, onCancel, leadId, contacts = [
         {leadId && <ExtraPhonesEdit leadId={leadId} contacts={contacts} onChanged={onContactsChanged} cls={cls} />}
         <div className="col-span-2"><label className="text-sm text-slate-500">שם האירוע</label><input value={form.event_name || ''} onChange={e => set('event_name', e.target.value)} className={cls} placeholder="שם האירוע" /></div>
         <div><label className="text-sm text-slate-500">אימייל</label><input value={form.email || ''} onChange={e => set('email', e.target.value)} className={cls} dir="ltr" /></div>
-        <div><label className="text-sm text-slate-500">תאריך אירוע</label><DateInput value={form.event_date_text || ''} onChange={v => set('event_date_text', v)} className={cls} /></div>
-        <div><label className="text-sm text-slate-500">שעת האירוע</label><TimeInput value={form.event_time || ''} onChange={v => set('event_time', v)} className={cls} /></div>
-        <div><label className="text-sm text-slate-500">שעת סיום</label><TimeInput value={form.event_end_time || ''} onChange={v => set('event_end_time', v)} className={cls} /></div>
+        <div><label className="text-sm text-slate-500">תאריך אירוע</label>
+          <PickerDateInput
+            value={parseDateIL(form.event_date_text || '') || (form.event_date ? String(form.event_date).slice(0, 10) : '')}
+            onChange={iso => setForm(f => ({ ...f, event_date: iso || null, event_date_text: iso ? iso.split('-').reverse().join('/') : '' }))}
+            className={cls} />
+        </div>
+        <div><label className="text-sm text-slate-500">שעת האירוע</label><PickerTimeInput value={form.event_time || ''} onChange={v => set('event_time', v)} className={cls} /></div>
+        <div><label className="text-sm text-slate-500">שעת סיום</label><PickerTimeInput value={form.event_end_time || ''} onChange={v => set('event_end_time', v)} className={cls} /></div>
         <div><label className="text-sm text-slate-500">סוג אירוע</label>
           <select
             value={EVENT_TYPES.includes(form.event_type) || !form.event_type ? (form.event_type || '') : 'אחר'}
