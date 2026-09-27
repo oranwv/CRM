@@ -9,7 +9,12 @@ api.interceptors.request.use(config => {
 });
 
 api.interceptors.response.use(
-  res => res,
+  res => {
+    // Sliding session: the server re-issues a token once a day of use (see server/middleware/auth.js)
+    const fresh = res.headers?.['x-refresh-token'];
+    if (fresh) { try { localStorage.setItem('crm_token', fresh); } catch {} }
+    return res;
+  },
   err => {
     // Never log out on a canceled/aborted request (e.g. in-flight during back navigation or unmount).
     if (axios.isCancel(err) || err.code === 'ERR_CANCELED') return Promise.reject(err);

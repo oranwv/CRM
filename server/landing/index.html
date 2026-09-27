@@ -56,6 +56,11 @@ html { scroll-behavior: smooth; }
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "ProEvent", "applicationCategory": "BusinessApplication", "operatingSystem": "Web, iOS, Android", "description": "CRM לאולמות אירועים ומפיקים: קליטת לידים אוטומטית מוואטסאפ, מהאתר ומהטלפון, הצעות מחיר וחוזים דיגיטליים, חשבוניות, התאמות בנק, רווח לכל אירוע, סוכן AI למכירות, תפעול וניהול עובדים.", "url": "https://www.proevent.co.il/", "inLanguage": "he", "image": "https://www.proevent.co.il/logo/app-icon-512.png", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "ILS", "description": "הדגמה חינם, ללא התחייבות"}}</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "כמה זמן לוקח לעלות על המערכת?", "acceptedAnswer": {"@type": "Answer", "text": "ימים, לא חודשים. מחברים את הוואטסאפ, המייל ויומן Google — ומהרגע הזה כל ליד חדש נכנס לבד. את ההיסטוריה הקיימת מייבאים יחד איתכם בליווי אישי."}}, {"@type": "Question", "name": "זה מחליף את הוואטסאפ שלנו?", "acceptedAnswer": {"@type": "Answer", "text": "לא — מתחבר אליו. ממשיכים להתכתב כרגיל, וכל שיחה, תמונה וקובץ נשמרים אוטומטית בכרטיס הליד. גם הודעות קוליות מתומללות לטקסט."}}, {"@type": "Question", "name": "יש הרשאות לפי תפקיד?", "acceptedAnswer": {"@type": "Answer", "text": "כן. מכירות, הפקה, תפעול, כספים, אישורי הגעה וניהול — כל עובד רואה את המסכים שלו, והמנהל רואה הכול, כולל דוח פעילות לכל עובד."}}, {"@type": "Question", "name": "ה-AI שולח הודעות ללקוחות בלי אישור?", "acceptedAnswer": {"@type": "Answer", "text": "לעולם לא. ה-AI מנסח טיוטות, מדרג לידים וממליץ — אבל כל הודעה ללקוח יוצאת רק אחרי שאתם מאשרים אותה."}}, {"@type": "Question", "name": "המערכת עובדת בנייד?", "acceptedAnswer": {"@type": "Answer", "text": "כן, נבנתה קודם כל לנייד. תזכורות משימה מגיעות בוואטסאפ עם כפתורי פעולה — הושלם, דחייה או משימת המשך — בלי לפתוח מחשב."}}]}</script>
 <!--GA-->
+<script>
+// Someone who is already logged in (token in this browser) should never see the marketing page:
+// re-set the app cookie and go to the app. /login redirects to / client-side when a token exists.
+try { if (localStorage.getItem('crm_token')) { document.cookie = 'crm_app=1; path=/; max-age=31536000; SameSite=Lax'; location.replace('/login'); } } catch (e) {}
+</script>
 </head>
 <body>
 

@@ -62,3 +62,10 @@ each with its own bottom tabs: מכירות, הפקה, תפעול, ספקים, �
 - **Secrets live in env vars** (see PRD "Infrastructure"). Note a stray
   `greenapi-credentials.txt.txt` exists in repo root — treat as sensitive.
 - See [[decisions]] for architectural decisions.
+
+## Auth session (2026-09-27)
+- JWT 30d in localStorage, **sliding**: `requireAuth` re-issues once a day via `X-Refresh-Token`
+  (client swaps it in `api.js`), after checking `users.blocked`.
+- `crm_app` cookie (server-set, 1y) = "serve the app at `/`, not the landing page". Never rely
+  on JS-written cookies for this — Safari drops them after 7 days.
+- Only `www.proevent.co.il` has DNS; the bare domain does not resolve.

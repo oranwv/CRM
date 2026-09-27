@@ -2137,6 +2137,19 @@ build (briefing, staff attendance and the WhatsApp bot were explicitly left unto
   logging, `vite build`. Not verified: real Green API sends from `/api/chat/send` and the
   live OpenAI prompts — check after deploy.
 
+### Phase 32 — Stay logged in ✅ Built 2026-09-27
+Oran kept landing on the public landing page / login from new tabs and after "back", on
+Mac and phone. Causes: the `crm_app` cookie that makes `GET /` serve the app was only ever
+written by `LoginPage` (JS) — sessions from before the landing page (2026-09-14) never had
+it, and Safari deletes JS-written cookies after 7 days. Fixes (`server/middleware/auth.js`):
+- The server sets `crm_app=1` (1 year, SameSite=Lax, Secure on https) on login and on any
+  authenticated API call where it is missing — heals existing sessions automatically.
+- Sliding expiry: a valid token older than a day is re-issued for 30 days in the
+  `X-Refresh-Token` header; `client/src/api.js` stores it. Before re-issuing, the user's
+  `blocked` flag is checked, so blocking still cuts a long session off within a day.
+- The landing page redirects to `/login` (→ app) when a token is in localStorage.
+Not fixed: `proevent.co.il` (no www) has no DNS record; only `www.proevent.co.il` resolves.
+
 ### Phase 31 — Search by payment amount ✅ Built 2026-09-25
 Typing an amount in the leads search (`15000`, `15,000`, `₪15,000`, 3–7 digits, optional
 decimals) also matches leads whose money fields are within ±1 ₪: the contract (signed,
