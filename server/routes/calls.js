@@ -56,11 +56,66 @@ api.get('/config', async (req, res) => {
   }
 });
 
-// GET /api/calls/token — browser SDK access token
+// GET /api/calls/token?platform=web|android|ios — Voice SDK access token
 api.get('/token', async (req, res) => {
   if (!tw.isEnabled()) return res.status(503).json({ error: 'שיחות אינן מופעלות' });
-  try { res.json({ token: await tw.accessToken(req.user.id), identity: tw.identityFor(req.user.id) }); }
+  const platform = ['android', 'ios'].includes(req.query.platform) ? req.query.platform : 'web';
+  try { res.json({ token: await tw.accessToken(req.user.id, platform), identity: tw.identityFor(req.user.id) }); }
   catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/calls/device { platform, version, registered } — the mobile app reports its
+// registration so the admin users screen can show who has the app.
+api.post('/device', async (req, res) => {
+  const { platform, version, registered } = req.body || {};
+  if (!['android', 'ios'].includes(platform)) return res.status(400).json({ error: 'platform' });
+  await pool.query(
+    `UPDATE users SET app_platform = $2, app_version = $3, app_registered_at = CASE WHEN $4 THEN NOW() ELSE NULL END WHERE id = $1`,
+    [req.user.id, platform, String(version || '').slice(0, 20), registered !== false]
+  );
+  res.json({ ok: true });
+});
+
+// GET /api/calls/app-version — the app checks this on start (APK link + minimum version)
+api.get('/app-version', async (req, res) => {
+  const { rows } = await pool.query(`SELECT key, value FROM settings WHERE key IN ('dialer_android_version','dialer_android_min_version','dialer_android_apk_url')`);
+  const m = Object.fromEntries(rows.map(r => [r.key, r.value]));
+  res.json({ android: { version: m.dialer_android_version || null, minVersion: m.dialer_android_min_version || null, apkUrl: m.dialer_android_apk_url || null } });
+});
+
+const isManagerUser = (u) => u.roles?.includes('admin') || u.roles?.includes('manager') || ['admin', 'manager'].includes(u.role);
+
+// GET /api/calls/mine — the caller's own calls (for the app's history). Private calls
+// (no lead) are visible only to their owner; lead calls show the lead name.
+api.get('/mine', async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT c.id, c.direction, c.status, c.started_at, c.duration_sec, c.from_number, c.to_number, c.lead_id,
+            c.recording_file_id IS NOT NULL AS has_recording, c.summary, l.name AS lead_name
+     FROM calls c LEFT JOIN leads l ON l.id = c.lead_id
+     WHERE (c.user_id = $1 OR c.answered_by = $1) AND c.status IN ('completed','missed','voicemail','no-answer','busy','failed','canceled')
+     ORDER BY c.started_at DESC LIMIT 200`, [req.user.id]);
+  res.json(rows);
+});
+
+// GET /api/calls/:id/recording — 60s signed URL for playback.
+//   Lead calls: managers only, and the response says "no download" (the web player hides it).
+//   Private calls (no lead): only the user who made/answered it; download allowed.
+api.get('/:id(\\d+)/recording', async (req, res) => {
+  const { rows: [call] } = await pool.query(
+    `SELECT c.id, c.lead_id, c.user_id, c.answered_by, f.stored_name, f.filename
+     FROM calls c JOIN files f ON f.id = c.recording_file_id WHERE c.id = $1`, [req.params.id]);
+  if (!call) return res.status(404).json({ error: 'אין הקלטה' });
+  const mine = call.user_id === req.user.id || call.answered_by === req.user.id;
+  if (call.lead_id) {
+    if (!isManagerUser(req.user)) return res.status(403).json({ error: 'האזנה להקלטות זמינה למנהלים בלבד' });
+  } else if (!mine) {
+    return res.status(403).json({ error: 'אין הרשאה' });
+  }
+  try {
+    const { getSignedUrl } = require('../services/storageService');
+    const url = await getSignedUrl(call.stored_name, 60);
+    res.json({ url, filename: call.filename, downloadable: !call.lead_id });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // PATCH /api/calls/me — { abroad_mode }
@@ -127,14 +182,17 @@ hooks.post('/twiml/outbound', async (req, res) => {
   const vr = new tw.VoiceResponse();
   const userId = tw.userIdFromIdentity(req.body.From);
   const to = tw.toE164(req.body.To);
-  const leadId = Number(req.body.LeadId) || (await findLeadByPhone(pool, normalizePhone(req.body.To)));
+  // LeadId comes from the CRM button; the app's free dialing sends none → match by phone, and
+  // if nothing matches this is a private call (lead_id NULL, visible only to the caller).
+  const leadId = Number(req.body.LeadId) || (await findLeadByPhone(pool, normalizePhone(req.body.To))) || null;
+  const mode = req.body.Platform === 'app' ? 'app' : 'browser';
   if (!to || !userId) { say(vr, 'לא ניתן לבצע את השיחה'); return xml(res, vr); }
 
   const { rows: [call] } = await pool.query(
     `INSERT INTO calls (call_sid, direction, lead_id, user_id, from_number, to_number, status, mode)
-     VALUES ($1, 'outbound', $2, $3, $4, $5, 'ringing', 'browser')
+     VALUES ($1, 'outbound', $2, $3, $4, $5, 'ringing', $6)
      ON CONFLICT (call_sid) DO UPDATE SET status = 'ringing' RETURNING id`,
-    [req.body.CallSid, leadId, userId, process.env.TWILIO_PHONE_NUMBER, to]
+    [req.body.CallSid, leadId, userId, process.env.TWILIO_PHONE_NUMBER, to, mode]
   );
   const dial = vr.dial({
     callerId: process.env.TWILIO_PHONE_NUMBER, answerOnBridge: true, timeout: 40,

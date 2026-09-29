@@ -1,10 +1,24 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-09-16
+updated: 2026-09-29
 ---
 
 # Now
+
+## 2026-09-29 — ProEvent Dialer app (Android) + CRM recording policy
+
+- Oran approved the dialer-app plan ("צא לדרך"): app behaves like the phone dialer, Android first
+  (Apple 2FA impossible abroad), DTMF keypad, free dialing with private calls (record only, app-only
+  history, share from the app), recordings never downloadable from the CRM, managers-only playback.
+- CRM side built (PRD Phase 37): `files.is_recording`, `[[REC:id]]` markers + `RecordingPlayer`,
+  403 on recording download, `/calls/token?platform`, `/calls/device`, `/calls/app-version`,
+  `/calls/mine`, `/calls/:id/recording`, push credential SIDs by platform, Android deep link with
+  browser fallback in `LeadCard`, "📱 אפליקציה" badge in admin.
+- App repo `oranwv/proevent-dialer` (Expo 57 + Twilio RN SDK 1.8) written, `tsc` clean, never built yet.
+- **Open loops (Oran):** Expo account, Firebase project + `google-services.json`, FCM push credential
+  in Twilio → `TWILIO_ANDROID_PUSH_CREDENTIAL_SID` in Railway, first `eas build` (APK), device test.
+- v2 ideas: call waiting inside the app, auto call-back after a dropped call, iPhone build.
 
 ## 2026-09-25 — Amount search + lead edit pickers + call-log button labels
 

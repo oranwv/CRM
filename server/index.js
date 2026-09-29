@@ -302,6 +302,16 @@ pool.query(`
   ALTER TABLE users ADD COLUMN IF NOT EXISTS shabbat_mode BOOLEAN DEFAULT FALSE;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS call_queue_order INT;
   ALTER TABLE calls ADD COLUMN IF NOT EXISTS transcript TEXT;
+  ALTER TABLE files ADD COLUMN IF NOT EXISTS is_recording BOOLEAN DEFAULT FALSE;
+  -- Dialer app: which users have the mobile app registered (for the admin users screen)
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS app_platform VARCHAR(10);
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS app_registered_at TIMESTAMPTZ;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS app_version VARCHAR(20);
+  -- Recordings made before the policy change (2026-09-29): detach from the lead's files list and
+  -- switch the timeline marker to [[REC:callId]] so only the manager-only player renders them.
+  UPDATE files f SET is_recording = TRUE, lead_id = NULL FROM calls c WHERE c.recording_file_id = f.id AND f.is_recording = FALSE;
+  UPDATE lead_interactions i SET body = regexp_replace(i.body, '\\[\\[FILE:' || c.recording_file_id || '\\|[^\\]]*\\]\\]', '[[REC:' || c.id || ']]')
+    FROM calls c WHERE c.interaction_id = i.id AND c.recording_file_id IS NOT NULL AND i.body LIKE '%[[FILE:' || c.recording_file_id || '|%';
   -- Metered AI usage (every OpenAI call goes through services/openaiClient.js)
   CREATE TABLE IF NOT EXISTS ai_usage (
     id SERIAL PRIMARY KEY,

@@ -87,4 +87,13 @@ voice notes. (Verified 2026-09-08 against the source; earlier notes here said Cl
   `server/routes/calls.js` header comment. Call log table: `calls`. Per-user routing prefs:
   `users.abroad_mode` (skip mobile, ring browser only), `users.call_queue_order`.
 - Browser softphone = `@twilio/voice-sdk` in `client/src/context/CallContext.jsx`; rings only
-  while a CRM tab is open. Locked-phone ringing would need a native app (not built).
+  while a CRM tab is open.
+- **ProEvent Dialer app** (repo `oranwv/proevent-dialer`, Expo + `@twilio/voice-react-native-sdk`,
+  Android first; PRD Phase 37): same identity `user_<id>`, so `<Client>` rings browser and app
+  together. Token: `GET /api/calls/token?platform=android|ios` adds the push credential from
+  `TWILIO_ANDROID_PUSH_CREDENTIAL_SID` / `TWILIO_IOS_PUSH_CREDENTIAL_SID`. Deep link from the CRM:
+  `proeventdialer://call?to&lead&name` (Android only, silent browser fallback). Calls to numbers
+  that match no lead are **private**: recording only, listed via `/api/calls/mine` to the caller.
+- **Recording policy (2026-09-29):** call recordings (`files.is_recording`) are never downloadable
+  from the CRM (403); playback only through `GET /api/calls/:id/recording` (managers for lead
+  calls, owner for private calls); timeline marker `[[REC:<callId>]]`.

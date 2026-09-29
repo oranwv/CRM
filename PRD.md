@@ -1942,57 +1942,70 @@ morning/evening sales briefings on Friday and Saturday. `users.shabbat_mode` + t
 in the admin user editor (plus a badge in the user row); the skip lives in
 `runSalesBriefings`. Scope limited to the two sales briefings by Oran's explicit choice.
 
-### Phase 36 — "ProEvent Dialer" mobile app (iPhone first) 📋 Planned 2026-09-22
+### Phase 37 — "ProEvent Dialer" mobile app (Android first) 🔨 Built, awaiting first build 2026-09-29
 Why: the browser softphone is unusable on phones — no speaker/earpiece control, low volume,
 mic suspended in the background, no ringing when locked (Phase 33 notes). Oran decided on a
-separate, calling-only native app; the CRM itself stays a web app. iPhone first (part of the
-team is on iPhone), Android later from the same code.
+separate, calling-only native app; the CRM itself stays a web app. **Android first** — Apple
+enrollment needs SMS/voice 2FA that Oran cannot receive abroad (no trusted Apple device, Mac not
+signed in); iPhone later from the same code once he is back in Israel.
 
-**Scope v1 (deliberately minimal)**
-- Login with the CRM username/password (existing `POST /api/auth/login`), JWT in SecureStore.
-- Register for calls: `GET /api/calls/token?platform=ios` → `voice.register(token)`; the SDK
-  handles PushKit + CallKit, so an incoming call shows the native iOS call screen even when the
-  phone is locked or the app is killed.
-- Incoming call: answer/decline on the native screen → in-app call screen: lead name, timer,
-  **speaker / earpiece / Bluetooth**, mute, keypad-less, hang up, "פתח ליד ב-CRM" (opens Safari at
-  `/?lead=<id>`).
-- Outbound: only from the CRM in the browser. Tapping "התקשר" on iOS opens the deep link
-  `proeventdialer://call?to=<E.164>&lead=<id>&name=<name>`; the app dials through the same
-  TwiML App (`/twiml/outbound`) as the browser, so recording + summary are unchanged.
-- Settings: ✈️ abroad toggle (`PATCH /api/calls/me`), registration status, logout.
-- Not in v1: lead list/search, call history, chat, anything else that lives in the CRM.
+**Behaviour Oran specified (approved 2026-09-29, "צא לדרך")**
+- The app behaves like the phone's regular dialer: tapping "התקשר" in the CRM on Android opens the
+  app's call screen (deep link `proeventdialer://call?to=<E.164>&lead=<id>&name=<name>`), the
+  same way `tel:` opens the dialer. If the app is not installed the CRM just dials from the browser
+  as before — no prompt (`tryOpenDialerApp` in `LeadCard.jsx`: navigates to the scheme, resolves
+  true when the page is hidden, false after 1.5 s, then falls back to `calls.startCall`).
+- Call keeps running when switching apps (foreground service via the Twilio SDK); speaker /
+  earpiece / Bluetooth picker, mute, hang up, **DTMF keypad** for IVR menus, timer, "פתח ליד ב-CRM".
+- Incoming calls ring the app even when the phone is locked or the app is killed (FCM push →
+  native incoming-call notification). Users without the app: the ring plan is unchanged —
+  `<Client>user_<id>` reaches whatever is registered (browser tab and/or app), so nothing is skipped
+  or added per user.
+- A cellular call arriving during an app call must not drop the app call — Android holds the
+  VoIP audio while the GSM call is active and the SDK resumes it (`MANAGE_OWN_CALLS`); call
+  waiting inside the app itself is v2.
+- Free dialing: the app has its own keypad, so a user can call any number. The server matches the
+  number to a lead (`findLeadByPhone`); if none → **private call**: recorded and logged, no AI
+  transcript/summary, visible only to the caller inside the app (`GET /api/calls/mine`), stored in
+  the cloud (Supabase, `files.is_recording`), never on the phone. Private recordings can be
+  shared/saved from the app (share sheet → WhatsApp, Drive, file) — lead recordings cannot.
+- **Recording policy in the CRM changed:** recordings are never downloadable from the CRM.
+  `fileDownload` returns 403 for `files.is_recording`; the timeline marker is now `[[REC:<callId>]]`
+  and `RecordingPlayer` (managers only) streams via `GET /api/calls/:id/recording` into an
+  `<audio>` with download disabled. Existing recordings were migrated (`is_recording=TRUE`,
+  `lead_id=NULL`, timeline markers rewritten). Managers only for lead calls; owner only for private calls.
 
-**Stack:** Expo (managed workflow, TypeScript) + `@twilio/voice-react-native-sdk` 2.x (has
-official Expo support via config plugin) + EAS Build (cloud builds, no Xcode needed locally) +
-TestFlight for distribution. Repo: `~/Projects/proevent-dialer`, own bedrock, same git protocol.
+**App (repo `oranwv/proevent-dialer`, `~/Projects/proevent-dialer`)**: Expo SDK 57 (managed,
+TypeScript, no Expo Router — four screens with a state machine in `App.tsx`),
+`@twilio/voice-react-native-sdk` 1.8 via its config plugin, `expo-secure-store` (JWT),
+`expo-linking` (deep link), `expo-audio` (recording player), `expo-file-system` + `expo-sharing`
+(share private recordings), `expo-build-properties` (minSdk 24). Screens: Login (CRM
+username/password), Home (status + ✈️ abroad toggle + update banner, keypad tab, history tab
+from `/calls/mine`), Call (ringing/in-call, dialer-style), Recording (player, share when
+`downloadable`). `src/lib/voice.ts` wraps the SDK: register with `GET /calls/token?platform=android`
+(re-register every 3 h and on foreground), `Voice.connect(token,{params:{To,LeadId,Platform:'app'}})`,
+CallInvite accept/reject, audio devices, `sendDigits`. Package `co.il.proevent.dialer`,
+EAS profiles preview/production → APK (internal distribution, no Play Store needed).
 
-**Server changes (CRM):** `accessToken(userId, platform)` adds `pushCredentialSid` to the
-VoiceGrant when `platform=ios` (env `TWILIO_IOS_PUSH_CREDENTIAL_SID`); `/calls/config` returns
-`ios_app_link` so the web can show the deep link; LeadCard `CallButtons` on iOS Safari opens the
-deep link instead of the browser Device (falls back to the browser if the app is not installed).
-Ring plan unchanged — `<Client>user_<id>` already reaches every registered endpoint of that
-identity (browser tab and phone app ring together).
+**Server (CRM):** `accessToken(userId, platform)` adds `pushCredentialSid`
+(`TWILIO_ANDROID_PUSH_CREDENTIAL_SID` / `TWILIO_IOS_PUSH_CREDENTIAL_SID`); `GET /calls/token?platform=`;
+`POST /calls/device` (users.app_platform / app_version / app_registered_at → "📱 אפליקציה" badge in
+the admin user list); `GET /calls/app-version` (settings `dialer_android_version`,
+`dialer_android_min_version`, `dialer_android_apk_url` → update banner in the app);
+`GET /calls/mine`; `GET /calls/:id/recording`; outbound TwiML accepts `LeadId` or matches by
+phone, `mode='app'` when `Platform=app`. `callAnalysis`: private calls (no lead) get the recording
+only.
 
-**Apple side (Oran, guided):** 1) Apple Developer Program enrollment — *Individual* is approved
-in ~1–2 days; *Organization* needs a D-U-N-S number (free, 1–2 weeks) and can be switched to
-later. 2) App ID `co.il.proevent.dialer` with Push Notifications + VoIP capabilities. 3) VoIP
-Services certificate → export `.p12` → Twilio Console → Push Credentials → APNS VoIP (production,
-no `--sandbox`; TestFlight uses production APNs) → SID into Railway. 4) Expo account (free) for
-EAS; EAS can manage signing certificates with the Apple login. 5) TestFlight testers = team
-emails (up to 100 internal / 10,000 via public link; builds expire after 90 days → rebuild).
+**Oran's side before the first build:** Expo account (expo.dev) → `npx eas-cli login`; Firebase
+project with an Android app `co.il.proevent.dialer` → `google-services.json` into the repo root
+(git-ignored) → Firebase service-account JSON → Twilio Console → Push Credentials → FCM →
+SID into Railway as `TWILIO_ANDROID_PUSH_CREDENTIAL_SID`; then `npx eas-cli build -p android
+--profile preview` → APK link → install on the phone → set `dialer_android_apk_url` in settings.
+Test list: locked-screen incoming call, speaker/earpiece, switching apps mid-call, outbound from
+the CRM lead card, DTMF on an IVR, private call + history + share, abroad toggle.
 
-**Distribution:** TestFlight is enough for 4–10 people and for "more later" up to thousands.
-App Store publication is only needed for ProEvent customers outside the team: App Review
-(1–3 days), privacy policy URL, screenshots, a support page; same code. Decide when relevant.
-
-**Costs:** Apple $99/year; Expo EAS free tier (limited monthly builds, slower queue) or $19/mo;
-per-minute Twilio same as browser calls (mobile app leg $0.004/min + lead leg).
-
-**Order of work:** (a) Oran: Apple enrollment + Expo account. (b) Claude, in parallel: app repo,
-server token change, deep link in LeadCard — all testable in the iOS Simulator except push.
-(c) When Apple approves: App ID + VoIP cert + Twilio credential (30 min together), first EAS
-build → TestFlight → real iPhone test of a locked-phone incoming call, speaker, background.
-(d) Android build (FCM, same code) afterwards.
+**Costs:** Expo EAS free tier (limited builds/month) or $19/mo; Firebase free; per-minute Twilio
+same as browser calls (app leg $0.004/min + lead leg). iPhone later: Apple $99/year.
 
 ### Phase 34 — Costs panel + AI usage metering ✅ Built 2026-09-16
 Oran asked to see what every paid service costs per month, calls included. New tab **עלויות**

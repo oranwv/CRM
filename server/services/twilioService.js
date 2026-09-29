@@ -108,14 +108,19 @@ const userIdFromIdentity = (identity) => {
 // JWT the browser SDK registers with. Twilio allows up to 24h; 4 hours keeps phones that
 // sleep through a refresh from waking up to an expired token (the client also refreshes).
 const TOKEN_TTL = 4 * 60 * 60;
-async function accessToken(userId) {
+// platform: 'web' (default) | 'android' | 'ios'. The mobile app needs a push credential SID in
+// the grant so Twilio can wake it for incoming calls (FCM on Android, APNs VoIP on iOS):
+//   TWILIO_ANDROID_PUSH_CREDENTIAL_SID / TWILIO_IOS_PUSH_CREDENTIAL_SID (Twilio Console → Push Credentials)
+async function accessToken(userId, platform = 'web') {
   const [keySid, keySecret, appSid] = await Promise.all([
     getSetting(SETTINGS.keySid), getSetting(SETTINGS.keySecret), getSetting(SETTINGS.appSid),
   ]);
   if (!keySid || !keySecret || !appSid) throw new Error('Twilio setup incomplete — check server logs');
   const { AccessToken } = twilio.jwt;
   const token = new AccessToken(process.env.TWILIO_ACCOUNT_SID, keySid, keySecret, { identity: identityFor(userId), ttl: TOKEN_TTL });
-  token.addGrant(new AccessToken.VoiceGrant({ outgoingApplicationSid: appSid, incomingAllow: true }));
+  const pushCredentialSid = platform === 'android' ? process.env.TWILIO_ANDROID_PUSH_CREDENTIAL_SID
+                          : platform === 'ios'     ? process.env.TWILIO_IOS_PUSH_CREDENTIAL_SID : undefined;
+  token.addGrant(new AccessToken.VoiceGrant({ outgoingApplicationSid: appSid, incomingAllow: true, pushCredentialSid: pushCredentialSid || undefined }));
   return token.toJwt();
 }
 

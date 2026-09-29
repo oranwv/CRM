@@ -738,6 +738,12 @@ export default function AdminPage() {
                   {u.shabbat_mode && (
                     <span className="text-xs font-black px-2 py-0.5 rounded-full bg-sky-100 text-sky-700">שומר שבת</span>
                   )}
+                  {u.app_registered_at && (
+                    <span className="text-xs font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700"
+                      title={`אפליקציית שיחות ${u.app_platform || ''} ${u.app_version || ''} · נרשם ${new Date(u.app_registered_at).toLocaleDateString('he-IL')}`}>
+                      📱 אפליקציה
+                    </span>
+                  )}
                   {(u.roles?.length ? u.roles : [u.role]).map(r => (
                     <span key={r} className={`text-xs font-bold px-2 py-0.5 rounded-full ${ROLE_COLORS[r] || 'bg-slate-100 text-slate-600'}`}>
                       {ROLE_LABELS[r] || r}

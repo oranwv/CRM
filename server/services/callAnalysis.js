@@ -124,15 +124,20 @@ async function processRecording({ callId, recordingSid, recordingUrl, durationSe
     tmp = await downloadRecording(recordingUrl);
     const fileName = `${voicemail ? 'הודעה קולית' : 'הקלטת שיחה'} ${new Date(call.started_at || Date.now()).toLocaleDateString('he-IL')}.mp3`;
     const { storedName } = await uploadFile(tmp, fileName, 'audio/mpeg');
+    // Recording files are NOT lead files: lead_id stays NULL and is_recording marks them so the
+    // generic /files endpoints refuse them. Access goes only through /api/calls/:id/recording
+    // (managers for lead calls; the owner for private calls) — Oran's policy, 2026-09-29.
     const { rows: [f] } = await pool.query(
-      `INSERT INTO files (lead_id, filename, url, stored_name, file_type, uploaded_by)
-       VALUES ($1, $2, '', $3, 'audio/mpeg', NULL) RETURNING id`,
-      [call.lead_id, fileName, storedName]
+      `INSERT INTO files (lead_id, filename, url, stored_name, file_type, uploaded_by, is_recording)
+       VALUES (NULL, $1, '', $2, 'audio/mpeg', NULL, TRUE) RETURNING id`,
+      [fileName, storedName]
     );
     fileId = f.id;
-    fileMarker = `[[FILE:${fileId}|${fileName}]]`;
+    fileMarker = `[[REC:${callId}]]`;
 
-    if (voicemail) {
+    if (!call.lead_id) {
+      // Private call (number not in the CRM): recording only — no transcript, no AI (Oran's choice)
+    } else if (voicemail) {
       if (durationSec >= 2 && process.env.OPENAI_API_KEY) vmTranscript = await transcribe(tmp, durationSec, null, null).catch(() => null);
       transcript = vmTranscript;
     } else if (durationSec >= MIN_SECONDS_FOR_ANALYSIS && process.env.OPENAI_API_KEY) {

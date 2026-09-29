@@ -71,7 +71,7 @@ router.get('/whatsapp-status', adminOnly, async (req, res) => {
 router.get('/users', adminOnly, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT id, username, display_name, email, phone, role, roles, blocked, shabbat_mode, created_at FROM users ORDER BY display_name'
+      'SELECT id, username, display_name, email, phone, role, roles, blocked, shabbat_mode, created_at, app_platform, app_version, app_registered_at FROM users ORDER BY display_name'
     );
     res.json(rows);
   } catch (err) {

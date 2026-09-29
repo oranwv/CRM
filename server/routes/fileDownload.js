@@ -6,10 +6,12 @@ const { getSignedUrl, storedNameFromUrl } = require('../services/storageService'
 router.get('/:fileId/url', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT stored_name, url FROM files WHERE id = $1',
+      'SELECT stored_name, url, is_recording FROM files WHERE id = $1',
       [req.params.fileId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    // Call recordings are served only via /api/calls/:id/recording (managers / owner)
+    if (rows[0].is_recording) return res.status(403).json({ error: 'הקלטות שיחה זמינות רק דרך המערכת' });
     // Legacy rows: stored_name is NULL but the old public URL carries the name
     const storedName = rows[0].stored_name || storedNameFromUrl(rows[0].url);
     if (!storedName) return res.status(404).json({ error: 'Not found' });

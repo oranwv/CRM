@@ -1198,6 +1198,20 @@ function FilesSection({ leadId, files, onChanged, isAdmin }) {
 
 /* ── BODY WITH FILE ATTACHMENT ── */
 /* ── IN-APP CALL BUTTONS (Twilio) ── */
+// Resolves true if the phone switched to the dialer app (the page lost visibility), false if
+// nothing happened within 1.5s (app not installed) so the caller can dial from the browser.
+function tryOpenDialerApp(lead) {
+  return new Promise(resolve => {
+    const params = new URLSearchParams({ to: lead.phone || '', lead: String(lead.id || ''), name: lead.name || '' });
+    let done = false;
+    const finish = (v) => { if (done) return; done = true; document.removeEventListener('visibilitychange', onHide); clearTimeout(t); resolve(v); };
+    const onHide = () => { if (document.visibilityState === 'hidden') finish(true); };
+    document.addEventListener('visibilitychange', onHide);
+    const t = setTimeout(() => finish(false), 1500);
+    window.location.href = `proeventdialer://call?${params.toString()}`;
+  });
+}
+
 // "התקשר" dials from the browser and shows the venue's Israeli number to the customer;
 // "דרך הנייד" makes Twilio ring the rep's own mobile first, then bridges to the lead.
 // Both are recorded and summarized onto the lead timeline by the server.
@@ -1209,9 +1223,19 @@ function CallButtons({ lead, phone }) {
   const [note, setNote] = useState('');
   if (!calls.enabled) return null;
 
+  // On Android phones the "ProEvent Dialer" app gives a real dialer (speaker, background,
+  // locked-screen ringing). We try its deep link first; if the app is not installed the page
+  // stays visible and after 1.5s we silently dial from the browser as before (Oran: no prompt).
+  const isAndroid = /Android/i.test(navigator.userAgent);
   async function browserCall() {
     setMenu(false); setBusy(true);
-    try { await calls.startCall(target); }
+    try {
+      if (isAndroid) {
+        const opened = await tryOpenDialerApp(target);
+        if (opened) { setBusy(false); return; }
+      }
+      await calls.startCall(target);
+    }
     catch (err) { setNote(err.message || 'לא ניתן להתקשר'); setTimeout(() => setNote(''), 4000); }
     finally { setBusy(false); }
   }
@@ -1249,6 +1273,36 @@ function CallButtons({ lead, phone }) {
   );
 }
 
+// Call recording on the timeline. Policy (2026-09-29): playback inside the CRM only, managers
+// only, no download. The URL is a 60-second signed link fetched when the manager presses play;
+// non-managers see nothing (the server refuses them anyway).
+function RecordingPlayer({ callId }) {
+  const me = JSON.parse(localStorage.getItem('crm_user') || '{}');
+  const roles = me.roles?.length ? me.roles : [me.role];
+  const isManager = roles.includes('admin') || roles.includes('manager');
+  const [url, setUrl] = useState(null);
+  const [err, setErr] = useState('');
+  if (!isManager) return null;
+  async function load(e) {
+    e.stopPropagation();
+    try { const r = await api.get(`/calls/${callId}/recording`); setUrl(r.data.url); }
+    catch (x) { setErr(x.response?.data?.error || 'לא ניתן לטעון את ההקלטה'); }
+  }
+  if (err) return <p className="text-xs text-red-500 mt-1.5">{err}</p>;
+  if (!url) {
+    return (
+      <button onClick={load}
+        className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-violet-50 border border-slate-200 hover:border-violet-300 text-sm font-semibold text-slate-700 hover:text-violet-700 transition">
+        ▶️ האזן להקלטה <span className="text-[10px] text-slate-400 font-normal">מנהלים בלבד</span>
+      </button>
+    );
+  }
+  return (
+    <audio src={url} controls autoPlay controlsList="nodownload noplaybackrate" onContextMenu={e => e.preventDefault()}
+      onClick={e => e.stopPropagation()} className="mt-1.5 w-full max-w-sm h-9" />
+  );
+}
+
 function BodyWithFile({ body: rawBody }) {
   const [showTranscript, setShowTranscript] = useState(false);
   if (!rawBody) return null;
@@ -1256,8 +1310,10 @@ function BodyWithFile({ body: rawBody }) {
   const tIdx = rawBody.indexOf('[[TRANSCRIPT]]');
   const body = tIdx === -1 ? rawBody : rawBody.slice(0, tIdx);
   const transcript = tIdx === -1 ? null : rawBody.slice(tIdx + '[[TRANSCRIPT]]'.length).trim();
+  const REC_RE = /\[\[REC:(\d+)\]\]/g;
+  const recIds = [...body.matchAll(REC_RE)].map(m => m[1]);
   const FILE_RE = /\[\[FILE:([^\|]+)\|([^\]]+)\]\]/g;
-  const text = body.replace(FILE_RE, '').trim();
+  const text = body.replace(FILE_RE, '').replace(REC_RE, '').trim();
   const files = [...body.matchAll(/\[\[FILE:([^\|]+)\|([^\]]+)\]\]/g)]
     .map(m => ({ id: m[1], name: m[2] }));
   const isMediaPlaceholder = /^\[.+Message\]$/.test(text);
@@ -1272,6 +1328,7 @@ function BodyWithFile({ body: rawBody }) {
           {fileIconByExt(f.name)} {f.name}
         </button>
       ))}
+      {recIds.map(id => <RecordingPlayer key={id} callId={id} />)}
       {transcript && (
         <div className="mt-2">
           <button onClick={e => { e.stopPropagation(); setShowTranscript(v => !v); }}
