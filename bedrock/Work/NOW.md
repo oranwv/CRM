@@ -6,6 +6,19 @@ updated: 2026-09-29
 
 # Now
 
+## 2026-09-29 — Hotfix: site down after the Phase 37 deploy
+
+- proevent.co.il returned "Application failed to respond". Railway deploy log:
+  `Unexpected ( at index 4: /:id(\\d+)/recording` — Express 5 / path-to-regexp v8 rejects inline
+  regex params, the throw aborted route loading before `app.listen`.
+- Fixed in `server/routes/calls.js` (`/:id/recording` + numeric check in the handler), pushed,
+  Railway redeployed, site verified up on www.proevent.co.il.
+- Rule: never use `(regex)` in Express route paths.
+- Also seen in the same startup log (pre-existing, not fixed): several `[DB] ... migration error:
+  EMAXCONNSESSION max clients reached (pool_size 15)` — the startup migrations fire in parallel and
+  exhaust the Supabase session pool.
+- Next (waiting on Oran's answers): production "open items" list in the lead card + event brief.
+
 ## 2026-09-29 — ProEvent Dialer app (Android) + CRM recording policy
 
 - Oran approved the dialer-app plan ("צא לדרך"): app behaves like the phone dialer, Android first

@@ -1996,6 +1996,12 @@ the admin user list); `GET /calls/app-version` (settings `dialer_android_version
 phone, `mode='app'` when `Platform=app`. `callAnalysis`: private calls (no lead) get the recording
 only.
 
+**Hotfix 2026-09-29 (site down):** the Phase 37 deploy took proevent.co.il down ("Application
+failed to respond"). The route was first written as `/:id(\\d+)/recording`; Express 5
+(path-to-regexp v8) doesn't allow inline regex params and throws while the routes load, so
+`app.listen` never ran. It's now `/:id/recording` and the handler checks that the id is numeric
+(404 otherwise). **Rule: no `(regex)` in Express route paths — validate params inside the handler.**
+
 **Oran's side before the first build:** Expo account (expo.dev) → `npx eas-cli login`; Firebase
 project with an Android app `co.il.proevent.dialer` → `google-services.json` into the repo root
 (git-ignored) → Firebase service-account JSON → Twilio Console → Push Credentials → FCM →
