@@ -2013,6 +2013,13 @@ the CRM lead card, DTMF on an IVR, private call + history + share, abroad toggle
 **Costs:** Expo EAS free tier (limited builds/month) or $19/mo; Firebase free; per-minute Twilio
 same as browser calls (app leg $0.004/min + lead leg). iPhone later: Apple $99/year.
 
+**Boot-time DB connections (2026-09-29).** Railway logs showed "max clients reached" from
+Supabase during deploys: `server/index.js` fired ~23 schema-check statements in parallel at
+module load (each on its own pooled connection) while the previous instance was still serving.
+They now run one after another through a small `migrate()` helper (same fire-and-forget shape,
+each statement keeps its own `.catch` logging, one failure never blocks the next). No schema or
+behaviour change.
+
 ### Phase 34 — Costs panel + AI usage metering ✅ Built 2026-09-16
 Oran asked to see what every paid service costs per month, calls included. New tab **עלויות**
 in the ניהול mode (`/costs`, `client/src/pages/CostsPage.jsx`; API `routes/costs.js`, admins +

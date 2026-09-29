@@ -6,6 +6,10 @@ updated: 2026-09-29
 
 # Now
 
+## 2026-09-29 — Boot migrations serialized
+
+- "max clients reached" at deploy: the ~23 boot-time `pool.query` schema checks in `server/index.js` now run sequentially via `migrate()`. Verify in the next Railway deploy log that the errors are gone.
+
 ## 2026-09-29 — Hotfix: site down after the Phase 37 deploy
 
 - proevent.co.il returned "Application failed to respond". Railway deploy log:

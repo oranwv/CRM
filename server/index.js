@@ -59,8 +59,19 @@ const chatRoutes                = require('./routes/chat');
 
 const pool = require('./db/pool');
 
+// Boot-time schema checks run one after another on a single connection. They used to be
+// fired in parallel (~25 statements at once), which together with the previous instance
+// still running during a Railway deploy pushed Supabase over its client limit
+// ("max clients reached"). `migrate()` keeps the same fire-and-forget shape.
+let migrationChain = Promise.resolve();
+function migrate(sql, params) {
+  const run = migrationChain.then(() => pool.query(sql, params));
+  migrationChain = run.catch(() => {});   // one failure never blocks the next statement
+  return run;                             // callers keep their own .catch() logging
+}
+
 // Ensure runtime tables exist (safe to run every boot)
-pool.query(`
+migrate(`
   CREATE TABLE IF NOT EXISTS messages (
     id SERIAL PRIMARY KEY,
     lead_id INT REFERENCES leads(id) ON DELETE CASCADE,
@@ -174,27 +185,27 @@ pool.query(`
     ON CONFLICT (key) DO NOTHING;
 `).catch(err => console.error('[DB] Table check error:', err.message));
 
-pool.query(`
+migrate(`
   ALTER TABLE contracts ADD COLUMN IF NOT EXISTS sent_via TEXT;
   ALTER TABLE contracts ADD COLUMN IF NOT EXISTS whatsapp_phone TEXT;
 `).catch(err => console.error('[DB] contracts sent_via migration error:', err.message));
-pool.query(`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS orderer_name TEXT`)
+migrate(`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS orderer_name TEXT`)
   .catch(err => console.error('[DB] orderer_name migration error:', err.message));
 
-pool.query(`ALTER TABLE lead_contacts ADD COLUMN IF NOT EXISTS label TEXT`)
+migrate(`ALTER TABLE lead_contacts ADD COLUMN IF NOT EXISTS label TEXT`)
   .catch(err => console.error('[DB] lead_contacts label migration error:', err.message));
 
 // Reclassify historical Instagram Click-to-WhatsApp leads that were stored as
 // 'whatsapp'. The first inbound message is saved in notes as "הודעה ראשונה: <body>";
 // the Instagram CTA template contains "אפשר לקבל מידע נוסף על זה". Idempotent:
 // after the first run no 'whatsapp' rows still match, so it self-noops.
-pool.query(`
+migrate(`
   UPDATE leads SET source = 'instagram'
   WHERE source = 'whatsapp'
     AND notes LIKE 'הודעה ראשונה:%אפשר לקבל מידע נוסף על זה%'
 `).catch(err => console.error('[DB] instagram source backfill error:', err.message));
 
-pool.query(`
+migrate(`
   CREATE TABLE IF NOT EXISTS production_checklist (
     id SERIAL PRIMARY KEY,
     lead_id INT REFERENCES leads(id) ON DELETE CASCADE,
@@ -220,7 +231,7 @@ pool.query(`
   ALTER TABLE leads ADD COLUMN IF NOT EXISTS production_manager_id INT REFERENCES users(id) ON DELETE SET NULL;
 `).catch(err => console.error('[DB] production tables migration error:', err.message));
 
-pool.query(`
+migrate(`
   CREATE TABLE IF NOT EXISTS seating_layouts (
     id         SERIAL PRIMARY KEY,
     lead_id    INT REFERENCES leads(id) ON DELETE CASCADE,
@@ -231,7 +242,7 @@ pool.query(`
   );
 `).catch(err => console.error('[DB] seating_layouts migration error:', err.message));
 
-pool.query(`
+migrate(`
   ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_stage_check;
   ALTER TABLE leads ADD CONSTRAINT leads_stage_check
     CHECK (stage IN ('new','new_no_answer','contacted','meeting_scheduled','meeting',
@@ -240,21 +251,21 @@ pool.query(`
 `).catch(err => console.error('[DB] stage constraint migration error:', err.message));
 
 // Allow the 'cold' priority (snowflake) alongside hot/urgent.
-pool.query(`
+migrate(`
   ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_priority_check;
   ALTER TABLE leads ADD CONSTRAINT leads_priority_check
     CHECK (priority IN ('normal','hot','urgent','cold'));
 `).catch(err => console.error('[DB] priority constraint migration error:', err.message));
 
 // Allow logging a dial attempt ('call_attempt') as an interaction type.
-pool.query(`
+migrate(`
   ALTER TABLE lead_interactions DROP CONSTRAINT IF EXISTS lead_interactions_type_check;
   ALTER TABLE lead_interactions ADD CONSTRAINT lead_interactions_type_check
     CHECK (type IN ('call','call_attempt','meeting','note','email','whatsapp','facebook','instagram'));
 `).catch(err => console.error('[DB] interaction type constraint migration error:', err.message));
 
 // Presence sessions for "connected hours" tracking (heartbeat pings).
-pool.query(`
+migrate(`
   CREATE TABLE IF NOT EXISTS user_sessions (
     id SERIAL PRIMARY KEY,
     user_id INT REFERENCES users(id) ON DELETE CASCADE,
@@ -264,14 +275,14 @@ pool.query(`
   CREATE INDEX IF NOT EXISTS idx_user_sessions_user_time ON user_sessions(user_id, last_ping_at);
 `).catch(err => console.error('[DB] user_sessions migration error:', err.message));
 
-pool.query(`
+migrate(`
   ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_source_check;
   ALTER TABLE leads ADD CONSTRAINT leads_source_check
     CHECK (source IN ('website_popup','website_form','call_event','telekol','vonage','whatsapp','facebook','instagram','manual','landing','phone_call'));
 `).catch(err => console.error('[DB] source constraint migration error:', err.message));
 
 // In-app calling (Twilio Voice) — call log + per-user routing prefs
-pool.query(`
+migrate(`
   CREATE TABLE IF NOT EXISTS calls (
     id SERIAL PRIMARY KEY,
     call_sid TEXT UNIQUE,
@@ -338,7 +349,7 @@ pool.query(`
   );
 `).catch(err => console.error('[DB] calls migration error:', err.message));
 
-pool.query(`
+migrate(`
   CREATE TABLE IF NOT EXISTS google_calendar_cache (
     google_event_id TEXT PRIMARY KEY,
     title TEXT,
@@ -353,7 +364,7 @@ pool.query(`
   ALTER TABLE google_calendar_cache ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'google';
 `).catch(err => console.error('[DB] google_calendar_cache migration error:', err.message));
 
-pool.query(`
+migrate(`
   CREATE TABLE IF NOT EXISTS supplier_categories (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE,
@@ -400,17 +411,17 @@ pool.query(`
   )
 `).catch(err => console.error('[DB] suppliers migration error:', err.message));
 
-pool.query(`
+migrate(`
   ALTER TABLE supplier_interactions ADD COLUMN IF NOT EXISTS file_id INT REFERENCES supplier_files(id) ON DELETE SET NULL;
   ALTER TABLE supplier_files ADD COLUMN IF NOT EXISTS source VARCHAR(50)
 `).catch(err => console.error('[DB] supplier interactions/files column migration error:', err.message));
 
-pool.query(`
+migrate(`
   ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS sug VARCHAR(255);
   ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS payment VARCHAR(255)
 `).catch(err => console.error('[DB] suppliers sug/payment column migration error:', err.message));
 
-pool.query(`
+migrate(`
   CREATE TABLE IF NOT EXISTS op_tasks (
     id SERIAL PRIMARY KEY,
     title TEXT NOT NULL,
@@ -461,10 +472,10 @@ pool.query(`
   );
 `).catch(err => console.error('[DB] operations tables migration error:', err.message));
 
-pool.query(`ALTER TABLE op_maintenance ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'open'`)
+migrate(`ALTER TABLE op_maintenance ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'open'`)
   .catch(err => console.error('[DB] op_maintenance status migration error:', err.message));
 
-pool.query(`
+migrate(`
   CREATE TABLE IF NOT EXISTS op_activity_log (
     id SERIAL PRIMARY KEY,
     entity_type VARCHAR(20) NOT NULL,
@@ -488,7 +499,7 @@ pool.query(`
   );
 `).catch(err => console.error('[DB] op_activity_log/reminders migration error:', err.message));
 
-pool.query(`
+migrate(`
   CREATE TABLE IF NOT EXISTS rsvp_campaigns (
     id SERIAL PRIMARY KEY,
     event_id INT REFERENCES leads(id) ON DELETE SET NULL,
@@ -525,12 +536,12 @@ pool.query(`
   );
 `).catch(err => console.error('[DB] RSVP tables migration error:', err.message));
 
-pool.query(`
+migrate(`
   ALTER TABLE op_reminders ADD COLUMN IF NOT EXISTS due_time TEXT;
   ALTER TABLE op_reminders ADD COLUMN IF NOT EXISTS remind_sent_at TIMESTAMPTZ;
 `).catch(err => console.error('[DB] op_reminders migration error:', err.message));
 
-pool.query(`
+migrate(`
   CREATE TABLE IF NOT EXISTS ai_knowledge_files (
     id SERIAL PRIMARY KEY,
     filename VARCHAR(255) NOT NULL,
