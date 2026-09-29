@@ -100,7 +100,9 @@ api.get('/mine', async (req, res) => {
 // GET /api/calls/:id/recording — 60s signed URL for playback.
 //   Lead calls: managers only, and the response says "no download" (the web player hides it).
 //   Private calls (no lead): only the user who made/answered it; download allowed.
-api.get('/:id(\\d+)/recording', async (req, res) => {
+// Express 5 (path-to-regexp v8) has no inline regex params, so validate the id here.
+api.get('/:id/recording', async (req, res) => {
+  if (!/^\d+$/.test(req.params.id)) return res.status(404).json({ error: 'אין הקלטה' });
   const { rows: [call] } = await pool.query(
     `SELECT c.id, c.lead_id, c.user_id, c.answered_by, f.stored_name, f.filename
      FROM calls c JOIN files f ON f.id = c.recording_file_id WHERE c.id = $1`, [req.params.id]);
