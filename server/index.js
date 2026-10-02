@@ -638,6 +638,16 @@ migrate(`
     created_at TIMESTAMPTZ DEFAULT NOW()
   );
   CREATE INDEX IF NOT EXISTS finance_period_entries_period ON finance_period_entries (period_id);
+  -- 2026-10-02: the karteset rows of a period, so expense files can be compared later
+  -- without re-uploading the accountant's file
+  CREATE TABLE IF NOT EXISTS finance_period_karteset (
+    id SERIAL PRIMARY KEY,
+    period_id INT REFERENCES finance_periods(id) ON DELETE CASCADE,
+    amount_rounded INT NOT NULL,
+    entry_date DATE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS finance_period_karteset_period ON finance_period_karteset (period_id);
   ALTER TABLE finance_missing_expenses DROP CONSTRAINT IF EXISTS finance_missing_expenses_fingerprint_key;
   CREATE UNIQUE INDEX IF NOT EXISTS finance_missing_period_fp ON finance_missing_expenses (period_id, fingerprint);
   DO $$

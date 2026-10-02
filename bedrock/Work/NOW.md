@@ -6,6 +6,15 @@ updated: 2026-09-29
 
 # Now
 
+## 2026-10-02 — Compare credit files against the period's saved karteset
+
+Oran had uploaded the July–Aug karteset in an earlier full run and expected to compare new
+credit exports against it; the button was disabled because the karteset was never
+persisted (only expense entries were). Added `finance_period_karteset` snapshot on every
+reconcile/rekarteset, expenses-only `/reconcile` using the stored rows, `karteset_count` on
+periods, UI hint + button states. His existing "יולי אוגוסט 2026" period has no stored
+karteset yet → he must upload it once more (told him); from then on expense-only runs work.
+
 ## 2026-09-29 — Boot migrations serialized
 
 - "max clients reached" at deploy: the ~23 boot-time `pool.query` schema checks in `server/index.js` now run sequentially via `migrate()`. Verify in the next Railway deploy log that the errors are gone.

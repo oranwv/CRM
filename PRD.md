@@ -528,6 +528,7 @@ finance_expense_notes:    id, expense_id, body, created_by, created_at
 finance_accountant_sends: id, email, months TEXT[], mailboxes TEXT[] (NULL = all), files_count, emails_sent, note, created_by, created_at
 finance_invoice_trash:    id, drive_file_id, name, month, mailbox, original_folder_id, size, email_subject, email_from, email_date, gmail_message_id, trashed_by, trashed_at, restored_at
 finance_invoice_previews: drive_file_id PK, image BYTEA (1000px JPEG), thumb BYTEA (200px), width, height, created_at
+finance_period_karteset:  id, period_id, amount_rounded, entry_date, created_at
 finance_gmail_accounts:   id, email UNIQUE, token_json, active, last_scan_at, created_at
 finance_scanned_emails:   gmail_id PRIMARY KEY, account_email, is_invoice, scanned_at
 finance_invoice_files:    id, gmail_message_id, account_email, email_subject, email_from,
@@ -1210,6 +1211,16 @@ business mailbox. `/accountant/months` returns `mailboxes[]` per month; on send,
 chosen months hold more than one mailbox the client asks "לשלוח מכל תיבות המייל?" (cancel =
 business mailbox only) and posts `mailboxes: 'all' | [addresses]`; the choice is logged in
 `finance_accountant_sends.mailboxes` (NULL = all) and the email body lists counts per mailbox.
+
+**Stored karteset per period (2026-10-02).** Every full comparison (and every "העלה כרטסת
+מעודכנת") now snapshots the parsed karteset rows into `finance_period_karteset`
+(`amount_rounded`, `entry_date`). `POST /reconcile` therefore accepts **expense files only**:
+when no karteset file is uploaded it loads the period's stored rows
+(`reconcile(files, { storedKarteset })`, response carries `kartesetFromStore`); with neither
+it returns "אין כרטסת שמורה לתקופה הזו". `GET /periods` adds `karteset_count` /
+`karteset_saved_at`; the UI shows "✓ לתקופה הזו כבר שמורה כרטסת (N רשומות, הועלתה …)" under
+the karteset dropzone and enables the compare button with expense files alone. Periods
+created before this change have no stored karteset until it is uploaded once more.
 
 ### `OperationsPage.jsx` (`/operations`) — "תפעול" mode
 Tasks / maintenance / faults, each with a status lifecycle and a dedicated detail view

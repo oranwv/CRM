@@ -458,7 +458,9 @@ function findMissing(entries, kartesetItems, exclusions = DEFAULT_EXCLUSIONS, wi
 // files: [{ buffer, originalname, forcedType? }] → { entries, karteset, missing, sources }
 // forcedType lets the UI's dedicated upload slots override auto-detection.
 // Multiple karteset files (e.g. May + June) are merged into one item pool.
-async function reconcile(files, { exclusions = DEFAULT_EXCLUSIONS, windowDays = DEFAULT_WINDOW_DAYS } = {}) {
+// storedKarteset: karteset items saved from a previous run of the same period —
+// lets the user compare new expense files without re-uploading the karteset.
+async function reconcile(files, { exclusions = DEFAULT_EXCLUSIONS, windowDays = DEFAULT_WINDOW_DAYS, storedKarteset = [] } = {}) {
   const entries = [];
   const kartesetItems = [];
   const sources = [];
@@ -480,6 +482,8 @@ async function reconcile(files, { exclusions = DEFAULT_EXCLUSIONS, windowDays = 
     fileIdx++;
   }
 
+  let kartesetFromStore = false;
+  if (!kartesetItems.length && storedKarteset.length) { kartesetItems.push(...storedKarteset); kartesetFromStore = true; }
   if (!kartesetItems.length) throw new Error('לא זוהה קובץ כרטסת בין הקבצים שהועלו');
   if (!entries.length) {
     throw new Error(warnings.length
@@ -515,7 +519,7 @@ async function reconcile(files, { exclusions = DEFAULT_EXCLUSIONS, windowDays = 
 
   const enriched = enrichBankEntries(deduped);
   const missing = findMissing(enriched, kartesetItems, exclusions, windowDays);
-  return { entries: enriched, karteset: kartesetItems, missing, sources, warnings };
+  return { entries: enriched, karteset: kartesetItems, missing, sources, warnings, kartesetFromStore };
 }
 
 module.exports = {

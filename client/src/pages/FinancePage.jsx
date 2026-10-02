@@ -962,8 +962,14 @@ export default function FinancePage() {
     }
   }
 
+  // A period remembers the last karteset uploaded for it — so new expense
+  // files can be compared without re-uploading the accountant's file.
+  const currentPeriod = periods.find(p => p.id === periodId);
+  const storedKartesetCount = currentPeriod?.karteset_count || 0;
+  const canReconcile = !!periodId && expenseFiles.length > 0 && (kartesetFiles.length > 0 || storedKartesetCount > 0);
+
   async function runReconcile() {
-    if (!kartesetFiles.length || !expenseFiles.length || !periodId) return;
+    if (!canReconcile) return;
     setRunning(true); setError(null); setSummary(null);
     try {
       const fd = new FormData();
@@ -1037,6 +1043,12 @@ export default function FinancePage() {
             <p className="text-xs font-bold text-slate-500 mb-1">קבצי כרטסת (אפשר כמה חודשים — למשל מאי + יוני)</p>
             <label className="block w-full py-3 rounded-xl font-bold text-sm text-center cursor-pointer border-2 border-dashed border-emerald-300 text-emerald-600 hover:bg-emerald-50 transition">
               {kartesetFiles.length ? `${kartesetFiles.length} קבצי כרטסת נבחרו` : '+ בחר קבצי כרטסת (אקסל או PDF)'}
+              {!kartesetFiles.length && storedKartesetCount > 0 && (
+                <span className="block text-xs font-normal text-emerald-700 mt-1">
+                  ✓ לתקופה הזו כבר שמורה כרטסת ({storedKartesetCount} רשומות
+                  {currentPeriod?.karteset_saved_at ? `, הועלתה ${new Date(currentPeriod.karteset_saved_at).toLocaleDateString('he-IL')}` : ''}) — אפשר להשוות בלי להעלות שוב
+                </span>
+              )}
               <input ref={kartesetRef} type="file" multiple accept=".xlsx,.xls,.pdf" className="hidden"
                 onChange={e => setKartesetFiles(Array.from(e.target.files || []))} />
             </label>
@@ -1093,12 +1105,16 @@ export default function FinancePage() {
             </div>
           </div>
 
-          <button type="button" onClick={runReconcile} disabled={running || !kartesetFiles.length || !expenseFiles.length || !periodId}
+          <button type="button" onClick={runReconcile} disabled={running || !canReconcile}
             className="w-full py-2.5 rounded-xl font-black text-sm text-white disabled:opacity-40 transition"
             style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
-            {running ? 'משווה...' : periodId
-              ? `השווה מול הכרטסת (${periods.find(p => p.id === periodId)?.name || ''})`
-              : 'בחר תקופה כדי להשוות'}
+            {running ? 'משווה...' : !periodId
+              ? 'בחר תקופה כדי להשוות'
+              : !expenseFiles.length
+                ? 'בחר קבצי הוצאות כדי להשוות'
+                : (!kartesetFiles.length && !storedKartesetCount)
+                  ? 'בחר קובץ כרטסת כדי להשוות'
+                  : `השווה מול הכרטסת${!kartesetFiles.length ? ' השמורה' : ''} (${currentPeriod?.name || ''})`}
           </button>
 
           {error && <p className="text-sm text-red-600 font-bold">{error}</p>}

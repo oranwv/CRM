@@ -109,6 +109,23 @@ async function snapshotEntries(periodId, entries) {
   }
 }
 
+// The karteset of a period is kept so later runs (new credit/bank files) can
+// compare against it without re-uploading the accountant's file.
+async function snapshotKarteset(periodId, items) {
+  if (!items.length) return;
+  await pool.query('DELETE FROM finance_period_karteset WHERE period_id = $1', [periodId]);
+  for (const k of items) {
+    await pool.query(
+      'INSERT INTO finance_period_karteset (period_id, amount_rounded, entry_date) VALUES ($1, $2, $3)',
+      [periodId, Math.round(Number(k.amount_rounded)), k.date instanceof Date && !isNaN(k.date) ? k.date : null]);
+  }
+}
+async function loadStoredKarteset(periodId) {
+  const { rows } = await pool.query(
+    'SELECT amount_rounded, entry_date FROM finance_period_karteset WHERE period_id = $1', [periodId]);
+  return rows.map(r => ({ amount_rounded: Number(r.amount_rounded), date: r.entry_date ? new Date(r.entry_date) : null }));
+}
+
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024, files: 6 } });
 
 // Access: admins/managers, or users granted the dedicated 'finance' role.
@@ -164,14 +181,21 @@ router.post('/reconcile', upload.fields([
     const { rows: exRows } = await pool.query("SELECT value FROM settings WHERE key = 'finance_exclusions'");
     const exclusions = exRows[0]?.value ? JSON.parse(exRows[0].value) : DEFAULT_EXCLUSIONS;
 
-    const { missing, entries, karteset, sources, warnings } = await reconcile([...kartesetFiles, ...expenseFiles], { exclusions });
+    // No karteset uploaded this time → use the one saved for the period (if any)
+    const storedKarteset = kartesetFiles.length ? [] : await loadStoredKarteset(periodId);
+    if (!kartesetFiles.length && !storedKarteset.length) {
+      return res.status(400).json({ error: 'אין כרטסת שמורה לתקופה הזו — העלה קובץ כרטסת' });
+    }
+    const { missing, entries, karteset, sources, warnings, kartesetFromStore } =
+      await reconcile([...kartesetFiles, ...expenseFiles], { exclusions, storedKarteset });
 
     const results = await applyReconcileResults(periodId, entries, karteset, missing);
     await snapshotEntries(periodId, entries); // enables karteset-only re-compare later
+    if (!kartesetFromStore) await snapshotKarteset(periodId, karteset); // enables expenses-only compare later
 
     res.json({
       ...results,
-      totalEntries: entries.length, kartesetCount: karteset.length, sources, warnings,
+      totalEntries: entries.length, kartesetCount: karteset.length, sources, warnings, kartesetFromStore,
     });
   } catch (err) {
     console.error('[Finance] reconcile error:', err.message);
@@ -219,6 +243,7 @@ router.post('/rekarteset', upload.fields([{ name: 'kartesetFiles', maxCount: 8 }
 
     const missing = findMissing(entries, kartesetItems, exclusions);
     const results = await applyReconcileResults(periodId, entries, kartesetItems, missing);
+    await snapshotKarteset(periodId, kartesetItems);
 
     res.json({
       ...results,
@@ -341,7 +366,9 @@ router.get('/periods', async (req, res) => {
     const { rows } = await pool.query(
       `SELECT p.*,
               COUNT(e.id) FILTER (WHERE e.resolved = FALSE)::int AS open_count,
-              COUNT(e.id) FILTER (WHERE e.resolved = TRUE)::int  AS resolved_count
+              COUNT(e.id) FILTER (WHERE e.resolved = TRUE)::int  AS resolved_count,
+              (SELECT COUNT(*)::int FROM finance_period_karteset k WHERE k.period_id = p.id) AS karteset_count,
+              (SELECT MAX(created_at) FROM finance_period_karteset k WHERE k.period_id = p.id) AS karteset_saved_at
        FROM finance_periods p
        LEFT JOIN finance_missing_expenses e ON e.period_id = p.id
        GROUP BY p.id ORDER BY p.created_at DESC`);
