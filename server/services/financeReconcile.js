@@ -429,26 +429,55 @@ function findMissing(entries, kartesetItems, exclusions = DEFAULT_EXCLUSIONS, wi
     return !exclusions.some(ex => ex.trim() && desc.includes(ex));
   });
 
-  const pool = kartesetItems.map(k => ({ ...k, used: false }));
+  // Global nearest-date assignment (2026-10-04). The previous greedy pass
+  // walked the expenses in file order and let an earlier ₪200 charge from a
+  // different supplier grab the karteset row that belonged to a later ₪200
+  // charge dated the same day as that row — the right expense then showed as
+  // missing. Now every (expense, karteset row) pair with the same rounded
+  // amount inside the window is sorted by date distance and assigned closest
+  // first, so a 0-day pair always beats a 16-day pair regardless of order.
+  const pool = kartesetItems.map((k, i) => ({ ...k, idx: i, used: false, assignedTo: null }));
   const windowMs = windowDays * 86400000;
-  const missing = [];
+  const byAmount = new Map();
+  for (const k of pool) {
+    if (!byAmount.has(k.amount_rounded)) byAmount.set(k.amount_rounded, []);
+    byAmount.get(k.amount_rounded).push(k);
+  }
 
-  for (const e of included) {
-    const eDate = toDate(e.date);
-    const candidates = pool.filter(k => !k.used && k.amount_rounded === e.amount_rounded);
-    let match = null;
-    if (candidates.length) {
-      if (eDate) {
-        const dated = candidates
-          .filter(k => k.date && Math.abs(k.date - eDate) <= windowMs)
-          .sort((a, b) => Math.abs(a.date - eDate) - Math.abs(b.date - eDate));
-        match = dated[0] || candidates.find(k => !k.date) || null;
+  const exp = included.map((e, i) => ({ e, i, eDate: toDate(e.date), matched: null }));
+  const pairs = [];
+  for (const x of exp) {
+    for (const k of byAmount.get(x.e.amount_rounded) || []) {
+      if (x.eDate && k.date) {
+        const dist = Math.abs(k.date - x.eDate);
+        if (dist <= windowMs) pairs.push({ x, k, dist });
       } else {
-        match = candidates[0];
+        // undated side: usable, but only after every dated candidate
+        pairs.push({ x, k, dist: windowMs + 1 });
       }
     }
-    if (match) match.used = true;
-    else missing.push({ ...e, fingerprint: fingerprint(e) });
+  }
+  pairs.sort((a, b) => a.dist - b.dist || a.x.i - b.x.i || a.k.idx - b.k.idx);
+  for (const { x, k } of pairs) {
+    if (x.matched || k.used) continue;
+    x.matched = k; k.used = true; k.assignedTo = x.e;
+  }
+
+  const fmt = (d) => d ? `${d.getDate()}.${d.getMonth() + 1}` : '';
+  const missing = [];
+  for (const x of exp) {
+    if (x.matched) continue;
+    // Transparency: where did the same-amount karteset rows go?
+    const taken = (byAmount.get(x.e.amount_rounded) || []).filter(k => k.used && k.assignedTo);
+    let match_hint = null;
+    if (taken.length) {
+      const parts = taken.slice(0, 3).map(k => {
+        const a = k.assignedTo;
+        return `כרטסת ${k.date ? fmt(k.date) : 'ללא תאריך'} → ${a.name || a.description || 'הוצאה'}${a.date ? ` (${a.date})` : ''}`;
+      });
+      match_hint = `₪${x.e.amount_rounded} בכרטסת שויכו: ` + parts.join(' · ') + (taken.length > 3 ? ` ועוד ${taken.length - 3}` : '');
+    }
+    missing.push({ ...x.e, fingerprint: fingerprint(x.e), match_hint });
   }
   return missing;
 }

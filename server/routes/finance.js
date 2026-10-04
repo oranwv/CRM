@@ -30,6 +30,8 @@ async function applyReconcileResults(periodId, entries, karteset, missing) {
       'SELECT resolved FROM finance_missing_expenses WHERE period_id = $1 AND fingerprint = $2', [periodId, m.fingerprint]);
     if (existing) {
       if (existing.resolved) resolvedCount++; else knownCount++;
+      await pool.query('UPDATE finance_missing_expenses SET match_hint = $3 WHERE period_id = $1 AND fingerprint = $2',
+        [periodId, m.fingerprint, m.match_hint || null]);
       continue;
     }
     // An item's fingerprint can change between runs when its NAME changes —
@@ -43,7 +45,8 @@ async function applyReconcileResults(periodId, entries, karteset, missing) {
       `UPDATE finance_missing_expenses
        SET fingerprint = $1,
            name = CASE WHEN $2 <> $3 OR name = '' OR name = description THEN $2 ELSE name END,
-           description = CASE WHEN $2 <> $3 THEN $3 ELSE description END
+           description = CASE WHEN $2 <> $3 THEN $3 ELSE description END,
+           match_hint = $9
        WHERE id = (
          SELECT id FROM finance_missing_expenses
          WHERE period_id = $4 AND resolved = FALSE AND source = $5
@@ -52,14 +55,14 @@ async function applyReconcileResults(periodId, entries, karteset, missing) {
          LIMIT 1
        ) RETURNING id`,
       [m.fingerprint, m.name || '', m.description || '', periodId, m.source,
-       toEntryDate(m.date), Math.round(m.amount), missingFpsAll]
+       toEntryDate(m.date), Math.round(m.amount), missingFpsAll, m.match_hint || null]
     );
     if (adopted) { knownCount++; continue; }
     await pool.query(
-      `INSERT INTO finance_missing_expenses (period_id, fingerprint, entry_date, name, description, amount, source)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO finance_missing_expenses (period_id, fingerprint, entry_date, name, description, amount, source, match_hint)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (period_id, fingerprint) DO NOTHING`,
-      [periodId, m.fingerprint, toEntryDate(m.date), m.name || '', m.description || '', m.amount, m.source]
+      [periodId, m.fingerprint, toEntryDate(m.date), m.name || '', m.description || '', m.amount, m.source, m.match_hint || null]
     );
     newCount++;
   }

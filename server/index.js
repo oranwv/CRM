@@ -650,6 +650,7 @@ migrate(`
   CREATE INDEX IF NOT EXISTS finance_period_karteset_period ON finance_period_karteset (period_id);
   ALTER TABLE finance_missing_expenses DROP CONSTRAINT IF EXISTS finance_missing_expenses_fingerprint_key;
   CREATE UNIQUE INDEX IF NOT EXISTS finance_missing_period_fp ON finance_missing_expenses (period_id, fingerprint);
+  ALTER TABLE finance_missing_expenses ADD COLUMN IF NOT EXISTS match_hint TEXT; -- 2026-10-04: where the same-amount karteset rows were assigned
   DO $$
   DECLARE pid INT;
   BEGIN

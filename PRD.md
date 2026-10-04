@@ -1212,6 +1212,17 @@ chosen months hold more than one mailbox the client asks "לשלוח מכל תי
 business mailbox only) and posts `mailboxes: 'all' | [addresses]`; the choice is logged in
 `finance_accountant_sends.mailboxes` (NULL = all) and the email body lists counts per mailbox.
 
+**Matching algorithm (2026-10-04).** `findMissing()` no longer matches greedily in file
+order. It builds every (expense, karteset row) pair with the same rounded amount inside the
+60-day window, sorts the pairs by date distance and assigns closest-first (undated rows last),
+so a charge dated the same day as its karteset row can no longer lose that row to an
+unrelated earlier charge of the same amount (the איסקנדר ₪200 case). Each missing item gets a
+`match_hint` ("₪200 בכרטסת שויכו: כרטסת 26.7 → X (10/07/2026) · …") stored on
+`finance_missing_expenses.match_hint` (refreshed on every run, also on adopted rows) and shown
+in the expanded row as an amber info line, so the user can see where the same-amount rows went.
+Karteset rows carry only amount + date, so name-based tie-breaking is not possible without
+changing the karteset parsers.
+
 **Stored karteset per period (2026-10-02).** Every full comparison (and every "העלה כרטסת
 מעודכנת") now snapshots the parsed karteset rows into `finance_period_karteset`
 (`amount_rounded`, `entry_date`). `POST /reconcile` therefore accepts **expense files only**:

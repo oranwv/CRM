@@ -6,6 +6,16 @@ updated: 2026-09-29
 
 # Now
 
+## 2026-10-04 — Reconcile matching: global nearest-date instead of greedy
+
+Oran pasted another chat's diagnosis (greedy per-expense matching let an earlier ₪200 take
+the karteset row of איסקנדר 26.7). Confirmed in code and implemented: pairs sorted by date
+distance, assigned closest-first; `match_hint` per missing item (DB column + amber line in
+the expanded row). Unit-tested the function in the cloud container (the Mac VM can't load
+the module — pdf-parse native binding). Not implemented: name tie-break (karteset items have
+no names). Oran should re-run the July–Aug comparison; איסקנדר should drop out of the missing
+list and the other ₪200 charge (if really uncovered) appears with a hint.
+
 ## 2026-10-02 — Compare credit files against the period's saved karteset
 
 Oran had uploaded the July–Aug karteset in an earlier full run and expected to compare new

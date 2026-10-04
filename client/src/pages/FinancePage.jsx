@@ -105,6 +105,11 @@ function ExpenseRow({ item, onChanged, periods = [], periodId }) {
       {open && (
         <div className="border-t border-slate-100 px-4 py-3 space-y-3 bg-slate-50/50">
           {item.description && <p className="text-xs text-slate-500">{item.description}</p>}
+          {item.match_hint && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
+              ℹ️ {item.match_hint}
+            </p>
+          )}
           {periods.filter(p => p.id !== periodId).length > 0 && !item.resolved && (
             <div className="flex items-center gap-2">
               <label className="text-xs font-bold text-slate-500">העבר לתקופה:</label>
