@@ -98,7 +98,8 @@ api.get('/mine', async (req, res) => {
 });
 
 // GET /api/calls/:id/recording — 60s signed URL for playback.
-//   Lead calls: managers only, and the response says "no download" (the web player hides it).
+//   Lead calls: every logged-in user may listen; only managers get a download link
+//   (Oran, 2026-10-05 — replaces the managers-only listening rule of 2026-09-29).
 //   Private calls (no lead): only the user who made/answered it; download allowed.
 // Express 5 (path-to-regexp v8) has no inline regex params, so validate the id here.
 api.get('/:id/recording', async (req, res) => {
@@ -108,15 +109,14 @@ api.get('/:id/recording', async (req, res) => {
      FROM calls c JOIN files f ON f.id = c.recording_file_id WHERE c.id = $1`, [req.params.id]);
   if (!call) return res.status(404).json({ error: 'אין הקלטה' });
   const mine = call.user_id === req.user.id || call.answered_by === req.user.id;
-  if (call.lead_id) {
-    if (!isManagerUser(req.user)) return res.status(403).json({ error: 'האזנה להקלטות זמינה למנהלים בלבד' });
-  } else if (!mine) {
-    return res.status(403).json({ error: 'אין הרשאה' });
-  }
+  if (!call.lead_id && !mine) return res.status(403).json({ error: 'אין הרשאה' });
+  const downloadable = !call.lead_id || isManagerUser(req.user);
   try {
     const { getSignedUrl } = require('../services/storageService');
     const url = await getSignedUrl(call.stored_name, 60);
-    res.json({ url, filename: call.filename, downloadable: !call.lead_id });
+    // A second signed URL that makes the browser save the file (Supabase `download` option)
+    const downloadUrl = downloadable ? await getSignedUrl(call.stored_name, 60, call.filename) : null;
+    res.json({ url, downloadUrl, filename: call.filename, downloadable });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

@@ -1277,29 +1277,34 @@ function CallButtons({ lead, phone }) {
 // only, no download. The URL is a 60-second signed link fetched when the manager presses play;
 // non-managers see nothing (the server refuses them anyway).
 function RecordingPlayer({ callId }) {
-  const me = JSON.parse(localStorage.getItem('crm_user') || '{}');
-  const roles = me.roles?.length ? me.roles : [me.role];
-  const isManager = roles.includes('admin') || roles.includes('manager');
-  const [url, setUrl] = useState(null);
+  // Everyone may listen; the download link comes back only for managers (server decides).
+  const [rec, setRec] = useState(null);
   const [err, setErr] = useState('');
-  if (!isManager) return null;
   async function load(e) {
     e.stopPropagation();
-    try { const r = await api.get(`/calls/${callId}/recording`); setUrl(r.data.url); }
+    try { const r = await api.get(`/calls/${callId}/recording`); setRec(r.data); }
     catch (x) { setErr(x.response?.data?.error || 'לא ניתן לטעון את ההקלטה'); }
   }
   if (err) return <p className="text-xs text-red-500 mt-1.5">{err}</p>;
-  if (!url) {
+  if (!rec) {
     return (
       <button onClick={load}
         className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-violet-50 border border-slate-200 hover:border-violet-300 text-sm font-semibold text-slate-700 hover:text-violet-700 transition">
-        ▶️ האזן להקלטה <span className="text-[10px] text-slate-400 font-normal">מנהלים בלבד</span>
+        ▶️ האזן להקלטה
       </button>
     );
   }
   return (
-    <audio src={url} controls autoPlay controlsList="nodownload noplaybackrate" onContextMenu={e => e.preventDefault()}
-      onClick={e => e.stopPropagation()} className="mt-1.5 w-full max-w-sm h-9" />
+    <div className="mt-1.5 flex items-center gap-2 flex-wrap" onClick={e => e.stopPropagation()}>
+      <audio src={rec.url} controls autoPlay controlsList="nodownload noplaybackrate" onContextMenu={e => e.preventDefault()}
+        className="w-full max-w-sm h-9" />
+      {rec.downloadable && rec.downloadUrl && (
+        <a href={rec.downloadUrl} download={rec.filename}
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-violet-50 border border-slate-200 hover:border-violet-300 text-xs font-semibold text-slate-700 hover:text-violet-700 transition">
+          ⬇️ הורד <span className="text-[10px] text-slate-400 font-normal">מנהלים בלבד</span>
+        </a>
+      )}
+    </div>
   );
 }
 

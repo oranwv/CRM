@@ -6,6 +6,10 @@ updated: 2026-09-29
 
 # Now
 
+## 2026-10-05 — Recordings: listen for all, download for managers
+
+- Shir could not see recordings (non-manager). Oran changed the rule: playback for every user, download link managers only. `/calls/:id/recording` + `RecordingPlayer` updated. Transcripts/summaries were verified running (64 Whisper + 32 GPT calls in October) — if Shir still sees none, get a lead name + time.
+
 ## 2026-10-04 — Reconcile matching: global nearest-date instead of greedy
 
 Oran pasted another chat's diagnosis (greedy per-expense matching let an earlier ₪200 take

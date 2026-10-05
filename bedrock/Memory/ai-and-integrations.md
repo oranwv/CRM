@@ -94,6 +94,7 @@ voice notes. (Verified 2026-09-08 against the source; earlier notes here said Cl
   `TWILIO_ANDROID_PUSH_CREDENTIAL_SID` / `TWILIO_IOS_PUSH_CREDENTIAL_SID`. Deep link from the CRM:
   `proeventdialer://call?to&lead&name` (Android only, silent browser fallback). Calls to numbers
   that match no lead are **private**: recording only, listed via `/api/calls/mine` to the caller.
-- **Recording policy (2026-09-29):** call recordings (`files.is_recording`) are never downloadable
-  from the CRM (403); playback only through `GET /api/calls/:id/recording` (managers for lead
-  calls, owner for private calls); timeline marker `[[REC:<callId>]]`.
+- **Recording policy (2026-10-05):** call recordings (`files.is_recording`) are served only through
+  `GET /api/calls/:id/recording` — every user may listen to lead-call recordings, only managers get
+  the download link (`downloadUrl`); private calls: owner only. The generic `/files` routes refuse
+  recordings (403). Timeline marker `[[REC:<callId>]]`.

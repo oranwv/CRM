@@ -2035,6 +2035,13 @@ the CRM lead card, DTMF on an IVR, private call + history + share, abroad toggle
 **Costs:** Expo EAS free tier (limited builds/month) or $19/mo; Firebase free; per-minute Twilio
 same as browser calls (app leg $0.004/min + lead leg). iPhone later: Apple $99/year.
 
+**Recording access changed (2026-10-05).** Shir reported she could not see recordings. Oran's
+new rule: **everyone can listen, only managers can download.** `GET /api/calls/:id/recording`
+now serves any logged-in user for lead calls and returns `downloadable` (managers) plus a second
+signed URL with Supabase's `download` option (`downloadUrl`); the `RecordingPlayer` in the
+timeline shows the player to all and a "⬇️ הורד" link to managers only. Private calls unchanged
+(owner only, downloadable). The generic `/files` routes still refuse recordings (403).
+
 **Boot-time DB connections (2026-09-29).** Railway logs showed "max clients reached" from
 Supabase during deploys: `server/index.js` fired ~23 schema-check statements in parallel at
 module load (each on its own pooled connection) while the previous instance was still serving.

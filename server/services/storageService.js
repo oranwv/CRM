@@ -45,9 +45,10 @@ async function deleteFile(url) {
   }
 }
 
-async function getSignedUrl(storedName, expiresIn = 60) {
+// `downloadAs` (optional file name) makes the URL answer with Content-Disposition: attachment
+async function getSignedUrl(storedName, expiresIn = 60, downloadAs) {
   const supabase = getClient();
-  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(storedName, expiresIn);
+  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(storedName, expiresIn, downloadAs ? { download: downloadAs } : undefined);
   if (error) throw error;
   return data.signedUrl;
 }
