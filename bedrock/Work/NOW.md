@@ -6,6 +6,11 @@ updated: 2026-09-29
 
 # Now
 
+## 2026-10-05 — Call summary: dates + prices
+
+- Analysis prompt now extracts `dates_mentioned` / `prices_mentioned` (with context and who said it) and renders them under the summary. Applies to new calls only (old summaries are not re-run).
+- Dialer app: first EAS build succeeded (build d19e00d4, APK v1.0.0, keystore in `~/Projects/proevent-dialer-keystore/`). Next: Oran installs + tests; then Firebase for locked-screen ringing.
+
 ## 2026-10-05 — Recordings: listen for all, download for managers
 
 - Shir could not see recordings (non-manager). Oran changed the rule: playback for every user, download link managers only. `/calls/:id/recording` + `RecordingPlayer` updated. Transcripts/summaries were verified running (64 Whisper + 32 GPT calls in October) — if Shir still sees none, get a lead name + time.

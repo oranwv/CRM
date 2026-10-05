@@ -55,11 +55,17 @@ async function analyze({ transcript, direction, lead, repName, durationSec }) {
 - הסיכום מתאר את מה שנאמר בפועל, בסדר שקרה, כולל שמות, מספרים, תאריכים וסכומים שהוזכרו. לא להמציא, לא להכליל, לא לתת ציונים "מן הסתם".
 - גם שיחה קצרה או טכנית (לא שומעים, נתקשר אחר כך) מסוכמת כפי שהיא — למשל: "הנציג התקשר, הצד השני לא שמע אותו, סוכם שהנציג יתקשר שוב". לא לכתוב "שיחת בדיקה" אלא אם נאמר במפורש שזו בדיקה.
 - customer_needs / objections / agreements / next_steps — רק דברים שנאמרו בשיחה. אם לא היה — מערך ריק.
+- **תאריכים ומחירים הם המידע הכי חשוב למנהל** — אסור לפספס אותם:
+  * dates_mentioned: כל תאריך/מועד שעלה בשיחה (תאריך האירוע, תאריכים חלופיים, מועד לפגישה/סיור/החלטה, "בעוד שבועיים"), כל אחד עם ההקשר: "15.3 — תאריך החתונה המבוקש", "יום שלישי הבא — סיור במקום".
+  * prices_mentioned: כל סכום שעלה בשיחה, עם מי אמר ומה הוא כולל: "₪350 לאורח כולל מע"מ — הנציג הציע", "תקציב הזוג ₪120,000 — הלקוח אמר", "₪5,000 מקדמה — סוכם".
+  * אם הוזכר תקציב של הלקוח — לכתוב אותו גם ב-event_details.budget.
+  * הסיכום (summary) עצמו חייב לכלול את התאריכים והסכומים האלה במפורש, לא "דובר על מחירים".
 - sales_score (1-10) והטיפים ניתנים רק אם הייתה שיחת מכירה אמיתית עם לקוח (הוצג מקום, מחיר, תאריך וכו'). אם השיחה לא הגיעה לתוכן מכירתי — sales_score = 0 וללא טיפים.
 
 החזר JSON בלבד במבנה:
 {
   "summary": "2-5 משפטים: מה קרה בשיחה, בעברית פשוטה",
+  "dates_mentioned": [], "prices_mentioned": [],
   "customer_needs": [], "objections": [], "agreements": [], "next_steps": [],
   "sentiment": "חיובי|נייטרלי|שלילי",
   "sales_score": 0-10,
@@ -91,6 +97,8 @@ function renderBody({ direction, durationSec, repName, analysis, fileMarker, fro
   if (analysis) {
     if (analysis.summary) lines.push('', `📝 ${analysis.summary}`);
     const list = (title, arr) => { if (Array.isArray(arr) && arr.length) lines.push('', `${title}`, ...arr.map(x => `• ${x}`)); };
+    list('📅 תאריכים שדוברו:', analysis.dates_mentioned);
+    list('💰 מחירים ותקציב:', analysis.prices_mentioned);
     list('🎯 מה הלקוח צריך:', analysis.customer_needs);
     list('⚠️ התנגדויות:', analysis.objections);
     list('🤝 סוכם:', analysis.agreements);

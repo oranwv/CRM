@@ -2035,6 +2035,13 @@ the CRM lead card, DTMF on an IVR, private call + history + share, abroad toggle
 **Costs:** Expo EAS free tier (limited builds/month) or $19/mo; Firebase free; per-minute Twilio
 same as browser calls (app leg $0.004/min + lead leg). iPhone later: Apple $99/year.
 
+**Dates and prices in call summaries (2026-10-05).** Oran: summaries missed the important
+things — dates discussed and prices (the couple's budget, prices our team quoted). The analysis
+prompt now has two mandatory lists, `dates_mentioned` (each date with its context) and
+`prices_mentioned` (each amount with who said it and what it covers), a stated customer budget
+also lands in `event_details.budget`, and the summary text must quote them explicitly. Rendered
+in the timeline as "📅 תאריכים שדוברו" and "💰 מחירים ותקציב" right under the summary.
+
 **Recording access changed (2026-10-05).** Shir reported she could not see recordings. Oran's
 new rule: **everyone can listen, only managers can download.** `GET /api/calls/:id/recording`
 now serves any logged-in user for lead calls and returns `downloadable` (managers) plus a second
