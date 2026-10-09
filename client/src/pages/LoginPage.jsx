@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Navigate } from 'react-router-dom';
+import { useNavigate, Navigate, useLocation } from 'react-router-dom';
 import api from '../api';
 
 export default function LoginPage() {
@@ -8,10 +8,12 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = location.state?.from && location.state.from !== '/login' ? location.state.from : '/';
 
   // Already logged in (e.g. navigated/back to /login while a valid token exists):
   // go to the app instead of showing the login form again.
-  if (localStorage.getItem('crm_token')) return <Navigate to="/" replace />;
+  if (localStorage.getItem('crm_token')) return <Navigate to={returnTo} replace />;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -24,7 +26,7 @@ export default function LoginPage() {
       document.cookie = 'crm_app=1; path=/; max-age=31536000; SameSite=Lax';
       localStorage.setItem('crm_user', JSON.stringify(data.user));
       // Replace so /login does not stay in history (back button won't return here).
-      navigate('/', { replace: true });
+      navigate(returnTo, { replace: true });
     } catch (err) {
       setError(err.response?.data?.error || 'כניסה נכשלה');
     } finally {

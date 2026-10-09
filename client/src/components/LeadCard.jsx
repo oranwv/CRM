@@ -1200,7 +1200,7 @@ function FilesSection({ leadId, files, onChanged, isAdmin }) {
 /* ── IN-APP CALL BUTTONS (Twilio) ── */
 // Resolves true if the phone switched to the dialer app (the page lost visibility), false if
 // nothing happened within 1.5s (app not installed) so the caller can dial from the browser.
-function tryOpenDialerApp(lead) {
+export function tryOpenDialerApp(lead) {
   return new Promise(resolve => {
     const params = new URLSearchParams({ to: lead.phone || '', lead: String(lead.id || ''), name: lead.name || '' });
     let done = false;

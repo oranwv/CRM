@@ -6,6 +6,11 @@ updated: 2026-09-29
 
 # Now
 
+## 2026-10-09 — Phase 38: calls claim leads, missed-call WhatsApp v2
+
+- Outbound/answered calls now claim an unowned lead; missed-call WhatsApp goes to owner + sales managers, names the owner, links to `/call/<lead>` (app deep link → browser fallback). Login returns to the requested page.
+- Dialer app: v1.0.0 (2) built with icon + Firebase crash guard; waiting for Oran's test + Firebase `google-services.json`.
+
 ## 2026-10-05 — Call summary: dates + prices
 
 - Analysis prompt now extracts `dates_mentioned` / `prices_mentioned` (with context and who said it) and renders them under the summary. Applies to new calls only (old summaries are not re-run).

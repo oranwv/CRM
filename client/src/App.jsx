@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import LoginPage     from './pages/LoginPage';
 import LeadsPage     from './pages/LeadsPage';
 import LeadDetailPage from './pages/LeadDetailPage';
+import CallLeadPage from './pages/CallLeadPage';
 import EventsPage    from './pages/EventsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import SalesPerformancePage from './pages/SalesPerformancePage';
@@ -32,7 +33,10 @@ import usePresencePing from './hooks/usePresencePing';
 import api from './api';
 
 function PrivateRoute({ children }) {
-  return localStorage.getItem('crm_token') ? children : <Navigate to="/login" replace />;
+  const location = useLocation();
+  // Remember where the user was heading (e.g. /call/<lead> from a WhatsApp link) so the
+  // login page can return there instead of the home page.
+  return localStorage.getItem('crm_token') ? children : <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
 }
 
 function GlobalHeader() {
@@ -555,6 +559,11 @@ function AppRoutes() {
         <Route path="/leads/:id" element={
           <PrivateRoute>
             <LeadDetailPage />
+          </PrivateRoute>
+        } />
+        <Route path="/call/:leadId" element={
+          <PrivateRoute>
+            <CallLeadPage />
           </PrivateRoute>
         } />
         <Route path="/postpone/:taskId"    element={<PostponePage />} />

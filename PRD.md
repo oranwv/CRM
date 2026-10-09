@@ -1964,6 +1964,23 @@ morning/evening sales briefings on Friday and Saturday. `users.shabbat_mode` + t
 in the admin user editor (plus a badge in the user row); the skip lives in
 `runSalesBriefings`. Scope limited to the two sales briefings by Oran's explicit choice.
 
+### Phase 38 — Calls claim the lead, missed-call WhatsApp v2 ✅ Built 2026-10-09
+Requested by Oran:
+- **First call claims the lead.** Only manual timeline entries claimed an unowned lead
+  (`routes/leads.js`); calls from the system did not, so "the first caller is not always the
+  owner". `claimLead()` in `routes/calls.js` now runs on every outbound call (browser / app TwiML,
+  "דרך הנייד" bridge) and when a rep answers an inbound call — `assigned_to = COALESCE(assigned_to,
+  user)`, never overwriting an existing owner.
+- **Missed-call WhatsApp.** Recipients: the lead's owner **plus every `sales_manager`** (they see
+  all missed calls); with no owner, the admins as before. The message names the owner
+  ("👤 אחראי: …" / "ללא אחראי") and links to **`/call/<leadId>`** instead of the lead page.
+- **`/call/:leadId`** (`pages/CallLeadPage.jsx`): dials exactly like the lead card's "התקשר" —
+  on Android tries the ProEvent Dialer deep link, otherwise the browser softphone — then lands on
+  the lead card. A "התקשר עכשיו" button covers browsers that need a tap before audio. When the
+  user is logged out, login now returns to the requested page (`PrivateRoute` passes `from`).
+  Note: the raw number in the WhatsApp text is still tappable by WhatsApp itself and would use
+  the phone's own dialer; the link line is the system route.
+
 ### Phase 37 — "ProEvent Dialer" mobile app (Android first) 🔨 Built, awaiting first build 2026-09-29
 Why: the browser softphone is unusable on phones — no speaker/earpiece control, low volume,
 mic suspended in the background, no ringing when locked (Phase 33 notes). Oran decided on a

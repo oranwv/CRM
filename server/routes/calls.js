@@ -157,6 +157,7 @@ api.post('/bridge', async (req, res) => {
       timeout: 25,
     });
     await pool.query('UPDATE calls SET call_sid = $2 WHERE id = $1', [call.id, c.sid]);
+    await claimLead(lead.id, user.id);
     res.json({ ok: true, callId: call.id });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -196,6 +197,7 @@ hooks.post('/twiml/outbound', async (req, res) => {
      ON CONFLICT (call_sid) DO UPDATE SET status = 'ringing' RETURNING id`,
     [req.body.CallSid, leadId, userId, process.env.TWILIO_PHONE_NUMBER, to, mode]
   );
+  await claimLead(leadId, userId);
   const dial = vr.dial({
     callerId: process.env.TWILIO_PHONE_NUMBER, answerOnBridge: true, timeout: 40,
     action: `${tw.serverUrl()}/api/calls/twiml/outbound/done?callId=${call.id}`, method: 'POST',
@@ -248,6 +250,13 @@ async function buildRingPlan(lead) {
     steps.push({ kind: 'both', userId: u.id, phone: (u.phone && !u.abroad_mode) ? tw.toE164(u.phone) : null, timeout: QUEUE_TIMEOUT, label: u.display_name });
   }
   return steps;
+}
+
+// First staff call on a lead claims it (same rule as manual interactions in routes/leads.js:
+// never overwrite an existing owner). Oran, 2026-10-09: outbound calls did not claim leads.
+async function claimLead(leadId, userId) {
+  if (!leadId || !userId) return;
+  await pool.query('UPDATE leads SET assigned_to = COALESCE(assigned_to, $2) WHERE id = $1', [leadId, userId]).catch(() => {});
 }
 
 function dialStep(vr, step, callId, index, callerNumber, leadName) {
@@ -326,6 +335,8 @@ hooks.post('/twiml/inbound/step', async (req, res) => {
       `UPDATE calls SET status = 'completed', answered_by = $2, ended_at = NOW(), duration_sec = $3 WHERE id = $1`,
       [callId, step?.userId || null, Number(req.body.DialCallDuration) || 0]
     );
+    const { rows: [answered] } = await pool.query('SELECT lead_id FROM calls WHERE id = $1', [callId]);
+    await claimLead(answered?.lead_id, step?.userId);
     const vr = new tw.VoiceResponse(); vr.hangup(); return xml(res, vr);
   }
   await continueInbound(res, callId, nextIndex);
@@ -362,13 +373,17 @@ async function logUnansweredOutbound(callId) {
   await pool.query('UPDATE calls SET interaction_id = $2 WHERE id = $1', [callId, i.id]);
 }
 
-// Missed inbound → interaction + WhatsApp to the owner (or the admins). Runs once per call
-// (`notified` flag) — the recording webhook may already have written the voicemail interaction.
+// Missed inbound → interaction + WhatsApp. Recipients (Oran, 2026-10-09): the lead's owner
+// plus every sales manager (they see all missed calls); with no owner, the admins too. The
+// message names the owner and links to /call/<lead>, which dials through the dialer app when
+// installed and otherwise from the browser. Runs once per call (`notified` flag) — the
+// recording webhook may already have written the voicemail interaction.
 async function notifyMissedInbound(callId) {
   const { rows: [call] } = await pool.query(
     `UPDATE calls SET notified = TRUE WHERE id = $1 AND notified = FALSE
      RETURNING *, (SELECT name FROM leads WHERE id = calls.lead_id) AS lead_name,
-                  (SELECT assigned_to FROM leads WHERE id = calls.lead_id) AS assigned_to`, [callId]);
+                  (SELECT assigned_to FROM leads WHERE id = calls.lead_id) AS assigned_to,
+                  (SELECT u.display_name FROM leads l JOIN users u ON u.id = l.assigned_to WHERE l.id = calls.lead_id) AS owner_name`, [callId]);
   if (!call) return;
   const hadVoicemail = call.status === 'voicemail';
   if (call.lead_id && !call.interaction_id) {
@@ -381,14 +396,21 @@ async function notifyMissedInbound(callId) {
     await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [call.lead_id]);
   }
   try {
-    const { rows: targets } = call.assigned_to
-      ? await pool.query('SELECT phone FROM users WHERE id = $1 AND phone IS NOT NULL', [call.assigned_to])
-      : await pool.query(`SELECT phone FROM users WHERE (role = 'admin' OR roles @> ARRAY['admin']::text[]) AND blocked = false AND phone IS NOT NULL AND phone <> ''`);
+    const { rows: targets } = await pool.query(
+      `SELECT phone FROM users
+       WHERE blocked = false AND phone IS NOT NULL AND phone <> ''
+         AND ( id = $1
+               OR role = 'sales_manager' OR roles @> ARRAY['sales_manager']::text[]
+               OR ($1::int IS NULL AND (role = 'admin' OR roles @> ARRAY['admin']::text[])) )`,
+      [call.assigned_to || null]);
     const phones = [...new Set(targets.map(t => normalizePhone(t.phone)).filter(Boolean))];
     if (phones.length) {
-      const link = call.lead_id ? `${tw.serverUrl()}/?lead=${call.lead_id}` : '';
+      const link = call.lead_id ? `${tw.serverUrl()}/call/${call.lead_id}` : '';
       await sendTextToPhones(phones,
-        `📵 שיחה שלא נענתה${call.lead_name ? ` מ-${call.lead_name}` : ''} (${call.from_number})${hadVoicemail ? '\n🎙️ הושארה הודעה קולית — ההקלטה תופיע על הליד' : ''}${link ? `\n${link}` : ''}`);
+        `📵 שיחה שלא נענתה${call.lead_name ? ` מ-${call.lead_name}` : ''} (${call.from_number})` +
+        `\n👤 אחראי: ${call.owner_name || 'ללא אחראי'}` +
+        `${hadVoicemail ? '\n🎙️ הושארה הודעה קולית — ההקלטה תופיע על הליד' : ''}` +
+        `${link ? `\n📞 להתקשר חזרה דרך המערכת:\n${link}` : ''}`);
     }
   } catch (err) { console.error('[Calls] missed-call WhatsApp failed:', err.message); }
 }
