@@ -1123,6 +1123,38 @@ async function openFile(fileId) {
   }
 }
 
+/* ── VOICE NOTES (WhatsApp audio) ── */
+const AUDIO_EXTS = ['oga','ogg','opus','mp3','m4a','wav','aac','amr'];
+function isAudioFile(name = '', mime = '') {
+  if ((mime || '').startsWith('audio/')) return true;
+  return AUDIO_EXTS.includes((name || '').split('.').pop().toLowerCase());
+}
+// Plays a stored audio file inline (WhatsApp voice notes come as .oga — opening them in a new tab
+// just downloads a file most phones can't open).
+function VoiceNotePlayer({ fileId, label = '🎤 הקלטה קולית', className = '' }) {
+  const [url, setUrl] = useState(null);
+  const [err, setErr] = useState('');
+  async function load(e) {
+    e.stopPropagation();
+    try { const r = await api.get(`/files/${fileId}/url`); setUrl(r.data.url); }
+    catch (x) { setErr(x.response?.data?.error || 'לא ניתן לטעון את ההקלטה'); }
+  }
+  if (err) return <p className="text-xs text-red-500 mt-1.5">{err}</p>;
+  if (!url) {
+    return (
+      <button onClick={load}
+        className={`inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-violet-50 border border-slate-200 hover:border-violet-300 text-sm font-semibold text-slate-700 hover:text-violet-700 transition ${className}`}>
+        ▶️ {label}
+      </button>
+    );
+  }
+  return (
+    <div className="mt-1.5" onClick={e => e.stopPropagation()}>
+      <audio src={url} controls autoPlay preload="auto" className="w-full max-w-sm h-9" />
+    </div>
+  );
+}
+
 /* ── FILES SECTION ── */
 function FilesSection({ leadId, files, onChanged, isAdmin }) {
   const inputRef = useRef();
@@ -1164,12 +1196,21 @@ function FilesSection({ leadId, files, onChanged, isAdmin }) {
           <div key={f.id} className="flex items-center gap-2 bg-white rounded-xl px-3 py-2 border border-slate-100">
             <span className="text-lg shrink-0">{fileIcon(f.file_type)}</span>
             <div className="flex-1 min-w-0 text-right">
-              <button
-                onClick={e => { e.stopPropagation(); openFile(f.id); }}
-                className="text-base font-semibold text-violet-700 hover:underline block w-full max-w-full text-right wrap-break-word sm:truncate">
-                {f.filename}
-              </button>
-              <p className="text-sm text-slate-400">{f.uploaded_by_name || ''} · {formatFull(f.created_at)}</p>
+              {isAudioFile(f.filename, f.file_type) ? (
+                <>
+                  <p className="text-base font-semibold text-violet-700">🎤 הקלטה קולית מתאריך {formatFull(f.created_at)}</p>
+                  <VoiceNotePlayer fileId={f.id} label="האזן" />
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={e => { e.stopPropagation(); openFile(f.id); }}
+                    className="text-base font-semibold text-violet-700 hover:underline block w-full max-w-full text-right wrap-break-word sm:truncate">
+                    {f.filename}
+                  </button>
+                  <p className="text-sm text-slate-400">{f.uploaded_by_name || ''} · {formatFull(f.created_at)}</p>
+                </>
+              )}
             </div>
             {(isAdmin || f.file_type !== 'contract') && (
               <button onClick={() => deleteFile(f.id)}
@@ -1326,7 +1367,9 @@ function BodyWithFile({ body: rawBody }) {
     <div>
       {text.trim() && !isMediaPlaceholder && <p className="text-base text-slate-700 whitespace-pre-wrap wrap-anywhere">{text.trim()}</p>}
       {isMediaPlaceholder && !files.length && <span className="text-sm text-slate-400 italic">📎 קובץ</span>}
-      {files.map((f, i) => (
+      {files.map((f, i) => isAudioFile(f.name) ? (
+        <VoiceNotePlayer key={i} fileId={f.id} />
+      ) : (
         <button key={i}
           onClick={e => { e.stopPropagation(); openFile(f.id); }}
           className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-violet-50 border border-slate-200 hover:border-violet-300 text-sm font-semibold text-slate-700 hover:text-violet-700 transition">
@@ -4534,6 +4577,29 @@ function DealAdvisor({ leadId, onUseDraft, onCreateTask, onScheduleMeeting }) {
   );
 }
 
+// WhatsApp chat bubble: plain text + [[FILE:id|name]] markers rendered as a voice-note player
+// or a file button (the raw marker used to show up as text).
+function WaBubbleBody({ body }) {
+  if (!body) return null;
+  const FILE_RE = /\[\[FILE:([^\|]+)\|([^\]]+)\]\]/g;
+  const files = [...body.matchAll(FILE_RE)].map(m => ({ id: m[1], name: m[2] }));
+  const text = body.replace(FILE_RE, '').trim();
+  return (
+    <div>
+      {text && <p className="wrap-anywhere">{text}</p>}
+      {files.map((f, i) => isAudioFile(f.name) ? (
+        <VoiceNotePlayer key={i} fileId={f.id} />
+      ) : (
+        <button key={i}
+          onClick={e => { e.stopPropagation(); openFile(f.id); }}
+          className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-violet-50 border border-slate-200 hover:border-violet-300 text-sm font-semibold text-slate-700 hover:text-violet-700 transition max-w-full wrap-anywhere">
+          {fileIconByExt(f.name)} {f.name}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function WhatsAppTab({ leadId, allPhones, allPhoneLabels = {}, allEmails = [], leadFiles = [], messages = [], onSent, initialDraft = null }) {
   const [adding, setAdding]           = useState(null); // null | 'wa_send' | 'email_send'
   const [body, setBody]               = useState('');
@@ -4641,7 +4707,7 @@ function WhatsAppTab({ leadId, allPhones, allPhoneLabels = {}, allEmails = [], l
           : waMessages.map(m => (
             <div key={m.id} className={`flex ${m.direction === 'outbound' ? 'justify-start' : 'justify-end'}`}>
               <div className={`max-w-[75%] min-w-0 rounded-2xl px-3 py-2 text-base ${m.direction === 'outbound' ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-800'}`}>
-                <p className="wrap-anywhere">{m.body}</p>
+                <WaBubbleBody body={m.body} />
                 <p className={`text-sm mt-1 ${m.direction === 'outbound' ? 'text-green-200' : 'text-slate-400'}`}>{formatFull(m.timestamp)}</p>
                 {m.contact_value && (
                   <p className={`text-xs mt-0.5 ${m.direction === 'outbound' ? 'text-green-200' : 'text-slate-400'}`} dir="ltr">

@@ -1,10 +1,15 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-09-29
+updated: 2026-10-12
 ---
 
 # Now
+
+## 2026-10-12 — Phase 39: WhatsApp voice notes playable
+
+- Inbound voice notes (.oga) showed as raw `[[FILE:…]]` text in the WhatsApp tab and as a UUID file in Files that the phone couldn't open. Now: inline player in the chat bubble, timeline and Files list; Files titles them "🎤 הקלטה קולית מתאריך …". Client-only, applies to old messages too.
+- Done from a cloud session (Mac was offline) — pushed to GitHub; Mac picks it up via the scheduled sync / next `git pull`.
 
 ## 2026-10-09 — Phase 38: calls claim leads, missed-call WhatsApp v2
 

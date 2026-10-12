@@ -2278,6 +2278,18 @@ and the `calendar_events` row. The לא סגרו transition uses the same robust
 Events created before 2026-09-12 by hand in Google (no CRM marker) cannot be found and must
 be deleted in Google manually.
 
+### Phase 39 — WhatsApp voice notes playable ✅ Built 2026-10-12
+Reported from Oran's phone (lead "ונסה מפיקה"): an inbound WhatsApp voice note showed in the
+WhatsApp tab as raw text `[[FILE:<id>|<uuid>.oga]]`, and in the lead's Files list as a UUID
+`.oga` name that the phone could not open. Fix (client only, `LeadCard.jsx`):
+- `WaBubbleBody` renders WhatsApp bubbles: text + `[[FILE:]]` markers → file button, or for
+  audio (`isAudioFile`: audio/* mime or oga/ogg/opus/mp3/m4a/wav/aac/amr) a `VoiceNotePlayer`
+  (▶️ button → `/api/files/:id/url` signed URL → inline `<audio>`).
+- Files list: audio files are titled "🎤 הקלטה קולית מתאריך <date>" with an inline "האזן" player
+  instead of the UUID name + new-tab open.
+- Timeline (`BodyWithFile`): audio markers use the same inline player.
+Applies to existing messages too (display-only, no data change).
+
 ### Phase 28 — Calendar link self-heal ✅ Built 2026-09-12
 Bug: lead "אורי בלוך שבת חתן" was marked סגור in the CRM but stayed yellow in Google
 Calendar, and "פתח ביומן Google" opened "Could not find the requested event". Cause: the
