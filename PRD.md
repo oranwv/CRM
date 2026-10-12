@@ -2289,6 +2289,9 @@ WhatsApp tab as raw text `[[FILE:<id>|<uuid>.oga]]`, and in the lead's Files lis
   instead of the UUID name + new-tab open.
 - Timeline (`BodyWithFile`): audio markers use the same inline player.
 Applies to existing messages too (display-only, no data change).
+- Player (same day, Oran's request): custom controls — ▶/❚❚ play-pause button, a slider that
+  moves with playback and can be dragged to seek, and `0:12 / 0:45` time. The file is fetched
+  once into a blob URL so WhatsApp .oga files (no duration header) get a real duration and seeking.
 
 ### Phase 28 — Calendar link self-heal ✅ Built 2026-09-12
 Bug: lead "אורי בלוך שבת חתן" was marked סגור in the CRM but stayed yellow in Google

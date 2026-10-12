@@ -1131,26 +1131,87 @@ function isAudioFile(name = '', mime = '') {
 }
 // Plays a stored audio file inline (WhatsApp voice notes come as .oga — opening them in a new tab
 // just downloads a file most phones can't open).
+function fmtSec(t) {
+  if (!isFinite(t) || t < 0) t = 0;
+  const m = Math.floor(t / 60), sec = Math.floor(t % 60);
+  return `${m}:${String(sec).padStart(2, '0')}`;
+}
 function VoiceNotePlayer({ fileId, label = '🎤 הקלטה קולית', className = '' }) {
   const [url, setUrl] = useState(null);
   const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const [cur, setCur] = useState(0);
+  const [dur, setDur] = useState(0);
+  const audioRef = useRef(null);
+  const blobRef = useRef(null);
+  useEffect(() => () => { if (blobRef.current) URL.revokeObjectURL(blobRef.current); }, []);
+
   async function load(e) {
     e.stopPropagation();
-    try { const r = await api.get(`/files/${fileId}/url`); setUrl(r.data.url); }
-    catch (x) { setErr(x.response?.data?.error || 'לא ניתן לטעון את ההקלטה'); }
+    setLoading(true);
+    try {
+      const r = await api.get(`/files/${fileId}/url`);
+      // Load the whole file into memory: WhatsApp .oga files often carry no duration, so a
+      // streamed <audio> can't seek. A local blob gives a real duration + free seeking.
+      try {
+        const res = await fetch(r.data.url);
+        if (!res.ok) throw new Error();
+        const b = URL.createObjectURL(await res.blob());
+        blobRef.current = b; setUrl(b);
+      } catch { setUrl(r.data.url); }
+    } catch (x) { setErr(x.response?.data?.error || 'לא ניתן לטעון את ההקלטה'); }
+    setLoading(false);
   }
+
+  function onMeta() {
+    const a = audioRef.current; if (!a) return;
+    if (isFinite(a.duration) && a.duration > 0) { setDur(a.duration); }
+    else {
+      // Chrome reports Infinity for some Ogg files until it scans to the end
+      const fix = () => { a.removeEventListener('timeupdate', fix); setDur(a.duration); a.currentTime = 0; };
+      a.addEventListener('timeupdate', fix);
+      a.currentTime = 1e7;
+    }
+    a.play().catch(() => {});
+  }
+  function toggle(e) {
+    e.stopPropagation();
+    const a = audioRef.current; if (!a) return;
+    if (a.paused) a.play().catch(() => {}); else a.pause();
+  }
+  function seek(e) {
+    e.stopPropagation();
+    const a = audioRef.current; if (!a) return;
+    const t = Number(e.target.value);
+    a.currentTime = t; setCur(t);
+  }
+
   if (err) return <p className="text-xs text-red-500 mt-1.5">{err}</p>;
   if (!url) {
     return (
-      <button onClick={load}
-        className={`inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-violet-50 border border-slate-200 hover:border-violet-300 text-sm font-semibold text-slate-700 hover:text-violet-700 transition ${className}`}>
-        ▶️ {label}
+      <button onClick={load} disabled={loading}
+        className={`inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-violet-50 border border-slate-200 hover:border-violet-300 text-sm font-semibold text-slate-700 hover:text-violet-700 transition disabled:opacity-60 ${className}`}>
+        {loading ? '⏳ טוען…' : <>▶️ {label}</>}
       </button>
     );
   }
   return (
-    <div className="mt-1.5" onClick={e => e.stopPropagation()}>
-      <audio src={url} controls autoPlay preload="auto" className="w-full max-w-sm h-9" />
+    <div className="mt-1.5 flex items-center gap-2 w-full max-w-sm bg-slate-100 border border-slate-200 rounded-xl px-2 py-1.5 text-slate-700"
+      dir="ltr" onClick={e => e.stopPropagation()}>
+      <audio ref={audioRef} src={url} preload="auto" onLoadedMetadata={onMeta}
+        onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)}
+        onEnded={() => { setPlaying(false); setCur(0); if (audioRef.current) audioRef.current.currentTime = 0; }}
+        onTimeUpdate={e => setCur(e.target.currentTime)}
+        onDurationChange={e => { if (isFinite(e.target.duration)) setDur(e.target.duration); }} />
+      <button onClick={toggle} aria-label={playing ? 'השהה' : 'נגן'}
+        className="shrink-0 w-9 h-9 rounded-full bg-violet-600 hover:bg-violet-700 text-white flex items-center justify-center text-base font-black">
+        {playing ? '❚❚' : '▶'}
+      </button>
+      <input type="range" min={0} max={dur || 0} step={0.1} value={Math.min(cur, dur || 0)}
+        onChange={seek} onClick={e => e.stopPropagation()}
+        className="flex-1 min-w-0 h-2 accent-violet-600 cursor-pointer" />
+      <span className="shrink-0 text-xs font-semibold tabular-nums text-slate-500">{fmtSec(cur)} / {fmtSec(dur)}</span>
     </div>
   );
 }
