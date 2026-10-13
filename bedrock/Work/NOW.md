@@ -17,6 +17,9 @@ updated: 2026-10-14
 ## 2026-10-14 — Phase 40: top bar on phones
 
 - ✈️ abroad toggle removed from the top bar (Oran's request; component kept, no UI for it now — ask Oran if it should live in הגדרות). Round 1 (scrolling badge row) clipped the badges under the mode button; Oran chose option 2: on phones the bar is two rows (80px) while badges exist — `html.crm-header-tall` + `.crm-header-spacer` in `index.css`. Desktop unchanged.
+## 2026-10-13 — Israeli ringback tone
+
+- All three `<Dial>` verbs now carry `ringTone: 'il'` — the caller (rep in the app/browser, or the customer on inbound) hears the Israeli ring instead of Twilio's US default. Dialer app v4 (speaker fix, pressed states, paste) committed, push + build pending Mac.
 
 ## 2026-10-12 — Phase 39: WhatsApp voice notes playable
 

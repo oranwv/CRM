@@ -202,6 +202,7 @@ hooks.post('/twiml/outbound', async (req, res) => {
     callerId: process.env.TWILIO_PHONE_NUMBER, answerOnBridge: true, timeout: 40,
     action: `${tw.serverUrl()}/api/calls/twiml/outbound/done?callId=${call.id}`, method: 'POST',
     ...RECORDING_ATTRS(),
+    ringTone: 'il',                               // Israeli ringback instead of Twilio's default US tone (Oran, 2026-10-13)
   });
   dial.number(to);
   xml(res, vr);
@@ -225,6 +226,7 @@ hooks.post('/twiml/bridge', async (req, res) => {
     callerId: process.env.TWILIO_PHONE_NUMBER, timeout: 40,
     action: `${tw.serverUrl()}/api/calls/twiml/outbound/done?callId=${call.id}`, method: 'POST',
     ...RECORDING_ATTRS(),
+    ringTone: 'il',                               // Israeli ringback instead of Twilio's default US tone (Oran, 2026-10-13)
   });
   dial.number(call.to_number);
   xml(res, vr);
@@ -265,6 +267,7 @@ function dialStep(vr, step, callId, index, callerNumber, leadName) {
     callerId: callerNumber,                       // the rep sees the customer's real number
     action: `${tw.serverUrl()}/api/calls/twiml/inbound/step?callId=${callId}&i=${index + 1}`, method: 'POST',
     ...RECORDING_ATTRS(),
+    ringTone: 'il',                               // Israeli ringback instead of Twilio's default US tone (Oran, 2026-10-13)
   });
   if ((step.kind === 'number' || step.kind === 'both') && step.phone) dial.number(step.phone);
   if (step.kind === 'client' || step.kind === 'both') {

@@ -1964,6 +1964,10 @@ morning/evening sales briefings on Friday and Saturday. `users.shabbat_mode` + t
 in the admin user editor (plus a badge in the user row); the skip lives in
 `runSalesBriefings`. Scope limited to the two sales briefings by Oran's explicit choice.
 
+### Phase 38b — Israeli ringback tone ✅ Built 2026-10-13
+Oran: the dialing sound in the app "sounds strange" — it was Twilio's default US ringback.
+Every `<Dial>` (browser/app outbound, mobile bridge, inbound ring plan) now sets `ringTone="il"`.
+
 ### Phase 38 — Calls claim the lead, missed-call WhatsApp v2 ✅ Built 2026-10-09
 Requested by Oran:
 - **First call claims the lead.** Only manual timeline entries claimed an unowned lead
