@@ -237,20 +237,33 @@ router.post('/webhook', async (req, res) => {
       }
     })();
 
-    // Notify assigned user about inbound message (non-blocking)
+    // Notify about inbound message (non-blocking): the lead owner + anyone who
+    // sent this lead a WhatsApp from the CRM in the last 7 days (Phase 41).
     const _notifyText = text;
     const _notifyLeadId = leadId;
     pool.query(
-      `SELECT u.phone, l.name FROM leads l JOIN users u ON u.id = l.assigned_to WHERE l.id = $1 AND u.phone IS NOT NULL`,
+      `SELECT DISTINCT ON (u.id) u.phone, l.name
+         FROM leads l
+         JOIN users u ON u.phone IS NOT NULL
+          AND (u.id = l.assigned_to
+               OR u.id IN (SELECT m.sent_by FROM messages m
+                            WHERE m.lead_id = l.id AND m.channel = 'whatsapp'
+                              AND m.direction = 'outbound' AND m.sent_by IS NOT NULL
+                              AND m.timestamp >= NOW() - INTERVAL '7 days'))
+        WHERE l.id = $1`,
       [_notifyLeadId]
     ).then(async ({ rows }) => {
-      if (!rows[0]) return;
+      if (!rows.length) return;
       const { sendWhatsApp } = require('../services/reminderService');
       const baseUrl = process.env.SERVER_URL || 'https://crm-production-c3df.up.railway.app';
       const preview = _notifyText.slice(0, 200);
-      await sendWhatsApp(rows[0].phone,
-        `הודעת וואטסאפ חדשה מ${rows[0].name}:\n"${preview}"\nלפתיחת הליד: ${baseUrl}/?lead=${_notifyLeadId}`
-      );
+      const body = `הודעת וואטסאפ חדשה מ${rows[0].name}:\n"${preview}"\nלפתיחת הליד: ${baseUrl}/?lead=${_notifyLeadId}`;
+      const seen = new Set();
+      for (const r of rows) {
+        if (seen.has(r.phone)) continue;
+        seen.add(r.phone);
+        await sendWhatsApp(r.phone, body).catch(() => {});
+      }
     }).catch(() => {});
 
     console.log(`[WhatsApp] Message from ${senderPhone} → lead ${leadId}`);

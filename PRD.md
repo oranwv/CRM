@@ -2226,6 +2226,15 @@ build (briefing, staff attendance and the WhatsApp bot were explicitly left unto
   logging, `vite build`. Not verified: real Green API sends from `/api/chat/send` and the
   live OpenAI prompts — check after deploy.
 
+### Phase 41 — Inbound WhatsApp notifies the owner + recent senders ✅ Built 2026-10-14
+Until now an inbound WhatsApp message notified only the lead's owner (`assigned_to`). Oran: when a
+rep who is *not* the owner wrote to the customer from the CRM and the customer replies, that rep
+must be notified too — but not everyone who ever wrote to the lead, only those who sent a
+WhatsApp in the **last 7 days**. `routes/whatsapp.js` webhook: the notify query now selects the
+owner plus every user with an outbound `messages` row (`channel='whatsapp'`, `sent_by`,
+`timestamp >= NOW() - 7 days`) for that lead; de-duplicated by phone, one notification each.
+WhatsApp only — e-mail and calls unchanged.
+
 ### Phase 40 — Top bar on phones: no ✈️ toggle, two rows when badges are shown ✅ Built 2026-10-14
 Oran's phone screenshots (14.10): the ✈️ "abroad" toggle cluttered the top bar, and the three
 badges (ממתינים / אירועים לא מוכנים / תשלומים בלי קבלה) and the mode button ("מכירות ▾") fought

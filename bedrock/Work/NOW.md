@@ -6,6 +6,10 @@ updated: 2026-10-14
 
 # Now
 
+## 2026-10-14 — Phase 41: inbound WhatsApp notifies owner + recent senders
+
+- Webhook notification now goes to the lead owner **and** every user who sent this lead a WhatsApp from the CRM in the last 7 days (`messages.sent_by`), de-duplicated by phone. WhatsApp only. Done from a cloud session — pushed to GitHub; Mac picks it up via sync / next `git pull`.
+
 ## 2026-10-14 — DB connections during deploys
 
 - Pool capped (`DB_POOL_MAX`, default 6, idle 10s) + graceful SIGTERM (`server.close()` + `pool.end()`),
