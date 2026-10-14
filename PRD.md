@@ -2073,6 +2073,12 @@ They now run one after another through a small `migrate()` helper (same fire-and
 each statement keeps its own `.catch` logging, one failure never blocks the next). No schema or
 behaviour change.
 
+**Follow-up (2026-10-14):** the pool is now capped (`max` = `DB_POOL_MAX`, default 6;
+`idleTimeoutMillis` 10s) so the old and new instance together stay under Supabase's 15 clients
+during a deploy, and on `SIGTERM`/`SIGINT` the server closes HTTP and calls `pool.end()` so the
+old instance gives its connections back at once. No route or query holds a client
+(`pool.connect()` isn't used outside `server/scripts/`), so 6 is enough for the app's traffic.
+
 ### Phase 34 — Costs panel + AI usage metering ✅ Built 2026-09-16
 Oran asked to see what every paid service costs per month, calls included. New tab **עלויות**
 in the ניהול mode (`/costs`, `client/src/pages/CostsPage.jsx`; API `routes/costs.js`, admins +

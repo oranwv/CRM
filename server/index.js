@@ -858,7 +858,7 @@ app.use(express.static(clientBuild));
 app.get('/{*splat}', (req, res) => res.sendFile(path.join(clientBuild, 'index.html')));
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, async () => {
+const server = app.listen(PORT, async () => {
   console.log(`CRM server running on port ${PORT}`);
   try {
     const { rows } = await pool.query("SELECT value FROM settings WHERE key='google_token'");
@@ -868,6 +868,21 @@ app.listen(PORT, async () => {
   // Twilio: create the API key / TwiML app once and point the number's webhooks at us
   require('./services/twilioService').ensureSetup().catch(err => console.error('[Twilio] setup error:', err.message));
 });
+
+// Railway sends SIGTERM to the old instance when a new deploy goes live. Close the HTTP server
+// and hand the DB connections back right away, so the two instances don't together exceed
+// Supabase's client limit ("max clients reached").
+let shuttingDown = false;
+function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[Process] ${signal} received, shutting down`);
+  server.close();
+  pool.end().catch(() => {}).finally(() => process.exit(0));
+  setTimeout(() => process.exit(0), 8000).unref();
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 function startCronJobs() {
   const tokenPath = path.join(__dirname, 'google_token.json');
