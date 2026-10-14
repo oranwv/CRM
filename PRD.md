@@ -2226,25 +2226,13 @@ build (briefing, staff attendance and the WhatsApp bot were explicitly left unto
   logging, `vite build`. Not verified: real Green API sends from `/api/chat/send` and the
   live OpenAI prompts — check after deploy.
 
-### Phase 44 — Lost reason "אורח מתקשר לבירור" ✅ Built 2026-10-14
-Oran asked for a new "לא סגרו" reason for calls that were never a real lead — a guest of an event
-calling to ask about it. Added `guest_inquiry` → "אורח מתקשר לבירור" to `LOST_REASONS`
-(`LeadCard.jsx`, shown in the lost-reason picker and on the lost badge) and to
-`LOST_REASON_LABELS` in `AnalyticsPage.jsx`. `lost_reason` is free text in the DB, no migration.
+### Phase 44 — Lost reasons for non-leads: אורח מתקשר לבירור / מחפש עבודה / ספק ✅ Built 2026-10-14
+Oran asked for three new "לא סגרו" reasons for calls that were never a real lead: a guest of an
+event calling to ask about it, a job seeker, and a supplier. Added `guest_inquiry` →
+"אורח מתקשר לבירור", `job_seeker` → "מחפש עבודה", `supplier` → "ספק" to `LOST_REASONS`
+(`LeadCard.jsx`, lost-reason picker + lost badge) and to `LOST_REASON_LABELS` in
+`AnalyticsPage.jsx`. `lost_reason` is free text in the DB, no migration.
 
-### Phase 42 — WhatsApp tab: newest message on top ✅ Built 2026-10-14
-Oran: the newest messages must appear at the top of the WhatsApp tab in the lead card, not at the
-bottom after scrolling. `LeadCard.jsx` `WhatsAppTab`: the WhatsApp message list is rendered
-newest-first (server still returns `timestamp ASC`; the client reverses). Bubble design unchanged.
-
-### Phase 41 — Inbound WhatsApp notifies the owner + recent senders ✅ Built 2026-10-14
-Until now an inbound WhatsApp message notified only the lead's owner (`assigned_to`). Oran: when a
-rep who is *not* the owner wrote to the customer from the CRM and the customer replies, that rep
-must be notified too — but not everyone who ever wrote to the lead, only those who sent a
-WhatsApp in the **last 7 days**. `routes/whatsapp.js` webhook: the notify query now selects the
-owner plus every user with an outbound `messages` row (`channel='whatsapp'`, `sent_by`,
-`timestamp >= NOW() - 7 days`) for that lead; de-duplicated by phone, one notification each.
-WhatsApp only — e-mail and calls unchanged.
 ### Phase 43 — מועמדים (candidate tracker) inside the CRM, managers only ✅ Built 2026-10-14
 The standalone `candidate-tracker` app (`~/Projects/candidate-tracker`, own Railway service + DB)
 is now a mode of the CRM, next to מכירות / הפקה in the top-bar dropdown. Visible and usable only

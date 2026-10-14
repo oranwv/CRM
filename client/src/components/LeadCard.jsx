@@ -35,6 +35,8 @@ const LOST_REASONS = [
   { value: 'ghosted',       label: 'נעלם' },
   { value: 'plans_changed', label: 'שינוי תוכניות' },
   { value: 'guest_inquiry', label: 'אורח מתקשר לבירור' },
+  { value: 'job_seeker',    label: 'מחפש עבודה' },
+  { value: 'supplier',      label: 'ספק' },
   { value: 'other',         label: 'אחר' },
 ];
 
