@@ -4754,7 +4754,8 @@ function WhatsAppTab({ leadId, allPhones, allPhoneLabels = {}, allEmails = [], l
     setSaving(false);
   }
 
-  const waMessages = messages.filter(m => m.channel === 'whatsapp');
+  // Newest first (Oran, 2026-10-14): the latest message sits at the top, no scrolling down.
+  const waMessages = messages.filter(m => m.channel === 'whatsapp').slice().reverse();
 
   return (
     <div className="flex flex-col h-full">

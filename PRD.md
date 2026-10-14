@@ -2226,6 +2226,11 @@ build (briefing, staff attendance and the WhatsApp bot were explicitly left unto
   logging, `vite build`. Not verified: real Green API sends from `/api/chat/send` and the
   live OpenAI prompts — check after deploy.
 
+### Phase 42 — WhatsApp tab: newest message on top ✅ Built 2026-10-14
+Oran: the newest messages must appear at the top of the WhatsApp tab in the lead card, not at the
+bottom after scrolling. `LeadCard.jsx` `WhatsAppTab`: the WhatsApp message list is rendered
+newest-first (server still returns `timestamp ASC`; the client reverses). Bubble design unchanged.
+
 ### Phase 41 — Inbound WhatsApp notifies the owner + recent senders ✅ Built 2026-10-14
 Until now an inbound WhatsApp message notified only the lead's owner (`assigned_to`). Oran: when a
 rep who is *not* the owner wrote to the customer from the CRM and the customer replies, that rep

@@ -6,6 +6,10 @@ updated: 2026-10-14
 
 # Now
 
+## 2026-10-14 — Phase 42: WhatsApp tab newest-first
+
+- Lead card → וואטסאפ tab lists messages newest on top (client-side reverse). Cloud session, pushed.
+
 ## 2026-10-14 — Phase 41: inbound WhatsApp notifies owner + recent senders
 
 - Webhook notification now goes to the lead owner **and** every user who sent this lead a WhatsApp from the CRM in the last 7 days (`messages.sent_by`), de-duplicated by phone. WhatsApp only. Done from a cloud session — pushed to GitHub; Mac picks it up via sync / next `git pull`.
