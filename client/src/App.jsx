@@ -21,7 +21,8 @@ import OperationsPage    from './pages/OperationsPage';
 import ManagementPage   from './pages/ManagementPage';
 import CostsPage        from './pages/CostsPage';
 import FinancePage      from './pages/FinancePage';
-import CandidatesPage   from './pages/CandidatesPage';
+import JobsPage          from './pages/candidates/JobsPage';
+import CandidateListPage from './pages/candidates/CandidateListPage';
 import AIChat           from './components/AIChat';
 import PendingDocsModal  from './components/PendingDocsModal';
 import PaymentSignalsModal from './components/PaymentSignalsModal';
@@ -316,7 +317,10 @@ function AppShellNav() {
   const isCandidates   = mode === 'מועמדים';
 
   const tabs = isCandidates
-    ? [{ path: '/candidates', icon: '🧑‍💼', label: 'מועמדים' }]
+    ? [
+        { path: '/candidates',     icon: '💼', label: 'משרות',       prefix: '/candidates/jobs' },
+        { path: '/candidates/all', icon: '👥', label: 'כל המועמדים' },
+      ]
     : isProfit
     ? [{ path: '/sales-performance', icon: '💰', label: 'רווחים' }]
     : isFinance
@@ -352,7 +356,7 @@ function AppShellNav() {
 
   const NavBtn = ({ path, icon, label, prefix }) => {
     const active = prefix
-      ? location.pathname === path || location.pathname.startsWith(prefix + '/')
+      ? location.pathname === path || location.pathname.startsWith(prefix + '/') || (prefix === '/candidates/jobs' && location.pathname === '/candidates/unassigned')
       : location.pathname === path;
     const isTasksTab = path === '/tasks';
     return (
@@ -572,7 +576,37 @@ function AppRoutes() {
           <PrivateRoute>
             <>
               <div className="crm-header-spacer pt-11" />
-              <CandidatesPage />
+              <JobsPage />
+              <AppShellNav />
+              <div className="pb-28" />
+            </>
+          </PrivateRoute>
+        } />
+        <Route path="/candidates/all" element={
+          <PrivateRoute>
+            <>
+              <div className="crm-header-spacer pt-11" />
+              <CandidateListPage scope="all" />
+              <AppShellNav />
+              <div className="pb-28" />
+            </>
+          </PrivateRoute>
+        } />
+        <Route path="/candidates/unassigned" element={
+          <PrivateRoute>
+            <>
+              <div className="crm-header-spacer pt-11" />
+              <CandidateListPage scope="unassigned" />
+              <AppShellNav />
+              <div className="pb-28" />
+            </>
+          </PrivateRoute>
+        } />
+        <Route path="/candidates/jobs/:jobId" element={
+          <PrivateRoute>
+            <>
+              <div className="crm-header-spacer pt-11" />
+              <CandidateListPage scope="job" />
               <AppShellNav />
               <div className="pb-28" />
             </>

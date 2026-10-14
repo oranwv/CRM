@@ -2233,13 +2233,53 @@ event calling to ask about it, a job seeker, and a supplier. Added `guest_inquir
 (`LeadCard.jsx`, lost-reason picker + lost badge) and to `LOST_REASON_LABELS` in
 `AnalyticsPage.jsx`. `lost_reason` is free text in the DB, no migration.
 
+### Phase 41 — Inbound WhatsApp notifies the owner + recent senders ✅ Built 2026-10-14
+Until now an inbound WhatsApp message notified only the lead's owner (`assigned_to`). Oran: when a
+rep who is *not* the owner wrote to the customer from the CRM and the customer replies, that rep
+must be notified too — but not everyone who ever wrote to the lead, only those who sent a
+WhatsApp in the **last 7 days**. `routes/whatsapp.js` webhook: the notify query now selects the
+owner plus every user with an outbound `messages` row (`channel='whatsapp'`, `sent_by`,
+`timestamp >= NOW() - 7 days`) for that lead; de-duplicated by phone, one notification each.
+WhatsApp only — e-mail and calls unchanged.
+### Phase 45 — מועמדים by job: jobs screen → job's candidates; shared DB with the old tracker ✅ Built 2026-10-14
+Right after Phase 43 Oran saw the old tracker's candidates inside the CRM, sitting under a job
+he had just created ("מכירות טלפוני"). Cause: the CRM and the standalone candidate-tracker use
+the same Supabase database, so Phase 43's `CREATE TABLE IF NOT EXISTS candidates` was a no-op
+and the CRM read the tracker's `candidates` table, whose `job_id` pointed at the tracker's
+`jobs` table while the UI listed the CRM's new `candidate_jobs` (ids happened to match).
+- Data model now = the tracker's own tables `jobs` / `candidates` / `interactions`, extended at
+  boot (`server/index.js`): `jobs.archived_at`; `candidates.status_reason / status_updated_at /
+  calendar_event_id / meeting_rsvp_status / meeting_start / created_by`; `interactions.created_by`,
+  nullable `date_time`, type check call/meeting/note. The old tracker keeps working on the same
+  tables until it is shut down.
+- One-time merge, guarded by `settings.candidates_jobs_merge_done`: jobs created in
+  `candidate_jobs` are copied into `jobs` by title, `candidate_interactions` rows into
+  `interactions`, a "מכירות" job is ensured and **every existing candidate is moved under it**
+  (Oran: "מכירות טלפוני" stays, empty), `status = 'New'` → 'חדש', then the two duplicate
+  tables are dropped. `importCandidateTracker.js` deleted.
+- UI (Oran approved the proposal): mode "מועמדים" opens **משרות** (`pages/candidates/JobsPage.jsx`)
+  — one card per open job with counts per status (חדשים / בתהליך / ראיון / התקבלו / נדחו), last
+  arrival, rename (✏️) and archive (🗄️); a dashed "ללא משרה" card appears only when unassigned
+  active candidates exist; archived jobs are listed under a toggle with restore / delete.
+  Clicking a card opens that job's candidates (`pages/candidates/CandidateListPage.jsx`,
+  `/candidates/jobs/:id`) with back arrow, פעילים / נדחה tabs, name/phone search, sort by status,
+  "+ הוסף מועמד" pre-assigned to the job, and the detail drawer from Phase 43. Bottom nav:
+  💼 משרות | 👥 כל המועמדים (`/candidates/all`; `/candidates/unassigned` for the no-job list).
+- API additions (`routes/candidates.js`): `GET /jobs` returns per-status counts + `last_arrival`
+  and hides archived jobs unless `?archived=1`; `GET /jobs/unassigned-count`; `PATCH /jobs/:id`
+  (`title`, `archived`); list accepts `job_id=none`. Calendar deep link is now
+  `/candidates/all?candidate=ID&src=cal`.
+- Verified: `vite build` passes (built in the cloud container this time); server files
+  `node --check`. The boot merge runs on the next Railway deploy — check the log for
+  `[DB] candidates one-time merge error` if the jobs screen still looks wrong.
+
 ### Phase 43 — מועמדים (candidate tracker) inside the CRM, managers only ✅ Built 2026-10-14
 The standalone `candidate-tracker` app (`~/Projects/candidate-tracker`, own Railway service + DB)
 is now a mode of the CRM, next to מכירות / הפקה in the top-bar dropdown. Visible and usable only
 for `admin` / `manager` (`AppModeContext` permits it for `isAM`, dropdown + routes in `App.jsx`,
 server rejects everyone else with 403 in `routes/candidates.js`).
-- Tables (boot migration in `server/index.js`): `candidate_jobs`, `candidates`,
-  `candidate_interactions` (call / meeting / note). Statuses are free text with presets
+- Tables: initially `candidate_jobs` / `candidates` / `candidate_interactions` — superseded by
+  Phase 45 (shared DB with the old tracker; see there). Statuses are free text with presets
   (חדש / בתהליך / ראיון נקבע / התקבל / נדחה / לא רלוונטי); נדחה + לא רלוונטי live on the second tab.
 - API `/api/candidates/*` (jobs, list by job/tab, detail, status + reason, job assignment,
   interactions, resume signed URL, delete) and interview meetings: `POST /:id/meeting` creates
@@ -2255,10 +2295,8 @@ server rejects everyone else with 403 in `routes/candidates.js`).
 - Gmail import of candidate emails was NOT ported (Oran: not for now) — candidates are added
   manually. The old parser (`candidate-tracker/server/services/gmailService.js`) is the
   reference if it is wanted later.
-- One-time data move: `server/scripts/importCandidateTracker.js` copies jobs / candidates /
-  interactions and re-uploads resumes from the old DB + bucket (`SRC_DATABASE_URL`,
-  `SRC_SUPABASE_URL`, `SRC_SUPABASE_SERVICE_ROLE_KEY`; `--dry-run` supported; idempotent via
-  `import_source_id`). Not run yet — needs the old service's env values from Railway.
+- An import script was written for a separate old DB and removed in Phase 45 once it turned out
+  both apps share one database.
 - Verified: eslint + import resolution on the Mac VM (vite build can't run there — Mac-native
   rolldown binary); server files `node --check`. Not verified: a real calendar/WhatsApp send.
 

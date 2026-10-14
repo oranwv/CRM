@@ -1,7 +1,7 @@
 // מועמדים (candidate tracker) — ported into the CRM from the standalone candidate-tracker app
 // (Oct 2026). Managers/admins only; every call goes through requireManager below.
 //
-// Tables (created at boot in server/index.js): candidate_jobs, candidates, candidate_interactions.
+// Tables: the old tracker's jobs / candidates / interactions (shared DB; columns added at boot in server/index.js).
 // Integrations reuse the CRM's own: Google Calendar (calendarService), WhatsApp (Green API via
 // reminderService.sendWhatsApp), resumes in the crm-files Supabase bucket (storageService).
 const router = require('express').Router();
@@ -29,18 +29,35 @@ function fail(res, err, msg = 'Server error') {
 
 // ── Jobs ────────────────────────────────────────────────────────────────────
 
-// GET /api/candidates/jobs — jobs with active-candidate count
+// GET /api/candidates/jobs?archived=1 — jobs with per-status counts (archived ones only on request)
 router.get('/jobs', async (req, res) => {
   try {
+    const where = req.query.archived ? '' : 'WHERE j.archived_at IS NULL';
     const { rows } = await pool.query(`
       SELECT j.*,
              COUNT(c.id)::int AS candidate_count,
-             COUNT(c.id) FILTER (WHERE c.status != ALL($1))::int AS active_count
-      FROM candidate_jobs j
+             COUNT(c.id) FILTER (WHERE c.status != ALL($1))::int   AS active_count,
+             COUNT(c.id) FILTER (WHERE c.status = 'חדש')::int       AS new_count,
+             COUNT(c.id) FILTER (WHERE c.status = 'בתהליך')::int    AS process_count,
+             COUNT(c.id) FILTER (WHERE c.status = 'ראיון נקבע')::int AS interview_count,
+             COUNT(c.id) FILTER (WHERE c.status = 'התקבל')::int     AS hired_count,
+             COUNT(c.id) FILTER (WHERE c.status = ANY($1))::int     AS rejected_count,
+             MAX(c.arrival_time) AS last_arrival
+      FROM jobs j
       LEFT JOIN candidates c ON c.job_id = j.id
+      ${where}
       GROUP BY j.id
-      ORDER BY j.created_at DESC`, [REJECTED_STATUSES]);
+      ORDER BY (j.archived_at IS NOT NULL), j.created_at DESC`, [REJECTED_STATUSES]);
     res.json(rows);
+  } catch (err) { fail(res, err); }
+});
+
+// GET /api/candidates/jobs/unassigned-count — active candidates with no job (shows a "ללא משרה" card)
+router.get('/jobs/unassigned-count', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM candidates WHERE job_id IS NULL AND status != ALL($1)`, [REJECTED_STATUSES]);
+    res.json(rows[0]);
   } catch (err) { fail(res, err); }
 });
 
@@ -48,14 +65,29 @@ router.post('/jobs', async (req, res) => {
   const title = (req.body.title || '').trim();
   if (!title) return res.status(400).json({ error: 'Title required' });
   try {
-    const { rows } = await pool.query('INSERT INTO candidate_jobs (title) VALUES ($1) RETURNING *', [title]);
+    const { rows } = await pool.query('INSERT INTO jobs (title) VALUES ($1) RETURNING *', [title]);
     res.status(201).json(rows[0]);
+  } catch (err) { fail(res, err); }
+});
+
+// PATCH /api/candidates/jobs/:id — rename and/or archive (archived: true|false)
+router.patch('/jobs/:id', async (req, res) => {
+  const { title, archived } = req.body;
+  try {
+    const sets = [], params = [];
+    if (title !== undefined) { params.push(title.trim()); sets.push(`title = $${params.length}`); }
+    if (archived !== undefined) { sets.push(`archived_at = ${archived ? 'NOW()' : 'NULL'}`); }
+    if (!sets.length) return res.status(400).json({ error: 'Nothing to update' });
+    params.push(req.params.id);
+    const { rows } = await pool.query(`UPDATE jobs SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING *`, params);
+    if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
   } catch (err) { fail(res, err); }
 });
 
 router.delete('/jobs/:id', async (req, res) => {
   try {
-    const { rowCount } = await pool.query('DELETE FROM candidate_jobs WHERE id = $1', [req.params.id]);
+    const { rowCount } = await pool.query('DELETE FROM jobs WHERE id = $1', [req.params.id]);
     if (!rowCount) return res.status(404).json({ error: 'Not found' });
     res.json({ success: true });
   } catch (err) { fail(res, err); }
@@ -67,7 +99,7 @@ router.patch('/interactions/:id', async (req, res) => {
   const { date_time, notes } = req.body;
   try {
     const { rows } = await pool.query(
-      'UPDATE candidate_interactions SET date_time = $1, notes = $2 WHERE id = $3 RETURNING *',
+      'UPDATE interactions SET date_time = $1, notes = $2 WHERE id = $3 RETURNING *',
       [date_time || null, notes || null, req.params.id]
     );
     if (!rows[0]) return res.status(404).json({ error: 'Not found' });
@@ -77,7 +109,7 @@ router.patch('/interactions/:id', async (req, res) => {
 
 router.delete('/interactions/:id', async (req, res) => {
   try {
-    const { rowCount } = await pool.query('DELETE FROM candidate_interactions WHERE id = $1', [req.params.id]);
+    const { rowCount } = await pool.query('DELETE FROM interactions WHERE id = $1', [req.params.id]);
     if (!rowCount) return res.status(404).json({ error: 'Not found' });
     res.json({ success: true });
   } catch (err) { fail(res, err); }
@@ -93,7 +125,8 @@ router.get('/', async (req, res) => {
     const params = [];
     conditions.push(`status ${tab === 'rejected' ? '= ANY' : '!= ALL'}($${params.length + 1})`);
     params.push(REJECTED_STATUSES);
-    if (job_id) { conditions.push(`job_id = $${params.length + 1}`); params.push(job_id); }
+    if (job_id === 'none') conditions.push('job_id IS NULL');
+    else if (job_id) { conditions.push(`job_id = $${params.length + 1}`); params.push(job_id); }
     const { rows } = await pool.query(
       `SELECT id, name, phone, email, status, status_reason, status_updated_at, arrival_time, job_id, meeting_rsvp_status
        FROM candidates WHERE ${conditions.join(' AND ')} ORDER BY arrival_time DESC`, params);
@@ -176,7 +209,7 @@ router.get('/:id/resume/url', async (req, res) => {
 router.get('/:id/interactions', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT * FROM candidate_interactions WHERE candidate_id = $1 ORDER BY date_time DESC NULLS FIRST, created_at DESC',
+      'SELECT * FROM interactions WHERE candidate_id = $1 ORDER BY date_time DESC NULLS FIRST, created_at DESC',
       [req.params.id]
     );
     res.json(rows);
@@ -188,7 +221,7 @@ router.post('/:id/interactions', async (req, res) => {
   if (!['call', 'meeting', 'note'].includes(type)) return res.status(400).json({ error: 'type required' });
   try {
     const { rows } = await pool.query(
-      'INSERT INTO candidate_interactions (candidate_id, type, date_time, notes, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      'INSERT INTO interactions (candidate_id, type, date_time, notes, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING *',
       [req.params.id, type, date_time || null, notes || null, req.user.id]
     );
     res.status(201).json(rows[0]);
@@ -211,7 +244,7 @@ router.post('/:id/meeting', async (req, res) => {
       [result.eventId, start, c.id]
     );
     await pool.query(
-      `INSERT INTO candidate_interactions (candidate_id, type, date_time, notes, created_by) VALUES ($1, 'meeting', $2, $3, $4)`,
+      `INSERT INTO interactions (candidate_id, type, date_time, notes, created_by) VALUES ($1, 'meeting', $2, $3, $4)`,
       [c.id, start, `נקבעה פגישה ביומן: ${title}`, req.user.id]
     );
     res.json(result);

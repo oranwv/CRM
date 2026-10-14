@@ -293,7 +293,7 @@ async function createCandidateMeeting({ candidateId, title, start, end, guestEma
       summary: title,
       colorId: '7',
       location: 'שרביה, פנחס בן יאיר 3, תל אביב',
-      description: `🧑‍💼 ראיון מועמד/ת\n🔗 פתח ב-CRM:\n${baseUrl}/candidates?candidate=${candidateId}`,
+      description: `🧑‍💼 ראיון מועמד/ת\n🔗 פתח ב-CRM:\n${baseUrl}/candidates/all?candidate=${candidateId}&src=cal`,
       start: { dateTime: start, timeZone: 'Asia/Jerusalem' },
       end:   { dateTime: end,   timeZone: 'Asia/Jerusalem' },
       attendees,

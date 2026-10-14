@@ -542,8 +542,10 @@ migrate(`
 `).catch(err => console.error('[DB] op_reminders migration error:', err.message));
 
 // מועמדים (candidate tracker, merged from the standalone app — Oct 2026). Managers only.
+// The CRM and the old candidate-tracker share one database (Oran, 14.10), so the tracker's own
+// tables — jobs / candidates / interactions — ARE the data. We only add what the CRM needs.
 migrate(`
-  CREATE TABLE IF NOT EXISTS candidate_jobs (
+  CREATE TABLE IF NOT EXISTS jobs (
     id SERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
@@ -558,28 +560,62 @@ migrate(`
     resume_path TEXT,
     gmail_message_id TEXT UNIQUE,
     status VARCHAR(50) DEFAULT 'חדש',
-    status_reason TEXT,
-    status_updated_at TIMESTAMPTZ,
     arrival_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    job_id INT REFERENCES candidate_jobs(id) ON DELETE SET NULL,
-    calendar_event_id VARCHAR,
-    meeting_rsvp_status VARCHAR DEFAULT 'none',
-    meeting_start TIMESTAMPTZ,
-    created_by INT REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
   );
-  CREATE TABLE IF NOT EXISTS candidate_interactions (
+  CREATE TABLE IF NOT EXISTS interactions (
     id SERIAL PRIMARY KEY,
     candidate_id INT REFERENCES candidates(id) ON DELETE CASCADE,
-    type VARCHAR(20) NOT NULL CHECK (type IN ('call', 'meeting', 'note')),
+    type VARCHAR(20) NOT NULL,
     date_time TIMESTAMPTZ,
     notes TEXT,
-    created_by INT REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
   );
+  ALTER TABLE jobs ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+  ALTER TABLE candidates ADD COLUMN IF NOT EXISTS job_id INT REFERENCES jobs(id) ON DELETE SET NULL;
+  ALTER TABLE candidates ADD COLUMN IF NOT EXISTS status_reason TEXT;
+  ALTER TABLE candidates ADD COLUMN IF NOT EXISTS status_updated_at TIMESTAMPTZ;
+  ALTER TABLE candidates ADD COLUMN IF NOT EXISTS calendar_event_id VARCHAR;
+  ALTER TABLE candidates ADD COLUMN IF NOT EXISTS meeting_rsvp_status VARCHAR DEFAULT 'none';
+  ALTER TABLE candidates ADD COLUMN IF NOT EXISTS meeting_start TIMESTAMPTZ;
+  ALTER TABLE candidates ADD COLUMN IF NOT EXISTS created_by INT REFERENCES users(id) ON DELETE SET NULL;
+  ALTER TABLE candidates ALTER COLUMN status SET DEFAULT 'חדש';
+  ALTER TABLE interactions ADD COLUMN IF NOT EXISTS created_by INT REFERENCES users(id) ON DELETE SET NULL;
+  ALTER TABLE interactions ALTER COLUMN date_time DROP NOT NULL;
+  ALTER TABLE interactions DROP CONSTRAINT IF EXISTS interactions_type_check;
+  ALTER TABLE interactions ADD CONSTRAINT interactions_type_check CHECK (type IN ('call', 'meeting', 'note'));
   CREATE INDEX IF NOT EXISTS candidates_job_id_idx ON candidates(job_id);
-  CREATE INDEX IF NOT EXISTS candidate_interactions_candidate_id_idx ON candidate_interactions(candidate_id);
+  CREATE INDEX IF NOT EXISTS interactions_candidate_id_idx ON interactions(candidate_id);
 `).catch(err => console.error('[DB] candidates migration error:', err.message));
+
+// One-time merge (Phase 44, 2026-10-14): Phase 43 briefly used its own candidate_jobs /
+// candidate_interactions tables next to the tracker's. Fold anything created there into the
+// tracker's tables, put every existing candidate under the "מכירות" job (Oran's instruction),
+// then drop the duplicates. Guarded by a settings key so it runs exactly once.
+migrate(`
+  DO $$
+  DECLARE sales_job INT;
+  BEGIN
+    IF EXISTS (SELECT 1 FROM settings WHERE key = 'candidates_jobs_merge_done') THEN RETURN; END IF;
+    IF to_regclass('candidate_jobs') IS NOT NULL THEN
+      INSERT INTO jobs (title, created_at)
+        SELECT cj.title, cj.created_at FROM candidate_jobs cj
+        WHERE NOT EXISTS (SELECT 1 FROM jobs j WHERE j.title = cj.title);
+    END IF;
+    IF to_regclass('candidate_interactions') IS NOT NULL THEN
+      INSERT INTO interactions (candidate_id, type, date_time, notes, created_by, created_at)
+        SELECT ci.candidate_id, ci.type, ci.date_time, ci.notes, ci.created_by, ci.created_at
+        FROM candidate_interactions ci WHERE EXISTS (SELECT 1 FROM candidates c WHERE c.id = ci.candidate_id);
+    END IF;
+    INSERT INTO jobs (title) SELECT 'מכירות' WHERE NOT EXISTS (SELECT 1 FROM jobs WHERE title = 'מכירות');
+    SELECT id INTO sales_job FROM jobs WHERE title = 'מכירות' ORDER BY id LIMIT 1;
+    UPDATE candidates SET job_id = sales_job;
+    UPDATE candidates SET status = 'חדש' WHERE status IS NULL OR status = 'New';
+    DROP TABLE IF EXISTS candidate_interactions;
+    DROP TABLE IF EXISTS candidate_jobs;
+    INSERT INTO settings (key, value) VALUES ('candidates_jobs_merge_done', NOW()::text);
+  END $$;
+`).catch(err => console.error('[DB] candidates one-time merge error:', err.message));
 
 migrate(`
   CREATE TABLE IF NOT EXISTS ai_knowledge_files (
