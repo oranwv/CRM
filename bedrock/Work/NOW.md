@@ -6,6 +6,10 @@ updated: 2026-10-14
 
 # Now
 
+## 2026-10-14 — Phase 44: lost reason "אורח מתקשר לבירור"
+
+- New `guest_inquiry` lost reason in LeadCard picker + Analytics labels. Cloud session, pushed.
+
 ## 2026-10-14 — Phase 42: WhatsApp tab newest-first
 
 - Lead card → וואטסאפ tab lists messages newest on top (client-side reverse). Cloud session, pushed.

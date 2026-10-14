@@ -2226,6 +2226,12 @@ build (briefing, staff attendance and the WhatsApp bot were explicitly left unto
   logging, `vite build`. Not verified: real Green API sends from `/api/chat/send` and the
   live OpenAI prompts — check after deploy.
 
+### Phase 44 — Lost reason "אורח מתקשר לבירור" ✅ Built 2026-10-14
+Oran asked for a new "לא סגרו" reason for calls that were never a real lead — a guest of an event
+calling to ask about it. Added `guest_inquiry` → "אורח מתקשר לבירור" to `LOST_REASONS`
+(`LeadCard.jsx`, shown in the lost-reason picker and on the lost badge) and to
+`LOST_REASON_LABELS` in `AnalyticsPage.jsx`. `lost_reason` is free text in the DB, no migration.
+
 ### Phase 42 — WhatsApp tab: newest message on top ✅ Built 2026-10-14
 Oran: the newest messages must appear at the top of the WhatsApp tab in the lead card, not at the
 bottom after scrolling. `LeadCard.jsx` `WhatsAppTab`: the WhatsApp message list is rendered
