@@ -2216,6 +2216,13 @@ build (briefing, staff attendance and the WhatsApp bot were explicitly left unto
   logging, `vite build`. Not verified: real Green API sends from `/api/chat/send` and the
   live OpenAI prompts — check after deploy.
 
+### Phase 33 — Calendar deep link on iOS ✅ Built 2026-10-14
+Opening a lead from Google Calendar on iPhone opened the wrong lead (`?lead=836` → lead 83):
+iOS link detection drops the last digit of a URL that ends a Hebrew line. Event descriptions
+(`calendarService.js`, lead events + meetings) now put the URL on its own line and end it
+with `&src=cal`, so the id is never the last character. Older events pick it up on the next
+re-sync (mark/edit, or הגדרות → סנכרון יומן).
+
 ### Phase 32 — Stay logged in ✅ Built 2026-09-27
 Oran kept landing on the public landing page / login from new tabs and after "back", on
 Mac and phone. Causes: the `crm_app` cookie that makes `GET /` serve the app was only ever

@@ -58,7 +58,9 @@ function buildEventBody(lead, type) {
     summary,
     colorId,
     ...times,
-    description: `ליד #${lead.id} | ${type === 'confirmed' ? 'סגור ✅' : 'אופציה 🟡'}\n🔗 פתח בCRM: ${process.env.SERVER_URL || 'http://localhost:3001'}/?lead=${lead.id}`,
+    // The URL sits on its own line and does not END with the lead id: Google Calendar on iOS
+    // mis-detects a link that ends in digits inside Hebrew text (…?lead=836 opened lead 83).
+    description: `ליד #${lead.id} | ${type === 'confirmed' ? 'סגור ✅' : 'אופציה 🟡'}\n🔗 פתח בCRM:\n${process.env.SERVER_URL || 'http://localhost:3001'}/?lead=${lead.id}&src=cal`,
     // Lets the CRM find this event again if the stored google_event_id ever goes stale
     extendedProperties: { private: { crmLeadId: String(lead.id) } },
   };
@@ -264,7 +266,7 @@ async function createMeeting({ leadId, title, start, end, guestEmail, guestName,
       summary: title,
       colorId: '3',
       location: 'שרביה, פנחס בן יאיר 3, תל אביב',
-      description: `🔗 פתח ליד ב-CRM: ${baseUrl}/?lead=${leadId}`,
+      description: `🔗 פתח ליד ב-CRM:\n${baseUrl}/?lead=${leadId}&src=cal`,
       start: { dateTime: start, timeZone: 'Asia/Jerusalem' },
       end:   { dateTime: end,   timeZone: 'Asia/Jerusalem' },
       attendees,
