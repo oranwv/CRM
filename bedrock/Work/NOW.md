@@ -17,7 +17,6 @@ updated: 2026-10-14
 ## 2026-10-14 — Phase 40: top bar on phones
 
 - ✈️ abroad toggle removed from the top bar (Oran's request; component kept, no UI for it now — ask Oran if it should live in הגדרות). Badge group scrolls sideways, mode button (`מכירות ▾`) is `shrink-0` so it stays on screen with 3 badges. `App.jsx` only.
-- Also committed (Oran approved): `server/db/pool.js` pool max 6 / idle 10s and `server/index.js` SIGTERM graceful shutdown — fix for Supabase "max clients reached" during Railway deploys (PRD Phase 41).
 
 ## 2026-10-12 — Phase 39: WhatsApp voice notes playable
 

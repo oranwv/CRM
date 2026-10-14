@@ -2222,13 +2222,6 @@ build (briefing, staff attendance and the WhatsApp bot were explicitly left unto
   logging, `vite build`. Not verified: real Green API sends from `/api/chat/send` and the
   live OpenAI prompts — check after deploy.
 
-### Phase 41 — DB pool cap + graceful shutdown on Railway deploys ✅ Committed 2026-10-14
-Supabase's session-mode pooler allows 15 clients per project; during a Railway deploy the old
-and new instances run side by side and together hit "max clients reached". `server/db/pool.js`:
-`max` = `DB_POOL_MAX` env or 6, `idleTimeoutMillis` 10s. `server/index.js`: on SIGTERM/SIGINT
-the HTTP server closes and `pool.end()` is called (8s hard exit), so the old instance hands
-its connections back as soon as the new one is live.
-
 ### Phase 40 — Top bar on phones: no ✈️ toggle, mode button always on screen ✅ Built 2026-10-14
 Oran's phone screenshot (14.10): the ✈️ "abroad" toggle cluttered the top bar and the mode
 button ("מכירות ▾") was pushed off the left edge by the three badges (ממתינים / אירועים לא
