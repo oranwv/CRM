@@ -149,27 +149,28 @@ function GlobalHeader() {
       style={{ height: 44, background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', borderBottom: '1px solid rgba(255,255,255,0.15)' }}
       dir="rtl"
     >
-      <div className="flex items-center gap-2">
-        <img src="/logo/mark-mono-white.svg" alt="" className="w-5 h-5 opacity-90" />
-        <span className="text-white font-black text-sm opacity-90">שרביה CRM</span>
+      {/* Badges may overflow on phones: this group scrolls horizontally so the mode button on the other side always stays on screen. */}
+      <div className="flex items-center gap-2 min-w-0 flex-1 overflow-x-auto whitespace-nowrap" style={{ scrollbarWidth: 'none' }}>
+        <img src="/logo/mark-mono-white.svg" alt="" className="w-5 h-5 opacity-90 shrink-0" />
+        <span className="text-white font-black text-sm opacity-90 shrink-0">שרביה CRM</span>
         {isManager && pendingCount > 0 && (
           <button
             onClick={() => setShowPending(true)}
-            className="bg-red-500 text-white text-[10px] font-black rounded-full px-2 py-0.5 leading-none hover:bg-red-600 transition cursor-pointer">
+            className="shrink-0 bg-red-500 text-white text-[10px] font-black rounded-full px-2 py-0.5 leading-none hover:bg-red-600 transition cursor-pointer">
             {pendingCount > 99 ? '99+' : pendingCount} ממתינים
           </button>
         )}
         {isProduction && unreadyCount > 0 && (
           <button
             onClick={() => setShowUnready(true)}
-            className="bg-red-500 text-white text-[10px] font-black rounded-full px-2 py-0.5 leading-none hover:bg-red-600 transition cursor-pointer">
+            className="shrink-0 bg-red-500 text-white text-[10px] font-black rounded-full px-2 py-0.5 leading-none hover:bg-red-600 transition cursor-pointer">
             {unreadyCount > 99 ? '99+' : unreadyCount} אירועים לא מוכנים
           </button>
         )}
         {isFinanceUser && paymentCount > 0 && (
           <button
             onClick={() => setShowPayments(true)}
-            className="bg-amber-400 text-amber-950 text-[10px] font-black rounded-full px-2 py-0.5 leading-none hover:bg-amber-300 transition cursor-pointer">
+            className="shrink-0 bg-amber-400 text-amber-950 text-[10px] font-black rounded-full px-2 py-0.5 leading-none hover:bg-amber-300 transition cursor-pointer">
             🧾 {paymentCount > 99 ? '99+' : paymentCount} תשלומים בלי קבלה
           </button>
         )}
@@ -208,8 +209,7 @@ function GlobalHeader() {
         </div>
       )}
 
-      <div className="flex items-center gap-1.5">
-      <AbroadToggle />
+      <div className="flex items-center gap-1.5 shrink-0">
       <div ref={dropRef} className="relative">
         <button
           onClick={() => setDropOpen(o => !o)}
@@ -254,6 +254,8 @@ function GlobalHeader() {
 }
 
 // ✈️ "I'm abroad": incoming calls skip my mobile and ring straight in the app.
+// Removed from the top bar on 2026-10-14 (Oran: the plane should not appear up there). Kept here in case it gets a new home (e.g. הגדרות).
+// eslint-disable-next-line no-unused-vars
 function AbroadToggle() {
   const { enabled, ready, config, setAbroad } = useCalls();
   if (!enabled) return null;

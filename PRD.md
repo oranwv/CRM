@@ -2216,6 +2216,15 @@ build (briefing, staff attendance and the WhatsApp bot were explicitly left unto
   logging, `vite build`. Not verified: real Green API sends from `/api/chat/send` and the
   live OpenAI prompts — check after deploy.
 
+### Phase 40 — Top bar on phones: no ✈️ toggle, mode button always on screen ✅ Built 2026-10-14
+Oran's phone screenshot (14.10): the ✈️ "abroad" toggle cluttered the top bar and the mode
+button ("מכירות ▾") was pushed off the left edge by the three badges (ממתינים / אירועים לא
+מוכנים / תשלומים בלי קבלה). `App.jsx` `GlobalHeader`: the ✈️ toggle is no longer rendered
+(the `AbroadToggle` component and `/calls/me` `abroad_mode` stay in the code, with no UI for
+now); the badge group is `flex-1 min-w-0 overflow-x-auto whitespace-nowrap` (scrolls sideways
+when it does not fit) and the mode button group is `shrink-0`, so it is always visible.
+Desktop layout unchanged.
+
 ### Phase 33 — Calendar deep link on iOS ✅ Built 2026-10-14
 Opening a lead from Google Calendar on iPhone opened the wrong lead (`?lead=836` → lead 83):
 iOS link detection drops the last digit of a URL that ends a Hebrew line. Event descriptions
