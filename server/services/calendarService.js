@@ -276,6 +276,33 @@ async function createMeeting({ leadId, title, start, end, guestEmail, guestName,
   return { eventId: result.data.id, eventLink: result.data.htmlLink };
 }
 
+// Interview meeting for a candidate (מועמדים module). Same shape as createMeeting but the
+// description links to the candidate in the CRM instead of a lead.
+async function createCandidateMeeting({ candidateId, title, start, end, guestEmail, guestName }) {
+  const auth     = getAuth();
+  const calendar = google.calendar({ version: 'v3', auth });
+
+  const attendees = [];
+  if (guestEmail) attendees.push({ email: guestEmail, displayName: guestName || undefined });
+
+  const baseUrl = process.env.SERVER_URL || 'http://localhost:3001';
+  const result = await calendar.events.insert({
+    calendarId: 'primary',
+    sendUpdates: 'none', // the user picks how to notify (email invite / WhatsApp) afterwards
+    requestBody: {
+      summary: title,
+      colorId: '7',
+      location: 'שרביה, פנחס בן יאיר 3, תל אביב',
+      description: `🧑‍💼 ראיון מועמד/ת\n🔗 פתח ב-CRM:\n${baseUrl}/candidates?candidate=${candidateId}`,
+      start: { dateTime: start, timeZone: 'Asia/Jerusalem' },
+      end:   { dateTime: end,   timeZone: 'Asia/Jerusalem' },
+      attendees,
+    },
+  });
+
+  return { eventId: result.data.id, eventLink: result.data.htmlLink };
+}
+
 // Create a free-form event on the business calendar, marked so the CRM
 // renders it as a manual (brown) event even after re-sync.
 async function createManualEvent({ title, description, date, startTime, endTime, allDay }) {
@@ -402,4 +429,4 @@ async function removeCalendarAcl(ruleId) {
   await calendar.acl.delete({ calendarId: CALENDAR_ID, ruleId });
 }
 
-module.exports = { syncLeadToCalendar, markEventDate, unmarkEventDate, removeLeadEventsFromGoogle, getLeadCalendarStatus, getLeadCalendarStatusVerified, createMeeting, createManualEvent, deleteManualEvent, sendMeetingInvite, getMeetingRsvpStatus, patchEventDescription, deleteMeeting, updateMeetingTime, listCalendarAcl, addCalendarViewer, removeCalendarAcl };
+module.exports = { createCandidateMeeting, syncLeadToCalendar, markEventDate, unmarkEventDate, removeLeadEventsFromGoogle, getLeadCalendarStatus, getLeadCalendarStatusVerified, createMeeting, createManualEvent, deleteManualEvent, sendMeetingInvite, getMeetingRsvpStatus, patchEventDescription, deleteMeeting, updateMeetingTime, listCalendarAcl, addCalendarViewer, removeCalendarAcl };

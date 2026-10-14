@@ -21,6 +21,7 @@ import OperationsPage    from './pages/OperationsPage';
 import ManagementPage   from './pages/ManagementPage';
 import CostsPage        from './pages/CostsPage';
 import FinancePage      from './pages/FinancePage';
+import CandidatesPage   from './pages/CandidatesPage';
 import AIChat           from './components/AIChat';
 import PendingDocsModal  from './components/PendingDocsModal';
 import PaymentSignalsModal from './components/PaymentSignalsModal';
@@ -149,6 +150,7 @@ function GlobalHeader() {
     else if (m === 'ניהול') navigate('/management');
     else if (m === 'כספים') navigate('/finance');
     else if (m === 'רווחים') navigate('/sales-performance');
+    else if (m === 'מועמדים') navigate('/candidates');
     else navigate('/');
   }
 
@@ -238,7 +240,7 @@ function GlobalHeader() {
             className="absolute left-0 mt-1.5 bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-100 z-50"
             style={{ minWidth: 140, top: '100%' }}
           >
-            {(isAdmin ? ['מכירות','הפקה','ספקים','אישורי הגעה','תפעול','ניהול','כספים','רווחים'] : [
+            {(isAdmin ? ['מכירות','הפקה','ספקים','אישורי הגעה','תפעול','ניהול','כספים','רווחים','מועמדים'] : [
               ...(userRoles.includes('sales') || userRoles.includes('sales_manager') ? ['מכירות'] : []),
               ...(userRoles.includes('production') ? ['הפקה']         : []),
               ...(userRoles.includes('suppliers')  ? ['ספקים']        : []),
@@ -247,6 +249,7 @@ function GlobalHeader() {
               ...(isManager                        ? ['ניהול']        : []),
               ...(isManager || userRoles.includes('finance') ? ['כספים'] : []),
               ...(isManager || userRoles.includes('sales') || userRoles.includes('sales_manager') ? ['רווחים'] : []),
+              ...(isManager                        ? ['מועמדים']      : []),
             ]).map(m => (
               <button
                 key={m}
@@ -310,8 +313,11 @@ function AppShellNav() {
   const isManagement   = mode === 'ניהול';
   const isFinance      = mode === 'כספים';
   const isProfit       = mode === 'רווחים';
+  const isCandidates   = mode === 'מועמדים';
 
-  const tabs = isProfit
+  const tabs = isCandidates
+    ? [{ path: '/candidates', icon: '🧑‍💼', label: 'מועמדים' }]
+    : isProfit
     ? [{ path: '/sales-performance', icon: '💰', label: 'רווחים' }]
     : isFinance
     ? [{ path: '/finance', icon: '💰', label: 'כספים' }]
@@ -406,6 +412,7 @@ function RootRedirect() {
     else if (mode === 'ניהול')       navigate('/management', { replace: true });
     else if (mode === 'כספים')       navigate('/finance',    { replace: true });
     else if (mode === 'רווחים')      navigate('/sales-performance', { replace: true });
+    else if (mode === 'מועמדים')     navigate('/candidates', { replace: true });
   }, []);
   return <LeadsPage />;
 }
@@ -556,6 +563,16 @@ function AppRoutes() {
             <>
               <div className="crm-header-spacer pt-11" />
               <CostsPage />
+              <AppShellNav />
+              <div className="pb-28" />
+            </>
+          </PrivateRoute>
+        } />
+        <Route path="/candidates" element={
+          <PrivateRoute>
+            <>
+              <div className="crm-header-spacer pt-11" />
+              <CandidatesPage />
               <AppShellNav />
               <div className="pb-28" />
             </>

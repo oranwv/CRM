@@ -17,6 +17,7 @@ export function AppModeProvider({ children }) {
       'ניהול':       isAM,
       'כספים':       isAM || roles.includes('finance'),
       'רווחים':      isAM || roles.includes('sales') || roles.includes('sales_manager'),
+      'מועמדים':     isAM, // candidate tracker — managers/admins only
     };
     if (stored && permitted[stored]) return stored;
     return Object.keys(permitted).find(k => permitted[k]) || 'מכירות';

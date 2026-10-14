@@ -541,6 +541,46 @@ migrate(`
   ALTER TABLE op_reminders ADD COLUMN IF NOT EXISTS remind_sent_at TIMESTAMPTZ;
 `).catch(err => console.error('[DB] op_reminders migration error:', err.message));
 
+// מועמדים (candidate tracker, merged from the standalone app — Oct 2026). Managers only.
+migrate(`
+  CREATE TABLE IF NOT EXISTS candidate_jobs (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS candidates (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255),
+    phone VARCHAR(50),
+    email VARCHAR(255),
+    address TEXT,
+    ai_summary TEXT,
+    resume_path TEXT,
+    gmail_message_id TEXT UNIQUE,
+    status VARCHAR(50) DEFAULT 'חדש',
+    status_reason TEXT,
+    status_updated_at TIMESTAMPTZ,
+    arrival_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    job_id INT REFERENCES candidate_jobs(id) ON DELETE SET NULL,
+    calendar_event_id VARCHAR,
+    meeting_rsvp_status VARCHAR DEFAULT 'none',
+    meeting_start TIMESTAMPTZ,
+    created_by INT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS candidate_interactions (
+    id SERIAL PRIMARY KEY,
+    candidate_id INT REFERENCES candidates(id) ON DELETE CASCADE,
+    type VARCHAR(20) NOT NULL CHECK (type IN ('call', 'meeting', 'note')),
+    date_time TIMESTAMPTZ,
+    notes TEXT,
+    created_by INT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS candidates_job_id_idx ON candidates(job_id);
+  CREATE INDEX IF NOT EXISTS candidate_interactions_candidate_id_idx ON candidate_interactions(candidate_id);
+`).catch(err => console.error('[DB] candidates migration error:', err.message));
+
 migrate(`
   CREATE TABLE IF NOT EXISTS ai_knowledge_files (
     id SERIAL PRIMARY KEY,
@@ -805,6 +845,7 @@ app.use('/api/suppliers',           requireAuth, require('./routes/suppliers'));
 app.use('/api/operations',          requireAuth, operationsRoutes);
 app.use('/api/production',          requireAuth, require('./routes/production'));
 app.use('/api/greeninvoice',        requireAuth, require('./routes/greeninvoice'));
+app.use('/api/candidates',          requireAuth, require('./routes/candidates')); // managers only (checked inside)
 // Public OAuth callback for connecting extra finance mailboxes (Google redirects
 // the browser here; access is validated via the signed `state` param).
 app.get('/api/finance/gmail/oauth/callback', require('./services/financeInvoiceScanner').oauthCallbackHandler);

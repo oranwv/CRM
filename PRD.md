@@ -2239,6 +2239,34 @@ WhatsApp in the **last 7 days**. `routes/whatsapp.js` webhook: the notify query 
 owner plus every user with an outbound `messages` row (`channel='whatsapp'`, `sent_by`,
 `timestamp >= NOW() - 7 days`) for that lead; de-duplicated by phone, one notification each.
 WhatsApp only — e-mail and calls unchanged.
+### Phase 43 — מועמדים (candidate tracker) inside the CRM, managers only ✅ Built 2026-10-14
+The standalone `candidate-tracker` app (`~/Projects/candidate-tracker`, own Railway service + DB)
+is now a mode of the CRM, next to מכירות / הפקה in the top-bar dropdown. Visible and usable only
+for `admin` / `manager` (`AppModeContext` permits it for `isAM`, dropdown + routes in `App.jsx`,
+server rejects everyone else with 403 in `routes/candidates.js`).
+- Tables (boot migration in `server/index.js`): `candidate_jobs`, `candidates`,
+  `candidate_interactions` (call / meeting / note). Statuses are free text with presets
+  (חדש / בתהליך / ראיון נקבע / התקבל / נדחה / לא רלוונטי); נדחה + לא רלוונטי live on the second tab.
+- API `/api/candidates/*` (jobs, list by job/tab, detail, status + reason, job assignment,
+  interactions, resume signed URL, delete) and interview meetings: `POST /:id/meeting` creates
+  the event on the Sharviya Google Calendar (`calendarService.createCandidateMeeting`, logs a
+  meeting interaction), `/meeting/notify` sends Google's invite email, `/meeting/whatsapp` sends a
+  plain-text message through the CRM's Green API line (replaces the old 360dialog template),
+  `/meeting/status` refreshes the guest's RSVP.
+- Resumes go to the CRM's `crm-files` Supabase bucket (private; 5-minute signed URLs), not the
+  old `resumes` bucket.
+- UI: `pages/CandidatesPage.jsx` (job chips, פעילים / נדחה tabs, sort by status, add modal,
+  💼 משרות manager) + `components/candidates/*` (detail drawer with status, job, summary, resume,
+  interactions, 📅 הזמן לראיון flow). Calendar deep link `/candidates?candidate=ID` opens the drawer.
+- Gmail import of candidate emails was NOT ported (Oran: not for now) — candidates are added
+  manually. The old parser (`candidate-tracker/server/services/gmailService.js`) is the
+  reference if it is wanted later.
+- One-time data move: `server/scripts/importCandidateTracker.js` copies jobs / candidates /
+  interactions and re-uploads resumes from the old DB + bucket (`SRC_DATABASE_URL`,
+  `SRC_SUPABASE_URL`, `SRC_SUPABASE_SERVICE_ROLE_KEY`; `--dry-run` supported; idempotent via
+  `import_source_id`). Not run yet — needs the old service's env values from Railway.
+- Verified: eslint + import resolution on the Mac VM (vite build can't run there — Mac-native
+  rolldown binary); server files `node --check`. Not verified: a real calendar/WhatsApp send.
 
 ### Phase 40 — Top bar on phones: no ✈️ toggle, two rows when badges are shown ✅ Built 2026-10-14
 Oran's phone screenshots (14.10): the ✈️ "abroad" toggle cluttered the top bar, and the three

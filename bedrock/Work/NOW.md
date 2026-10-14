@@ -13,6 +13,16 @@ updated: 2026-10-14
 ## 2026-10-14 — Phase 41: inbound WhatsApp notifies owner + recent senders
 
 - Webhook notification now goes to the lead owner **and** every user who sent this lead a WhatsApp from the CRM in the last 7 days (`messages.sent_by`), de-duplicated by phone. WhatsApp only. Done from a cloud session — pushed to GitHub; Mac picks it up via sync / next `git pull`.
+## 2026-10-14 — Phase 43: מועמדים (candidate tracker) merged into the CRM
+
+- New mode "מועמדים" in the top-bar dropdown, managers/admins only (403 for others). Tables
+  `candidate_jobs` / `candidates` / `candidate_interactions`; UI in `pages/CandidatesPage.jsx` +
+  `components/candidates/`. Interview invites use the CRM's Google Calendar + Green API WhatsApp
+  (360dialog dropped); resumes in `crm-files`. No Gmail import (Oran: not now).
+- Open: run `server/scripts/importCandidateTracker.js` once with the old Railway service's
+  `DATABASE_URL` / Supabase keys (`--dry-run` first) — Oran chose to migrate the existing data.
+  After that the old `candidate-tracker` Railway service can be stopped.
+- Not verified end-to-end (no vite build on the Mac VM; no live calendar/WhatsApp test).
 
 ## 2026-10-14 — DB connections during deploys
 
