@@ -128,6 +128,15 @@ function GlobalHeader() {
     }
   }, [location.search, isManager, navigate, location.pathname]);
 
+  const hasBadges = (isManager && pendingCount > 0) || (isProduction && unreadyCount > 0) || (isFinanceUser && paymentCount > 0);
+
+  // Phones (< sm): when there are badges the bar is two rows (brand + mode on top, badges below)
+  // and the page spacers (.crm-header-spacer) grow to match — see index.css. Desktop stays one row.
+  useEffect(() => {
+    document.documentElement.classList.toggle('crm-header-tall', hasBadges && !isPublic);
+    return () => document.documentElement.classList.remove('crm-header-tall');
+  }, [hasBadges, isPublic]);
+
   if (isPublic) return null;
 
   function selectMode(m) {
@@ -145,14 +154,17 @@ function GlobalHeader() {
 
   return (
     <div
-      className="fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4"
-      style={{ height: 44, background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', borderBottom: '1px solid rgba(255,255,255,0.15)' }}
+      className={`crm-header ${hasBadges ? 'crm-header-tall' : ''} fixed top-0 left-0 right-0 z-40 flex flex-wrap items-center justify-between gap-y-1 px-4 ${hasBadges ? 'h-20 sm:h-11' : 'h-11'}`}
+      style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', borderBottom: '1px solid rgba(255,255,255,0.15)' }}
       dir="rtl"
     >
-      {/* Badges may overflow on phones: this group scrolls horizontally so the mode button on the other side always stays on screen. */}
-      <div className="flex items-center gap-2 min-w-0 flex-1 overflow-x-auto whitespace-nowrap" style={{ scrollbarWidth: 'none' }}>
+      <div className="order-1 flex items-center gap-2 shrink-0 h-11">
         <img src="/logo/mark-mono-white.svg" alt="" className="w-5 h-5 opacity-90 shrink-0" />
         <span className="text-white font-black text-sm opacity-90 shrink-0">שרביה CRM</span>
+      </div>
+
+      {hasBadges && (
+      <div className="order-3 basis-full h-8 sm:order-2 sm:basis-auto sm:flex-1 sm:min-w-0 sm:h-11 sm:mr-2 flex items-center gap-2 overflow-x-auto whitespace-nowrap" style={{ scrollbarWidth: 'none' }}>
         {isManager && pendingCount > 0 && (
           <button
             onClick={() => setShowPending(true)}
@@ -175,6 +187,7 @@ function GlobalHeader() {
           </button>
         )}
       </div>
+      )}
 
       {showPayments && (
         <PaymentSignalsModal onClose={() => { setShowPayments(false); loadPaymentCount(); }} />
@@ -192,7 +205,7 @@ function GlobalHeader() {
       )}
 
       {reviewedDocs.length > 0 && (
-        <div className="fixed left-1/2 -translate-x-1/2 z-[70] w-[92%] max-w-md" style={{ top: 52 }}>
+        <div className="fixed left-1/2 -translate-x-1/2 z-[70] w-[92%] max-w-md" style={{ top: 'calc(var(--crm-header-h) + 8px)' }}>
           {reviewedDocs.map(d => {
             const ok = d.status === 'approved';
             return (
@@ -209,7 +222,7 @@ function GlobalHeader() {
         </div>
       )}
 
-      <div className="flex items-center gap-1.5 shrink-0">
+      <div className="order-2 sm:order-3 flex items-center gap-1.5 shrink-0 h-11">
       <div ref={dropRef} className="relative">
         <button
           onClick={() => setDropOpen(o => !o)}
@@ -411,7 +424,7 @@ function AppRoutes() {
         <Route path="/" element={
           <PrivateRoute>
             <>
-              <div className="pt-11" />
+              <div className="crm-header-spacer pt-11" />
               <RootRedirect />
               <AppShellNav />
               <div className="pb-28" />
@@ -421,7 +434,7 @@ function AppRoutes() {
         <Route path="/events" element={
           <PrivateRoute>
             <>
-              <div className="pt-11" />
+              <div className="crm-header-spacer pt-11" />
               <EventsPage />
               <AppShellNav />
               <div className="pb-28" />
@@ -431,7 +444,7 @@ function AppRoutes() {
         <Route path="/analytics" element={
           <PrivateRoute>
             <>
-              <div className="pt-11" />
+              <div className="crm-header-spacer pt-11" />
               <AnalyticsPage />
               <AppShellNav />
               <div className="pb-28" />
@@ -441,7 +454,7 @@ function AppRoutes() {
         <Route path="/sales-performance" element={
           <PrivateRoute>
             <>
-              <div className="pt-11" />
+              <div className="crm-header-spacer pt-11" />
               <SalesPerformancePage />
               <AppShellNav />
               <div className="pb-28" />
@@ -451,7 +464,7 @@ function AppRoutes() {
         <Route path="/sales-worklist" element={
           <PrivateRoute>
             <>
-              <div className="pt-11" />
+              <div className="crm-header-spacer pt-11" />
               <SalesWorklistPage />
               <AppShellNav />
               <div className="pb-28" />
@@ -461,7 +474,7 @@ function AppRoutes() {
         <Route path="/calendar" element={
           <PrivateRoute>
             <>
-              <div className="pt-11" />
+              <div className="crm-header-spacer pt-11" />
               <CalendarPage onOpenLead={(id) => setCalendarOpenLead(id)} />
               <AppShellNav />
               <div className="pb-28" />
@@ -471,7 +484,7 @@ function AppRoutes() {
         <Route path="/tasks" element={
           <PrivateRoute>
             <>
-              <div className="pt-11" />
+              <div className="crm-header-spacer pt-11" />
               <TasksPage />
               <AppShellNav />
               <div className="pb-28" />
@@ -481,7 +494,7 @@ function AppRoutes() {
         <Route path="/admin" element={
           <PrivateRoute>
             <>
-              <div className="pt-11" />
+              <div className="crm-header-spacer pt-11" />
               <AdminPage />
               <AppShellNav />
               <div className="pb-28" />
@@ -491,7 +504,7 @@ function AppRoutes() {
         <Route path="/finance" element={
           <PrivateRoute>
             <>
-              <div className="pt-11" />
+              <div className="crm-header-spacer pt-11" />
               <FinancePage />
               <AppShellNav />
               <div className="pb-28" />
@@ -501,7 +514,7 @@ function AppRoutes() {
         <Route path="/suppliers" element={
           <PrivateRoute>
             <>
-              <div className="pt-11" />
+              <div className="crm-header-spacer pt-11" />
               <SuppliersPage />
               <AppShellNav />
               <div className="pb-28" />
@@ -511,7 +524,7 @@ function AppRoutes() {
         <Route path="/rsvps" element={
           <PrivateRoute>
             <>
-              <div className="pt-11" />
+              <div className="crm-header-spacer pt-11" />
               <RSVPsPage />
               <AppShellNav />
               <div className="pb-28" />
@@ -521,7 +534,7 @@ function AppRoutes() {
         <Route path="/rsvps/:id" element={
           <PrivateRoute>
             <>
-              <div className="pt-11" />
+              <div className="crm-header-spacer pt-11" />
               <RSVPDetailPage />
               <AppShellNav />
               <div className="pb-28" />
@@ -531,7 +544,7 @@ function AppRoutes() {
         <Route path="/operations" element={
           <PrivateRoute>
             <>
-              <div className="pt-11" />
+              <div className="crm-header-spacer pt-11" />
               <OperationsPage />
               <AppShellNav />
               <div className="pb-28" />
@@ -541,7 +554,7 @@ function AppRoutes() {
         <Route path="/costs" element={
           <PrivateRoute>
             <>
-              <div className="pt-11" />
+              <div className="crm-header-spacer pt-11" />
               <CostsPage />
               <AppShellNav />
               <div className="pb-28" />
@@ -551,7 +564,7 @@ function AppRoutes() {
         <Route path="/management" element={
           <PrivateRoute>
             <>
-              <div className="pt-11" />
+              <div className="crm-header-spacer pt-11" />
               <ManagementPage />
               <AppShellNav />
               <div className="pb-28" />

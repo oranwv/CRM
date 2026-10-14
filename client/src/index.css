@@ -3,6 +3,13 @@
 
 html { font-size: 18px; }
 
+/* Top bar height: one row (44px); on phones two rows (80px) while badges are shown (GlobalHeader in App.jsx). */
+.crm-header { --crm-header-h: 44px; }
+@media (max-width: 639px) {
+  .crm-header.crm-header-tall { --crm-header-h: 80px; }
+  html.crm-header-tall .crm-header-spacer { padding-top: 80px; }
+}
+
 * { box-sizing: border-box; }
 
 body {

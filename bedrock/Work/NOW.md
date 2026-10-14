@@ -16,7 +16,7 @@ updated: 2026-10-14
 
 ## 2026-10-14 — Phase 40: top bar on phones
 
-- ✈️ abroad toggle removed from the top bar (Oran's request; component kept, no UI for it now — ask Oran if it should live in הגדרות). Badge group scrolls sideways, mode button (`מכירות ▾`) is `shrink-0` so it stays on screen with 3 badges. `App.jsx` only.
+- ✈️ abroad toggle removed from the top bar (Oran's request; component kept, no UI for it now — ask Oran if it should live in הגדרות). Round 1 (scrolling badge row) clipped the badges under the mode button; Oran chose option 2: on phones the bar is two rows (80px) while badges exist — `html.crm-header-tall` + `.crm-header-spacer` in `index.css`. Desktop unchanged.
 
 ## 2026-10-12 — Phase 39: WhatsApp voice notes playable
 
