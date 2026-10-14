@@ -6,6 +6,14 @@ updated: 2026-10-14
 
 # Now
 
+## 2026-10-14 — DB connections during deploys
+
+- Pool capped (`DB_POOL_MAX`, default 6, idle 10s) + graceful SIGTERM (`server.close()` + `pool.end()`),
+  on top of the sequential boot migrations from 2026-09-29. Goal: old + new instance under Supabase's 15.
+- Not verified in Railway logs: Railway session in Oran's Chrome was logged out.
+- proevent.co.il without www has no A record at box.co.il (only www → Railway CNAME). Needs a
+  forward/redirect to www at box.co.il — Oran's side.
+
 ## 2026-10-14 — Phase 40: top bar on phones
 
 - ✈️ abroad toggle removed from the top bar (Oran's request; component kept, no UI for it now — ask Oran if it should live in הגדרות). Badge group scrolls sideways, mode button (`מכירות ▾`) is `shrink-0` so it stays on screen with 3 badges. `App.jsx` only.
