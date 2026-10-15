@@ -1,10 +1,22 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-10-14
+updated: 2026-10-15
 ---
 
 # Now
+
+## 2026-10-15 — Meeting host (Phase 46)
+
+Oran's decisions: do not touch `assigned_to`; the host gets reminders/notes (booked for them,
+rescheduled, cancelled, day-before reminder); anyone may book for anyone; host is internal
+only — the customer must never see it (so nothing goes into the Google event). Built in
+`routes/calendar.js` (hostUserId, notifyHost, details returns host_name),
+`services/meetingReminderService.js` (`sendHostMeetingReminders`), `routes/chat.js`
+schedule queries, `ScheduleMeetingModal` select + lead-card line. Not run against the DB —
+node --check + esbuild parse. After deploy: book a meeting for another user and check their
+WhatsApp arrives.
+
 
 ## 2026-10-15 — Recording player speed (1/1.2/1.5/2×)
 

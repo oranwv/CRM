@@ -4,6 +4,31 @@ const crypto  = require('crypto');
 const axios   = require('axios');
 const { markEventDate, unmarkEventDate, getLeadCalendarStatus, getLeadCalendarStatusVerified, syncLeadToCalendar, createMeeting, createManualEvent, deleteManualEvent, sendMeetingInvite, getMeetingRsvpStatus, patchEventDescription, deleteMeeting, updateMeetingTime, listCalendarAcl, addCalendarViewer, removeCalendarAcl } = require('../services/calendarService');
 const pool = require('../db/pool');
+const { sendWhatsApp } = require('../services/reminderService');
+
+const IL = 'Asia/Jerusalem';
+function fmtWhen(start, end) {
+  const s = new Date(start), e = end ? new Date(end) : null;
+  const day  = s.toLocaleDateString('he-IL', { weekday: 'long', timeZone: IL });
+  const date = s.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: IL });
+  const t1   = s.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: IL, hour12: false });
+  const t2   = e ? e.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: IL, hour12: false }) : '';
+  return `${day} ${date} בשעה ${t1}${t2 ? `–${t2}` : ''}`;
+}
+// Internal WhatsApp to the staff member who holds the meeting (host). Skipped when the host is the
+// person acting (they already know) or has no phone. The customer never sees the host anywhere.
+async function notifyHost(hostUserId, actorUserId, text) {
+  if (!hostUserId || Number(hostUserId) === Number(actorUserId)) return;
+  try {
+    const { rows } = await pool.query('SELECT phone FROM users WHERE id = $1 AND phone IS NOT NULL AND NOT COALESCE(blocked, false)', [hostUserId]);
+    if (rows[0]?.phone) await sendWhatsApp(rows[0].phone, text);
+  } catch (e) { console.error('[Calendar] notifyHost failed:', e.message); }
+}
+async function hostName(hostUserId) {
+  if (!hostUserId) return null;
+  const { rows } = await pool.query('SELECT display_name FROM users WHERE id = $1', [hostUserId]);
+  return rows[0]?.display_name || null;
+}
 
 // GET /api/calendar/leads — all leads with event dates (for calendar view)
 router.get('/leads', async (req, res) => {
@@ -73,6 +98,8 @@ router.get('/leads/:leadId/status', async (req, res) => {
 // POST /api/calendar/leads/:leadId/meeting — create a meeting event for a lead
 router.post('/leads/:leadId/meeting', async (req, res) => {
   const { title, start, end, guestEmail, guestName, sendInvite } = req.body;
+  // Who holds the meeting (staff). Defaults to the person booking it. Internal only — not sent to Google.
+  const hostUserId = req.body.hostUserId ? Number(req.body.hostUserId) : (req.user?.id || null);
   try {
     const { rows } = await pool.query('SELECT * FROM leads WHERE id = $1', [req.params.leadId]);
     const lead = rows[0];
@@ -95,10 +122,11 @@ router.post('/leads/:leadId/meeting', async (req, res) => {
 
     const confirmToken = crypto.randomUUID();
     await pool.query(
-      `INSERT INTO meetings (lead_id, google_event_id, title, start_time, end_time, confirm_token)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [lead.id, eventId, title, start, end, confirmToken]
+      `INSERT INTO meetings (lead_id, google_event_id, title, start_time, end_time, confirm_token, host_user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [lead.id, eventId, title, start, end, confirmToken, hostUserId]
     );
+    const host = await hostName(hostUserId);
 
     const startDt = new Date(start);
     const endDt   = new Date(end);
@@ -108,8 +136,16 @@ router.post('/leads/:leadId/meeting', async (req, res) => {
     await pool.query(
       `INSERT INTO lead_interactions (lead_id, type, direction, body, created_by, source)
        VALUES ($1, 'meeting', 'outbound', $2, $3, 'calendar')`,
-      [lead.id, `📅 פגישה נקבעה: ${title} | ${fmtDate} ${fmtStart}–${fmtEnd}`, req.user?.id || null]
+      [lead.id, `📅 פגישה נקבעה: ${title} | ${fmtDate} ${fmtStart}–${fmtEnd}${host ? ` | מקיים: ${host}` : ''}`, req.user?.id || null]
     );
+
+    // Booked for someone else → tell them
+    {
+      const baseUrl0 = process.env.SERVER_URL || 'http://localhost:3001';
+      const who = req.user?.display_name || 'מישהו מהצוות';
+      await notifyHost(hostUserId, req.user?.id,
+        `📅 ${who} קבע/ה לך פגישה עם ${lead.name || 'לקוח'}${lead.event_type ? ` (${lead.event_type})` : ''}\n${fmtWhen(start, end)} בשרביה\n🔗 ${baseUrl0}/?lead=${lead.id}&src=wa`);
+    }
 
     // Auto-advance stage to meeting_scheduled when a meeting is booked (only from 'contacted', not 'new')
     await pool.query(
@@ -262,7 +298,8 @@ router.get('/meetings/:eventId/status', async (req, res) => {
 router.get('/meetings/:eventId/details', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT * FROM meetings WHERE google_event_id = $1',
+      `SELECT m.*, u.display_name AS host_name FROM meetings m
+       LEFT JOIN users u ON u.id = m.host_user_id WHERE m.google_event_id = $1`,
       [req.params.eventId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Meeting not found' });
@@ -303,6 +340,11 @@ router.delete('/meetings/:eventId', async (req, res) => {
        VALUES ($1, 'note', 'outbound', $2, $3)`,
       [meeting.lead_id, body, req.user?.id || null]
     );
+    {
+      const { rows: lr } = await pool.query('SELECT name FROM leads WHERE id = $1', [meeting.lead_id]);
+      await notifyHost(meeting.host_user_id, req.user?.id,
+        `❌ הפגישה שלך עם ${lr[0]?.name || 'לקוח'} (${fmtDate} ${fmtTime}) בוטלה${reason ? `\nסיבה: ${reason}` : ''}\nבוטלה ע"י ${req.user?.display_name || 'הצוות'}`);
+    }
 
     res.json({ ok: true });
   } catch (err) {
@@ -343,6 +385,14 @@ router.patch('/meetings/:eventId/reschedule', async (req, res) => {
        VALUES ($1, 'note', 'outbound', $2, $3)`,
       [meeting.lead_id, body, req.user?.id || null]
     );
+    // Host reminder goes out again for the new time
+    await pool.query('UPDATE meetings SET host_reminder_sent_at = NULL WHERE google_event_id = $1', [req.params.eventId]);
+    {
+      const { rows: lr } = await pool.query('SELECT id, name FROM leads WHERE id = $1', [meeting.lead_id]);
+      const baseUrl0 = process.env.SERVER_URL || 'http://localhost:3001';
+      await notifyHost(meeting.host_user_id, req.user?.id,
+        `🔄 הפגישה שלך עם ${lr[0]?.name || 'לקוח'} נדחתה\nמועד חדש: ${fmtWhen(newStart, newEnd)}${reason ? `\nסיבה: ${reason}` : ''}\n🔗 ${baseUrl0}/?lead=${meeting.lead_id}&src=wa`);
+    }
 
     res.json({ ok: true });
   } catch (err) {

@@ -330,11 +330,13 @@ async function executeTool(name, args, user) {
 
       const { rows: meetings } = await pool.query(`
         SELECT 'meeting' AS type, m.id, m.title, m.start_time AS time,
-               l.name AS lead_name, l.id AS lead_id, l.phone AS lead_phone
+               l.name AS lead_name, l.id AS lead_id, l.phone AS lead_phone,
+               hu.display_name AS host_name
         FROM meetings m
         JOIN leads l ON l.id = m.lead_id
+        LEFT JOIN users hu ON hu.id = m.host_user_id
         WHERE m.start_time::date = CURRENT_DATE
-          AND ($1 = true OR l.assigned_to = $2)
+          AND ($1 = true OR m.host_user_id = $2 OR (m.host_user_id IS NULL AND l.assigned_to = $2))
         ORDER BY m.start_time ASC LIMIT 20
       `, [isAM, uid]);
 
@@ -350,11 +352,13 @@ async function executeTool(name, args, user) {
 
       const { rows: meetings } = await pool.query(`
         SELECT 'meeting' AS type, m.id, m.title, m.start_time AS time,
-               l.name AS lead_name, l.id AS lead_id, l.phone AS lead_phone
+               l.name AS lead_name, l.id AS lead_id, l.phone AS lead_phone,
+               hu.display_name AS host_name
         FROM meetings m
         JOIN leads l ON l.id = m.lead_id
+        LEFT JOIN users hu ON hu.id = m.host_user_id
         WHERE m.start_time::date >= $1::date AND m.start_time::date <= $2::date
-          AND ($3 = true OR l.assigned_to = $4)
+          AND ($3 = true OR m.host_user_id = $4 OR (m.host_user_id IS NULL AND l.assigned_to = $4))
         ORDER BY m.start_time ASC LIMIT 100
       `, [from_date, to_date, isAM, uid]);
 

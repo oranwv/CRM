@@ -892,6 +892,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
         <ScheduleMeetingModal
           lead={lead}
           leadId={leadId}
+          users={users}
           allPhones={allPhones}
           allPhoneLabels={allPhoneLabels}
           onClose={() => setShowMeetingModal(false)}
@@ -5401,6 +5402,9 @@ function CalendarSection({ lead, leadId, editForm, calStatus, onUpdated, allPhon
             <span className="text-slate-700 font-semibold">
               {meeting ? formatMeetingDateTime(meeting.start_time) : '...'}
             </span>
+            {meeting?.host_name && (
+              <span className="block text-xs text-violet-600 font-semibold mt-0.5">מקיים/ת: {meeting.host_name}</span>
+            )}
           </div>
           <button onClick={() => setShowMeetingAction(true)}
             className="text-sm font-bold px-3 py-1.5 rounded-xl border-2 border-red-200 text-red-600 hover:bg-red-50 transition whitespace-nowrap">
@@ -5951,7 +5955,10 @@ function MeetingActionModal({ lead, leadId, eventId, meeting, allPhones, allPhon
 }
 
 /* ── SCHEDULE MEETING MODAL ── */
-function ScheduleMeetingModal({ lead, leadId, allPhones, allPhoneLabels, onClose, onDone }) {
+function ScheduleMeetingModal({ lead, leadId, users = [], allPhones, allPhoneLabels, onClose, onDone }) {
+  const currentUser = JSON.parse(localStorage.getItem('crm_user') || '{}');
+  // Who holds the meeting — internal only (never shown to the customer). Defaults to whoever books it.
+  const [hostUserId, setHostUserId] = useState(currentUser.id ? String(currentUser.id) : '');
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const tomorrowStr = tomorrow.toLocaleDateString('sv', { timeZone: 'Asia/Jerusalem' }); // yyyy-mm-dd
@@ -5985,6 +5992,7 @@ function ScheduleMeetingModal({ lead, leadId, allPhones, allPhoneLabels, onClose
       const { data } = await api.post(`/calendar/leads/${leadId}/meeting`, {
         title, start, end, guestEmail, guestName: lead.name,
         sendInvite: delivery === 'email',
+        hostUserId: hostUserId ? Number(hostUserId) : null,
       });
 
       if (delivery === 'whatsapp') {
@@ -6047,6 +6055,12 @@ function ScheduleMeetingModal({ lead, leadId, allPhones, allPhoneLabels, onClose
                 <label className="text-sm text-slate-500 block mb-1 text-right">שעת סיום</label>
                 <PickerTimeInput value={endTime} onChange={setEnd} className={cls} />
               </div>
+            </div>
+            <div>
+              <label className="text-sm text-slate-500 block mb-1 text-right">מי מקיים את הפגישה <span className="text-slate-400">(פנימי – הלקוח לא רואה)</span></label>
+              <select value={hostUserId} onChange={e => setHostUserId(e.target.value)} className={cls}>
+                {users.map(u => <option key={u.id} value={u.id}>{u.display_name}</option>)}
+              </select>
             </div>
             <div>
               <label className="text-sm text-slate-500 block mb-1 text-right">שלח הזמנה דרך</label>

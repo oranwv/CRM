@@ -1771,6 +1771,19 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 46 — Meeting host (מי מקיים את הפגישה) ✅ Built 2026-10-15
+Use case: Gili talks to a customer and books the meeting for Shir. New internal-only field
+`meetings.host_user_id` — a "מי מקיים את הפגישה" dropdown in the schedule-meeting modal
+(default: whoever books; anyone can pick anyone). Never sent to Google / the customer; the
+invite is unchanged. The lead's `assigned_to` is NOT changed. The host:
+- gets a WhatsApp when the meeting is booked for them (not when they book it themselves),
+  and when it is rescheduled or cancelled by someone else (`notifyHost` in `routes/calendar.js`);
+- gets an internal reminder the day before (`sendHostMeetingReminders`, hourly,
+  `meetings.host_reminder_sent_at`; reset on reschedule) — separate from the customer's
+  confirmation reminder;
+- sees the meeting in the AI chat "today's schedule" / schedule (host first, else lead owner).
+Lead card shows "מקיים/ת: <name>" under נקבעה פגישה; the timeline note carries "מקיים: <name>".
+
 ### Phase 1 — Core CRM ✅
 Project scaffold, DB schema, multi-user auth, lead table, lead card, manual creation, WhatsApp capture, Gmail capture, Railway deploy.
 

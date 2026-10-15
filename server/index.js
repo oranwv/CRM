@@ -155,6 +155,8 @@ migrate(`
   ALTER TABLE meetings ADD COLUMN IF NOT EXISTS confirm_token TEXT;
   ALTER TABLE meetings ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMPTZ;
   ALTER TABLE meetings ADD COLUMN IF NOT EXISTS confirmed_at TIMESTAMPTZ;
+  ALTER TABLE meetings ADD COLUMN IF NOT EXISTS host_user_id INT REFERENCES users(id) ON DELETE SET NULL;
+  ALTER TABLE meetings ADD COLUMN IF NOT EXISTS host_reminder_sent_at TIMESTAMPTZ;
   ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) ON DELETE SET NULL;
   ALTER TABLE leads ADD COLUMN IF NOT EXISTS event_name VARCHAR(255);
   UPDATE leads SET event_name = name WHERE event_name IS NULL;
@@ -1043,10 +1045,12 @@ function startCronJobs() {
   console.log('[Cron] Payment-signal close scan started');
 
   // Meeting reminders — send WhatsApp 2 days before scheduled meeting, hourly check
-  const { sendMeetingReminders } = require('./services/meetingReminderService');
+  const { sendMeetingReminders, sendHostMeetingReminders } = require('./services/meetingReminderService');
   setTimeout(() => {
     sendMeetingReminders();
     setInterval(sendMeetingReminders, 60 * 60 * 1000);
+    sendHostMeetingReminders();
+    setInterval(sendHostMeetingReminders, 60 * 60 * 1000);
   }, 2 * 60 * 1000);
   console.log('[Cron] Meeting reminder service started');
 }
