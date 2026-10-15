@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
+import { israelLocalToISO } from '../utils/israelTime';
 
 const POSTPONE_PRESETS = [
   { label: '15 דקות', minutes: 15 },
@@ -66,14 +67,14 @@ export default function TaskActionPage() {
   async function handlePostpone() {
     if (!postponeSelected) return;
     const body = postponeSelected === 'custom'
-      ? { dueAt: new Date(customDate).toISOString() }
+      ? { dueAt: israelLocalToISO(customDate) }
       : { minutes: postponeSelected };
     if (await post('postpone', body)) setDone('המשימה נדחתה בהצלחה ⏰');
   }
 
   async function handleFollowup() {
     if (!followTitle.trim()) return;
-    const body = { title: followTitle, dueAt: followDate ? new Date(followDate).toISOString() : undefined };
+    const body = { title: followTitle, dueAt: followDate ? israelLocalToISO(followDate) : undefined };
     if (await post('create-followup', body)) setDone('משימת המשך נוצרה ➕');
   }
 

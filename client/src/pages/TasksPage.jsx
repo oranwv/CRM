@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import api from '../api';
 import LeadCard from '../components/LeadCard';
 import { useAppMode } from '../context/AppModeContext';
+import { israelLocalToISO, isoToIsraelLocal } from '../utils/israelTime';
 
 function TaskEditModal({ task, users, onSaved, onClose }) {
   const [title, setTitle]           = useState(task.title);
-  const [dueAt, setDueAt]           = useState(task.due_at ? new Date(task.due_at).toISOString().slice(0,16) : '');
+  const [dueAt, setDueAt]           = useState(isoToIsraelLocal(task.due_at));
   const [assignedTo, setAssignedTo] = useState(task.assigned_to || '');
   const [saving, setSaving]         = useState(false);
 
@@ -14,7 +15,7 @@ function TaskEditModal({ task, users, onSaved, onClose }) {
     try {
       await api.patch(`/tasks/${task.id}`, {
         title,
-        due_at: dueAt ? new Date(dueAt).toISOString() : null,
+        due_at: israelLocalToISO(dueAt),
         assigned_to: assignedTo || null,
       });
       onSaved();
@@ -316,7 +317,7 @@ export default function TasksPage() {
     if (!postponeSelected) return;
     let due_at;
     if (postponeSelected === 'custom') {
-      due_at = new Date(customDate).toISOString();
+      due_at = israelLocalToISO(customDate);
     } else {
       due_at = new Date(Date.now() + postponeSelected * 60 * 1000).toISOString();
     }
@@ -339,7 +340,7 @@ export default function TasksPage() {
     try {
       await api.post(`/leads/${activeTask.lead_id}/tasks`, {
         title:      followTitle.trim(),
-        due_at:     followDate ? new Date(followDate).toISOString() : null,
+        due_at:     israelLocalToISO(followDate),
         assigned_to: activeTask.assigned_to,
         remind_via:  activeTask.remind_via,
       });

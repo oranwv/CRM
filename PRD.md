@@ -2281,6 +2281,19 @@ build (briefing, staff attendance and the WhatsApp bot were explicitly left unto
   logging, `vite build`. Not verified: real Green API sends from `/api/chat/send` and the
   live OpenAI prompts — check after deploy.
 
+### Phase 46 — Israel time everywhere + "שיחות שבוצעו" counts system calls ✅ Built 2026-10-15
+**Pickers.** Oran: fix the remaining device-timezone pickers too. Every `datetime-local` now goes
+through `utils/israelTime.js` (`israelLocalToISO` / `isoToIsraelLocal`): task edit (LeadCard,
+TasksPage), task postpone / follow-up (TasksPage, TaskActionPage, PostponePage), AI-chat task
+due date, and the candidates module (interview invite start/end, interaction date add/edit —
+these used to send the raw local string, so the server read it in its own zone; the interaction
+time is also *displayed* in Israel time now).
+**Calls columns in ניהול.** "שיחות שבוצעו" was empty because it counted only `source='dial'`
+(the old tel:-link attempt) while the Twilio dialer writes `source='twilio'`; and "שיחות שתועדו"
+(= call entries a user wrote by hand on the lead, source NULL) was silently including the Twilio
+calls. Now: שבוצעו = outbound `call`/`call_attempt` with source dial **or twilio** (every dial
+from the system, answered or not); שתועדו = outbound `call` with no system source (manual log).
+
 ### Phase 45 — ניהול: "פגישות נקבעו" + pickers always mean Israel time ✅ Built 2026-10-15
 **Meetings booked per employee.** The ניהול table had פגישות שבוצעו/שתועדו but not how many meetings
 an employee *booked* that day. New `meetings.booked_by` (who clicked קבע פגישה; `host_user_id`

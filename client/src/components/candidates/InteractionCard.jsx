@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import api from '../../api';
+import { israelLocalToISO, isoToIsraelLocal } from '../../utils/israelTime';
 
 const TYPE_STYLES = {
   call:    'bg-sky-100 text-sky-700',
@@ -18,7 +19,7 @@ export default function InteractionCard({ interaction, onDelete, onUpdated }) {
   const { id, type, date_time, notes } = interaction;
   const [editing, setEditing] = useState(false);
   const [editNotes, setEditNotes] = useState(notes || '');
-  const [editDateTime, setEditDateTime] = useState(date_time ? format(new Date(date_time), "yyyy-MM-dd'T'HH:mm") : '');
+  const [editDateTime, setEditDateTime] = useState(isoToIsraelLocal(date_time));
   const [saving, setSaving] = useState(false);
   const isNote = type === 'note';
 
@@ -27,10 +28,10 @@ export default function InteractionCard({ interaction, onDelete, onUpdated }) {
     setSaving(true);
     try {
       await api.patch(`/candidates/interactions/${id}`, {
-        date_time: isNote ? null : editDateTime || null,
+        date_time: isNote ? null : israelLocalToISO(editDateTime),
         notes: editNotes || null,
       });
-      onUpdated({ ...interaction, notes: editNotes, date_time: isNote ? null : editDateTime || null });
+      onUpdated({ ...interaction, notes: editNotes, date_time: isNote ? null : israelLocalToISO(editDateTime) });
       setEditing(false);
     } finally {
       setSaving(false);
@@ -75,7 +76,7 @@ export default function InteractionCard({ interaction, onDelete, onUpdated }) {
           {TYPE_LABELS[type] || type}
         </span>
         <div className="flex items-center gap-2 text-slate-400">
-          {date_time && <span className="text-xs">{format(new Date(date_time), 'dd/MM/yyyy HH:mm')}</span>}
+          {date_time && <span className="text-xs">{new Date(date_time).toLocaleString('en-GB', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}</span>}
           <button onClick={() => setEditing(true)} className="hover:text-violet-500 transition text-xs" title="ערוך">✏️</button>
           <button onClick={() => onDelete(id)} className="hover:text-red-400 transition text-xs leading-none" title="מחק">✕</button>
         </div>

@@ -11,7 +11,7 @@ import PendingDocDetail from './PendingDocDetail';
 import AddSupplierModal from './AddSupplierModal';
 import SupplierCard from './SupplierCard';
 import { docTypeLabel } from '../utils/docTypes';
-import { israelToISO } from '../utils/israelTime';
+import { israelToISO, israelLocalToISO, isoToIsraelLocal } from '../utils/israelTime';
 import { useCalls } from '../context/CallContext';
 
 const STAGES = [
@@ -6250,7 +6250,7 @@ function ContactGroup({ label, type, items, leadId, onRemove, onAdded, placehold
 
 function TaskEditModal({ task, users, onSaved, onClose }) {
   const [title, setTitle]       = useState(task.title);
-  const [dueAt, setDueAt]       = useState(task.due_at ? new Date(task.due_at).toISOString().slice(0,16) : '');
+  const [dueAt, setDueAt]       = useState(isoToIsraelLocal(task.due_at));
   const [assignedTo, setAssignedTo] = useState(task.assigned_to || '');
   const [saving, setSaving]     = useState(false);
 
@@ -6259,7 +6259,7 @@ function TaskEditModal({ task, users, onSaved, onClose }) {
     try {
       await api.patch(`/tasks/${task.id}`, {
         title,
-        due_at: dueAt ? new Date(dueAt).toISOString() : null,
+        due_at: israelLocalToISO(dueAt),
         assigned_to: assignedTo || null,
       });
       onSaved();

@@ -3,11 +3,10 @@
 import { useState } from 'react';
 import { addHours } from 'date-fns';
 import api from '../../api';
+import { israelLocalToISO, isoToIsraelLocal } from '../../utils/israelTime';
 
-function toLocalDateTimeString(date) {
-  const pad = n => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
+// datetime-local values are Israel time, whatever the device timezone (2026-10-15)
+function toLocalDateTimeString(date) { return isoToIsraelLocal(date.toISOString()); }
 
 export const RSVP_LABELS = {
   accepted:    { icon: '✅', text: 'אישר פגישה',   color: 'text-green-700 bg-green-50 border-green-200' },
@@ -41,8 +40,8 @@ export default function SendInviteForm({ candidate, onClose, onRsvpUpdated, onCr
     try {
       const { data } = await api.post(`/candidates/${candidate.id}/meeting`, {
         title,
-        start: new Date(startTime).toISOString(),
-        end:   new Date(endTime).toISOString(),
+        start: israelLocalToISO(startTime),
+        end:   israelLocalToISO(endTime),
       });
       setEventLink(data.eventLink);
       setStep('done');
@@ -68,7 +67,7 @@ export default function SendInviteForm({ candidate, onClose, onRsvpUpdated, onCr
   async function handleSendWhatsApp() {
     setNotifying(true);
     try {
-      await api.post(`/candidates/${candidate.id}/meeting/whatsapp`, { eventLink, title, startTime: new Date(startTime).toISOString() });
+      await api.post(`/candidates/${candidate.id}/meeting/whatsapp`, { eventLink, title, startTime: israelLocalToISO(startTime) });
       setWhatsappSent(true);
     } catch (err) {
       setError(err.response?.data?.error || 'שגיאה בשליחת WhatsApp');
@@ -108,7 +107,7 @@ export default function SendInviteForm({ candidate, onClose, onRsvpUpdated, onCr
               value={startTime}
               onChange={e => {
                 setStartTime(e.target.value);
-                if (e.target.value) setEndTime(toLocalDateTimeString(addHours(new Date(e.target.value), 1)));
+                if (e.target.value) setEndTime(toLocalDateTimeString(addHours(new Date(israelLocalToISO(e.target.value)), 1)));
               }}
               className={inputCls}
             />

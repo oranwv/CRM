@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAppMode } from '../context/AppModeContext';
+import { israelLocalToISO, isoToIsraelLocal } from '../utils/israelTime';
 
 const TOOL_LABELS = {
   get_my_tasks:       'מחפש משימות...',
@@ -29,13 +30,8 @@ const ACTION_META = {
   fault: { icon: '🔧', title: 'תקלה לתפעול',  confirm: 'פתח תקלה' },
 };
 
-function toLocalInput(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (isNaN(d)) return '';
-  const pad = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
+// datetime-local value in Israel time, whatever the device timezone (2026-10-15)
+function toLocalInput(iso) { return isoToIsraelLocal(iso); }
 
 // A proposal the assistant made (task / note / fault). Nothing exists until "אשר".
 function ActionCard({ action, onDone }) {
@@ -53,7 +49,7 @@ function ActionCard({ action, onDone }) {
     try {
       const token = localStorage.getItem('crm_token');
       const payload = { kind: action.kind, lead_id: action.lead_id, assigned_to: action.assigned_to };
-      if (action.kind === 'task')  Object.assign(payload, { title: form.title, due_at: form.due_at ? new Date(form.due_at).toISOString() : null });
+      if (action.kind === 'task')  Object.assign(payload, { title: form.title, due_at: israelLocalToISO(form.due_at) });
       if (action.kind === 'note')  Object.assign(payload, { body: form.body });
       if (action.kind === 'fault') Object.assign(payload, { title: form.title, description: form.description });
       const r = await fetch('/api/chat/actions', {

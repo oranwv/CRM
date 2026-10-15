@@ -33,3 +33,14 @@ export function isoToIsraelParts(iso) {
   }).formatToParts(new Date(iso)).reduce((o, p) => (o[p.type] = p.value, o), {});
   return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
 }
+
+// datetime-local helpers (value 'YYYY-MM-DDTHH:MM', meaning Israel time).
+export function israelLocalToISO(v) {
+  if (!v) return null;
+  const [date, time] = v.split('T');
+  return israelToISO(date, time || '00:00');
+}
+export function isoToIsraelLocal(iso) {
+  const { date, time } = isoToIsraelParts(iso);
+  return date ? `${date}T${time}` : '';
+}

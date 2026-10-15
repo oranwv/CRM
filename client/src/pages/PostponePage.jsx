@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
+import { israelLocalToISO } from '../utils/israelTime';
 
 const PRESETS = [
   { label: '15 דקות', minutes: 15 },
@@ -32,7 +33,7 @@ export default function PostponePage() {
     if (!selected || (selected === 'custom' && !customDate)) return;
     setSaving(true);
     const body = { token };
-    if (selected === 'custom') body.dueAt = new Date(customDate).toISOString();
+    if (selected === 'custom') body.dueAt = israelLocalToISO(customDate);
     else body.minutes = selected;
 
     try {

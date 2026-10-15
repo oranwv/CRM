@@ -215,10 +215,10 @@ router.get('/employee-activity', async (req, res) => {
       SELECT uid, to_char(d, 'YYYY-MM-DD') AS day, metric, COUNT(*)::int AS cnt
       FROM (
         SELECT created_by AS uid, (created_at AT TIME ZONE 'Asia/Jerusalem')::date AS d, 'calls_made'::text AS metric
-          FROM lead_interactions WHERE created_by IS NOT NULL AND type='call' AND direction='outbound' AND source='dial'
+          FROM lead_interactions WHERE created_by IS NOT NULL AND type IN ('call','call_attempt') AND direction='outbound' AND source IN ('dial','twilio')
         UNION ALL
         SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'calls_documented'
-          FROM lead_interactions WHERE created_by IS NOT NULL AND type='call' AND direction='outbound' AND (source IS NULL OR source<>'dial')
+          FROM lead_interactions WHERE created_by IS NOT NULL AND type='call' AND direction='outbound' AND (source IS NULL OR source NOT IN ('dial','twilio'))
         UNION ALL
         SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'meetings_done'
           FROM lead_interactions WHERE created_by IS NOT NULL AND type='meeting' AND source='calendar'

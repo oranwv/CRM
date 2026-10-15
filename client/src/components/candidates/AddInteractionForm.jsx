@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import api from '../../api';
+import { israelLocalToISO, isoToIsraelLocal } from '../../utils/israelTime';
 
 export default function AddInteractionForm({ candidateId, type, onSaved, onCancel }) {
-  const now = format(new Date(), "yyyy-MM-dd'T'HH:mm");
+  const now = isoToIsraelLocal(new Date().toISOString());
   const [dateTime, setDateTime] = useState(now);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
@@ -17,7 +18,7 @@ export default function AddInteractionForm({ candidateId, type, onSaved, onCance
     try {
       await api.post(`/candidates/${candidateId}/interactions`, {
         type,
-        date_time: isNote ? null : dateTime,
+        date_time: isNote ? null : israelLocalToISO(dateTime),
         notes: notes || null,
       });
       onSaved();

@@ -53,7 +53,8 @@ WhatsApp arrives.
 ## 2026-10-15 — Phase 45: פגישות נקבעו + Israel-time pickers
 
 - `meetings.booked_by` + `meetings_booked` metric → "פגישות נקבעו" column in ניהול (counts from now on).
-- `utils/israelTime.js`: meeting/reschedule/task-due pickers resolve as Israel wall-clock on any device (Oran books from Bali). Open: `TaskEditModal` still uses device TZ for due_at — ask Oran.
+- `utils/israelTime.js`: ALL datetime pickers (meetings, tasks, postpone, AI chat, candidates) resolve as Israel wall-clock on any device (Phase 46 closed the rest).
+- Phase 46: ניהול שיחות שבוצעו now counts Twilio dials too (was only legacy `dial`); שתועדו = manual call logs only.
 - Cloud session, pushed.
 
 ## 2026-10-14 — Phase 44: lost reasons for non-leads
