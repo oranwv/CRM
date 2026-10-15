@@ -24,9 +24,11 @@ export default function CallLeadPage() {
     if (!lead) return;
     setError('');
     if (!lead.phone) { setError('לליד אין מספר טלפון'); return; }
-    if (/Android/i.test(navigator.userAgent)) {
+    if (/Android/i.test(navigator.userAgent) && calls.config?.app_registered) {
       setStatus('פותח את אפליקציית החייגן…');
-      if (await tryOpenDialerApp(lead)) { navigate(`/?lead=${lead.id}`, { replace: true }); return; }
+      tryOpenDialerApp(lead);
+      setTimeout(() => navigate(`/?lead=${lead.id}`, { replace: true }), 1500);
+      return;
     }
     if (!calls.enabled) { setError('שיחות מהדפדפן אינן זמינות במשתמש הזה'); return; }
     setStatus('מתקשר מהדפדפן…');

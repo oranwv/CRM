@@ -30,6 +30,9 @@ the button-click webhook field names are guessed (`interactiveButtonsReply` /
 log one raw webhook body and fix the parser in `handleInboundReply` callers
 (`routes/whatsapp.js`, `services/whatsappPoller.js`). Text answers are the fallback.
 
+## 2026-10-15 — Android dial-through-app only
+
+- `/calls/config.app_registered`; Android + registered → deep link only. Dialer v6 (state-based deep link, visible errors). Oran got "🟢 מחובר לשיחות נכנסות" — FCM credential is in. To check: Twilio Geo permissions for Germany (lead Berit, +49 mobile = $0.376/min from a non-EEA number).
 
 ## 2026-10-15 — Meeting host (Phase 46)
 

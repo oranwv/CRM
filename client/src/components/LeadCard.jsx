@@ -1335,16 +1335,16 @@ function CallButtons({ lead, phone }) {
   if (!calls.enabled) return null;
 
   // On Android phones the "ProEvent Dialer" app gives a real dialer (speaker, background,
-  // locked-screen ringing). We try its deep link first; if the app is not installed the page
-  // stays visible and after 1.5s we silently dial from the browser as before (Oran: no prompt).
+  // locked-screen ringing). When this user has the app registered we hand the call to it and
+  // never dial from the browser as well (the old "try the app, else browser after 1.5s" race
+  // could start both and left the button stuck). Users without the app dial from the browser.
   const isAndroid = /Android/i.test(navigator.userAgent);
+  const useApp = isAndroid && !!calls.config?.app_registered;
   async function browserCall() {
-    setMenu(false); setBusy(true);
+    setMenu(false);
+    if (useApp) { tryOpenDialerApp(target); return; }
+    setBusy(true);
     try {
-      if (isAndroid) {
-        const opened = await tryOpenDialerApp(target);
-        if (opened) { setBusy(false); return; }
-      }
       await calls.startCall(target);
     }
     catch (err) { setNote(err.message || 'לא ניתן להתקשר'); setTimeout(() => setNote(''), 4000); }

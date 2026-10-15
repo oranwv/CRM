@@ -2004,6 +2004,15 @@ morning/evening sales briefings on Friday and Saturday. `users.shabbat_mode` + t
 in the admin user editor (plus a badge in the user row); the skip lives in
 `runSalesBriefings`. Scope limited to the two sales briefings by Oran's explicit choice.
 
+### Phase 38e — Android: dial through the app only, no browser race ✅ Built 2026-10-15
+Oran tapped "התקשר" on his phone: the app opened but no call was placed and the button stayed
+greyed out. The 1.5 s "try the app, otherwise browser" race could start the browser softphone
+too and left `busy` on. Now `/calls/config` returns `app_registered` (users.app_registered_at)
+and on Android a registered user's "התקשר" (lead card and `/call/:leadId`) just opens the deep
+link; everyone else dials from the browser as before. Dialer app v6: deep links are handled as
+state (works from cold start and from background) and every call error — including Twilio
+refusing a destination (geo permissions) — is shown on the home screen instead of silently.
+
 ### Phase 38d — "לא ענה" under the stage ✅ Built 2026-10-15
 Oran: when the customer did not answer our call, show "לא ענה" under the stage, next to it,
 not instead of it. The leads list and `GET /leads/:id` compute `last_call_unanswered`: the

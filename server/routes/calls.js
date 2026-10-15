@@ -28,7 +28,7 @@ const say = (vr, text) => vr.say({ language: 'he-IL', voice: tw.HE_VOICE }, text
 const xml = (res, vr) => res.type('text/xml').send(vr.toString());
 
 async function currentUser(id) {
-  const { rows } = await pool.query('SELECT id, display_name, phone, abroad_mode, roles, role FROM users WHERE id = $1', [id]);
+  const { rows } = await pool.query('SELECT id, display_name, phone, abroad_mode, roles, role, app_registered_at FROM users WHERE id = $1', [id]);
   return rows[0] || null;
 }
 
@@ -49,7 +49,9 @@ api.get('/config', async (req, res) => {
   if (!tw.isEnabled()) return res.json({ enabled: false });
   try {
     const u = await currentUser(req.user.id);
-    res.json({ enabled: true, number: process.env.TWILIO_PHONE_NUMBER, abroad_mode: !!u?.abroad_mode, has_phone: !!u?.phone });
+    // app_registered: this user has the ProEvent Dialer app → on Android the web dials through it
+    // only (no browser fallback race). Users without the app keep the browser softphone.
+    res.json({ enabled: true, number: process.env.TWILIO_PHONE_NUMBER, abroad_mode: !!u?.abroad_mode, has_phone: !!u?.phone, app_registered: !!u?.app_registered_at });
   } catch (err) {
     console.error('[Calls] config error:', err.message);
     res.status(500).json({ enabled: false, error: err.message });
