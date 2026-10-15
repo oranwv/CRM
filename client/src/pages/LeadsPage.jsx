@@ -483,7 +483,12 @@ export default function LeadsPage() {
                       {(() => {
                         const s = STAGE_STYLES[lead.stage];
                         return s ? (
-                          <span className={`font-bold px-2 py-0.5 rounded-full ${s.cls}`}>{s.label}</span>
+                          <div className="flex flex-col items-start gap-1">
+                            <span className={`font-bold px-2 py-0.5 rounded-full ${s.cls}`}>{s.label}</span>
+                            {lead.last_call_unanswered && (
+                              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200" title="השיחה האחרונה אליו לא נענתה">📵 לא ענה</span>
+                            )}
+                          </div>
                         ) : '—';
                       })()}
                     </td>

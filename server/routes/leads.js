@@ -138,6 +138,18 @@ router.get('/', async (req, res) => {
 
   let query = `
     SELECT l.*, u.display_name AS assigned_name,
+           -- "לא ענה": the latest outbound call to this lead was not answered and the customer
+           -- has not been in touch since (no inbound message / interaction / answered call after it).
+           COALESCE((
+             SELECT c.status <> 'completed'
+                    AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.lead_id = l.id AND m.direction = 'inbound' AND m.timestamp > c.started_at)
+                    AND NOT EXISTS (SELECT 1 FROM lead_interactions i WHERE i.lead_id = l.id AND i.direction = 'inbound' AND i.created_at > c.started_at)
+                    AND NOT EXISTS (SELECT 1 FROM calls c2 WHERE c2.lead_id = l.id AND c2.status = 'completed' AND c2.started_at > c.started_at)
+             FROM calls c
+             WHERE c.lead_id = l.id AND c.direction = 'outbound'
+               AND c.status IN ('completed','no-answer','busy','failed','canceled')
+             ORDER BY c.started_at DESC LIMIT 1
+           ), FALSE) AS last_call_unanswered,
            (SELECT COUNT(*) FROM tasks t WHERE t.lead_id = l.id AND t.completed_at IS NULL) AS open_tasks,
            (SELECT COUNT(*) FROM tasks t WHERE t.lead_id = l.id AND t.completed_at IS NULL AND t.due_at IS NOT NULL AND t.due_at <= NOW()) AS overdue_tasks,
            GREATEST(
@@ -174,6 +186,18 @@ router.get('/:id', async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT l.*, u.display_name AS assigned_name, c.display_name AS created_by_name,
+           -- "לא ענה": the latest outbound call to this lead was not answered and the customer
+           -- has not been in touch since (no inbound message / interaction / answered call after it).
+           COALESCE((
+             SELECT c.status <> 'completed'
+                    AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.lead_id = l.id AND m.direction = 'inbound' AND m.timestamp > c.started_at)
+                    AND NOT EXISTS (SELECT 1 FROM lead_interactions i WHERE i.lead_id = l.id AND i.direction = 'inbound' AND i.created_at > c.started_at)
+                    AND NOT EXISTS (SELECT 1 FROM calls c2 WHERE c2.lead_id = l.id AND c2.status = 'completed' AND c2.started_at > c.started_at)
+             FROM calls c
+             WHERE c.lead_id = l.id AND c.direction = 'outbound'
+               AND c.status IN ('completed','no-answer','busy','failed','canceled')
+             ORDER BY c.started_at DESC LIMIT 1
+           ), FALSE) AS last_call_unanswered,
               ob.display_name AS remaining_balance_override_name,
               pm.display_name AS production_manager_name,
               sc.signer_id_number, sc.orderer_name

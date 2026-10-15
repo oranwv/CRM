@@ -1977,6 +1977,14 @@ morning/evening sales briefings on Friday and Saturday. `users.shabbat_mode` + t
 in the admin user editor (plus a badge in the user row); the skip lives in
 `runSalesBriefings`. Scope limited to the two sales briefings by Oran's explicit choice.
 
+### Phase 38d — "לא ענה" under the stage ✅ Built 2026-10-15
+Oran: when the customer did not answer our call, show "לא ענה" under the stage, next to it,
+not instead of it. The leads list and `GET /leads/:id` compute `last_call_unanswered`: the
+latest outbound call (browser/app/bridge) ended `no-answer`/`busy`/`failed`/`canceled` **and**
+nothing came back since — no inbound message or interaction and no answered call after it. The
+badge "📵 לא ענה" (amber) sits under the stage pill in the list and under the stage buttons in
+the card, and disappears by itself the moment the customer answers or writes.
+
 ### Phase 38c — WhatsApp-style recording player with playback speed ✅ Built 2026-10-15
 Oran: fast playback like WhatsApp. `RecordingPlayer` in the timeline is now a custom player
 (hidden `<audio>`): round play/pause, draggable progress bar (RTL-aware), elapsed/total time and

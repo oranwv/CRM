@@ -17,6 +17,9 @@ schedule queries, `ScheduleMeetingModal` select + lead-card line. Not run agains
 node --check + esbuild parse. After deploy: book a meeting for another user and check their
 WhatsApp arrives.
 
+## 2026-10-15 — "לא ענה" badge
+
+- `last_call_unanswered` on leads list + single lead; amber badge under the stage (list + card). Clears when the customer answers/writes.
 
 ## 2026-10-15 — Recording player speed (1/1.2/1.5/2×)
 

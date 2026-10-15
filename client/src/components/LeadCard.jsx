@@ -642,6 +642,11 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
                   )}
                 </div>
               )}
+              {lead.last_call_unanswered && (
+                <div className="mt-2">
+                  <span className="text-sm font-bold px-3 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200" title="השיחה האחרונה אליו לא נענתה">📵 לא ענה</span>
+                </div>
+              )}
               {lead.meeting_rsvp_status && lead.meeting_rsvp_status !== 'needsAction' && (
                 <div className="mt-2 flex justify-end">
                   {{
