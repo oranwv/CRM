@@ -10,7 +10,7 @@ const SOURCE_LABELS = {
 
 const LOST_REASON_LABELS = {
   price: 'מחיר/תקציב', date: 'תאריך תפוס', competitor: 'בחר מתחרה',
-  ghosted: 'נעלם', plans_changed: 'שינוי תוכניות', guest_inquiry: 'אורח מתקשר לבירור', job_seeker: 'מחפש עבודה', supplier: 'ספק', other: 'אחר',
+  ghosted: 'נעלם', plans_changed: 'שינוי תוכניות', guest_inquiry: 'אורח מתקשר לבירור', job_seeker: 'מחפש עבודה', supplier: 'ספק', late_callback: 'לא חזרנו בזמן', other: 'אחר',
 };
 
 const SOURCE_COLORS = [

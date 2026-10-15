@@ -2314,7 +2314,7 @@ events (אופציה/סגור) already carried `timeZone: 'Asia/Jerusalem'` serv
 ### Phase 44 — Lost reasons for non-leads: אורח מתקשר לבירור / מחפש עבודה / ספק ✅ Built 2026-10-14
 Oran asked for three new "לא סגרו" reasons for calls that were never a real lead: a guest of an
 event calling to ask about it, a job seeker, and a supplier. Added `guest_inquiry` →
-"אורח מתקשר לבירור", `job_seeker` → "מחפש עבודה", `supplier` → "ספק" to `LOST_REASONS`
+"אורח מתקשר לבירור", `job_seeker` → "מחפש עבודה", `supplier` → "ספק", and (15.10) `late_callback` → "לא חזרנו בזמן" to `LOST_REASONS`
 (`LeadCard.jsx`, lost-reason picker + lost badge) and to `LOST_REASON_LABELS` in
 `AnalyticsPage.jsx`. `lost_reason` is free text in the DB, no migration.
 

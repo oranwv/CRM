@@ -59,7 +59,7 @@ WhatsApp arrives.
 
 ## 2026-10-14 — Phase 44: lost reasons for non-leads
 
-- New lost reasons `guest_inquiry` / `job_seeker` / `supplier` (אורח מתקשר לבירור / מחפש עבודה / ספק) in LeadCard picker + Analytics labels. Cloud session, pushed.
+- New lost reasons `guest_inquiry` / `job_seeker` / `supplier` / `late_callback` (אורח מתקשר לבירור / מחפש עבודה / ספק / לא חזרנו בזמן) in LeadCard picker + Analytics labels. Cloud session, pushed.
 
 ## 2026-10-14 — Phase 42: WhatsApp tab newest-first
 

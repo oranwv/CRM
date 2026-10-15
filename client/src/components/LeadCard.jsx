@@ -38,6 +38,7 @@ const LOST_REASONS = [
   { value: 'guest_inquiry', label: 'אורח מתקשר לבירור' },
   { value: 'job_seeker',    label: 'מחפש עבודה' },
   { value: 'supplier',      label: 'ספק' },
+  { value: 'late_callback', label: 'לא חזרנו בזמן' },
   { value: 'other',         label: 'אחר' },
 ];
 
