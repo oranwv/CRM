@@ -2350,6 +2350,18 @@ server rejects everyone else with 403 in `routes/candidates.js`).
 - Verified: eslint + import resolution on the Mac VM (vite build can't run there — Mac-native
   rolldown binary); server files `node --check`. Not verified: a real calendar/WhatsApp send.
 
+### Phase 42 — Home-screen / app-list icon shows the current logo ✅ Built 2026-10-15
+Oran's phone (15.10): the PWA shortcut ("crm" on the home screen, the app list and the splash
+screen) still showed the old gradient bolt on white, although `app-icon-512.png` in the repo is
+the current white-bolt-on-gradient icon. Android/Chrome keeps the icon it fetched when the
+shortcut was installed and only re-fetches when the manifest's icon URLs change, so the fix is
+cache-busting plus the missing sizes: `manifest.webmanifest` icons are now `app-icon-192.png?v=2`
+and `app-icon-512.png?v=2` (any + maskable); `index.html` links `manifest.webmanifest?v=2`,
+`favicon.svg?v=2` and a new opaque `apple-touch-icon-180.png?v=2` for iPhone. Chrome updates an
+installed shortcut's icon within ~a day of the next open; if it does not, remove and re-add the
+shortcut. Bump `?v=` again whenever the icon file changes. iOS does not refresh an installed
+home-screen icon at all — re-add it there.
+
 ### Phase 40 — Top bar on phones: no ✈️ toggle, two rows when badges are shown ✅ Built 2026-10-14
 Oran's phone screenshots (14.10): the ✈️ "abroad" toggle cluttered the top bar, and the three
 badges (ממתינים / אירועים לא מוכנים / תשלומים בלי קבלה) and the mode button ("מכירות ▾") fought

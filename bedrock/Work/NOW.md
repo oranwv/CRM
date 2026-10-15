@@ -6,6 +6,10 @@ updated: 2026-10-15
 
 # Now
 
+## 2026-10-15 — Phase 42: PWA icon refresh
+
+- Phone shortcut/app-list/splash showed the old gradient-bolt icon. Cache-busted manifest + icon URLs (`?v=2`), added 192px and an opaque 180px apple-touch-icon. Done from the cloud (Mac link dropped mid-session) — pushed to GitHub, Mac picks it up via the scheduled sync. Oran to confirm the icon changed on his phone after the Railway deploy (may need remove + re-add).
+
 ## 2026-10-15 — Meeting reminders + customer RSVP (Phase 47)
 
 Agreed wording/timing with Oran (day-before 10:00 with buttons, meeting-day 09:00 without,
