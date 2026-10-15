@@ -95,7 +95,11 @@ function renderBody({ direction, durationSec, repName, analysis, fileMarker, fro
   }
   lines.push(`📞 שיחה ${direction === 'inbound' ? 'נכנסת' : 'יוצאת'} · ${fmtDuration(durationSec)}${repName ? ' · ' + repName : ''}${direction === 'inbound' && fromNumber ? ' · מ-' + fromNumber : ''}`);
   if (analysis) {
-    if (analysis.summary) lines.push('', `📝 ${analysis.summary}`);
+    if (analysis.summary) {
+      const mins = Math.round((Number(durationSec) || 0) / 60);
+      const minsText = mins < 1 ? 'פחות מדקה' : `${mins} דק'`;
+      lines.push('', `📝 שיחה של ${minsText} · ${analysis.summary}`);
+    }
     const list = (title, arr) => { if (Array.isArray(arr) && arr.length) lines.push('', `${title}`, ...arr.map(x => `• ${x}`)); };
     list('📅 תאריכים שדוברו:', analysis.dates_mentioned);
     list('💰 מחירים ותקציב:', analysis.prices_mentioned);

@@ -4,6 +4,7 @@ import api from '../api';
 
 const METRIC_COLS = [
   { key: 'calls_made',          label: 'שיחות שבוצעו' },
+  { key: 'call_minutes',        label: 'דקות שיחה' },
   { key: 'calls_documented',    label: 'שיחות שתועדו' },
   { key: 'meetings_booked',     label: 'פגישות נקבעו' },
   { key: 'meetings_done',       label: 'פגישות שבוצעו' },
@@ -26,7 +27,8 @@ function fmtHours(h) {
   return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
 }
 
-const metricTotal = obj => METRIC_COLS.reduce((s, c) => s + Number(obj[c.key] || 0), 0);
+// Activity total = number of actions; talk minutes are a duration, not an action, so they stay out.
+const metricTotal = obj => METRIC_COLS.reduce((s, c) => c.key === 'call_minutes' ? s : s + Number(obj[c.key] || 0), 0);
 
 export default function ManagementPage() {
   const navigate = useNavigate();

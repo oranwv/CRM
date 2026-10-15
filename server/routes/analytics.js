@@ -180,7 +180,7 @@ router.get('/overview', async (req, res) => {
 });
 
 const METRIC_KEYS = [
-  'calls_made', 'calls_documented', 'meetings_booked', 'meetings_done', 'meetings_documented',
+  'calls_made', 'call_minutes', 'calls_documented', 'meetings_booked', 'meetings_done', 'meetings_documented',
   'notes', 'wa_sent', 'tasks_created', 'tasks_completed', 'leads_created', 'files_uploaded',
 ];
 const SESSION_GAP_SEC = 2 * 60 * 60; // a gap > 2h ends a work session
@@ -212,41 +212,45 @@ router.get('/employee-activity', async (req, res) => {
 
     // Per (user, day, metric) counts.
     const metricsQ = pool.query(`
-      SELECT uid, to_char(d, 'YYYY-MM-DD') AS day, metric, COUNT(*)::int AS cnt
+      SELECT uid, to_char(d, 'YYYY-MM-DD') AS day, metric, COALESCE(SUM(w), 0)::int AS cnt
       FROM (
         -- Answered outbound calls from the system (Twilio): status completed and the customer actually
         -- picked up (duration > 0). Unanswered dials, busy, failed and tel:-link taps are not counted.
-        SELECT user_id AS uid, (started_at AT TIME ZONE 'Asia/Jerusalem')::date AS d, 'calls_made'::text AS metric
+        SELECT user_id AS uid, (started_at AT TIME ZONE 'Asia/Jerusalem')::date AS d, 'calls_made'::text AS metric, 1 AS w
           FROM calls WHERE user_id IS NOT NULL AND direction='outbound' AND status='completed' AND COALESCE(duration_sec,0) > 0
         UNION ALL
-        SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'calls_documented'
+        -- Talk time: minutes on answered calls (outbound by the dialer, inbound by whoever answered), rounded per call
+        SELECT COALESCE(answered_by, user_id), (started_at AT TIME ZONE 'Asia/Jerusalem')::date, 'call_minutes', GREATEST(1, ROUND(duration_sec / 60.0))::int
+          FROM calls WHERE COALESCE(answered_by, user_id) IS NOT NULL AND status='completed' AND COALESCE(duration_sec,0) > 0
+        UNION ALL
+        SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'calls_documented', 1
           FROM lead_interactions WHERE created_by IS NOT NULL AND type='call' AND direction='outbound' AND (source IS NULL OR source NOT IN ('dial','twilio'))
         UNION ALL
-        SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'meetings_done'
+        SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'meetings_done', 1
           FROM lead_interactions WHERE created_by IS NOT NULL AND type='meeting' AND source='calendar'
         UNION ALL
-        SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'meetings_documented'
+        SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'meetings_documented', 1
           FROM lead_interactions WHERE created_by IS NOT NULL AND type='meeting' AND (source IS NULL OR source<>'calendar')
         UNION ALL
-        SELECT booked_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'meetings_booked'
+        SELECT booked_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'meetings_booked', 1
           FROM meetings WHERE booked_by IS NOT NULL
         UNION ALL
-        SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'notes'
+        SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'notes', 1
           FROM lead_interactions WHERE created_by IS NOT NULL AND type='note'
         UNION ALL
-        SELECT sent_by, (timestamp AT TIME ZONE 'Asia/Jerusalem')::date, 'wa_sent'
+        SELECT sent_by, (timestamp AT TIME ZONE 'Asia/Jerusalem')::date, 'wa_sent', 1
           FROM messages WHERE sent_by IS NOT NULL AND direction='outbound'
         UNION ALL
-        SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'tasks_created'
+        SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'tasks_created', 1
           FROM tasks WHERE created_by IS NOT NULL
         UNION ALL
-        SELECT assigned_to, (completed_at AT TIME ZONE 'Asia/Jerusalem')::date, 'tasks_completed'
+        SELECT assigned_to, (completed_at AT TIME ZONE 'Asia/Jerusalem')::date, 'tasks_completed', 1
           FROM tasks WHERE assigned_to IS NOT NULL AND completed_at IS NOT NULL
         UNION ALL
-        SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'leads_created'
+        SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'leads_created', 1
           FROM leads WHERE created_by IS NOT NULL
         UNION ALL
-        SELECT uploaded_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'files_uploaded'
+        SELECT uploaded_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'files_uploaded', 1
           FROM files WHERE uploaded_by IS NOT NULL
       ) ev
       WHERE d BETWEEN $1::date AND $2::date

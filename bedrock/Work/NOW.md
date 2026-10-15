@@ -50,6 +50,10 @@ WhatsApp arrives.
 
 - CRM `RecordingPlayer` rewritten WhatsApp-style with a speed pill; app RecordingScreen got the same (v5, not built yet). Dialer v4 built with Firebase config; Oran still has to create the Twilio FCM push credential + `TWILIO_ANDROID_PUSH_CREDENTIAL_SID` in Railway. Apple Developer enrollment ordered 2026-10-14, awaiting activation.
 
+## 2026-10-15 — Phase 47: דקות שיחה, summary length, booked_by backfill
+
+- ניהול "דקות שיחה" (sum over answered calls); call summary 📝 line starts with the length; `booked_by` backfilled from `host_user_id` so today's meetings show in פגישות נקבעו. Cloud session, pushed.
+
 ## 2026-10-15 — Phase 45: פגישות נקבעו + Israel-time pickers
 
 - `meetings.booked_by` + `meetings_booked` metric → "פגישות נקבעו" column in ניהול (counts from now on).

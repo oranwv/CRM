@@ -2281,6 +2281,17 @@ build (briefing, staff attendance and the WhatsApp bot were explicitly left unto
   logging, `vite build`. Not verified: real Green API sends from `/api/chat/send` and the
   live OpenAI prompts — check after deploy.
 
+### Phase 47 — ניהול: דקות שיחה; call summary opens with the length; booked_by backfill ✅ Built 2026-10-15
+- **דקות שיחה** column in ניהול (after שיחות שבוצעו): sum of minutes on answered calls
+  (`calls.status='completed'`, `duration_sec>0`, each call rounded, min 1), outbound credited to the
+  dialer, inbound to `answered_by`. Not part of the row's activity total. `employee-activity` now
+  sums a per-row weight instead of `COUNT(*)`.
+- **Call summary** (`callAnalysis.js` `renderBody`): the 📝 line starts with "שיחה של N דק' ·"
+  (or "פחות מדקה"). New calls only — old bodies are not rewritten; the header line already carried m:ss.
+- **פגישות נקבעו showed nothing for today**: `booked_by` only existed from the Phase 45 deploy,
+  so meetings booked earlier that day had NULL. Boot migration backfills
+  `booked_by = host_user_id` where NULL (the host defaults to the booker), so earlier meetings count.
+
 ### Phase 46 — Israel time everywhere + "שיחות שבוצעו" counts system calls ✅ Built 2026-10-15
 **Pickers.** Oran: fix the remaining device-timezone pickers too. Every `datetime-local` now goes
 through `utils/israelTime.js` (`israelLocalToISO` / `isoToIsraelLocal`): task edit (LeadCard,
