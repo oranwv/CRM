@@ -157,6 +157,11 @@ migrate(`
   ALTER TABLE meetings ADD COLUMN IF NOT EXISTS confirmed_at TIMESTAMPTZ;
   ALTER TABLE meetings ADD COLUMN IF NOT EXISTS host_user_id INT REFERENCES users(id) ON DELETE SET NULL;
   ALTER TABLE meetings ADD COLUMN IF NOT EXISTS host_reminder_sent_at TIMESTAMPTZ;
+  ALTER TABLE meetings ADD COLUMN IF NOT EXISTS customer_status TEXT;
+  ALTER TABLE meetings ADD COLUMN IF NOT EXISTS customer_status_at TIMESTAMPTZ;
+  ALTER TABLE meetings ADD COLUMN IF NOT EXISTS customer_status_source TEXT;
+  ALTER TABLE meetings ADD COLUMN IF NOT EXISTS dayof_reminder_sent_at TIMESTAMPTZ;
+  ALTER TABLE meetings ADD COLUMN IF NOT EXISTS host_nudge_sent_at TIMESTAMPTZ;
   ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) ON DELETE SET NULL;
   ALTER TABLE leads ADD COLUMN IF NOT EXISTS event_name VARCHAR(255);
   UPDATE leads SET event_name = name WHERE event_name IS NULL;
@@ -1044,13 +1049,12 @@ function startCronJobs() {
   }, 3 * 60 * 1000);
   console.log('[Cron] Payment-signal close scan started');
 
-  // Meeting reminders — send WhatsApp 2 days before scheduled meeting, hourly check
-  const { sendMeetingReminders, sendHostMeetingReminders } = require('./services/meetingReminderService');
+  // Meeting reminders + customer RSVP — day-before (10:00) and day-of (09:00) customer reminders,
+  // host reminder + nudge. Checked every 15 minutes (meetingRsvpService).
+  const { runMeetingReminderTick } = require('./services/meetingRsvpService');
   setTimeout(() => {
-    sendMeetingReminders();
-    setInterval(sendMeetingReminders, 60 * 60 * 1000);
-    sendHostMeetingReminders();
-    setInterval(sendHostMeetingReminders, 60 * 60 * 1000);
+    runMeetingReminderTick();
+    setInterval(runMeetingReminderTick, 15 * 60 * 1000);
   }, 2 * 60 * 1000);
   console.log('[Cron] Meeting reminder service started');
 }

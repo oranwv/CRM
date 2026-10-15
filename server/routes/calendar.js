@@ -5,6 +5,7 @@ const axios   = require('axios');
 const { markEventDate, unmarkEventDate, getLeadCalendarStatus, getLeadCalendarStatusVerified, syncLeadToCalendar, createMeeting, createManualEvent, deleteManualEvent, sendMeetingInvite, getMeetingRsvpStatus, patchEventDescription, deleteMeeting, updateMeetingTime, listCalendarAcl, addCalendarViewer, removeCalendarAcl } = require('../services/calendarService');
 const pool = require('../db/pool');
 const { sendWhatsApp } = require('../services/reminderService');
+const rsvp = require('../services/meetingRsvpService');
 
 const IL = 'Asia/Jerusalem';
 function fmtWhen(start, end) {
@@ -158,6 +159,10 @@ router.post('/leads/:leadId/meeting', async (req, res) => {
     const icsUrl    = `${baseUrl}/api/calendar/meetings/${eventId}/ics`;
     const confirmUrl = `${baseUrl}/api/calendar/meetings/${confirmToken}/confirm`;
 
+    // Booked for today / tomorrow after 10:00 → the customer's reminder goes out now
+    const { rows: mrow } = await pool.query('SELECT id FROM meetings WHERE google_event_id = $1', [eventId]);
+    if (mrow[0]) rsvp.maybeSendShortNoticeReminder(mrow[0].id).catch(e => console.error('[Calendar] short-notice reminder:', e.message));
+
     res.json({ eventId, eventLink, icsUrl, confirmUrl });
   } catch (err) {
     console.error('[Calendar] createMeeting error:', err.message);
@@ -214,50 +219,42 @@ router.get('/meetings/:token/confirm', async (req, res) => {
     );
     const meeting = rows[0];
     if (!meeting) return res.send(htmlPage('לא נמצאה פגישה', 'הקישור אינו תקין.', '#ef4444'));
-    if (meeting.confirmed_at) return res.send(htmlPage('✅ כבר אישרת', 'אישרת את הגעתך לפגישה. נתראה!'));
+    if (meeting.customer_status === 'confirmed') return res.send(htmlPage('✅ כבר אישרת', 'אישרת את הגעתך לפגישה. נתראה!'));
 
-    await pool.query('UPDATE meetings SET confirmed_at = NOW() WHERE confirm_token = $1', [req.params.token]);
-
-    try {
-      await patchEventDescription(meeting.google_event_id, '✅ הלקוח אישר הגעה לפגישה');
-    } catch (e) {
-      console.error('[Calendar] confirm patch error:', e.message);
-    }
-
+    await rsvp.setCustomerStatus(meeting.id, 'confirmed', 'link');
     res.send(htmlPage('תודה! ✅', 'אישרת את הגעתך לפגישה. נתראה!'));
   } catch (err) {
     res.status(500).send('שגיאה');
   }
 });
 
-// POST /api/calendar/meetings/:eventId/remind — send reminder WhatsApp to lead (manual)
+// GET /api/calendar/meetings/:token/decline — public "לא מגיע/ה" link
+router.get('/meetings/:token/decline', async (req, res) => {
+  const htmlPage = (title, body, color = '#7c3aed') => `<!DOCTYPE html><html dir="rtl" lang="he"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f5f3ff}div{text-align:center;padding:2rem;background:#fff;border-radius:1rem;box-shadow:0 4px 24px rgba(0,0,0,.1);max-width:360px}h2{color:${color};margin-bottom:.5rem}p{color:#555}</style></head><body><div><h2>${title}</h2><p>${body}</p></div></body></html>`;
+  try {
+    const { rows } = await pool.query('SELECT * FROM meetings WHERE confirm_token = $1', [req.params.token]);
+    const meeting = rows[0];
+    if (!meeting) return res.send(htmlPage('לא נמצאה פגישה', 'הקישור אינו תקין.', '#ef4444'));
+    await rsvp.setCustomerStatus(meeting.id, 'declined', 'link');
+    res.send(htmlPage('חבל 🙁', 'קיבלנו. נחזור אליכם לתיאום מועד חדש.', '#ef4444'));
+  } catch (err) {
+    res.status(500).send('שגיאה');
+  }
+});
+
+// POST /api/calendar/meetings/:eventId/remind — (re)send the customer reminder with the RSVP buttons now
 router.post('/meetings/:eventId/remind', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT m.*, l.phone, l.name FROM meetings m JOIN leads l ON l.id = m.lead_id WHERE m.google_event_id = $1`,
+      `SELECT m.id, l.phone FROM meetings m JOIN leads l ON l.id = m.lead_id WHERE m.google_event_id = $1`,
       [req.params.eventId]
     );
     const meeting = rows[0];
     if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
     if (!meeting.phone) return res.status(400).json({ error: 'Lead has no phone' });
-
-    const dt = new Date(meeting.start_time);
-    const dateStr = dt.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Jerusalem' });
-    const timeStr = dt.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem', hour12: false });
-
-    const baseUrl = process.env.SERVER_URL || 'http://localhost:3001';
-    const confirmUrl = `${baseUrl}/api/calendar/meetings/${meeting.confirm_token}/confirm`;
-
-    const message = `היי, זוהי תזכורת על פגישתך בשרביה בתאריך ${dateStr} בשעה ${timeStr}. אנא אשר כי אתה מגיע בלינק הבא:\n${confirmUrl}\n\nבברכה, צוות שרביה`;
-
-    const chatId = meeting.phone.replace(/\D/g, '').replace(/^0/, '972') + '@c.us';
-    await axios.post(
-      `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/sendMessage/${process.env.GREEN_API_TOKEN}`,
-      { chatId, message }
-    );
-
-    await pool.query('UPDATE meetings SET reminder_sent_at = NOW() WHERE google_event_id = $1', [req.params.eventId]);
-
+    await pool.query('UPDATE meetings SET reminder_sent_at = NULL WHERE id = $1', [meeting.id]);
+    const ok = await rsvp.sendCustomerReminder(meeting.id);
+    if (!ok) return res.status(500).json({ error: 'השליחה נכשלה' });
     res.json({ ok: true });
   } catch (err) {
     console.error('[Calendar] remind error:', err.message);
@@ -385,8 +382,9 @@ router.patch('/meetings/:eventId/reschedule', async (req, res) => {
        VALUES ($1, 'note', 'outbound', $2, $3)`,
       [meeting.lead_id, body, req.user?.id || null]
     );
-    // Host reminder goes out again for the new time
-    await pool.query('UPDATE meetings SET host_reminder_sent_at = NULL WHERE google_event_id = $1', [req.params.eventId]);
+    // The whole reminder/RSVP flow starts over for the new time (customer + host)
+    await rsvp.resetForReschedule(req.params.eventId);
+    rsvp.maybeSendShortNoticeReminder(meeting.id).catch(e => console.error('[Calendar] short-notice reminder:', e.message));
     {
       const { rows: lr } = await pool.query('SELECT id, name FROM leads WHERE id = $1', [meeting.lead_id]);
       const baseUrl0 = process.env.SERVER_URL || 'http://localhost:3001';

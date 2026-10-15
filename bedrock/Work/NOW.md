@@ -6,6 +6,18 @@ updated: 2026-10-15
 
 # Now
 
+## 2026-10-15 — Meeting reminders + customer RSVP (Phase 47)
+
+Agreed wording/timing with Oran (day-before 10:00 with buttons, meeting-day 09:00 without,
+host nudge 09:00 if unanswered, short-notice → send at booking, Google event ✅/❌-grey,
+parking = link to sharabiya.co.il/חניה-ודרכי-הגעה). Built in the cloud clone (Mac was
+offline), applied to the Mac as a patch. Green API `sendInteractiveButtonsReply` is beta —
+the button-click webhook field names are guessed (`interactiveButtonsReply` /
+`buttonsResponseMessage` with `selectedButtonId`/`buttonId`); if clicks don't register,
+log one raw webhook body and fix the parser in `handleInboundReply` callers
+(`routes/whatsapp.js`, `services/whatsappPoller.js`). Text answers are the fallback.
+
+
 ## 2026-10-15 — Meeting host (Phase 46)
 
 Oran's decisions: do not touch `assigned_to`; the host gets reminders/notes (booked for them,

@@ -168,6 +168,17 @@ router.post('/webhook', async (req, res) => {
     if (body.typeWebhook !== 'incomingMessageReceived') return res.sendStatus(200);
 
     const msg = body.messageData;
+    // Meeting RSVP button clicks (Green API interactive buttons) never reach the lead's chat as a
+    // normal message — consume them here. Button ids look like meet_<meetingId>_yes|no.
+    {
+      const bd = msg?.interactiveButtonsReply || msg?.buttonsResponseMessage || msg?.templateButtonReplyMessage || msg?.buttonsResponseMessageData || null;
+      const buttonId = bd?.selectedButtonId || bd?.buttonId || bd?.selectedId || null;
+      if (buttonId && /^meet_\d+_(yes|no)$/.test(buttonId)) {
+        const senderPhone0 = (body.senderData?.sender || '').replace('@c.us', '');
+        await require('../services/meetingRsvpService').handleInboundReply({ phone: senderPhone0, buttonId });
+        return res.sendStatus(200);
+      }
+    }
     const SUPPORTED = ['textMessage','extendedTextMessage','imageMessage','documentMessage','audioMessage','extendedAudioMessage','videoMessage'];
     if (!msg || !SUPPORTED.includes(msg.typeMessage)) return res.sendStatus(200);
 
@@ -203,6 +214,11 @@ router.post('/webhook', async (req, res) => {
       [leadId, text, externalId, senderPhone]
     );
     await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [leadId]);
+
+    // "מגיע" / "לא אגיע" typed as a reply to the meeting reminder → RSVP (non-blocking)
+    if (['textMessage','extendedTextMessage'].includes(msg.typeMessage)) {
+      require('../services/meetingRsvpService').handleInboundReply({ phone: senderPhone, text }).catch(() => {});
+    }
 
     // Chatbot auto-reply (non-blocking)
     ;(async () => {

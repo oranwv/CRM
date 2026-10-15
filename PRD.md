@@ -704,6 +704,7 @@ Files embedded in interaction/message bodies use this format where `id` is the `
 | DELETE | `/meetings/:eventId` | ✅ | Cancel meeting: delete GCal event, clear `leads.meeting_event_id`, log cancellation with reason to timeline. Body: `{ reason }` |
 | PATCH | `/meetings/:eventId/reschedule` | ✅ | Postpone meeting: update GCal event, update DB, log to timeline. Body: `{ newStart, newEnd, reason }` — ISO strings built on frontend (Jerusalem TZ) |
 | GET | `/meetings/:eventId/ics` | public | ICS download — lead clicks from phone |
+| GET | `/meetings/:token/decline` | Public | Customer "לא מגיע/ה" link → customer_status=declined, host notified |
 | GET | `/meetings/:token/confirm` | public | Lead self-confirmation link → updates confirmed_at + patches GCal description |
 | POST | `/meetings/:eventId/remind` | ✅ | Send WhatsApp reminder to lead |
 | POST | `/meetings/:eventId/notify` | ✅ | Send Google Calendar email invite to attendees |
@@ -1770,6 +1771,27 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 ---
 
 ## Build Phases — Status
+
+### Phase 47 — Meeting reminders with customer RSVP ✅ Built 2026-10-15
+`services/meetingRsvpService.js` replaces `meetingReminderService.js` (tick every 15 min).
+- **Customer, day before at 10:00 (Israel)**: reminder with address, Google Maps link and the
+  parking/directions page on sharabiya.co.il, plus two Green API interactive buttons
+  "✅ מגיע/ה" / "❌ לא מגיע/ה" (`sendInteractiveButtonsReply`, beta). If the buttons call fails the
+  same text goes out with `/confirm` + `/decline` links. Booked for today, or for tomorrow after
+  10:00 → sent immediately at booking (`maybeSendShortNoticeReminder`).
+- **Customer, meeting day at 09:00**: short reminder, no buttons; skipped if declined or if the
+  first reminder already went out that day. Both messages are logged as outbound in the chat.
+- **Answers** — button click (ids `meet_<id>_yes|no`, consumed in the webhook and the poller),
+  link, or a plain "מגיע"/"לא אגיע" text within 2 days of the reminder — set
+  `meetings.customer_status` (confirmed | declined) + `_at`/`_source`, add a timeline note, reply
+  to the customer, update the Google event (✅ title / "❌ בוטל –" + grey, quiet, no customer
+  mail; restored on reschedule) and, on decline, WhatsApp the host immediately.
+- **Host**: the day-before internal reminder now carries the status; at 09:00 on the meeting
+  day, if the customer never answered, "לא אישר – להתקשר" (`host_nudge_sent_at`).
+- Lead card badge under the meeting: ✅ אישר הגעה / ❌ ביטל / ⏳ לא ענה לתזכורת / ⏳ תזכורת טרם
+  נשלחה. "שלח תזכורת" re-sends the buttons message. Reschedule resets the whole flow.
+- Columns: `customer_status`, `customer_status_at`, `customer_status_source`,
+  `dayof_reminder_sent_at`, `host_nudge_sent_at` (+ existing `reminder_sent_at`, `confirmed_at`).
 
 ### Phase 46 — Meeting host (מי מקיים את הפגישה) ✅ Built 2026-10-15
 Use case: Gili talks to a customer and books the meeting for Shir. New internal-only field

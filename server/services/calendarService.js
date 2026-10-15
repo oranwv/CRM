@@ -400,8 +400,35 @@ async function updateMeetingTime(googleEventId, start, end) {
     requestBody: {
       start: { dateTime: start, timeZone: 'Asia/Jerusalem' },
       end:   { dateTime: end,   timeZone: 'Asia/Jerusalem' },
+      // The RSVP flow starts over for the new date — plain title and colour again
+      ...(await meetingStatusPatch(calendar, googleEventId, null)),
     },
   });
+}
+
+// Customer RSVP on the meeting event: "✅ <title>" when confirmed, "❌ בוטל – <title>" + grey when
+// declined, back to the plain title/colour on null. Quiet — no update mail to the customer.
+const MEETING_COLOR = '3', DECLINED_COLOR = '8';
+function stripStatusPrefix(summary = '') {
+  return summary.replace(/^(✅\s*|❌\s*בוטל\s*[–-]\s*)+/, '');
+}
+async function meetingStatusPatch(calendar, eventId, status) {
+  const { data } = await calendar.events.get({ calendarId: 'primary', eventId });
+  const base = stripStatusPrefix(data.summary || '');
+  const summary = status === 'confirmed' ? `✅ ${base}` : status === 'declined' ? `❌ בוטל – ${base}` : base;
+  const desc = (data.description || '').split('\n').filter(l => !/^(✅|❌) הלקוח/.test(l)).join('\n');
+  const stamp = new Date().toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem', hour12: false });
+  const line = status === 'confirmed' ? `✅ הלקוח אישר הגעה דרך התזכורת ב-${stamp}` : status === 'declined' ? `❌ הלקוח ביטל דרך התזכורת ב-${stamp}` : null;
+  return {
+    summary,
+    colorId: status === 'declined' ? DECLINED_COLOR : MEETING_COLOR,
+    description: line ? `${line}${desc ? '\n' + desc : ''}` : desc,
+  };
+}
+async function markMeetingCustomerStatus(googleEventId, status) {
+  const calendar = google.calendar({ version: 'v3', auth: getAuth() });
+  const requestBody = await meetingStatusPatch(calendar, googleEventId, status);
+  await calendar.events.patch({ calendarId: 'primary', eventId: googleEventId, sendUpdates: 'none', requestBody });
 }
 
 const CALENDAR_ID = 'sharabiyajaffa@gmail.com';
@@ -429,4 +456,4 @@ async function removeCalendarAcl(ruleId) {
   await calendar.acl.delete({ calendarId: CALENDAR_ID, ruleId });
 }
 
-module.exports = { createCandidateMeeting, syncLeadToCalendar, markEventDate, unmarkEventDate, removeLeadEventsFromGoogle, getLeadCalendarStatus, getLeadCalendarStatusVerified, createMeeting, createManualEvent, deleteManualEvent, sendMeetingInvite, getMeetingRsvpStatus, patchEventDescription, deleteMeeting, updateMeetingTime, listCalendarAcl, addCalendarViewer, removeCalendarAcl };
+module.exports = { markMeetingCustomerStatus, createCandidateMeeting, syncLeadToCalendar, markEventDate, unmarkEventDate, removeLeadEventsFromGoogle, getLeadCalendarStatus, getLeadCalendarStatusVerified, createMeeting, createManualEvent, deleteManualEvent, sendMeetingInvite, getMeetingRsvpStatus, patchEventDescription, deleteMeeting, updateMeetingTime, listCalendarAcl, addCalendarViewer, removeCalendarAcl };

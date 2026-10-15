@@ -100,3 +100,8 @@ voice notes. (Verified 2026-09-08 against the source; earlier notes here said Cl
   `GET /api/calls/:id/recording` — every user may listen to lead-call recordings, only managers get
   the download link (`downloadUrl`); private calls: owner only. The generic `/files` routes refuse
   recordings (403). Timeline marker `[[REC:<callId>]]`.
+
+## Meeting reminders & RSVP (2026-10-15)
+- `services/meetingRsvpService.js` owns all meeting reminders (customer + host). Green API
+  interactive buttons (beta) with link fallback; text answers parsed too. Status lives in
+  `meetings.customer_status`; the Google event title/colour mirrors it.

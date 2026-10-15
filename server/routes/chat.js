@@ -331,7 +331,7 @@ async function executeTool(name, args, user) {
       const { rows: meetings } = await pool.query(`
         SELECT 'meeting' AS type, m.id, m.title, m.start_time AS time,
                l.name AS lead_name, l.id AS lead_id, l.phone AS lead_phone,
-               hu.display_name AS host_name
+               hu.display_name AS host_name, m.customer_status
         FROM meetings m
         JOIN leads l ON l.id = m.lead_id
         LEFT JOIN users hu ON hu.id = m.host_user_id
@@ -353,7 +353,7 @@ async function executeTool(name, args, user) {
       const { rows: meetings } = await pool.query(`
         SELECT 'meeting' AS type, m.id, m.title, m.start_time AS time,
                l.name AS lead_name, l.id AS lead_id, l.phone AS lead_phone,
-               hu.display_name AS host_name
+               hu.display_name AS host_name, m.customer_status
         FROM meetings m
         JOIN leads l ON l.id = m.lead_id
         LEFT JOIN users hu ON hu.id = m.host_user_id

@@ -5410,6 +5410,18 @@ function CalendarSection({ lead, leadId, editForm, calStatus, onUpdated, allPhon
             {meeting?.host_name && (
               <span className="block text-xs text-violet-600 font-semibold mt-0.5">מקיים/ת: {meeting.host_name}</span>
             )}
+            {meeting && (
+              <span className={`inline-block text-[11px] font-bold px-2 py-0.5 rounded-full border mt-1 ${
+                meeting.customer_status === 'confirmed' ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                : meeting.customer_status === 'declined' ? 'bg-red-100 text-red-600 border-red-200'
+                : meeting.reminder_sent_at ? 'bg-slate-100 text-slate-500 border-slate-200'
+                : 'bg-slate-50 text-slate-400 border-slate-200'}`}>
+                {meeting.customer_status === 'confirmed' ? '✅ הלקוח אישר הגעה'
+                  : meeting.customer_status === 'declined' ? '❌ הלקוח ביטל'
+                  : meeting.reminder_sent_at ? '⏳ לא ענה לתזכורת'
+                  : '⏳ תזכורת טרם נשלחה'}
+              </span>
+            )}
           </div>
           <button onClick={() => setShowMeetingAction(true)}
             className="text-sm font-bold px-3 py-1.5 rounded-xl border-2 border-red-200 text-red-600 hover:bg-red-50 transition whitespace-nowrap">

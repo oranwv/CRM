@@ -96,6 +96,17 @@ async function processNotification(notification) {
   const msg = body.messageData;
   if (!msg) return;
 
+  // Meeting RSVP button clicks (Green API interactive buttons) never reach the lead's chat as a
+  // normal message — consume them here. Button ids look like meet_<meetingId>_yes|no.
+  {
+    const bd = msg?.interactiveButtonsReply || msg?.buttonsResponseMessage || msg?.templateButtonReplyMessage || msg?.buttonsResponseMessageData || null;
+    const buttonId = bd?.selectedButtonId || bd?.buttonId || bd?.selectedId || null;
+    if (buttonId && /^meet_\d+_(yes|no)$/.test(buttonId)) {
+      const senderPhone0 = (body.senderData?.sender || '').replace('@c.us', '');
+      await require('./meetingRsvpService').handleInboundReply({ phone: senderPhone0, buttonId });
+      return;
+    }
+  }
   const SUPPORTED = ['textMessage','extendedTextMessage','imageMessage','documentMessage','audioMessage','extendedAudioMessage','videoMessage'];
   if (!SUPPORTED.includes(msg.typeMessage)) return;
 
@@ -131,6 +142,9 @@ async function processNotification(notification) {
     [leadId, text, externalId]
   );
   await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [leadId]);
+  if (['textMessage','extendedTextMessage'].includes(msg.typeMessage)) {
+    require('./meetingRsvpService').handleInboundReply({ phone: senderPhone, text }).catch(() => {});
+  }
   console.log(`[WhatsApp] Inbound from ${senderPhone} → lead ${leadId}: ${text.slice(0, 50)}`);
 }
 
