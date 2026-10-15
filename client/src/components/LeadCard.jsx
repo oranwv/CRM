@@ -11,6 +11,7 @@ import PendingDocDetail from './PendingDocDetail';
 import AddSupplierModal from './AddSupplierModal';
 import SupplierCard from './SupplierCard';
 import { docTypeLabel } from '../utils/docTypes';
+import { israelToISO } from '../utils/israelTime';
 import { useCalls } from '../context/CallContext';
 
 const STAGES = [
@@ -72,9 +73,7 @@ function formatFull(d) {
 }
 // Returns ISO string from separate date (yyyy-mm-dd) + time (hh:mm) inputs, treating as Israel time
 function localToISO(date, time) {
-  if (!date) return null;
-  const str = time ? `${date}T${time}` : `${date}T00:00`;
-  return new Date(str).toISOString(); // browser is in Israel TZ → correct UTC offset
+  return israelToISO(date, time); // Israel wall-clock regardless of the device's timezone
 }
 // Parses free-text date (day first) → 'YYYY-MM-DD' or null
 function parseDateIL(str) {
@@ -5845,8 +5844,8 @@ function MeetingActionModal({ lead, leadId, eventId, meeting, allPhones, allPhon
     if (!date || !startTime || !endTime) return;
     setSaving(true);
     try {
-      const newStart = new Date(`${date}T${startTime}`).toISOString();
-      const newEnd   = new Date(`${date}T${endTime}`).toISOString();
+      const newStart = israelToISO(date, startTime);
+      const newEnd   = israelToISO(date, endTime);
       await api.patch(`/calendar/meetings/${eventId}/reschedule`, { newStart, newEnd, reason });
 
       const icsUrl = `${window.location.origin}/api/calendar/meetings/${eventId}/ics`;
@@ -5995,7 +5994,7 @@ function ScheduleMeetingModal({ lead, leadId, users = [], allPhones, allPhoneLab
   const cls = 'w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-violet-400 bg-white';
 
   function buildDateTime(d, t) {
-    return new Date(`${d}T${t}`).toISOString();
+    return israelToISO(d, t);
   }
 
   async function submit() {

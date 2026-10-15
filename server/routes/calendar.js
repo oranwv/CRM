@@ -123,9 +123,9 @@ router.post('/leads/:leadId/meeting', async (req, res) => {
 
     const confirmToken = crypto.randomUUID();
     await pool.query(
-      `INSERT INTO meetings (lead_id, google_event_id, title, start_time, end_time, confirm_token, host_user_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [lead.id, eventId, title, start, end, confirmToken, hostUserId]
+      `INSERT INTO meetings (lead_id, google_event_id, title, start_time, end_time, confirm_token, host_user_id, booked_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [lead.id, eventId, title, start, end, confirmToken, hostUserId, req.user?.id || null]
     );
     const host = await hostName(hostUserId);
 

@@ -162,6 +162,7 @@ migrate(`
   ALTER TABLE meetings ADD COLUMN IF NOT EXISTS customer_status_source TEXT;
   ALTER TABLE meetings ADD COLUMN IF NOT EXISTS dayof_reminder_sent_at TIMESTAMPTZ;
   ALTER TABLE meetings ADD COLUMN IF NOT EXISTS host_nudge_sent_at TIMESTAMPTZ;
+  ALTER TABLE meetings ADD COLUMN IF NOT EXISTS booked_by INT REFERENCES users(id) ON DELETE SET NULL;
   ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) ON DELETE SET NULL;
   ALTER TABLE leads ADD COLUMN IF NOT EXISTS event_name VARCHAR(255);
   UPDATE leads SET event_name = name WHERE event_name IS NULL;

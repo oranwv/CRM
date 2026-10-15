@@ -2281,6 +2281,20 @@ build (briefing, staff attendance and the WhatsApp bot were explicitly left unto
   logging, `vite build`. Not verified: real Green API sends from `/api/chat/send` and the
   live OpenAI prompts — check after deploy.
 
+### Phase 45 — ניהול: "פגישות נקבעו" + pickers always mean Israel time ✅ Built 2026-10-15
+**Meetings booked per employee.** The ניהול table had פגישות שבוצעו/שתועדו but not how many meetings
+an employee *booked* that day. New `meetings.booked_by` (who clicked קבע פגישה; `host_user_id`
+stays the host) filled on `POST /calendar/leads/:id/meeting`; `employee-activity` gets a
+`meetings_booked` metric (by `meetings.created_at`, Israel day) and `ManagementPage.jsx` shows it
+as "פגישות נקבעו" before "פגישות שבוצעו". Meetings booked before this phase have no `booked_by`
+and are not counted.
+**Israel time from anywhere.** Meeting pickers (קבע פגישה, reschedule) and the task-due helper
+built timestamps with `new Date('YYYY-MM-DDTHH:MM')`, i.e. the *device's* timezone — a 19:00 pick
+from Bali became 14:00 in Israel. New `client/src/utils/israelTime.js` (`israelToISO`,
+`isoToIsraelParts`) resolves picked date+time as Asia/Jerusalem wall-clock (DST-aware) and is
+used by `buildDateTime`, the reschedule modal and `localToISO` in `LeadCard.jsx`. Lead calendar
+events (אופציה/סגור) already carried `timeZone: 'Asia/Jerusalem'` server-side — unchanged.
+
 ### Phase 44 — Lost reasons for non-leads: אורח מתקשר לבירור / מחפש עבודה / ספק ✅ Built 2026-10-14
 Oran asked for three new "לא סגרו" reasons for calls that were never a real lead: a guest of an
 event calling to ask about it, a job seeker, and a supplier. Added `guest_inquiry` →

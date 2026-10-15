@@ -50,6 +50,12 @@ WhatsApp arrives.
 
 - CRM `RecordingPlayer` rewritten WhatsApp-style with a speed pill; app RecordingScreen got the same (v5, not built yet). Dialer v4 built with Firebase config; Oran still has to create the Twilio FCM push credential + `TWILIO_ANDROID_PUSH_CREDENTIAL_SID` in Railway. Apple Developer enrollment ordered 2026-10-14, awaiting activation.
 
+## 2026-10-15 — Phase 45: פגישות נקבעו + Israel-time pickers
+
+- `meetings.booked_by` + `meetings_booked` metric → "פגישות נקבעו" column in ניהול (counts from now on).
+- `utils/israelTime.js`: meeting/reschedule/task-due pickers resolve as Israel wall-clock on any device (Oran books from Bali). Open: `TaskEditModal` still uses device TZ for due_at — ask Oran.
+- Cloud session, pushed.
+
 ## 2026-10-14 — Phase 44: lost reasons for non-leads
 
 - New lost reasons `guest_inquiry` / `job_seeker` / `supplier` (אורח מתקשר לבירור / מחפש עבודה / ספק) in LeadCard picker + Analytics labels. Cloud session, pushed.

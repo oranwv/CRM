@@ -180,7 +180,7 @@ router.get('/overview', async (req, res) => {
 });
 
 const METRIC_KEYS = [
-  'calls_made', 'calls_documented', 'meetings_done', 'meetings_documented',
+  'calls_made', 'calls_documented', 'meetings_booked', 'meetings_done', 'meetings_documented',
   'notes', 'wa_sent', 'tasks_created', 'tasks_completed', 'leads_created', 'files_uploaded',
 ];
 const SESSION_GAP_SEC = 2 * 60 * 60; // a gap > 2h ends a work session
@@ -225,6 +225,9 @@ router.get('/employee-activity', async (req, res) => {
         UNION ALL
         SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'meetings_documented'
           FROM lead_interactions WHERE created_by IS NOT NULL AND type='meeting' AND (source IS NULL OR source<>'calendar')
+        UNION ALL
+        SELECT booked_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'meetings_booked'
+          FROM meetings WHERE booked_by IS NOT NULL
         UNION ALL
         SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'notes'
           FROM lead_interactions WHERE created_by IS NOT NULL AND type='note'

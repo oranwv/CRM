@@ -5,6 +5,7 @@ import api from '../api';
 const METRIC_COLS = [
   { key: 'calls_made',          label: 'שיחות שבוצעו' },
   { key: 'calls_documented',    label: 'שיחות שתועדו' },
+  { key: 'meetings_booked',     label: 'פגישות נקבעו' },
   { key: 'meetings_done',       label: 'פגישות שבוצעו' },
   { key: 'meetings_documented', label: 'פגישות שתועדו' },
   { key: 'notes',               label: 'הערות' },
