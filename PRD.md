@@ -1256,6 +1256,11 @@ through the state machine.
 ### `EventsPage.jsx` (`/events`) — "הפקה" mode
 Two tabs: **בהפקה** (stages `deposit` / `production`) and **אירועים שהסתיימו**
 (`completed`), each row opening the lead card.
+In the **בהפקה** tab (2026-10-15, Oran): the card shows **אחראי הפקה: <name>** (`production_manager_id`,
+"לא נבחר" when empty) instead of the lead owner; and an event whose day has passed (Israel date,
+`event_passed` from `GET /api/leads`) with the full payment not confirmed gets a red border and a red
+line **"אירוע הסתיים ולא התקבל תשלום"**. The אירועים שהסתיימו tab is unchanged. `GET /api/leads` now
+also returns `production_manager_name` and `event_passed`.
 
 ### `ManagementPage.jsx` (`/management`) — "ניהול" mode
 Employee-activity dashboard for admin/manager. Columns: calls made / calls documented,

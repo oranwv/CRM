@@ -138,6 +138,9 @@ router.get('/', async (req, res) => {
 
   let query = `
     SELECT l.*, u.display_name AS assigned_name,
+           (SELECT pmu.display_name FROM users pmu WHERE pmu.id = l.production_manager_id) AS production_manager_name,
+           -- the event day is already behind us (Israel date) — used by the הפקה events list
+           (l.event_date IS NOT NULL AND l.event_date < (NOW() AT TIME ZONE 'Asia/Jerusalem')::date) AS event_passed,
            -- "לא ענה": the latest outbound call to this lead was not answered and the customer
            -- has not been in touch since (no inbound message / interaction / answered call after it).
            COALESCE((

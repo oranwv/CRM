@@ -6,6 +6,11 @@ updated: 2026-10-15
 
 # Now
 
+## 2026-10-15 — Events page (הפקה): unpaid-after-event flag + אחראי הפקה
+
+- בהפקה tab: red "אירוע הסתיים ולא התקבל תשלום" on past events without a confirmed full payment;
+  the card shows אחראי הפקה instead of the lead owner. API adds `production_manager_name`, `event_passed`.
+
 ## 2026-10-15 — Phase 42: PWA icon refresh
 
 - Phone shortcut/app-list/splash showed the old gradient-bolt icon. Cache-busted manifest + icon URLs (`?v=2`), added 192px and an opaque 180px apple-touch-icon. Done from the cloud (Mac link dropped mid-session) — pushed to GitHub, Mac picks it up via the scheduled sync. Oran to confirm the icon changed on his phone after the Railway deploy (may need remove + re-add).

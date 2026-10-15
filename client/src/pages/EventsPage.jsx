@@ -18,13 +18,21 @@ function formatEventDate(lead) {
   return d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-function EventCard({ lead, onClick }) {
+function EventCard({ lead, onClick, inProduction }) {
   const dateStr = formatEventDate(lead);
+  // Still in production, the event day has passed and the full payment isn't confirmed
+  const unpaidAfterEvent = inProduction && lead.event_passed && !lead.full_payment_confirmed;
   return (
     <button
       onClick={onClick}
-      className="w-full text-right bg-white rounded-2xl shadow-sm border border-violet-100 px-4 py-3 hover:border-violet-300 transition"
+      className={`w-full text-right bg-white rounded-2xl shadow-sm border px-4 py-3 transition ${
+        unpaidAfterEvent ? 'border-red-300 hover:border-red-400' : 'border-violet-100 hover:border-violet-300'}`}
     >
+      {unpaidAfterEvent && (
+        <p className="mb-2 text-xs font-black text-red-600 bg-red-50 border border-red-200 rounded-lg px-2 py-1">
+          אירוע הסתיים ולא התקבל תשלום
+        </p>
+      )}
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <p className="font-black text-slate-800 text-sm truncate">{lead.event_name || lead.name}</p>
@@ -42,7 +50,9 @@ function EventCard({ lead, onClick }) {
           {STAGE_LABEL[lead.stage] || lead.stage}
         </span>
       </div>
-      {lead.assigned_name && (
+      {inProduction ? (
+        <p className="text-[11px] text-slate-400 mt-1.5">אחראי הפקה: {lead.production_manager_name || 'לא נבחר'}</p>
+      ) : lead.assigned_name && (
         <p className="text-[11px] text-slate-400 mt-1.5">אחראי: {lead.assigned_name}</p>
       )}
     </button>
@@ -136,7 +146,7 @@ export default function EventsPage() {
         )}
 
         {!loading && filteredLeads.map(lead => (
-          <EventCard key={lead.id} lead={lead} onClick={() => {
+          <EventCard key={lead.id} lead={lead} inProduction={tab === 'in_production'} onClick={() => {
             // Desktop: open the lead in its own browser tab; mobile: in-page overlay.
             if (isDesktop()) window.open(`/leads/${lead.id}`, '_blank');
             else setOpenLeadId(lead.id);
