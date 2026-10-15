@@ -214,8 +214,10 @@ router.get('/employee-activity', async (req, res) => {
     const metricsQ = pool.query(`
       SELECT uid, to_char(d, 'YYYY-MM-DD') AS day, metric, COUNT(*)::int AS cnt
       FROM (
-        SELECT created_by AS uid, (created_at AT TIME ZONE 'Asia/Jerusalem')::date AS d, 'calls_made'::text AS metric
-          FROM lead_interactions WHERE created_by IS NOT NULL AND type IN ('call','call_attempt') AND direction='outbound' AND source IN ('dial','twilio')
+        -- Answered outbound calls from the system (Twilio): status completed and the customer actually
+        -- picked up (duration > 0). Unanswered dials, busy, failed and tel:-link taps are not counted.
+        SELECT user_id AS uid, (started_at AT TIME ZONE 'Asia/Jerusalem')::date AS d, 'calls_made'::text AS metric
+          FROM calls WHERE user_id IS NOT NULL AND direction='outbound' AND status='completed' AND COALESCE(duration_sec,0) > 0
         UNION ALL
         SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'calls_documented'
           FROM lead_interactions WHERE created_by IS NOT NULL AND type='call' AND direction='outbound' AND (source IS NULL OR source NOT IN ('dial','twilio'))

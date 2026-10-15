@@ -29,3 +29,4 @@
 {"ts": "2026-10-15T11:20:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "Leads table: 'לא ענה' badge same size as stage badge, nowrap, phone emoji removed"}
 {"ts": "2026-10-15T12:30:00Z", "type": "feature", "tool": "cloud", "slug": "CRM", "summary": "Phase 45: meetings.booked_by + meetings_booked metric (פגישות נקבעו in ניהול); client utils/israelTime.js so date/time pickers mean Israel time on any device"}
 {"ts": "2026-10-15T13:30:00Z", "type": "fix", "tool": "cloud", "slug": "CRM", "summary": "Phase 46: every datetime-local picker (tasks, postpone, AI chat, candidates) resolves as Israel time; ניהול calls_made counts source twilio too, calls_documented excludes system calls"}
+{"ts": "2026-10-15T13:55:00Z", "type": "fix", "tool": "cloud", "slug": "CRM", "summary": "Phase 46b: calls_made counts only answered outbound Twilio calls (calls.status=completed, duration_sec>0), not every dial"}

@@ -2291,8 +2291,11 @@ time is also *displayed* in Israel time now).
 **Calls columns in ניהול.** "שיחות שבוצעו" was empty because it counted only `source='dial'`
 (the old tel:-link attempt) while the Twilio dialer writes `source='twilio'`; and "שיחות שתועדו"
 (= call entries a user wrote by hand on the lead, source NULL) was silently including the Twilio
-calls. Now: שבוצעו = outbound `call`/`call_attempt` with source dial **or twilio** (every dial
-from the system, answered or not); שתועדו = outbound `call` with no system source (manual log).
+calls. Oran then saw 38 for one day and asked that only *answered* calls count, not every tap. Final:
+שבוצעו = rows of the `calls` table (Twilio) with `direction='outbound'`, `status='completed'`
+and `duration_sec > 0`, by the user who dialed and the Israel day of `started_at` — no-answer,
+busy, failed, canceled and tel:-link taps are excluded; שתועדו = outbound `call` interactions
+with no system source (manual log on the lead).
 
 ### Phase 45 — ניהול: "פגישות נקבעו" + pickers always mean Israel time ✅ Built 2026-10-15
 **Meetings booked per employee.** The ניהול table had פגישות שבוצעו/שתועדו but not how many meetings

@@ -54,7 +54,7 @@ WhatsApp arrives.
 
 - `meetings.booked_by` + `meetings_booked` metric → "פגישות נקבעו" column in ניהול (counts from now on).
 - `utils/israelTime.js`: ALL datetime pickers (meetings, tasks, postpone, AI chat, candidates) resolve as Israel wall-clock on any device (Phase 46 closed the rest).
-- Phase 46: ניהול שיחות שבוצעו now counts Twilio dials too (was only legacy `dial`); שתועדו = manual call logs only.
+- Phase 46: ניהול שיחות שבוצעו = answered outbound Twilio calls only (`calls` table, completed + duration>0); שתועדו = manual call logs only.
 - Cloud session, pushed.
 
 ## 2026-10-14 — Phase 44: lost reasons for non-leads
