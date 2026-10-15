@@ -6,6 +6,10 @@ updated: 2026-10-15
 
 # Now
 
+## 2026-10-15 — Phase 43: "לא ענה" badge
+
+- Leads table: badge now same size as the stage badge, one line, no 📵 emoji (Oran's request).
+
 ## 2026-10-15 — Events page (הפקה): unpaid-after-event flag + אחראי הפקה
 
 - בהפקה tab: red "אירוע הסתיים ולא התקבל תשלום" on past events without a confirmed full payment;

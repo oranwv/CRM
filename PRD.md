@@ -2355,6 +2355,11 @@ server rejects everyone else with 403 in `routes/candidates.js`).
 - Verified: eslint + import resolution on the Mac VM (vite build can't run there — Mac-native
   rolldown binary); server files `node --check`. Not verified: a real calendar/WhatsApp send.
 
+### Phase 43 — "לא ענה" badge in the leads table ✅ Built 2026-10-15
+Oran (phone, 15.10): the amber "📵 לא ענה" badge under the stage badge wrapped onto two lines
+and was smaller than the stage badge. `LeadsPage.jsx`: same text size as the stage badge,
+`whitespace-nowrap`, phone emoji removed — reads "לא ענה" on one line.
+
 ### Phase 42 — Home-screen / app-list icon shows the current logo ✅ Built 2026-10-15
 Oran's phone (15.10): the PWA shortcut ("crm" on the home screen, the app list and the splash
 screen) still showed the old gradient bolt on white, although `app-icon-512.png` in the repo is
