@@ -1964,6 +1964,13 @@ morning/evening sales briefings on Friday and Saturday. `users.shabbat_mode` + t
 in the admin user editor (plus a badge in the user row); the skip lives in
 `runSalesBriefings`. Scope limited to the two sales briefings by Oran's explicit choice.
 
+### Phase 38c — WhatsApp-style recording player with playback speed ✅ Built 2026-10-15
+Oran: fast playback like WhatsApp. `RecordingPlayer` in the timeline is now a custom player
+(hidden `<audio>`): round play/pause, draggable progress bar (RTL-aware), elapsed/total time and
+a speed pill cycling **1× → 1.2× → 1.5× → 2×**. No native controls, so still no download
+control; the managers-only "⬇️ הורד" link is unchanged. The dialer app's recording screen got
+the same speed pill (v1.0.0 (5)).
+
 ### Phase 38b — Israeli ringback tone ✅ Built 2026-10-13
 Oran: the dialing sound in the app "sounds strange" — it was Twilio's default US ringback.
 Every `<Dial>` (browser/app outbound, mobile bridge, inbound ring plan) now sets `ringTone="il"`.

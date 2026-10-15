@@ -6,6 +6,10 @@ updated: 2026-10-14
 
 # Now
 
+## 2026-10-15 — Recording player speed (1/1.2/1.5/2×)
+
+- CRM `RecordingPlayer` rewritten WhatsApp-style with a speed pill; app RecordingScreen got the same (v5, not built yet). Dialer v4 built with Firebase config; Oran still has to create the Twilio FCM push credential + `TWILIO_ANDROID_PUSH_CREDENTIAL_SID` in Railway. Apple Developer enrollment ordered 2026-10-14, awaiting activation.
+
 ## 2026-10-14 — Phase 44: lost reasons for non-leads
 
 - New lost reasons `guest_inquiry` / `job_seeker` / `supplier` (אורח מתקשר לבירור / מחפש עבודה / ספק) in LeadCard picker + Analytics labels. Cloud session, pushed.

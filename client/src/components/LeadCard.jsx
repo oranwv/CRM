@@ -1381,15 +1381,44 @@ function CallButtons({ lead, phone }) {
 // Call recording on the timeline. Policy (2026-09-29): playback inside the CRM only, managers
 // only, no download. The URL is a 60-second signed link fetched when the manager presses play;
 // non-managers see nothing (the server refuses them anyway).
+// WhatsApp-style voice player: play/pause, draggable progress, elapsed/total time and a
+// speed pill that cycles 1x → 1.2x → 1.5x → 2x (Oran, 2026-10-15). The <audio> element is
+// hidden so there is no native download control; the manager-only download link stays.
+const SPEEDS = [1, 1.2, 1.5, 2];
+function fmtClock(sec) { sec = Math.max(0, Math.floor(sec || 0)); return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`; }
+
 function RecordingPlayer({ callId }) {
   // Everyone may listen; the download link comes back only for managers (server decides).
   const [rec, setRec] = useState(null);
   const [err, setErr] = useState('');
+  const [playing, setPlaying] = useState(false);
+  const [cur, setCur] = useState(0);
+  const [dur, setDur] = useState(0);
+  const [speed, setSpeed] = useState(1);
+  const audioRef = useRef(null);
+  const barRef = useRef(null);
+
   async function load(e) {
     e.stopPropagation();
     try { const r = await api.get(`/calls/${callId}/recording`); setRec(r.data); }
     catch (x) { setErr(x.response?.data?.error || 'לא ניתן לטעון את ההקלטה'); }
   }
+  useEffect(() => { if (audioRef.current) audioRef.current.playbackRate = speed; }, [speed, rec]);
+
+  function toggle() {
+    const a = audioRef.current; if (!a) return;
+    if (a.paused) { a.playbackRate = speed; a.play().catch(() => {}); } else a.pause();
+  }
+  function seekFromEvent(e) {
+    const a = audioRef.current, bar = barRef.current; if (!a || !bar || !dur) return;
+    const rect = bar.getBoundingClientRect();
+    const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+    // RTL page: the bar fills from the right, so measure from the right edge
+    const frac = Math.min(1, Math.max(0, (rect.width - x) / rect.width));
+    a.currentTime = frac * dur; setCur(a.currentTime);
+  }
+  function cycleSpeed() { setSpeed(s => SPEEDS[(SPEEDS.indexOf(s) + 1) % SPEEDS.length]); }
+
   if (err) return <p className="text-xs text-red-500 mt-1.5">{err}</p>;
   if (!rec) {
     return (
@@ -1399,10 +1428,31 @@ function RecordingPlayer({ callId }) {
       </button>
     );
   }
+  const pct = dur ? Math.min(100, (cur / dur) * 100) : 0;
   return (
     <div className="mt-1.5 flex items-center gap-2 flex-wrap" onClick={e => e.stopPropagation()}>
-      <audio src={rec.url} controls autoPlay controlsList="nodownload noplaybackrate" onContextMenu={e => e.preventDefault()}
-        className="w-full max-w-sm h-9" />
+      <audio ref={audioRef} src={rec.url} autoPlay preload="metadata" className="hidden"
+        onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => { setPlaying(false); setCur(0); }}
+        onTimeUpdate={e => setCur(e.target.currentTime)} onLoadedMetadata={e => setDur(e.target.duration || 0)}
+        onDurationChange={e => setDur(isFinite(e.target.duration) ? e.target.duration : 0)} />
+      <div dir="rtl" className="flex items-center gap-2 w-full max-w-sm bg-slate-100 border border-slate-200 rounded-full px-2 py-1.5">
+        <button onClick={toggle} aria-label={playing ? 'השהה' : 'נגן'}
+          className="w-9 h-9 rounded-full bg-violet-600 hover:bg-violet-700 text-white flex items-center justify-center text-base shrink-0">
+          {playing ? '❚❚' : '▶'}
+        </button>
+        <div ref={barRef} onClick={seekFromEvent} onTouchStart={seekFromEvent}
+          className="relative flex-1 h-6 flex items-center cursor-pointer select-none">
+          <div className="w-full h-1.5 rounded-full bg-slate-300 overflow-hidden">
+            <div className="h-full bg-violet-600 rounded-full" style={{ width: `${pct}%` }} />
+          </div>
+          <div className="absolute w-3.5 h-3.5 rounded-full bg-violet-600 shadow -mr-1.5" style={{ right: `${pct}%` }} />
+        </div>
+        <span className="text-[11px] text-slate-600 tabular-nums shrink-0" dir="ltr">{fmtClock(cur)} / {fmtClock(dur)}</span>
+        <button onClick={cycleSpeed} title="מהירות השמעה"
+          className="px-2 h-7 rounded-full bg-slate-300 hover:bg-slate-400 text-slate-800 text-xs font-bold shrink-0 min-w-[2.6rem]" dir="ltr">
+          {speed}×
+        </button>
+      </div>
       {rec.downloadable && rec.downloadUrl && (
         <a href={rec.downloadUrl} download={rec.filename}
           className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-violet-50 border border-slate-200 hover:border-violet-300 text-xs font-semibold text-slate-700 hover:text-violet-700 transition">
