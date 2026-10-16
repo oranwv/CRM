@@ -138,7 +138,7 @@ async function processNotification(notification) {
 
   await pool.query(
     `INSERT INTO messages (lead_id, channel, direction, body, external_id, timestamp, is_read)
-     VALUES ($1,'whatsapp','inbound',$2,$3,NOW(),false)`,
+     VALUES ($1,'whatsapp','inbound',$2,$3,NOW(),false) ON CONFLICT (external_id) WHERE external_id IS NOT NULL DO NOTHING`,
     [leadId, text, externalId]
   );
   await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [leadId]);

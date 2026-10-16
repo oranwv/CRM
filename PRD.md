@@ -2307,6 +2307,18 @@ build (briefing, staff attendance and the WhatsApp bot were explicitly left unto
   logging, `vite build`. Not verified: real Green API sends from `/api/chat/send` and the
   live OpenAI prompts — check after deploy.
 
+### Phase 48 — WhatsApp messages no longer duplicated on the timeline ✅ Built 2026-10-16
+Oran's screenshot (lead Virginie): every outbound WhatsApp appeared twice (one with the sender's
+name, one without) and the inbound reply twice as well. Causes: (a) rows the CRM writes on
+`/whatsapp/send` (text, file, lead-file) had no `external_id`, so the 30-minute
+`waSyncService` "recovery" pass, which dedups by Green API `idMessage`, re-inserted each one
+without `sent_by`; (b) the inbound webhook and sync dedup with SELECT-then-INSERT, so a webhook
+delivered twice could slip through. Fix: every CRM send stores Green API's `idMessage` as
+`external_id`; partial unique index `messages_external_id_uniq` + `ON CONFLICT … DO NOTHING` on
+every WhatsApp insert (webhook, sync, local poller); the sync attaches the id to an existing
+CRM row with the same text within ±10 min instead of inserting (covers older rows). One-time boot
+cleanup deletes the sync copies of CRM sends and any rows sharing an `external_id`.
+
 ### Phase 47 — ניהול: דקות שיחה; call summary opens with the length; booked_by backfill ✅ Built 2026-10-15
 - **דקות שיחה** column in ניהול (after שיחות שבוצעו): sum of minutes on answered calls
   (`calls.status='completed'`, `duration_sec>0`, each call rounded, min 1), outbound credited to the

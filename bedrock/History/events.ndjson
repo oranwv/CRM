@@ -32,3 +32,4 @@
 {"ts": "2026-10-15T13:55:00Z", "type": "fix", "tool": "cloud", "slug": "CRM", "summary": "Phase 46b: calls_made counts only answered outbound Twilio calls (calls.status=completed, duration_sec>0), not every dial"}
 {"ts": "2026-10-15T14:00:00Z", "type": "feature", "tool": "cloud", "slug": "CRM", "summary": "Lost reason late_callback (לא חזרנו בזמן) added to LeadCard LOST_REASONS and Analytics labels"}
 {"ts": "2026-10-15T15:50:00Z", "type": "feature", "tool": "cloud", "slug": "CRM", "summary": "Phase 47: call_minutes metric + דקות שיחה column; call summary opens with duration in minutes; backfill meetings.booked_by from host_user_id"}
+{"ts": "2026-10-16T14:10:00Z", "type": "fix", "tool": "cloud", "slug": "CRM", "summary": "Phase 48: WhatsApp duplicate rows — store Green API idMessage on CRM sends, unique index on messages.external_id, ON CONFLICT on all inserts, one-time cleanup"}

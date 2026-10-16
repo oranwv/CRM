@@ -64,7 +64,7 @@ async function syncWhatsAppMessages() {
 
       await pool.query(
         `INSERT INTO messages (lead_id, channel, direction, body, external_id, timestamp, is_read, contact_value)
-         VALUES ($1, 'whatsapp', 'inbound', $2, $3, $4, false, $5)`,
+         VALUES ($1, 'whatsapp', 'inbound', $2, $3, $4, false, $5) ON CONFLICT (external_id) WHERE external_id IS NOT NULL DO NOTHING`,
         [leadId, text, msg.idMessage, ts, senderPhone]
       );
       await pool.query('UPDATE leads SET updated_at = $1 WHERE id = $2', [ts, leadId]);
@@ -95,9 +95,22 @@ async function syncWhatsAppMessages() {
       const text = extractText(msg);
       const ts   = msg.timestamp ? new Date(msg.timestamp * 1000) : new Date();
 
+      // Rows the CRM wrote before it stored idMessage (or where Green API gave none) have no
+      // external_id — if an outbound row with the same text exists on this lead within 10 minutes
+      // of this message, it is ours: attach the id instead of inserting a second copy.
+      const { rows: own } = await pool.query(
+        `SELECT id FROM messages WHERE lead_id = $1 AND channel = 'whatsapp' AND direction = 'outbound'
+           AND external_id IS NULL AND body = $2 AND timestamp BETWEEN $3::timestamptz - INTERVAL '10 minutes' AND $3::timestamptz + INTERVAL '10 minutes'
+         ORDER BY timestamp DESC LIMIT 1`,
+        [leadId, text, ts]
+      );
+      if (own.length) {
+        await pool.query('UPDATE messages SET external_id = $1 WHERE id = $2', [msg.idMessage, own[0].id]);
+        continue;
+      }
       await pool.query(
         `INSERT INTO messages (lead_id, channel, direction, body, external_id, timestamp, contact_value)
-         VALUES ($1, 'whatsapp', 'outbound', $2, $3, $4, $5)`,
+         VALUES ($1, 'whatsapp', 'outbound', $2, $3, $4, $5) ON CONFLICT (external_id) WHERE external_id IS NOT NULL DO NOTHING`,
         [leadId, text, msg.idMessage, ts, recipientPhone]
       );
       recovered++;

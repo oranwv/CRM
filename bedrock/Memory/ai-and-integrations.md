@@ -15,6 +15,7 @@ service clients in `server/services/`.
 - **Meta WhatsApp** (Graph API) — `server/services/metaWhatsapp.js`.
 - Outbound file send, inbound message-type handling, AI auto-reply chatbot,
   AI extraction of lead details from inbound messages (commit `3bb9a86`).
+- Dedup: `messages.external_id` = Green API `idMessage`, unique partial index; CRM sends store it, sync/webhook use ON CONFLICT (Phase 48).
 - Inbound message notification (webhook) → lead owner + anyone who sent that lead a
   WhatsApp from the CRM in the last 7 days (`messages.sent_by`), WhatsApp only (Phase 41, 2026-10-14).
 

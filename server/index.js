@@ -166,6 +166,17 @@ migrate(`
   -- Meetings booked before booked_by existed: the booker defaulted to the host
   UPDATE meetings SET booked_by = host_user_id WHERE booked_by IS NULL AND host_user_id IS NOT NULL;
   ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) ON DELETE SET NULL;
+  -- 2026-10-16 WhatsApp duplicates. (a) CRM-sent rows had no external_id, so the 30-min Green API
+  -- sync re-inserted them; (b) a webhook delivered twice could race past the SELECT-then-INSERT check.
+  -- One-time cleanup, then a unique index so neither can happen again.
+  DELETE FROM messages s USING messages o
+    WHERE s.channel = 'whatsapp' AND s.direction = 'outbound' AND s.external_id IS NOT NULL AND s.sent_by IS NULL
+      AND o.channel = 'whatsapp' AND o.direction = 'outbound' AND o.external_id IS NULL
+      AND o.lead_id = s.lead_id AND o.body = s.body
+      AND o.timestamp BETWEEN s.timestamp - INTERVAL '10 minutes' AND s.timestamp + INTERVAL '10 minutes';
+  DELETE FROM messages a USING messages b
+    WHERE a.external_id IS NOT NULL AND a.external_id = b.external_id AND a.id > b.id;
+  CREATE UNIQUE INDEX IF NOT EXISTS messages_external_id_uniq ON messages (external_id) WHERE external_id IS NOT NULL;
   ALTER TABLE leads ADD COLUMN IF NOT EXISTS event_name VARCHAR(255);
   UPDATE leads SET event_name = name WHERE event_name IS NULL;
   CREATE TABLE IF NOT EXISTS price_offers (

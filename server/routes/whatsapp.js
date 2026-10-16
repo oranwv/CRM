@@ -210,7 +210,7 @@ router.post('/webhook', async (req, res) => {
 
     await pool.query(
       `INSERT INTO messages (lead_id, channel, direction, body, external_id, timestamp, is_read, contact_value)
-       VALUES ($1, 'whatsapp', 'inbound', $2, $3, NOW(), false, $4)`,
+       VALUES ($1, 'whatsapp', 'inbound', $2, $3, NOW(), false, $4) ON CONFLICT (external_id) WHERE external_id IS NOT NULL DO NOTHING`,
       [leadId, text, externalId, senderPhone]
     );
     await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [leadId]);
@@ -331,11 +331,12 @@ router.post('/send', requireAuth, async (req, res) => {
     for (const phone of phones) {
       try {
         await waitForWaSlot();
-        await axios.post(url, { chatId: `${phone}@c.us`, message });
+        const { data: sendRes } = await axios.post(url, { chatId: `${phone}@c.us`, message });
         sentTo.push(phone);
         await pool.query(
-          `INSERT INTO messages (lead_id, channel, direction, body, timestamp, contact_value, sent_by) VALUES ($1, 'whatsapp', 'outbound', $2, NOW(), $3, $4)`,
-          [leadId, message, phone, req.user?.id || null]
+          `INSERT INTO messages (lead_id, channel, direction, body, timestamp, contact_value, sent_by, external_id)
+           VALUES ($1, 'whatsapp', 'outbound', $2, NOW(), $3, $4, $5) ON CONFLICT (external_id) WHERE external_id IS NOT NULL DO NOTHING`,
+          [leadId, message, phone, req.user?.id || null, sendRes?.idMessage || null]
         );
       } catch (err) {
         if (sentTo.includes(phone)) {
@@ -372,6 +373,7 @@ router.post('/send-file', requireAuth, upload.single('file'), async (req, res) =
     if (!phones.length) return res.status(400).json({ error: 'No phone number' });
 
     const sentPhones = [];
+    const sentMsgIds = {}; // phone -> Green API idMessage, so the 30-min sync recognises our own rows
     let fileUrl = null;
     let fileName = null;
     let fileMime = 'application/octet-stream';
@@ -411,11 +413,13 @@ router.post('/send-file', requireAuth, upload.single('file'), async (req, res) =
 
       const sendUrl = `${process.env.GREEN_API_URL}/waInstance${process.env.GREEN_API_INSTANCE}/sendFileByUrl/${process.env.GREEN_API_TOKEN}`;
       const leadFileSentTo = [];
+      const leadFileMsgIds = {};
       for (const phone of phones) {
         try {
           await waitForWaSlot();
-          await axios.post(sendUrl, { chatId: `${phone}@c.us`, urlFile, fileName: fName, caption: message });
+          const { data: sendRes } = await axios.post(sendUrl, { chatId: `${phone}@c.us`, urlFile, fileName: fName, caption: message });
           leadFileSentTo.push(phone);
+          leadFileMsgIds[phone] = sendRes?.idMessage || null;
         } catch (err) {
           console.error('[WhatsApp] file send failed for', phone, err.response?.data || err.message);
         }
@@ -427,9 +431,9 @@ router.post('/send-file', requireAuth, upload.single('file'), async (req, res) =
       try {
         for (const phone of leadFileSentTo) {
           await pool.query(
-            `INSERT INTO messages (lead_id, channel, direction, body, timestamp, contact_value, sent_by)
-             VALUES ($1, 'whatsapp', 'outbound', $2, NOW(), $3, $4)`,
-            [leadId, logBody, phone, req.user?.id || null]
+            `INSERT INTO messages (lead_id, channel, direction, body, timestamp, contact_value, sent_by, external_id)
+             VALUES ($1, 'whatsapp', 'outbound', $2, NOW(), $3, $4, $5) ON CONFLICT (external_id) WHERE external_id IS NOT NULL DO NOTHING`,
+            [leadId, logBody, phone, req.user?.id || null, leadFileMsgIds[phone] || null]
           );
         }
         await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [leadId]);
@@ -462,13 +466,14 @@ router.post('/send-file', requireAuth, upload.single('file'), async (req, res) =
       for (const phone of phones) {
         try {
           await waitForWaSlot();
-          await axios.post(sendUrl, {
+          const { data: sendRes } = await axios.post(sendUrl, {
             chatId: `${phone}@c.us`,
             urlFile,
             fileName,
             caption: message,
           });
           sentPhones.push(phone);
+          sentMsgIds[phone] = sendRes?.idMessage || null;
         } catch (err) {
           console.error('[WhatsApp] file send failed for', phone, err.response?.data || err.message);
         }
@@ -488,8 +493,9 @@ router.post('/send-file', requireAuth, upload.single('file'), async (req, res) =
       for (const phone of phones) {
         try {
           await waitForWaSlot();
-          await axios.post(url, { chatId: `${phone}@c.us`, message });
+          const { data: sendRes } = await axios.post(url, { chatId: `${phone}@c.us`, message });
           sentPhones.push(phone);
+          sentMsgIds[phone] = sendRes?.idMessage || null;
         } catch (err) {
           console.error('[WhatsApp] send failed for', phone, err.response?.data || err.message);
         }
@@ -502,8 +508,9 @@ router.post('/send-file', requireAuth, upload.single('file'), async (req, res) =
     try {
       for (const phone of sentPhones) {
         await pool.query(
-          `INSERT INTO messages (lead_id, channel, direction, body, timestamp, contact_value, sent_by) VALUES ($1, 'whatsapp', 'outbound', $2, NOW(), $3, $4)`,
-          [leadId, logBody, phone, req.user?.id || null]
+          `INSERT INTO messages (lead_id, channel, direction, body, timestamp, contact_value, sent_by, external_id)
+           VALUES ($1, 'whatsapp', 'outbound', $2, NOW(), $3, $4, $5) ON CONFLICT (external_id) WHERE external_id IS NOT NULL DO NOTHING`,
+          [leadId, logBody, phone, req.user?.id || null, sentMsgIds[phone] || null]
         );
       }
       await pool.query('UPDATE leads SET updated_at = NOW() WHERE id = $1', [leadId]);
