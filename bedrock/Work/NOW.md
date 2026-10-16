@@ -1,10 +1,20 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-10-15
+updated: 2026-10-16
 ---
 
 # Now
+
+## 2026-10-16 — Dialer on iPhone (TestFlight) + Twilio iOS push credential
+
+- `TWILIO_IOS_PUSH_CREDENTIAL_SID` is set in Railway (APN, production, from the VoIP Services cert).
+- First iOS build is in App Store Connect (app 6823521381) → TestFlight internal testers; Oran adds
+  teammates in Users and Access (Developer) → TestFlight group "Team (Expo)". PRD Phase 37-iOS.
+- Dialer Android build 6 still to run on Expo (Build from GitHub, preview). Then set
+  `dialer_android_version` / `dialer_android_apk_url`.
+- Open: international calling — Twilio Geo permissions (Germany), EU/US numbers decision.
+
 
 ## 2026-10-15 — Phase 43: "לא ענה" badge
 

@@ -2004,6 +2004,23 @@ morning/evening sales briefings on Friday and Saturday. `users.shabbat_mode` + t
 in the admin user editor (plus a badge in the user row); the skip lives in
 `runSalesBriefings`. Scope limited to the two sales briefings by Oran's explicit choice.
 
+### Phase 37-iOS — ProEvent Dialer on iPhone via TestFlight ✅ Built 2026-10-16
+Oran enrolled in the Apple Developer Program (Individual, Team SCX9943B38). App ID
+`co.il.proevent.dialer` with Push Notifications; a VoIP Services certificate (CSR/key kept in
+`~/Projects/proevent-dialer-keystore/`, outside both repos) became the Twilio APN push credential
+→ `TWILIO_IOS_PUSH_CREDENTIAL_SID` in Railway, which `accessToken(userId, 'ios')` already puts
+in the Voice grant. Dialer repo: `ios.buildNumber`, `aps-environment: production` entitlement,
+`ITSAppUsesNonExemptEncryption: false`, `production` profile with `ios.distribution: store` and a
+`submit.production.ios` block. First build shipped with
+`npx eas-cli build -p ios --profile production --auto-submit` → App Store Connect app
+6823521381, TestFlight group "Team (Expo)". Distribution decision (Oran): **TestFlight internal
+testers**, not ad-hoc UDIDs — teammates are added in App Store Connect → Users and Access (role
+Developer) → TestFlight → Internal Testing; builds expire after 90 days. Apple 2FA note: Oran
+has no iPhone and the Mac code popup is unreliable → pick `sms` in the EAS prompt.
+Also in the dialer (same day): the number display now has a blinking caret and a long-press
+"הדבק" bubble like the phone's own dialer (replaces the paste button). Android build 6 (v5–v6
+code) is still pending on Expo.
+
 ### Phase 38e — Android: dial through the app only, no browser race ✅ Built 2026-10-15
 Oran tapped "התקשר" on his phone: the app opened but no call was placed and the button stayed
 greyed out. The 1.5 s "try the app, otherwise browser" race could start the browser softphone
