@@ -65,7 +65,7 @@ export default function AnalyticsPage() {
   const lostRate = Math.round((lostRaw / total) * 100);
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen overflow-x-hidden">
       {/* Header */}
       <div className="bg-white/70 backdrop-blur-sm border-b border-violet-100 px-5 py-4 flex items-center justify-between gap-3 flex-wrap shadow-sm" dir="rtl">
         <div className="flex items-center gap-2 flex-wrap">
@@ -80,16 +80,16 @@ export default function AnalyticsPage() {
               );
             })}
           </div>
-          <div className="flex items-center gap-1 text-xs text-slate-500">
+          <div className="flex items-center gap-1 flex-wrap text-xs text-slate-500">
             <span>מ-</span>
             <input type="date" value={from} max={to || todayStr}
               onChange={e => setFrom(e.target.value)}
-              className="border border-slate-300 rounded-xl px-2 py-1.5 text-sm text-slate-700 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+              className="border border-slate-300 rounded-xl px-2 py-1.5 text-sm text-slate-700 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-violet-400 min-w-0 max-w-[10.5rem]"
               style={{ direction: 'ltr' }} />
             <span>עד</span>
             <input type="date" value={to} min={from || undefined} max={todayStr}
               onChange={e => setTo(e.target.value)}
-              className="border border-slate-300 rounded-xl px-2 py-1.5 text-sm text-slate-700 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+              className="border border-slate-300 rounded-xl px-2 py-1.5 text-sm text-slate-700 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-violet-400 min-w-0 max-w-[10.5rem]"
               style={{ direction: 'ltr' }} />
           </div>
           {loading && <span className="text-xs text-slate-400">טוען...</span>}
@@ -115,13 +115,13 @@ export default function AnalyticsPage() {
         {/* Leads by Month */}
         {byMonth.length > 0 && (
           <Card title="לידים לפי חודש">
-            <div className="flex items-end gap-2 h-32 mt-2">
+            <div className="flex items-end gap-1 sm:gap-2 h-32 mt-2">
               {byMonth.map((m, i) => {
                 const max = Math.max(...byMonth.map(x => Math.max(parseInt(x.total), parseInt(x.won))));
                 const h = Math.round((parseInt(m.total) / (max || 1)) * 100);
                 const wonH = Math.round((parseInt(m.won) / (max || 1)) * 100);
                 return (
-                  <div key={i} className="flex-1 flex flex-col items-center gap-1"
+                  <div key={i} className="flex-1 min-w-0 flex flex-col items-center gap-1"
                     onMouseEnter={() => setHoveredMonth(i)} onMouseLeave={() => setHoveredMonth(null)}>
                     <div className="w-full relative flex flex-col justify-end cursor-default" style={{ height: '100px' }}>
                       <div className="w-full bg-slate-200 rounded-t-lg absolute bottom-0" style={{ height: `${h}%` }} />
@@ -133,7 +133,7 @@ export default function AnalyticsPage() {
                         </div>
                       )}
                     </div>
-                    <span className="text-xs text-slate-500">{m.month}</span>
+                    <span className="text-[10px] sm:text-xs text-slate-500 whitespace-nowrap">{m.month}</span>
                     <span className="text-xs font-bold text-slate-700">{m.total}</span>
                   </div>
                 );

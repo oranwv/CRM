@@ -6,6 +6,10 @@ updated: 2026-10-16
 
 # Now
 
+## 2026-10-17 — Phase 49: analytics page overflow on phones
+
+- Date inputs row + 6-month chart were wider than the phone viewport, dragging the fixed header/nav sideways. Wrapped the date row, let chart columns shrink, `overflow-x-hidden` on the page. Phone-only effect.
+
 ## 2026-10-16 — Dialer on iPhone (TestFlight) + Twilio iOS push credential
 
 - `TWILIO_IOS_PUSH_CREDENTIAL_SID` is set in Railway (APN, production, from the VoIP Services cert).

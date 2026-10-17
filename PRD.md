@@ -2434,6 +2434,15 @@ server rejects everyone else with 403 in `routes/candidates.js`).
 - Verified: eslint + import resolution on the Mac VM (vite build can't run there — Mac-native
   rolldown binary); server files `node --check`. Not verified: a real calendar/WhatsApp send.
 
+### Phase 49 — Analytics page wider than the phone screen ✅ Built 2026-10-17
+Oran's phone (17.10): opening אנליטיקס shifted the whole app sideways — the mode button, KPI
+cards and bottom nav were cut off. Two elements were wider than the viewport, which on mobile
+widens the layout viewport and drags the fixed header/nav with it: the "מ- / עד" date inputs
+(two `type=date` inputs do not shrink) and the 6-month bar chart (each column's "MM/YYYY" label
+set a minimum width). `AnalyticsPage.jsx`: date row wraps and inputs are `min-w-0 max-w-[10.5rem]`;
+chart columns `min-w-0` with `gap-1` and 10px labels on phones (`sm:` unchanged); page root
+`overflow-x-hidden` as a safety net. Desktop unchanged.
+
 ### Phase 43 — "לא ענה" badge in the leads table ✅ Built 2026-10-15
 Oran (phone, 15.10): the amber "📵 לא ענה" badge under the stage badge wrapped onto two lines
 and was smaller than the stage badge. `LeadsPage.jsx`: same text size as the stage badge,
