@@ -138,6 +138,7 @@ router.get('/', async (req, res) => {
 
   let query = `
     SELECT l.*, u.display_name AS assigned_name,
+           ctrk.contract_views, ctrk.contract_last_viewed_at, ctrk.contract_signed_at,
            (SELECT pmu.display_name FROM users pmu WHERE pmu.id = l.production_manager_id) AS production_manager_name,
            -- the event day is already behind us (Israel date) — used by the הפקה events list
            (l.event_date IS NOT NULL AND l.event_date < (NOW() AT TIME ZONE 'Asia/Jerusalem')::date) AS event_passed,
@@ -172,6 +173,12 @@ router.get('/', async (req, res) => {
            ${matchSelect}
     FROM leads l
     LEFT JOIN users u ON u.id = l.assigned_to${extraJoins}
+    LEFT JOIN LATERAL (
+      -- contract tracking for the "חוזה נשלח" badge: customer opened the signing page / signed
+      SELECT (SELECT COUNT(*)::int FROM contract_views v JOIN contracts cc ON cc.id = v.contract_id WHERE cc.lead_id = l.id) AS contract_views,
+             (SELECT MAX(v.viewed_at) FROM contract_views v JOIN contracts cc ON cc.id = v.contract_id WHERE cc.lead_id = l.id) AS contract_last_viewed_at,
+             (SELECT MAX(cc.signed_at) FROM contracts cc WHERE cc.lead_id = l.id AND cc.status = 'signed') AS contract_signed_at
+    ) ctrk ON TRUE
   `;
 
   if (conditions.length) query += ' WHERE ' + conditions.join(' AND ');
@@ -203,7 +210,8 @@ router.get('/:id', async (req, res) => {
            ), FALSE) AS last_call_unanswered,
               ob.display_name AS remaining_balance_override_name,
               pm.display_name AS production_manager_name,
-              sc.signer_id_number, sc.orderer_name
+              sc.signer_id_number, sc.orderer_name,
+              ctrk.contract_views, ctrk.contract_last_viewed_at, ctrk.contract_signed_at
        FROM leads l
        LEFT JOIN users u  ON u.id  = l.assigned_to
        LEFT JOIN users c  ON c.id  = l.created_by
@@ -214,6 +222,12 @@ router.get('/:id', async (req, res) => {
          WHERE lead_id = l.id AND status = 'signed'
          ORDER BY signed_at DESC LIMIT 1
        ) sc ON true
+       LEFT JOIN LATERAL (
+         -- contract tracking for the "חוזה נשלח" badge: customer opened the signing page / signed
+         SELECT (SELECT COUNT(*)::int FROM contract_views v JOIN contracts cc ON cc.id = v.contract_id WHERE cc.lead_id = l.id) AS contract_views,
+                (SELECT MAX(v.viewed_at) FROM contract_views v JOIN contracts cc ON cc.id = v.contract_id WHERE cc.lead_id = l.id) AS contract_last_viewed_at,
+                (SELECT MAX(cc.signed_at) FROM contracts cc WHERE cc.lead_id = l.id AND cc.status = 'signed') AS contract_signed_at
+       ) ctrk ON TRUE
        WHERE l.id = $1`,
       [req.params.id]
     );

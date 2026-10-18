@@ -1777,6 +1777,17 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 50 — Contract "צפו" / "חתמו" icons beside "חוזה נשלח" ✅ Built 2026-10-19
+Requested by Oran: a small eye icon (customer viewed) and a signature icon (customer signed)
+to the left of the "חוזה נשלח" badge. His choices: contracts only for now (price offers are
+sent as a PDF attachment, so there is no view/sign signal — not changed); an icon appears only
+once it happened; hover shows when and how many times; shown in the leads list (next to the
+badge when the stage is חוזה נשלח) and in the lead card (next to the "נשלח חוזה" stage pill).
+Data: `GET /leads` and `GET /leads/:id` return `contract_views`, `contract_last_viewed_at`,
+`contract_signed_at`, aggregated over all of the lead's contracts (views come from the existing
+`contract_views` table — every open of the signing page, including by staff testing the link).
+UI: `components/ContractTrackIcons.jsx` (inline SVG, `title` tooltip).
+
 ### Phase 47 — Meeting reminders with customer RSVP ✅ Built 2026-10-15
 `services/meetingRsvpService.js` replaces `meetingReminderService.js` (tick every 15 min).
 - **Customer, day before at 10:00 (Israel)**: reminder with address, Google Maps link and the

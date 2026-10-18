@@ -10,6 +10,7 @@ import InvoiceModal from './InvoiceModal';
 import PendingDocDetail from './PendingDocDetail';
 import AddSupplierModal from './AddSupplierModal';
 import SupplierCard from './SupplierCard';
+import ContractTrackIcons from './ContractTrackIcons';
 import { docTypeLabel } from '../utils/docTypes';
 import { israelToISO, israelLocalToISO, isoToIsraelLocal } from '../utils/israelTime';
 import { useCalls } from '../context/CallContext';
@@ -626,13 +627,16 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
               ) : (
                 <div className="flex flex-wrap gap-1.5">
                   {STAGES.map((s, i) => (
-                    <button key={s.key} onClick={() => !savingStage && changeStage(s.key)}
-                      disabled={savingStage}
-                      className={`text-sm px-3 py-1.5 rounded-full font-bold transition border ${
-                        i === stageIndex ? s.active : i < stageIndex ? s.past : s.future
-                      }`}>
-                      {i < stageIndex && '✓ '}{s.label}
-                    </button>
+                    <span key={s.key} className="inline-flex items-center gap-1">
+                      <button onClick={() => !savingStage && changeStage(s.key)}
+                        disabled={savingStage}
+                        className={`text-sm px-3 py-1.5 rounded-full font-bold transition border ${
+                          i === stageIndex ? s.active : i < stageIndex ? s.past : s.future
+                        }`}>
+                        {i < stageIndex && '✓ '}{s.label}
+                      </button>
+                      {s.key === 'contract_sent' && <ContractTrackIcons lead={lead} />}
+                    </span>
                   ))}
                   {!isLost && (
                     <button onClick={() => setShowLostModal(true)} disabled={savingStage}

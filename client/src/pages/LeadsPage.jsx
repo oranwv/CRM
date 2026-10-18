@@ -4,6 +4,7 @@ import api from '../api';
 import LeadCard from '../components/LeadCard';
 import AddLeadModal from '../components/AddLeadModal';
 import FilterPanel from '../components/FilterPanel';
+import ContractTrackIcons from '../components/ContractTrackIcons';
 import { useAppMode } from '../context/AppModeContext';
 import { isDesktop } from '../utils/device';
 
@@ -484,7 +485,10 @@ export default function LeadsPage() {
                         const s = STAGE_STYLES[lead.stage];
                         return s ? (
                           <div className="flex flex-col items-start gap-1">
-                            <span className={`font-bold px-2 py-0.5 rounded-full ${s.cls}`}>{s.label}</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className={`font-bold px-2 py-0.5 rounded-full ${s.cls}`}>{s.label}</span>
+                              {lead.stage === 'contract_sent' && <ContractTrackIcons lead={lead} />}
+                            </div>
                             {lead.last_call_unanswered && (
                               <span className="font-bold px-2 py-0.5 rounded-full whitespace-nowrap bg-amber-100 text-amber-700 border border-amber-200" title="השיחה האחרונה אליו לא נענתה">לא ענה</span>
                             )}

@@ -6,6 +6,11 @@ updated: 2026-10-16
 
 # Now
 
+## 2026-10-19 — Phase 50: contract viewed/signed icons
+
+- Eye + signature icons beside "חוזה נשלח" (leads list) and the "נשלח חוזה" pill (lead card), shown only once it happened, tooltip = when + how many views. Contracts only (price offers are PDF attachments — no signal). Data aggregated over the lead's contracts from `contract_views` / `signed_at`.
+- Still open: deposit-section edits in the contract preview revert to 30% on the client signing page/PDF (reported 2026-10-18) — waiting for Oran's go-ahead.
+
 ## 2026-10-17 — Phase 49: analytics page overflow on phones
 
 - Date inputs row + 6-month chart were wider than the phone viewport, dragging the fixed header/nav sideways. Wrapped the date row, let chart columns shrink, `overflow-x-hidden` on the page. Phone-only effect.
