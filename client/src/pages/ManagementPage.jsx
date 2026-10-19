@@ -155,7 +155,7 @@ export function LeadActivityTable({ days, onOpen, loading, empty }) {
             <Fragment key={d.date}>
               <tr className="bg-slate-100 text-slate-600">
                 <td colSpan={span} className="px-2 sm:px-3 py-1 font-bold tabular-nums text-[11px]">
-                  {d.date}{d.meta ? <span className="font-normal text-slate-500 mr-3">{d.meta}</span> : null}
+                  <span dir="ltr">{d.date}</span>{d.meta ? <span className="font-normal text-slate-500"> · {d.meta}</span> : null}
                 </td>
               </tr>
               {d.leads.length === 0 && <tr><td colSpan={span} className="px-3 py-1.5 text-slate-400">אין פעילות מול לקוחות ביום זה</td></tr>}

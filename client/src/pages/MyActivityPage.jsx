@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
-import { METRIC_COLS, dayStr, shiftDays, fmtHours, metricTotal, LeadActivityTable } from './ManagementPage';
+import { METRIC_COLS, dayStr, shiftDays, metricTotal, LeadActivityTable } from './ManagementPage';
+
+// The summary tiles, in the order Oran asked for (no hours, no "leads created")
+const SUMMARY_ORDER = ['calls_made','call_minutes','calls_documented','meetings_booked','meetings_done','meetings_documented','notes','wa_sent','tasks_created','tasks_completed','files_uploaded'];
+const SUMMARY_COLS = SUMMARY_ORDER.map(k => METRIC_COLS.find(c => c.key === k)).filter(Boolean);
 
 // Phase 52 — "הפעילות שלי": the signed-in user's own activity, same range picker and the same
 // customer lines as ניהול, without the per-employee table. Any role.
@@ -60,8 +64,6 @@ export default function MyActivityPage() {
     return Array.from(map.values()).sort((a, b) => (a.date < b.date ? 1 : -1));
   })();
   const totals = row?.totals || {};
-  const tot = metricTotal(totals);
-  const summaryCols = METRIC_COLS.filter(c => Number(totals[c.key] || 0) > 0);
 
   return (
     <div className="min-h-screen bg-slate-50 pb-32" dir="rtl">
@@ -95,15 +97,18 @@ export default function MyActivityPage() {
         {loading && <span className="text-xs text-slate-400">טוען...</span>}
       </div>
 
-      {/* Range summary */}
+      {/* Range summary — Oran's list (2026-10-19), always all of them, no hours */}
       <div className="px-4 pt-3">
-        <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex items-center gap-x-5 gap-y-1 flex-wrap text-sm">
-          <span className="font-black text-violet-700 tabular-nums">{tot || 0} פעולות</span>
-          <span className="font-bold text-sky-700 tabular-nums">{fmtHours(totals.hours)} שעות</span>
-          {summaryCols.map(c => (
-            <span key={c.key} className="text-slate-600 tabular-nums"><span className="font-bold text-slate-800">{totals[c.key]}</span> {c.label}</span>
-          ))}
-          {!loading && tot === 0 && !totals.hours && <span className="text-slate-400">אין פעילות בטווח זה</span>}
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+          {SUMMARY_COLS.map(c => {
+            const v = Number(totals[c.key] || 0);
+            return (
+              <div key={c.key} className={`rounded-xl border px-2 py-1.5 text-center ${v > 0 ? 'bg-white border-slate-200' : 'bg-slate-50 border-slate-100'}`}>
+                <div className={`text-lg font-black tabular-nums leading-tight ${v > 0 ? 'text-violet-700' : 'text-slate-300'}`}>{v}</div>
+                <div className="text-[11px] text-slate-500 leading-tight">{c.label}</div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -117,7 +122,7 @@ export default function MyActivityPage() {
             date: d.date,
             leads: d.leads,
             meta: d.metrics
-              ? `${d.metrics.first_activity || '—'} – ${d.metrics.last_activity || '—'} · ${d.metrics.hours_source === 'estimated' && d.metrics.hours ? '≈' : ''}${fmtHours(d.metrics.hours)} שעות · ${metricTotal(d.metrics) || 0} פעולות`
+              ? `${d.metrics.first_activity || '—'} – ${d.metrics.last_activity || '—'} · ${metricTotal(d.metrics) || 0} פעולות`
               : null,
           }))} />
       </div>
