@@ -109,8 +109,8 @@ export default function MyActivityPage() {
       </div>
 
       {/* Days → customer lines */}
-      <div className="px-4 pt-3 overflow-x-auto">
-        <div style={{ minWidth: 720 }}>
+      <div className="px-4 pt-3">
+        <div>
           {dayList.length > 0 && <div className="px-3 pb-1"><LeadActivityHeader /></div>}
           {dayList.map(d => (
             <Fragment key={d.date}>
