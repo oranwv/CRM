@@ -43,9 +43,12 @@ const fmtDM = iso => { if (!iso) return ''; const d = new Date(iso); return `${d
 const trunc = (t, n = 70) => { const s = String(t || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
 
 // שיחה column: phone icon + minutes (count when more than one call).
+const fmtMeetingMin = m => m >= 60 ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')} שעה` : `${m} דק'`;
 function callText(L) {
-  if (L.calls > 0) return `📞 ${L.calls > 1 ? `${L.calls} שיחות · ` : ''}${L.minutes} דק'`;
-  return '📞 —';
+  const parts = [];
+  if (L.calls > 0) parts.push(`📞 ${L.calls > 1 ? `${L.calls} שיחות · ` : ''}${L.minutes} דק'`);
+  if (L.meetings_held > 0) parts.push(`🤝 ${L.meetings_held > 1 ? `${L.meetings_held} פגישות · ` : ''}${fmtMeetingMin(L.meeting_minutes)}`);
+  return parts.length ? parts.join(' · ') : '📞 —';
 }
 
 // "מה נעשה": the day's actions as colored word-chips joined by "+", in order of happening.
@@ -67,6 +70,7 @@ const CHIP_CLS = {
   meeting_booked: 'bg-sky-100 text-sky-700', meeting_done: 'bg-sky-100 text-sky-700', meeting_doc: 'bg-sky-100 text-sky-700',
   offer: 'bg-amber-100 text-amber-700', contract: 'bg-emerald-100 text-emerald-700', signed: 'bg-emerald-100 text-emerald-700',
   stage: 'bg-violet-100 text-violet-700', stage_lost: 'bg-red-100 text-red-700',
+  meeting_undoc: 'bg-amber-50 text-amber-700 border border-amber-200',
 };
 const LOST_LABELS = new Set(['לא סגרו', 'אבוד']);
 
@@ -88,7 +92,10 @@ function chipsOf(L, tr) {
   };
   if (L.calls > 0 || L.call_doc) push('call', 'שיחת טלפון');
   if (L.attempts > 0) push('attempt', `אין מענה ×${L.attempts}`);
+  if (L.meetings_held > 0) push('meeting_done', L.meetings_held > 1 ? `פגישה בוצעה ×${L.meetings_held}` : 'פגישה בוצעה');
+  if (L.meetings_undocumented > 0) push('meeting_undoc', 'פגישה ביומן ללא סיכום');
   (L.actions || []).forEach(a => {
+    if (a.kind === 'meeting_doc' && L.meetings_held > 0) return; // the summary is what made the meeting count as held
     const f = CHIP[a.kind]; if (!f) return;
     push(a.kind, f(a));
     if (a.kind === 'contract' && a.signed) push('signed', '✓ החוזה נחתם');
@@ -105,7 +112,7 @@ const Chip = ({ kind, children }) => (
 export function LeadActivityHeader() {
   return (
     <div className="grid items-center gap-3 text-[11px] font-bold text-slate-400" style={{ gridTemplateColumns: 'minmax(130px,16%) minmax(120px,14%) 1fr auto' }}>
-      <span>לקוח</span><span>שיחה</span><span>מה נעשה</span><span>שלב</span>
+      <span>לקוח</span><span>שיחה / פגישה</span><span>מה נעשה</span><span>שלב</span>
     </div>
   );
 }
@@ -118,8 +125,8 @@ export function LeadActivityLine({ L, onOpen }) {
   return (
     <div className="grid items-center gap-3 text-xs" style={{ gridTemplateColumns: 'minmax(130px,16%) minmax(120px,14%) 1fr auto' }}>
       <button onClick={onOpen} className="font-bold text-violet-700 hover:underline text-right truncate" title={L.name || ''}>{L.name || `ליד #${L.lead_id}`}</button>
-      <span className={`tabular-nums whitespace-nowrap font-semibold ${L.calls > 0 ? 'text-slate-800' : 'text-slate-400'}`}
-        title={L.call_summary ? trunc(L.call_summary, 300) : undefined}>{call}</span>
+      <span className={`tabular-nums whitespace-nowrap font-semibold ${L.calls > 0 || L.meetings_held > 0 ? 'text-slate-800' : 'text-slate-400'}`}
+        title={[L.call_summary ? trunc(L.call_summary, 300) : '', L.meetings_held > 0 ? 'משך הפגישה לפי היומן' : ''].filter(Boolean).join('\n') || undefined}>{call}</span>
       <div className="flex items-center gap-1 flex-wrap min-w-0">
         {chips.length === 0 && <span className="text-slate-300">—</span>}
         {chips.map((c, i) => (

@@ -6,6 +6,10 @@ updated: 2026-10-19
 
 # Now
 
+## 2026-10-19 — Phase 53: meetings held in the customer line
+
+- `🤝 45 דק'` beside `📞` when a calendar meeting hosted by the user already started, not declined, **and** the user wrote a meeting summary (−1h…+3d). Planned duration from the calendar. No summary → amber `פגישה ביומן ללא סיכום` chip, not counted.
+
 ## 2026-10-19 — Phase 52: "הפעילות שלי" (👤 in the bottom nav, every role incl. managers)
 
 - `/my-activity`: same range picker as ניהול (+ אתמול preset, default today), summary strip, days newest first, Phase 51 customer lines. Server: `/analytics/my-activity` + `/my-activity/leads` reuse the ניהול functions with `req.user.id`.

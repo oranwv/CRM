@@ -418,6 +418,20 @@ async function computeLeadActivity(uid, from, to) {
         SELECT lead_id, created_at, 'meeting_booked', jsonb_build_object('start', start_time)
           FROM meetings WHERE booked_by = $1 AND lead_id IS NOT NULL
         UNION ALL
+        -- meetings held: on the calendar (host = this user), already started, customer did not decline.
+        -- "documented" = the user wrote a meeting summary on the lead from an hour before the meeting
+        -- up to 3 days after; only then does it count as really held (Oran's rule, 2026-10-19).
+        SELECT m.lead_id, m.start_time, 'meeting_held',
+               jsonb_build_object(
+                 'min', GREATEST(1, ROUND(EXTRACT(EPOCH FROM (COALESCE(m.end_time, m.start_time + INTERVAL '1 hour') - m.start_time)) / 60))::int,
+                 'documented', EXISTS (
+                   SELECT 1 FROM lead_interactions li
+                    WHERE li.lead_id = m.lead_id AND li.type = 'meeting' AND li.created_by = $1
+                      AND li.created_at BETWEEN m.start_time - INTERVAL '1 hour' AND m.start_time + INTERVAL '3 days'))
+          FROM meetings m
+         WHERE m.host_user_id = $1 AND m.lead_id IS NOT NULL AND m.start_time < NOW()
+           AND COALESCE(m.customer_status, '') <> 'declined'
+        UNION ALL
         SELECT lead_id, created_at, CASE WHEN source = 'calendar' THEN 'meeting_done' ELSE 'meeting_doc' END, jsonb_build_object('body', body)
           FROM lead_interactions WHERE created_by = $1 AND type = 'meeting'
         UNION ALL
@@ -471,6 +485,7 @@ async function computeLeadActivity(uid, from, to) {
           lead_id: r.lead_id, name: r.lead_name, current_stage: r.current_stage,
           last_epoch: Number(r.epoch), last_time: r.hhmm,
           calls: 0, minutes: 0, attempts: 0, call_summary: null, call_doc: null,
+          meetings_held: 0, meeting_minutes: 0, meetings_undocumented: 0,
           stage_from: null, stage_to: null, stage_text: null,
           actions: [],   // chronological chips: { kind, time, ...details }
         });
@@ -483,6 +498,10 @@ async function computeLeadActivity(uid, from, to) {
           if (!L.call_summary && d.summary) L.call_summary = d.summary; // rows are newest first → latest summary wins
           break;
         case 'call_attempt': L.attempts += 1; break;
+        case 'meeting_held':
+          if (d.documented) { L.meetings_held += 1; L.meeting_minutes += Number(d.min || 0); }
+          else L.meetings_undocumented += 1;
+          break;
         case 'call_doc':
           if (!L.call_doc && d.body) L.call_doc = d.body;
           L.actions.push({ kind: 'call_doc', time: r.hhmm, epoch: Number(r.epoch) });

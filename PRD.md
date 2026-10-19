@@ -1788,6 +1788,15 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 53 — Meetings held beside the call minutes ✅ Built 2026-10-19
+Oran: "we know a meeting really happened if it is on the calendar AND the user entered a
+meeting summary." The customer line's second column is now "שיחה / פגישה": `🤝 <duration>` for
+meetings that satisfy both, duration from the calendar (`end_time − start_time`, default 1h),
+attributed to the host on the meeting day; chip `פגישה בוצעה` in מה נעשה (the manual
+`פגישה תועדה` chip is dropped for that lead-day since the summary is what qualified it). Calendar
+meetings without a summary show `פגישה ביומן ללא סיכום`. Query branch `meeting_held` in
+`computeLeadActivity`; the ניהול summary columns are unchanged. Applies to ניהול and הפעילות שלי.
+
 ### Phase 52 — "הפעילות שלי" for every user ✅ Built 2026-10-19
 Requested by Oran right after Phase 51: each user should see the same thing about themselves.
 His choice: a 👤 "הפעילות שלי" button in the bottom nav (sales, production, operations and
@@ -1811,12 +1820,19 @@ customer lines appear under each day row.
 מה נעשה / שלב) printed once per opened employee. Agreed with Oran on 2026-10-19 after three
 mock-ups (he chose words over bare chips, with the chip colours kept):
 - **לקוח** — name, link to the lead.
-- **שיחה** — `📞 12 דק'`, `📞 2 שיחות · 19 דק'` over the day's answered calls (`calls`, status
+- **שיחה / פגישה** — `📞 12 דק'`, `📞 2 שיחות · 19 דק'` over the day's answered calls (`calls`, status
   completed and duration > 0, outbound by `user_id`, inbound by `answered_by`); `📞 —` when none.
   Hover shows the latest AI call summary.
+  Then `🤝 45 דק'` / `🤝 1:30 שעה` for **meetings held** (Phase 53, Oran's rule): a `meetings`
+  row hosted by the user (`host_user_id`), shown on the meeting day (`start_time`), already
+  started, customer did not decline — **and** the user wrote a meeting summary on that lead
+  (`lead_interactions.type='meeting'`, from an hour before to 3 days after the start). Duration is
+  the calendar's planned length (hover says so), not measured. A calendar meeting with no summary
+  is not counted; it shows as an amber `פגישה ביומן ללא סיכום` chip instead.
 - **מה נעשה** — the day's actions as coloured word-chips joined by `+`, in order: `שיחת טלפון`
   (dark grey), `אין מענה ×N` (red; unanswered dials + `call_attempt` interactions),
-  `קביעת פגישה <d.m>` / `פגישה בוצעה` / `פגישה תועדה` (blue), `הצעת מחיר` (amber,
+  `קביעת פגישה <d.m>` / `פגישה בוצעה` (calendar + summary) / `פגישה תועדה` (summary without a
+  calendar meeting) (blue), `פגישה ביומן ללא סיכום` (amber outline), `הצעת מחיר` (amber,
   `price_offers.created_by`), `שליחת חוזה` + `✓ החוזה נחתם` (green), `הודעת וואטסאפ ×N`,
   `הערה ×N`, `משימה`, `קובץ`, `ליד נוצר` (grey), and last `שינוי סטטוס: <from> ← <to>` (violet;
   red when the new stage is לא סגרו).
