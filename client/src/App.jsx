@@ -19,6 +19,7 @@ import RSVPsPage        from './pages/RSVPs/RSVPsPage';
 import RSVPDetailPage   from './pages/RSVPs/RSVPDetailPage';
 import OperationsPage    from './pages/OperationsPage';
 import ManagementPage   from './pages/ManagementPage';
+import MyActivityPage   from './pages/MyActivityPage';
 import CostsPage        from './pages/CostsPage';
 import FinancePage      from './pages/FinancePage';
 import JobsPage          from './pages/candidates/JobsPage';
@@ -330,6 +331,7 @@ function AppShellNav() {
         { path: '/management',     icon: '📈', label: 'ניהול' },
         { path: '/sales-worklist', icon: '💡', label: 'AI מכירות' },
         { path: '/costs',          icon: '💸', label: 'עלויות' },
+        { path: '/my-activity',    icon: '👤', label: 'הפעילות שלי' },
       ]
     : isRSVP
     ? [{ path: '/rsvps', icon: '📋', label: 'אישורי הגעה', prefix: '/rsvps' }]
@@ -339,12 +341,14 @@ function AppShellNav() {
     ? [
         { path: '/operations', icon: '🔧', label: 'תפעול' },
         { path: '/calendar',   icon: '📅', label: 'לוח שנה' },
+        { path: '/my-activity',    icon: '👤', label: 'הפעילות שלי' },
       ]
     : isProduction
     ? [
         { path: '/events',   icon: '🎉', label: 'אירועים' },
         { path: '/tasks',    icon: '✅', label: 'משימות' },
         { path: '/calendar', icon: '📅', label: 'לוח שנה' },
+        { path: '/my-activity',    icon: '👤', label: 'הפעילות שלי' },
       ]
     : [
         { path: '/',               icon: '👥', label: 'לידים' },
@@ -352,6 +356,7 @@ function AppShellNav() {
         { path: '/calendar',       icon: '📅', label: 'לוח שנה' },
         { path: '/analytics',      icon: '📊', label: 'אנליטיקס' },
         { path: '/tasks',          icon: '✅', label: 'משימות' },
+        { path: '/my-activity',    icon: '👤', label: 'הפעילות שלי' },
       ];
 
   const NavBtn = ({ path, icon, label, prefix }) => {
@@ -617,6 +622,16 @@ function AppRoutes() {
             <>
               <div className="crm-header-spacer pt-11" />
               <ManagementPage />
+              <AppShellNav />
+              <div className="pb-28" />
+            </>
+          </PrivateRoute>
+        } />
+        <Route path="/my-activity" element={
+          <PrivateRoute>
+            <>
+              <div className="crm-header-spacer pt-11" />
+              <MyActivityPage />
               <AppShellNav />
               <div className="pb-28" />
             </>

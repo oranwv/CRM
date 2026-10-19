@@ -201,13 +201,8 @@ function sessionSeconds(epochs) {
 // Returns per-user range summary + per-day breakdown, including "connected hours"
 // computed from presence heartbeats (tracked) or, for days without heartbeat data,
 // estimated from action timestamps with 2h session-gap splitting.
-router.get('/employee-activity', async (req, res) => {
-  const roles = req.user.roles || [req.user.role];
-  if (!roles.some(r => ['admin', 'manager'].includes(r))) return res.status(403).json({ error: 'Forbidden' });
-  try {
-    const today = new Date().toISOString().slice(0, 10);
-    const from = req.query.from || req.query.date || today;
-    const to   = req.query.to   || req.query.date || from;
+// Shared by the managers' ניהול table and each user's own "הפעילות שלי" page (onlyUid).
+async function computeEmployeeActivity(from, to, onlyUid = null) {
     const params = [from, to];
 
     // Per (user, day, metric) counts.
@@ -291,7 +286,9 @@ router.get('/employee-activity', async (req, res) => {
       WHERE (started_at AT TIME ZONE 'Asia/Jerusalem')::date BETWEEN $1::date AND $2::date
     `, params);
 
-    const usersQ = pool.query(`
+    const usersQ = onlyUid
+      ? pool.query(`SELECT id, display_name, role FROM users WHERE id = $1`, [onlyUid])
+      : pool.query(`
       SELECT id, display_name, role FROM users
       WHERE role IN ('admin','manager','sales','production') AND NOT COALESCE(blocked, false) ORDER BY display_name
     `);
@@ -361,8 +358,30 @@ router.get('/employee-activity', async (req, res) => {
       totals.hours = +totals.hours.toFixed(2);
       return { id: u.id, display_name: u.display_name, role: u.role, totals, days };
     });
+    return result;
+}
 
-    res.json(result);
+router.get('/employee-activity', async (req, res) => {
+  const roles = req.user.roles || [req.user.role];
+  if (!roles.some(r => ['admin', 'manager'].includes(r))) return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const from = req.query.from || req.query.date || today;
+    const to   = req.query.to   || req.query.date || from;
+    res.json(await computeEmployeeActivity(from, to));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/analytics/my-activity?from&to — the signed-in user's own row (any role)
+router.get('/my-activity', async (req, res) => {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const from = req.query.from || today;
+    const to   = req.query.to   || from;
+    const [row] = await computeEmployeeActivity(from, to, req.user.id);
+    res.json(row || null);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -374,15 +393,7 @@ router.get('/employee-activity', async (req, res) => {
 // that day (meeting booked, offer, contract, WhatsApp, note, task, file, lead created), plus
 // the stage transition of the day (from lead_stage_history; older days fall back to the
 // "🔄 שינוי שלב" timeline notes) and the lead's current stage.
-router.get('/employee-activity/:uid/leads', async (req, res) => {
-  const roles = req.user.roles || [req.user.role];
-  if (!roles.some(r => ['admin', 'manager'].includes(r))) return res.status(403).json({ error: 'Forbidden' });
-  const uid = Number(req.params.uid);
-  if (!uid) return res.status(400).json({ error: 'bad user id' });
-  try {
-    const today = new Date().toISOString().slice(0, 10);
-    const from = req.query.from || today;
-    const to   = req.query.to   || from;
+async function computeLeadActivity(uid, from, to) {
     const { rows } = await pool.query(`
       WITH ev AS (
         -- answered calls (outbound by the dialer, inbound by whoever picked up)
@@ -497,7 +508,31 @@ router.get('/employee-activity/:uid/leads', async (req, res) => {
           .sort((a, b) => b.last_epoch - a.last_epoch)
           .map(L => ({ ...L, actions: L.actions.sort((a, b) => a.epoch - b.epoch) })),
       }));
-    res.json(result);
+    return result;
+}
+
+router.get('/employee-activity/:uid/leads', async (req, res) => {
+  const roles = req.user.roles || [req.user.role];
+  if (!roles.some(r => ['admin', 'manager'].includes(r))) return res.status(403).json({ error: 'Forbidden' });
+  const uid = Number(req.params.uid);
+  if (!uid) return res.status(400).json({ error: 'bad user id' });
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const from = req.query.from || today;
+    const to   = req.query.to   || from;
+    res.json(await computeLeadActivity(uid, from, to));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/analytics/my-activity/leads?from&to — the signed-in user's own customer lines
+router.get('/my-activity/leads', async (req, res) => {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const from = req.query.from || today;
+    const to   = req.query.to   || from;
+    res.json(await computeLeadActivity(req.user.id, from, to));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -6,6 +6,10 @@ updated: 2026-10-19
 
 # Now
 
+## 2026-10-19 — Phase 52: "הפעילות שלי" (👤 in the bottom nav, every role incl. managers)
+
+- `/my-activity`: same range picker as ניהול (+ אתמול preset, default today), summary strip, days newest first, Phase 51 customer lines. Server: `/analytics/my-activity` + `/my-activity/leads` reuse the ניהול functions with `req.user.id`.
+
 ## 2026-10-19 — Phase 51: ניהול — customers per employee, stage history, blocked users hidden
 
 - Click an employee in ניהול → under each day row, one line per customer in four columns: לקוח (link) · שיחה `📞 N שיחות · M דק'` · מה נעשה = coloured word-chips joined by `+` (שיחת טלפון, אין מענה ×N, קביעת פגישה d.m, הצעת מחיר, שליחת חוזה ✓ נחתם, וואטסאפ ×N, הערה…, and `שינוי סטטוס: from ← to`, red when → לא סגרו) · שלב = `from ← to` tags (filled violet/red) or the current stage. Newest first. Automations excluded (NULL created_by/sent_by). Design agreed over three mock-ups the same morning.

@@ -754,6 +754,8 @@ Files embedded in interaction/message bodies use this format where `id` is the `
 |---|---|---|
 | GET | `/overview` | Period KPIs + sales-activity funnel + source breakdown + 6-month bars (see "Analytics") |
 | GET | `/employee-activity` | Per-employee activity metrics for the ניהול dashboard |
+| GET | `/my-activity` | Phase 52 — the signed-in user's own activity row (totals + days), any role |
+| GET | `/my-activity/leads` | Phase 52 — the signed-in user's own customer lines (same shape as `/employee-activity/:uid/leads`) |
 | GET | `/employee-activity/:uid/leads` | Phase 51 — one employee's customer activity in the range: per day (newest first) → per lead: answered calls + minutes, unanswered attempts, action chips, stage transition, current stage |
 
 ### Calendar — additional endpoints
@@ -1269,6 +1271,10 @@ Employee-activity dashboard for admin/manager. Columns: calls made / calls docum
 meetings done / meetings documented, notes, WhatsApp sent, tasks created / completed,
 leads created, files uploaded — over a chosen date range, plus first and last activity
 per employee. Fed by `GET /api/analytics/employee-activity` and `user_sessions`.
+
+### `MyActivityPage.jsx` (`/my-activity`) — "הפעילות שלי" (Phase 52)
+The signed-in user's own version of ניהול: range picker, summary strip, days newest first with
+the customer lines. Reached from the 👤 button in the bottom nav; every role.
 Clicking an employee opens the daily rows and, under each day, one line per customer handled
 that day (Phase 51): name (link to the lead) → talk minutes → action chips → stage. Blocked
 users are not listed.
@@ -1781,6 +1787,19 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 ---
 
 ## Build Phases — Status
+
+### Phase 52 — "הפעילות שלי" for every user ✅ Built 2026-10-19
+Requested by Oran right after Phase 51: each user should see the same thing about themselves.
+His choice: a 👤 "הפעילות שלי" button in the bottom nav (sales, production, operations and
+ניהול modes); managers see it too, for their own activity. `pages/MyActivityPage.jsx`
+(`/my-activity`): the same range picker as ניהול (plus an "אתמול" preset; default today), a
+summary strip (actions, hours, and every metric that is > 0 in the range), then the days newest
+first — each with first/last activity, hours and action count — and under each day the Phase 51
+customer lines (`LeadActivityHeader` / `LeadActivityLine`, exported from `ManagementPage.jsx`).
+Server: `computeEmployeeActivity(from, to, onlyUid)` and `computeLeadActivity(uid, from, to)`
+are now shared functions in `routes/analytics.js`; `GET /analytics/my-activity` and
+`GET /analytics/my-activity/leads` call them with `req.user.id` (no manager check). The ניהול
+endpoints are unchanged.
 
 ### Phase 51 — ניהול: per-employee customer activity + stage history + blocked users hidden ✅ Built 2026-10-19
 Requested by Oran: in ניהול, clicking an employee (e.g. שיר) should open the customers she handled

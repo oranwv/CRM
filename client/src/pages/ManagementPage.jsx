@@ -2,7 +2,7 @@ import { useState, useEffect, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
 
-const METRIC_COLS = [
+export const METRIC_COLS = [
   { key: 'calls_made',          label: 'שיחות שבוצעו' },
   { key: 'call_minutes',        label: 'דקות שיחה' },
   { key: 'calls_documented',    label: 'שיחות שתועדו' },
@@ -17,18 +17,18 @@ const METRIC_COLS = [
   { key: 'files_uploaded',      label: 'קבצים' },
 ];
 
-const dayStr = d => d.toISOString().slice(0, 10);
-function shiftDays(n) { const d = new Date(); d.setDate(d.getDate() + n); return dayStr(d); }
+export const dayStr = d => d.toISOString().slice(0, 10);
+export function shiftDays(n) { const d = new Date(); d.setDate(d.getDate() + n); return dayStr(d); }
 
 // Decimal hours → "H:MM"
-function fmtHours(h) {
+export function fmtHours(h) {
   if (!h) return '—';
   const m = Math.round(h * 60);
   return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
 }
 
 // Activity total = number of actions; talk minutes are a duration, not an action, so they stay out.
-const metricTotal = obj => METRIC_COLS.reduce((s, c) => c.key === 'call_minutes' ? s : s + Number(obj[c.key] || 0), 0);
+export const metricTotal = obj => METRIC_COLS.reduce((s, c) => c.key === 'call_minutes' ? s : s + Number(obj[c.key] || 0), 0);
 
 // Phase 51 — per-lead activity line under each day (what the employee did with which customer)
 const STAGE_LABELS = {
@@ -102,7 +102,7 @@ const Chip = ({ kind, children }) => (
 );
 
 // Sub-header printed once above the customer lines of an opened employee.
-function LeadActivityHeader() {
+export function LeadActivityHeader() {
   return (
     <div className="grid items-center gap-3 text-[11px] font-bold text-slate-400" style={{ gridTemplateColumns: 'minmax(130px,16%) minmax(120px,14%) 1fr auto' }}>
       <span>לקוח</span><span>שיחה</span><span>מה נעשה</span><span>שלב</span>
@@ -110,7 +110,7 @@ function LeadActivityHeader() {
   );
 }
 
-function LeadActivityLine({ L, onOpen }) {
+export function LeadActivityLine({ L, onOpen }) {
   const tr = transitionOf(L);
   const chips = chipsOf(L, tr);
   const call = callText(L);
