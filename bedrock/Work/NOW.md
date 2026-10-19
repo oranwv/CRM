@@ -6,6 +6,11 @@ updated: 2026-10-19
 
 # Now
 
+## 2026-10-19 — Rule: preview before deploy
+
+- Oran: show a real preview (rendered screenshot of the actual code, phone + desktop) and get a yes before pushing UI changes. Harness: build `LeadActivityTable` in a throwaway Vite root with sample data, screenshot with Playwright at 390px and 1100px.
+- Customer table: phantom 5th column removed (column count now rendered per breakpoint), 11px on phone, chips wrap. Approved from screenshots.
+
 ## 2026-10-19 — Phase 53: meetings held in the customer line
 
 - `🤝 45 דק'` beside `📞` when a calendar meeting hosted by the user already started, not declined, **and** the user wrote a meeting summary (−1h…+3d). Planned duration from the calendar. No summary → amber `פגישה ביומן ללא סיכום` chip, not counted.

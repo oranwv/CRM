@@ -1843,11 +1843,15 @@ mock-ups (he chose words over bare chips, with the chip colours kept):
   `created_by` / `sent_by` NULL, and the query only takes rows attributed to the user.
 
 **Layout** (`LeadActivityTable` in `ManagementPage.jsx`, shared with הפעילות שלי): a real
-bordered table. Phone (< 640px): four fixed columns that fit the screen — לקוח 86px (time under
-the name) │ שיחה/פגישה 66px │ מה נעשה (chips wrap to 2–3 lines) │ שלב 92px (from ↓ to stacked).
-Desktop: one line per customer, שעה as a fifth column, horizontal ←, own sideways scroll. Oran
-rejected the first two phone layouts (lines stretched across the wide metrics table, then a
-two-row grid that mixed columns) and approved this one from a 390px mock-up.
+bordered table. Phone (< 640px, `useIsPhone` matchMedia): four fixed columns that fit the screen —
+לקוח 76px (time under the name) │ שיחה/פגישה 58px │ מה נעשה (chips wrap, no "+") │ שלב 82px
+(from ↓ to stacked); 11px text, soft-rounded chips. The column count is rendered, not hidden with
+CSS: a hidden fifth column still reserved width under `table-fixed` (the empty gap Oran saw).
+Desktop: 150 / 130 / flexible / 260 / 56px (שעה), chips joined by "+", wrapping to a second line
+when long, horizontal ←. Oran rejected the first three phone layouts (lines stretched across the
+wide metrics table; a two-row grid that mixed columns; the fixed table with the phantom column)
+and approved this one from real rendered screenshots (phone 390px + desktop) on 2026-10-19.
+Rule from then on: render and show screenshots before deploying UI changes.
 
 **Stage history** — new table `lead_stage_history (lead_id, from_stage, to_stage, changed_by,
 source manual|meeting|gmail, created_at)`, written on every stage change: `PATCH /leads/:id`

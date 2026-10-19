@@ -104,8 +104,8 @@ function chipsOf(L, tr) {
   return out;
 }
 
-const Chip = ({ kind, wrap, children }) => (
-  <span className={`px-2 py-0.5 rounded-full font-semibold leading-snug ${wrap ? 'sm:whitespace-nowrap' : 'whitespace-nowrap'} ${CHIP_CLS[kind] || 'bg-slate-100 text-slate-600'}`}>{children}</span>
+const Chip = ({ kind, children }) => (
+  <span className={`inline-block px-1.5 sm:px-2 py-0.5 rounded-lg sm:rounded-full font-semibold leading-snug sm:whitespace-nowrap ${CHIP_CLS[kind] || 'bg-slate-100 text-slate-600'}`}>{children}</span>
 );
 
 // The customer lines as a real table: לקוח │ שיחה / פגישה │ מה נעשה │ שלב │ שעה, with vertical
@@ -113,17 +113,31 @@ const Chip = ({ kind, wrap, children }) => (
 // "שלב" wrap onto 2–3 lines, the time sits under the name and the stage change stacks with ↓.
 // Desktop (sm+): one line per customer, time in its own column, horizontal ←, sideways scroll
 // if ever needed. Approved by Oran from the phone mock-up on 2026-10-19. `days`: [{ date, leads, meta? }].
-const TD = 'px-1.5 py-1.5 sm:px-3 align-top sm:align-middle border-l border-slate-200 last:border-l-0 break-words';
+const TD = 'px-1 py-1 sm:px-3 sm:py-1.5 align-top sm:align-middle border-l border-slate-200 last:border-l-0 break-words';
+// true below Tailwind's `sm` (640px) — the phone layout has 4 columns, the desktop one 5, and a
+// table-fixed layout reserves space for every column a colSpan mentions, so the count must match.
+function useIsPhone() {
+  const [phone, setPhone] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const fn = e => setPhone(e.matches);
+    mq.addEventListener('change', fn);
+    return () => mq.removeEventListener('change', fn);
+  }, []);
+  return phone;
+}
 export function LeadActivityTable({ days, onOpen, loading, empty }) {
+  const phone = useIsPhone();
+  const span = phone ? 4 : 5;
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-      <table className="text-xs border-collapse w-full table-fixed sm:table-auto sm:min-w-[700px]">
+      <table className="text-[11px] sm:text-xs leading-snug border-collapse w-full table-fixed sm:table-auto sm:min-w-[700px]">
         <colgroup>
-          <col className="w-[86px] sm:w-[150px]" />
-          <col className="w-[66px] sm:w-[150px]" />
+          <col style={{ width: phone ? 76 : 150 }} />
+          <col style={{ width: phone ? 58 : 130 }} />
           <col />
-          <col className="w-[92px] sm:w-auto" />
-          <col className="hidden sm:table-column sm:w-[52px]" />
+          <col style={{ width: phone ? 82 : 260 }} />
+          {!phone && <col style={{ width: 56 }} />}
         </colgroup>
         <thead>
           <tr className="bg-violet-50 text-violet-700">
@@ -131,20 +145,20 @@ export function LeadActivityTable({ days, onOpen, loading, empty }) {
             <th className={`${TD} text-right font-black`}>שיחה / פגישה</th>
             <th className={`${TD} text-right font-black`}>מה נעשה</th>
             <th className={`${TD} text-right font-black`}>שלב</th>
-            <th className={`${TD} text-center font-black hidden sm:table-cell`}>שעה</th>
+            {!phone && <th className={`${TD} text-center font-black`}>שעה</th>}
           </tr>
         </thead>
         <tbody>
-          {loading && <tr><td colSpan={5} className="px-3 py-2 text-slate-400">טוען לקוחות...</td></tr>}
-          {!loading && days.length === 0 && <tr><td colSpan={5} className="px-3 py-2 text-slate-400">{empty || 'אין פעילות מול לקוחות בטווח זה'}</td></tr>}
+          {loading && <tr><td colSpan={span} className="px-3 py-2 text-slate-400">טוען לקוחות...</td></tr>}
+          {!loading && days.length === 0 && <tr><td colSpan={span} className="px-3 py-2 text-slate-400">{empty || 'אין פעילות מול לקוחות בטווח זה'}</td></tr>}
           {days.map(d => (
             <Fragment key={d.date}>
               <tr className="bg-slate-100 text-slate-600">
-                <td colSpan={5} className="px-2 sm:px-3 py-1 font-bold tabular-nums text-[11px]">
+                <td colSpan={span} className="px-2 sm:px-3 py-1 font-bold tabular-nums text-[11px]">
                   {d.date}{d.meta ? <span className="font-normal text-slate-500 mr-3">{d.meta}</span> : null}
                 </td>
               </tr>
-              {d.leads.length === 0 && <tr><td colSpan={5} className="px-3 py-1.5 text-slate-400">אין פעילות מול לקוחות ביום זה</td></tr>}
+              {d.leads.length === 0 && <tr><td colSpan={span} className="px-3 py-1.5 text-slate-400">אין פעילות מול לקוחות ביום זה</td></tr>}
               {d.leads.map(L => {
                 const tr = transitionOf(L);
                 const chips = chipsOf(L, tr);
@@ -153,35 +167,35 @@ export function LeadActivityTable({ days, onOpen, loading, empty }) {
                   <tr key={`${d.date}-${L.lead_id}`} className="border-t border-slate-100 hover:bg-violet-50/40">
                     <td className={TD}>
                       <button onClick={() => onOpen(L)} className="font-bold text-violet-700 hover:underline text-right leading-tight break-words" title={L.name || ''}>{L.name || `ליד #${L.lead_id}`}</button>
-                      <span className="block sm:hidden text-slate-400 tabular-nums text-[11px] mt-0.5">{L.last_time}</span>
+                      {phone && <span className="block text-slate-400 tabular-nums text-[11px] mt-0.5">{L.last_time}</span>}
                     </td>
                     <td className={`${TD} tabular-nums font-semibold leading-snug ${L.calls > 0 || L.meetings_held > 0 ? 'text-slate-800' : 'text-slate-400'}`}
                       title={[L.call_summary ? trunc(L.call_summary, 300) : '', L.meetings_held > 0 ? 'משך הפגישה לפי היומן' : ''].filter(Boolean).join('\n') || undefined}>
-                      {callText(L).split(' · ').map((t, i) => <span key={i} className="block sm:inline">{i > 0 && <span className="hidden sm:inline"> · </span>}{t}</span>)}
+                      {callText(L).split(' · ').map((t, i) => <span key={i} className="block whitespace-nowrap">{t}</span>)}
                     </td>
                     <td className={TD}>
-                      <div className="flex flex-wrap items-center gap-1 sm:flex-nowrap">
+                      <div className="flex flex-wrap items-center gap-1">
                         {chips.length === 0 && <span className="text-slate-300">—</span>}
                         {chips.map((c, i) => (
                           <Fragment key={i}>
-                            {i > 0 && <span className="text-slate-300 font-bold">+</span>}
-                            <Chip kind={c.kind} wrap={c.kind === 'stage' || c.kind === 'stage_lost'}>{c.label}{c.n > 1 ? ` ×${c.n}` : ''}</Chip>
+                            {i > 0 && <span className="hidden sm:inline text-slate-300 font-bold">+</span>}
+                            <Chip kind={c.kind}>{c.label}{c.n > 1 ? ` ×${c.n}` : ''}</Chip>
                           </Fragment>
                         ))}
                       </div>
                     </td>
                     <td className={TD}>
                       {tr ? (
-                        <div className="flex flex-col items-start gap-0.5 sm:flex-row sm:items-center sm:gap-1 sm:whitespace-nowrap">
-                          {tr.from && <span className="px-2 py-0.5 rounded-full font-bold bg-violet-50 text-violet-700 leading-snug">{tr.from}</span>}
-                          {tr.from && <span className="text-violet-700 font-black px-1"><span className="sm:hidden">↓</span><span className="hidden sm:inline">←</span></span>}
-                          <span className={`px-2 py-0.5 rounded-full font-bold leading-snug ${afterCls}`}>{tr.to}</span>
+                        <div className="flex flex-col items-start gap-0.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-1">
+                          {tr.from && <span className="px-1.5 sm:px-2 py-0.5 rounded-lg sm:rounded-full font-bold bg-violet-50 text-violet-700 leading-snug">{tr.from}</span>}
+                          {tr.from && <span className="text-violet-700 font-black px-1 leading-none"><span className="sm:hidden">↓</span><span className="hidden sm:inline">←</span></span>}
+                          <span className={`px-1.5 sm:px-2 py-0.5 rounded-lg sm:rounded-full font-bold leading-snug ${afterCls}`}>{tr.to}</span>
                         </div>
                       ) : (
-                        <span className={`inline-block px-2 py-0.5 rounded-full font-bold leading-snug ${L.current_stage === 'lost' ? 'bg-red-100 text-red-700' : 'bg-violet-50 text-violet-700'}`}>{stageLabel(L.current_stage)}</span>
+                        <span className={`inline-block px-1.5 sm:px-2 py-0.5 rounded-lg sm:rounded-full font-bold leading-snug ${L.current_stage === 'lost' ? 'bg-red-100 text-red-700' : 'bg-violet-50 text-violet-700'}`}>{stageLabel(L.current_stage)}</span>
                       )}
                     </td>
-                    <td className={`${TD} text-center text-slate-400 tabular-nums hidden sm:table-cell`}>{L.last_time}</td>
+                    {!phone && <td className={`${TD} text-center text-slate-400 tabular-nums`}>{L.last_time}</td>}
                   </tr>
                 );
               })}
