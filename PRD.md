@@ -1842,6 +1842,13 @@ mock-ups (he chose words over bare chips, with the chip colours kept):
 - Automations never appear: reminders, RSVP notes and system messages are written with
   `created_by` / `sent_by` NULL, and the query only takes rows attributed to the user.
 
+**Layout** (`LeadActivityTable` in `ManagementPage.jsx`, shared with הפעילות שלי): a real
+bordered table. Phone (< 640px): four fixed columns that fit the screen — לקוח 86px (time under
+the name) │ שיחה/פגישה 66px │ מה נעשה (chips wrap to 2–3 lines) │ שלב 92px (from ↓ to stacked).
+Desktop: one line per customer, שעה as a fifth column, horizontal ←, own sideways scroll. Oran
+rejected the first two phone layouts (lines stretched across the wide metrics table, then a
+two-row grid that mixed columns) and approved this one from a 390px mock-up.
+
 **Stage history** — new table `lead_stage_history (lead_id, from_stage, to_stage, changed_by,
 source manual|meeting|gmail, created_at)`, written on every stage change: `PATCH /leads/:id`
 (manual), the auto-advance to נקבעה פגישה on `POST /calendar/leads/:id/meeting` (meeting), and

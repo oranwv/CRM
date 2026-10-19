@@ -104,25 +104,34 @@ function chipsOf(L, tr) {
   return out;
 }
 
-const Chip = ({ kind, children }) => (
-  <span className={`px-2 py-0.5 rounded-full whitespace-nowrap font-semibold ${CHIP_CLS[kind] || 'bg-slate-100 text-slate-600'}`}>{children}</span>
+const Chip = ({ kind, wrap, children }) => (
+  <span className={`px-2 py-0.5 rounded-full font-semibold leading-snug ${wrap ? 'sm:whitespace-nowrap' : 'whitespace-nowrap'} ${CHIP_CLS[kind] || 'bg-slate-100 text-slate-600'}`}>{children}</span>
 );
 
 // The customer lines as a real table: לקוח │ שיחה / פגישה │ מה נעשה │ שלב │ שעה, with vertical
-// rules between the columns. It scrolls sideways on its own when the chips are wider than the
-// screen, so the columns never squeeze into each other. `days`: [{ date, leads, meta? }].
-const TD = 'px-3 py-1.5 align-middle border-l border-slate-200 last:border-l-0';
+// rules between the columns. Phone (< sm): four fixed columns that fit the screen, "מה נעשה" and
+// "שלב" wrap onto 2–3 lines, the time sits under the name and the stage change stacks with ↓.
+// Desktop (sm+): one line per customer, time in its own column, horizontal ←, sideways scroll
+// if ever needed. Approved by Oran from the phone mock-up on 2026-10-19. `days`: [{ date, leads, meta? }].
+const TD = 'px-1.5 py-1.5 sm:px-3 align-top sm:align-middle border-l border-slate-200 last:border-l-0 break-words';
 export function LeadActivityTable({ days, onOpen, loading, empty }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-      <table className="text-xs border-collapse w-full" style={{ minWidth: 700 }}>
+      <table className="text-xs border-collapse w-full table-fixed sm:table-auto sm:min-w-[700px]">
+        <colgroup>
+          <col className="w-[86px] sm:w-[150px]" />
+          <col className="w-[66px] sm:w-[150px]" />
+          <col />
+          <col className="w-[92px] sm:w-auto" />
+          <col className="hidden sm:table-column sm:w-[52px]" />
+        </colgroup>
         <thead>
           <tr className="bg-violet-50 text-violet-700">
-            <th className={`${TD} text-right font-black whitespace-nowrap`} style={{ width: 150 }}>לקוח</th>
-            <th className={`${TD} text-right font-black whitespace-nowrap`} style={{ width: 150 }}>שיחה / פגישה</th>
+            <th className={`${TD} text-right font-black`}>לקוח</th>
+            <th className={`${TD} text-right font-black`}>שיחה / פגישה</th>
             <th className={`${TD} text-right font-black`}>מה נעשה</th>
-            <th className={`${TD} text-right font-black whitespace-nowrap`}>שלב</th>
-            <th className={`${TD} text-center font-black`} style={{ width: 52 }}>שעה</th>
+            <th className={`${TD} text-right font-black`}>שלב</th>
+            <th className={`${TD} text-center font-black hidden sm:table-cell`}>שעה</th>
           </tr>
         </thead>
         <tbody>
@@ -131,7 +140,7 @@ export function LeadActivityTable({ days, onOpen, loading, empty }) {
           {days.map(d => (
             <Fragment key={d.date}>
               <tr className="bg-slate-100 text-slate-600">
-                <td colSpan={5} className="px-3 py-1 font-bold tabular-nums">
+                <td colSpan={5} className="px-2 sm:px-3 py-1 font-bold tabular-nums text-[11px]">
                   {d.date}{d.meta ? <span className="font-normal text-slate-500 mr-3">{d.meta}</span> : null}
                 </td>
               </tr>
@@ -142,34 +151,37 @@ export function LeadActivityTable({ days, onOpen, loading, empty }) {
                 const afterCls = tr?.lost ? 'bg-red-600 text-white' : 'bg-violet-600 text-white';
                 return (
                   <tr key={`${d.date}-${L.lead_id}`} className="border-t border-slate-100 hover:bg-violet-50/40">
-                    <td className={`${TD} whitespace-nowrap`}>
-                      <button onClick={() => onOpen(L)} className="font-bold text-violet-700 hover:underline max-w-[150px] truncate block text-right" title={L.name || ''}>{L.name || `ליד #${L.lead_id}`}</button>
+                    <td className={TD}>
+                      <button onClick={() => onOpen(L)} className="font-bold text-violet-700 hover:underline text-right leading-tight break-words" title={L.name || ''}>{L.name || `ליד #${L.lead_id}`}</button>
+                      <span className="block sm:hidden text-slate-400 tabular-nums text-[11px] mt-0.5">{L.last_time}</span>
                     </td>
-                    <td className={`${TD} tabular-nums whitespace-nowrap font-semibold ${L.calls > 0 || L.meetings_held > 0 ? 'text-slate-800' : 'text-slate-400'}`}
+                    <td className={`${TD} tabular-nums font-semibold leading-snug ${L.calls > 0 || L.meetings_held > 0 ? 'text-slate-800' : 'text-slate-400'}`}
                       title={[L.call_summary ? trunc(L.call_summary, 300) : '', L.meetings_held > 0 ? 'משך הפגישה לפי היומן' : ''].filter(Boolean).join('\n') || undefined}>
-                      {callText(L)}
+                      {callText(L).split(' · ').map((t, i) => <span key={i} className="block sm:inline">{i > 0 && <span className="hidden sm:inline"> · </span>}{t}</span>)}
                     </td>
-                    <td className={`${TD} whitespace-nowrap`}>
-                      {chips.length === 0 && <span className="text-slate-300">—</span>}
-                      {chips.map((c, i) => (
-                        <Fragment key={i}>
-                          {i > 0 && <span className="text-slate-300 font-bold px-1">+</span>}
-                          <Chip kind={c.kind}>{c.label}{c.n > 1 ? ` ×${c.n}` : ''}</Chip>
-                        </Fragment>
-                      ))}
+                    <td className={TD}>
+                      <div className="flex flex-wrap items-center gap-1 sm:flex-nowrap">
+                        {chips.length === 0 && <span className="text-slate-300">—</span>}
+                        {chips.map((c, i) => (
+                          <Fragment key={i}>
+                            {i > 0 && <span className="text-slate-300 font-bold">+</span>}
+                            <Chip kind={c.kind} wrap={c.kind === 'stage' || c.kind === 'stage_lost'}>{c.label}{c.n > 1 ? ` ×${c.n}` : ''}</Chip>
+                          </Fragment>
+                        ))}
+                      </div>
                     </td>
-                    <td className={`${TD} whitespace-nowrap`}>
+                    <td className={TD}>
                       {tr ? (
-                        <>
-                          {tr.from && <span className="px-2 py-0.5 rounded-full font-bold bg-violet-50 text-violet-700">{tr.from}</span>}
-                          {tr.from && <span className="text-violet-700 font-black px-1">←</span>}
-                          <span className={`px-2 py-0.5 rounded-full font-bold ${afterCls}`}>{tr.to}</span>
-                        </>
+                        <div className="flex flex-col items-start gap-0.5 sm:flex-row sm:items-center sm:gap-1 sm:whitespace-nowrap">
+                          {tr.from && <span className="px-2 py-0.5 rounded-full font-bold bg-violet-50 text-violet-700 leading-snug">{tr.from}</span>}
+                          {tr.from && <span className="text-violet-700 font-black px-1"><span className="sm:hidden">↓</span><span className="hidden sm:inline">←</span></span>}
+                          <span className={`px-2 py-0.5 rounded-full font-bold leading-snug ${afterCls}`}>{tr.to}</span>
+                        </div>
                       ) : (
-                        <span className={`px-2 py-0.5 rounded-full font-bold ${L.current_stage === 'lost' ? 'bg-red-100 text-red-700' : 'bg-violet-50 text-violet-700'}`}>{stageLabel(L.current_stage)}</span>
+                        <span className={`inline-block px-2 py-0.5 rounded-full font-bold leading-snug ${L.current_stage === 'lost' ? 'bg-red-100 text-red-700' : 'bg-violet-50 text-violet-700'}`}>{stageLabel(L.current_stage)}</span>
                       )}
                     </td>
-                    <td className={`${TD} text-center text-slate-400 tabular-nums`}>{L.last_time}</td>
+                    <td className={`${TD} text-center text-slate-400 tabular-nums hidden sm:table-cell`}>{L.last_time}</td>
                   </tr>
                 );
               })}
