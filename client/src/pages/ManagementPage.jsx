@@ -43,7 +43,7 @@ const fmtDM = iso => { if (!iso) return ''; const d = new Date(iso); return `${d
 const trunc = (t, n = 70) => { const s = String(t || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
 
 // שיחה column: phone icon + minutes (count when more than one call).
-const fmtMeetingMin = m => m >= 60 ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')} שעה` : `${m} דק'`;
+const fmtMeetingMin = m => m >= 60 ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')} ש'` : `${m} דק'`;
 function callText(L) {
   const parts = [];
   if (L.calls > 0) parts.push(`📞 ${L.calls > 1 ? `${L.calls} שיחות · ` : ''}${L.minutes} דק'`);
@@ -388,25 +388,28 @@ export default function ManagementPage() {
                       </tr>
                     );
                   })}
-                  {open && (
-                    <tr className="border-b border-slate-200 bg-white">
-                      <td colSpan={METRIC_COLS.length + 5} className="px-4 py-3">
-                        {/* kept inside the viewport while the metrics table scrolls sideways */}
-                        <div className="sticky right-0" style={{ width: 'min(100%, calc(100vw - 2rem))' }}>
-                          <LeadActivityTable
-                            days={Array.isArray(leadActivity[row.id]) ? leadActivity[row.id] : []}
-                            loading={leadActivity[row.id] === 'loading'}
-                            onOpen={L => navigate(`/?lead=${L.lead_id}`)} />
-                        </div>
-                      </td>
-                    </tr>
-                  )}
                 </Fragment>
               );
             })}
           </tbody>
         </table>
       </div>
+
+      {/* Customer lines of each opened employee — rendered below the metrics table, outside its
+          sideways-scrolling container. (They used to sit in a sticky cell inside the table; iOS Safari
+          blanked that cell while scrolling.) */}
+      {sortedRows.filter(row => expanded.has(row.id)).map(row => (
+        <div key={`leads-${row.id}`} className="px-4 pt-4">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-sm font-black text-slate-700">{row.display_name}</span>
+            <span className="text-xs text-slate-400">· לקוחות שטופלו</span>
+          </div>
+          <LeadActivityTable
+            days={Array.isArray(leadActivity[row.id]) ? leadActivity[row.id] : []}
+            loading={leadActivity[row.id] === 'loading'}
+            onOpen={L => navigate(`/?lead=${L.lead_id}`)} />
+        </div>
+      ))}
     </div>
   );
 }
