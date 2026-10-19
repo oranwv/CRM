@@ -42,66 +42,105 @@ const stageLabel = k => STAGE_LABELS[k] || k || '—';
 const fmtDM = iso => { if (!iso) return ''; const d = new Date(iso); return `${d.getDate()}.${d.getMonth() + 1}`; };
 const trunc = (t, n = 70) => { const s = String(t || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
 
-// Call segment: minutes first, then unanswered attempts.
+// שיחה column: phone icon + minutes (count when more than one call).
 function callText(L) {
-  const parts = [];
-  if (L.calls > 0) parts.push(`📞 ${L.calls > 1 ? `${L.calls} שיחות · ` : ''}${L.minutes} דק'`);
-  else if (L.call_doc) parts.push('📞 שיחה תועדה');
-  if (L.attempts > 0) parts.push(`אין מענה ×${L.attempts}`);
-  return parts.join(' · ');
+  if (L.calls > 0) return `📞 ${L.calls > 1 ? `${L.calls} שיחות · ` : ''}${L.minutes} דק'`;
+  return '📞 —';
 }
 
-// Action chips of the day, chronological; repeated kinds collapse into "×n".
+// "מה נעשה": the day's actions as colored word-chips joined by "+", in order of happening.
+// Repeated kinds collapse into "×n". The stage change (with from ← to) closes the chain.
 const CHIP = {
-  meeting_booked: a => `פגישה נקבעה${a.start ? ' ' + fmtDM(a.start) : ''}`,
+  meeting_booked: a => `קביעת פגישה${a.start ? ' ' + fmtDM(a.start) : ''}`,
   meeting_done:   () => 'פגישה בוצעה',
   meeting_doc:    () => 'פגישה תועדה',
-  offer:          () => 'הצעה נשלחה',
-  contract:       a => a.signed ? 'חוזה נשלח ✓ נחתם' : 'חוזה נשלח',
-  wa:             () => 'וואטסאפ',
+  offer:          () => 'הצעת מחיר',
+  contract:       () => 'שליחת חוזה',
+  wa:             () => 'הודעת וואטסאפ',
   note:           () => 'הערה',
   task:           () => 'משימה',
   file:           () => 'קובץ',
   lead_created:   () => 'ליד נוצר',
 };
-function chipsOf(L) {
+const CHIP_CLS = {
+  call: 'bg-slate-200 text-slate-800', attempt: 'bg-red-100 text-red-700',
+  meeting_booked: 'bg-sky-100 text-sky-700', meeting_done: 'bg-sky-100 text-sky-700', meeting_doc: 'bg-sky-100 text-sky-700',
+  offer: 'bg-amber-100 text-amber-700', contract: 'bg-emerald-100 text-emerald-700', signed: 'bg-emerald-100 text-emerald-700',
+  stage: 'bg-violet-100 text-violet-700', stage_lost: 'bg-red-100 text-red-700',
+};
+const LOST_LABELS = new Set(['לא סגרו', 'אבוד']);
+
+// Stage transition of the day → { from, to, lost } (labels), or null.
+function transitionOf(L) {
+  if (L.stage_to) return { from: L.stage_from ? stageLabel(L.stage_from) : null, to: stageLabel(L.stage_to), lost: L.stage_to === 'lost' };
+  if (L.stage_text) { // legacy timeline note "<from> ← <to>"
+    const [from, to] = L.stage_text.replace(/אבוד/g, 'לא סגרו').split(' ← ');
+    return { from: to ? from : null, to: to || from, lost: LOST_LABELS.has((to || from || '').trim()) };
+  }
+  return null;
+}
+
+function chipsOf(L, tr) {
   const out = [];
+  const push = (kind, label) => {
+    const prev = out.find(c => c.label === label && ['wa', 'note', 'task', 'file'].includes(kind));
+    if (prev) prev.n += 1; else out.push({ kind, label, n: 1 });
+  };
+  if (L.calls > 0 || L.call_doc) push('call', 'שיחת טלפון');
+  if (L.attempts > 0) push('attempt', `אין מענה ×${L.attempts}`);
   (L.actions || []).forEach(a => {
     const f = CHIP[a.kind]; if (!f) return;
-    const label = f(a);
-    const prev = out.find(c => c.label === label && ['wa', 'note', 'task', 'file'].includes(a.kind));
-    if (prev) prev.n += 1; else out.push({ label, n: 1, kind: a.kind });
+    push(a.kind, f(a));
+    if (a.kind === 'contract' && a.signed) push('signed', '✓ החוזה נחתם');
   });
+  if (tr) push(tr.lost ? 'stage_lost' : 'stage', `שינוי סטטוס: ${tr.from ? tr.from + ' ← ' : ''}${tr.to}`);
   return out;
 }
 
-function LeadActivityLine({ L, onOpen }) {
-  const chips = chipsOf(L);
-  // nothing beyond the call itself → one line of what was said
-  const fallback = chips.length === 0 ? trunc(L.call_summary || L.call_doc || (L.actions.find(a => a.kind === 'note')?.body)) : '';
-  const transition = L.stage_from || L.stage_to ? `${stageLabel(L.stage_from)} ← ${stageLabel(L.stage_to)}` : (L.stage_text || null);
-  const call = callText(L);
+const Chip = ({ kind, children }) => (
+  <span className={`px-2 py-0.5 rounded-full whitespace-nowrap font-semibold ${CHIP_CLS[kind] || 'bg-slate-100 text-slate-600'}`}>{children}</span>
+);
+
+// Sub-header printed once above the customer lines of an opened employee.
+function LeadActivityHeader() {
   return (
-    <div className="flex items-center gap-2 flex-wrap text-xs">
-      <button onClick={onOpen} className="font-bold text-violet-700 hover:underline whitespace-nowrap">{L.name || `ליד #${L.lead_id}`}</button>
-      <span className={`tabular-nums whitespace-nowrap font-semibold ${call ? 'text-slate-800' : 'text-slate-300'}`}>{call || '—'}</span>
-      <span className="text-slate-300">│</span>
-      {chips.length > 0 ? chips.map((c, i) => (
-        <span key={i} className={`px-2 py-0.5 rounded-full whitespace-nowrap ${
-          c.kind === 'contract' ? 'bg-emerald-50 text-emerald-700' :
-          c.kind === 'offer' ? 'bg-amber-50 text-amber-700' :
-          c.kind.startsWith('meeting') ? 'bg-sky-50 text-sky-700' : 'bg-slate-100 text-slate-600'}`}>
-          {c.label}{c.n > 1 ? ` ×${c.n}` : ''}
-        </span>
-      )) : (
-        <span className="text-slate-500 italic truncate" title={L.call_summary || L.call_doc || ''}>{fallback || '—'}</span>
-      )}
-      <span className="text-slate-300">│</span>
-      <span className={`px-2 py-0.5 rounded-full whitespace-nowrap font-bold ${transition ? 'bg-violet-600 text-white' : 'bg-violet-50 text-violet-700'}`}
-        title={transition ? `שלב נוכחי: ${stageLabel(L.current_stage)}` : undefined}>
-        {transition || `שלב: ${stageLabel(L.current_stage)}`}
-      </span>
-      <span className="text-slate-400 tabular-nums mr-auto">{L.last_time}</span>
+    <div className="grid items-center gap-3 text-[11px] font-bold text-slate-400" style={{ gridTemplateColumns: 'minmax(130px,16%) minmax(120px,14%) 1fr auto' }}>
+      <span>לקוח</span><span>שיחה</span><span>מה נעשה</span><span>שלב</span>
+    </div>
+  );
+}
+
+function LeadActivityLine({ L, onOpen }) {
+  const tr = transitionOf(L);
+  const chips = chipsOf(L, tr);
+  const call = callText(L);
+  const afterCls = tr?.lost ? 'bg-red-600 text-white' : 'bg-violet-600 text-white';
+  return (
+    <div className="grid items-center gap-3 text-xs" style={{ gridTemplateColumns: 'minmax(130px,16%) minmax(120px,14%) 1fr auto' }}>
+      <button onClick={onOpen} className="font-bold text-violet-700 hover:underline text-right truncate" title={L.name || ''}>{L.name || `ליד #${L.lead_id}`}</button>
+      <span className={`tabular-nums whitespace-nowrap font-semibold ${L.calls > 0 ? 'text-slate-800' : 'text-slate-400'}`}
+        title={L.call_summary ? trunc(L.call_summary, 300) : undefined}>{call}</span>
+      <div className="flex items-center gap-1 flex-wrap min-w-0">
+        {chips.length === 0 && <span className="text-slate-300">—</span>}
+        {chips.map((c, i) => (
+          <Fragment key={i}>
+            {i > 0 && <span className="text-slate-300 font-bold px-0.5">+</span>}
+            <Chip kind={c.kind}>{c.label}{c.n > 1 ? ` ×${c.n}` : ''}</Chip>
+          </Fragment>
+        ))}
+      </div>
+      <div className="flex items-center gap-1 whitespace-nowrap">
+        {tr ? (
+          <>
+            {tr.from && <span className="px-2 py-0.5 rounded-full font-bold bg-violet-50 text-violet-700">{tr.from}</span>}
+            {tr.from && <span className="text-violet-700 font-black">←</span>}
+            <span className={`px-2 py-0.5 rounded-full font-bold ${afterCls}`}>{tr.to}</span>
+          </>
+        ) : (
+          <span className={`px-2 py-0.5 rounded-full font-bold ${L.current_stage === 'lost' ? 'bg-red-100 text-red-700' : 'bg-violet-50 text-violet-700'}`}>{stageLabel(L.current_stage)}</span>
+        )}
+        <span className="text-slate-400 tabular-nums mr-2">{L.last_time}</span>
+      </div>
     </div>
   );
 }
@@ -264,6 +303,9 @@ export default function ManagementPage() {
                     <td className={`text-center px-3 py-2.5 font-black tabular-nums ${inactive ? 'text-red-400' : 'text-violet-700'}`}>{tot || '—'}</td>
                   </tr>
 
+                  {open && Array.isArray(leadActivity[row.id]) && (
+                    <tr className="bg-white"><td colSpan={METRIC_COLS.length + 5} className="px-8 pt-2 pb-1"><LeadActivityHeader /></td></tr>
+                  )}
                   {open && row.days.map(d => {
                     const dtot = metricTotal(d);
                     const la = leadActivity[row.id];

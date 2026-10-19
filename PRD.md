@@ -1788,20 +1788,24 @@ in the selected range, newest first, one line per customer — talk minutes firs
 status of what was done. The range picker stays as it was; the existing daily rows stay, and the
 customer lines appear under each day row.
 
-**Line format** (RTL, left to right in reading order):
-`<name link>  📞 12 דק' │ פגישה נקבעה 23.10 · הצעה נשלחה │ [שלב]  10:42`
-- **Calls**: `📞 N שיחות · M דק'` over the day's answered calls (`calls`, status completed and
-  duration > 0, outbound by `user_id`, inbound by `answered_by`); `אין מענה ×N` for dials that
-  were not answered (`calls` not completed / duration 0, plus `call_attempt` interactions);
-  `📞 שיחה תועדה` when only a hand-written call note exists.
-- **Chips**, chronological, only for things that happened that day: `פגישה נקבעה <d.m>`
-  (`meetings.booked_by`), `פגישה בוצעה` / `פגישה תועדה` (meeting interactions, calendar vs manual),
-  `הצעה נשלחה` (`price_offers.created_by`), `חוזה נשלח` (+ `✓ נחתם` once signed), `וואטסאפ ×N`,
-  `הערה ×N`, `משימה`, `קובץ`, `ליד נוצר`. No chips → the latest AI call summary (or the hand-written
-  call/note text) trimmed to one line instead.
-- **Stage tag**: the day's transition `<from> ← <to>` (filled violet) when the employee changed
-  the stage that day, otherwise `שלב: <current>` (light). Hover shows the current stage.
-- Lines sort by last touch (newest first); the time at the end of the line is that last touch.
+**Line format** — four aligned columns under each day, with a small sub-header (לקוח / שיחה /
+מה נעשה / שלב) printed once per opened employee. Agreed with Oran on 2026-10-19 after three
+mock-ups (he chose words over bare chips, with the chip colours kept):
+- **לקוח** — name, link to the lead.
+- **שיחה** — `📞 12 דק'`, `📞 2 שיחות · 19 דק'` over the day's answered calls (`calls`, status
+  completed and duration > 0, outbound by `user_id`, inbound by `answered_by`); `📞 —` when none.
+  Hover shows the latest AI call summary.
+- **מה נעשה** — the day's actions as coloured word-chips joined by `+`, in order: `שיחת טלפון`
+  (dark grey), `אין מענה ×N` (red; unanswered dials + `call_attempt` interactions),
+  `קביעת פגישה <d.m>` / `פגישה בוצעה` / `פגישה תועדה` (blue), `הצעת מחיר` (amber,
+  `price_offers.created_by`), `שליחת חוזה` + `✓ החוזה נחתם` (green), `הודעת וואטסאפ ×N`,
+  `הערה ×N`, `משימה`, `קובץ`, `ליד נוצר` (grey), and last `שינוי סטטוס: <from> ← <to>` (violet;
+  red when the new stage is לא סגרו).
+- **שלב** — `<from>` (light violet) `←` `<to>` (filled violet, filled red for לא סגרו) when the
+  employee changed the stage that day; otherwise one light tag with the current stage. Then the
+  time of the last touch. Lines sort by last touch, newest first.
+- Automations never appear: reminders, RSVP notes and system messages are written with
+  `created_by` / `sent_by` NULL, and the query only takes rows attributed to the user.
 
 **Stage history** — new table `lead_stage_history (lead_id, from_stage, to_stage, changed_by,
 source manual|meeting|gmail, created_at)`, written on every stage change: `PATCH /leads/:id`
