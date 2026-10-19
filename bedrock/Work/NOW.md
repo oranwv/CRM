@@ -6,6 +6,11 @@ updated: 2026-10-19
 
 # Now
 
+## 2026-10-19 — iOS fix + הפעילות שלי tiles (deployed)
+
+- ניהול: customer table now rendered below the metrics table (sticky cell inside the sideways-scrolling table went blank on iOS Safari).
+- הפעילות שלי: summary strip → 11 tiles (שיחות, דקות, שיחות שתועדו, פגישות נקבעו/בוצעו/תועדו, הערות, WA, משימות נוצרו/הושלמו, קבצים); hours removed from the page.
+
 ## 2026-10-19 — Phase 54: "פגישות שבוצעו" now = calendar meeting + host's summary
 
 - Was counting the booking note (so = פגישות נקבעו). Now the Phase 53 rule, by meeting day. Past numbers changed.
