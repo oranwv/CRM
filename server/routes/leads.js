@@ -310,6 +310,10 @@ router.patch('/:id', async (req, res) => {
          VALUES ($1, 'note', 'outbound', $2, $3)`,
         [req.params.id, `🔄 שינוי שלב: ${from} ← ${to}`, req.user.id]
       );
+      pool.query(
+        `INSERT INTO lead_stage_history (lead_id, from_stage, to_stage, changed_by, source) VALUES ($1, $2, $3, $4, 'manual')`,
+        [req.params.id, oldStage, lead.stage, req.user.id]
+      ).catch(err => console.error('[Leads] stage history insert failed:', err.message));
 
       // Auto-clear hot/urgent priority when lead is closed (deposit or production)
       if (lead.stage === 'deposit' || lead.stage === 'production') {

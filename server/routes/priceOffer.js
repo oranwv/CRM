@@ -226,8 +226,8 @@ router.post('/', async (req, res) => {
     // Save offer data for later import into contracts (non-blocking — never break PDF generation)
     const fieldsToSave = { ...fields, language: language || fields.language || 'he' };
     pool.query(
-      `INSERT INTO price_offers (lead_id, fields, rows, offer_type, includes) VALUES ($1,$2,$3,$4,$5)`,
-      [req.params.id, JSON.stringify(fieldsToSave), JSON.stringify(rows), offerType || 'regular', JSON.stringify(texts?.includes || [])]
+      `INSERT INTO price_offers (lead_id, fields, rows, offer_type, includes, created_by) VALUES ($1,$2,$3,$4,$5,$6)`,
+      [req.params.id, JSON.stringify(fieldsToSave), JSON.stringify(rows), offerType || 'regular', JSON.stringify(texts?.includes || []), req.user?.id || null]
     ).catch(err => console.error('[PriceOffer] Failed to save offer history:', err.message));
 
     browser = await Promise.race([

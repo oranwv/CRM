@@ -397,6 +397,7 @@ fields JSONB                 -- customer + event fields
 rows JSONB                   -- priced rows
 includes JSONB DEFAULT '[]'  -- the "המחיר כולל" bullet list
 offer_type TEXT DEFAULT 'regular'   -- regular | package
+created_by INT → users.id ON DELETE SET NULL   -- Phase 51; NULL for offers made before 2026-10-19
 created_at TIMESTAMPTZ
 ```
 
@@ -753,6 +754,7 @@ Files embedded in interaction/message bodies use this format where `id` is the `
 |---|---|---|
 | GET | `/overview` | Period KPIs + sales-activity funnel + source breakdown + 6-month bars (see "Analytics") |
 | GET | `/employee-activity` | Per-employee activity metrics for the ניהול dashboard |
+| GET | `/employee-activity/:uid/leads` | Phase 51 — one employee's customer activity in the range: per day (newest first) → per lead: answered calls + minutes, unanswered attempts, action chips, stage transition, current stage |
 
 ### Calendar — additional endpoints
 | Method | Path | Auth | Description |
@@ -1267,6 +1269,9 @@ Employee-activity dashboard for admin/manager. Columns: calls made / calls docum
 meetings done / meetings documented, notes, WhatsApp sent, tasks created / completed,
 leads created, files uploaded — over a chosen date range, plus first and last activity
 per employee. Fed by `GET /api/analytics/employee-activity` and `user_sessions`.
+Clicking an employee opens the daily rows and, under each day, one line per customer handled
+that day (Phase 51): name (link to the lead) → talk minutes → action chips → stage. Blocked
+users are not listed.
 
 ### `AnalyticsPage.jsx` (`/analytics`) — reworked 2026-08-13
 - **KPI cards:** total received / closed / not-closed / still-active (= total − closed −
@@ -1776,6 +1781,44 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 ---
 
 ## Build Phases — Status
+
+### Phase 51 — ניהול: per-employee customer activity + stage history + blocked users hidden ✅ Built 2026-10-19
+Requested by Oran: in ניהול, clicking an employee (e.g. שיר) should open the customers she handled
+in the selected range, newest first, one line per customer — talk minutes first, then a short
+status of what was done. The range picker stays as it was; the existing daily rows stay, and the
+customer lines appear under each day row.
+
+**Line format** (RTL, left to right in reading order):
+`<name link>  📞 12 דק' │ פגישה נקבעה 23.10 · הצעה נשלחה │ [שלב]  10:42`
+- **Calls**: `📞 N שיחות · M דק'` over the day's answered calls (`calls`, status completed and
+  duration > 0, outbound by `user_id`, inbound by `answered_by`); `אין מענה ×N` for dials that
+  were not answered (`calls` not completed / duration 0, plus `call_attempt` interactions);
+  `📞 שיחה תועדה` when only a hand-written call note exists.
+- **Chips**, chronological, only for things that happened that day: `פגישה נקבעה <d.m>`
+  (`meetings.booked_by`), `פגישה בוצעה` / `פגישה תועדה` (meeting interactions, calendar vs manual),
+  `הצעה נשלחה` (`price_offers.created_by`), `חוזה נשלח` (+ `✓ נחתם` once signed), `וואטסאפ ×N`,
+  `הערה ×N`, `משימה`, `קובץ`, `ליד נוצר`. No chips → the latest AI call summary (or the hand-written
+  call/note text) trimmed to one line instead.
+- **Stage tag**: the day's transition `<from> ← <to>` (filled violet) when the employee changed
+  the stage that day, otherwise `שלב: <current>` (light). Hover shows the current stage.
+- Lines sort by last touch (newest first); the time at the end of the line is that last touch.
+
+**Stage history** — new table `lead_stage_history (lead_id, from_stage, to_stage, changed_by,
+source manual|meeting|gmail, created_at)`, written on every stage change: `PATCH /leads/:id`
+(manual), the auto-advance to נקבעה פגישה on `POST /calendar/leads/:id/meeting` (meeting), and
+the lost → new reopen in `gmailService` (gmail, no user). The timeline note "🔄 שינוי שלב" is
+still written as before; for days before the table existed the ניהול line parses that note.
+`price_offers.created_by` added so offers are attributed to the employee who produced them.
+
+**Blocked users** (`users.blocked`, the חסום toggle in הגדרות → משתמשים) no longer appear in:
+ניהול (`employee-activity`), the lead filter / assign dropdowns (`GET /api/users`), the tasks
+filter (`GET /api/tasks/users`), the תפעול assignee pickers (`GET /api/operations/users`) and the
+per-rep breakdown in אנליטיקס. The users list in הגדרות still shows them so they can be
+unblocked. A lead already assigned to a blocked user keeps that assignment (the list shows the
+name from the server); its dropdown just no longer offers that user.
+Files: `server/routes/analytics.js`, `server/index.js` (migration), `server/routes/leads.js`,
+`calendar.js`, `priceOffer.js`, `users.js`, `tasks.js`, `operations.js`,
+`services/gmailService.js`, `client/src/pages/ManagementPage.jsx`.
 
 ### Phase 50 — Contract "צפו" / "חתמו" icons beside "חוזה נשלח" ✅ Built 2026-10-19
 Requested by Oran: a small eye icon (customer viewed) and a signature icon (customer signed)

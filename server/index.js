@@ -213,6 +213,23 @@ migrate(`
 migrate(`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS orderer_name TEXT`)
   .catch(err => console.error('[DB] orderer_name migration error:', err.message));
 
+// Phase 51 (2026-10-19): stage history (every stage change, by whom and from where) and the
+// author of each price offer — both feed the per-employee lead activity in ניהול.
+migrate(`
+  CREATE TABLE IF NOT EXISTS lead_stage_history (
+    id SERIAL PRIMARY KEY,
+    lead_id INT REFERENCES leads(id) ON DELETE CASCADE,
+    from_stage VARCHAR(30),
+    to_stage VARCHAR(30) NOT NULL,
+    changed_by INT REFERENCES users(id) ON DELETE SET NULL,
+    source VARCHAR(20) DEFAULT 'manual',   -- manual | meeting | gmail
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS idx_lead_stage_history_lead ON lead_stage_history(lead_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_lead_stage_history_user ON lead_stage_history(changed_by, created_at DESC);
+  ALTER TABLE price_offers ADD COLUMN IF NOT EXISTS created_by INT REFERENCES users(id) ON DELETE SET NULL;
+`).catch(err => console.error('[DB] lead_stage_history migration error:', err.message));
+
 migrate(`ALTER TABLE lead_contacts ADD COLUMN IF NOT EXISTS label TEXT`)
   .catch(err => console.error('[DB] lead_contacts label migration error:', err.message));
 

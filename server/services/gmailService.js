@@ -235,6 +235,10 @@ async function upsertLead(parsed, emailId, emailTs) {
     if (stageRows[0]?.stage === 'lost') {
       await pool.query(`UPDATE leads SET stage = 'new' WHERE id = $1`, [existing.id]);
       await pool.query(
+        `INSERT INTO lead_stage_history (lead_id, from_stage, to_stage, changed_by, source) VALUES ($1, 'lost', 'new', NULL, 'gmail')`,
+        [existing.id]
+      ).catch(err => console.error('[Gmail] stage history insert failed:', err.message));
+      await pool.query(
         `INSERT INTO lead_interactions (lead_id, type, direction, body, created_by, is_read, created_at)
          VALUES ($1, 'note', 'outbound', $2, NULL, true, ${tsExpr})`,
         [existing.id, '🔄 הליד חזר לחדשים בעקבות פנייה חדשה במייל']

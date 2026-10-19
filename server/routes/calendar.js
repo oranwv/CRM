@@ -149,11 +149,17 @@ router.post('/leads/:leadId/meeting', async (req, res) => {
     }
 
     // Auto-advance stage to meeting_scheduled when a meeting is booked (only from 'contacted', not 'new')
-    await pool.query(
+    const { rowCount: advanced } = await pool.query(
       `UPDATE leads SET stage = 'meeting_scheduled', updated_at = NOW()
        WHERE id = $1 AND stage = 'contacted'`,
       [lead.id]
     );
+    if (advanced) {
+      pool.query(
+        `INSERT INTO lead_stage_history (lead_id, from_stage, to_stage, changed_by, source) VALUES ($1, 'contacted', 'meeting_scheduled', $2, 'meeting')`,
+        [lead.id, req.user?.id || null]
+      ).catch(err => console.error('[Calendar] stage history insert failed:', err.message));
+    }
 
     const baseUrl = process.env.SERVER_URL || 'http://localhost:3001';
     const icsUrl    = `${baseUrl}/api/calendar/meetings/${eventId}/ics`;

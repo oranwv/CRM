@@ -30,6 +30,82 @@ function fmtHours(h) {
 // Activity total = number of actions; talk minutes are a duration, not an action, so they stay out.
 const metricTotal = obj => METRIC_COLS.reduce((s, c) => c.key === 'call_minutes' ? s : s + Number(obj[c.key] || 0), 0);
 
+// Phase 51 — per-lead activity line under each day (what the employee did with which customer)
+const STAGE_LABELS = {
+  new: 'חדש', new_no_answer: 'חדש ולא עונה', contacted: 'בוצעה שיחה ראשונית',
+  meeting_scheduled: 'נקבעה פגישה', meeting: 'בוצעה פגישה',
+  offer_sent: 'נשלחה הצעת מחיר', negotiation: 'מו"מ',
+  contract_sent: 'חוזה נשלח', process_no_answer: 'בתהליך ונעלם / לא עונה',
+  deposit: 'התקבלה מקדמה', production: 'הפקה', completed: 'הסתיים ושולם', lost: 'לא סגרו',
+};
+const stageLabel = k => STAGE_LABELS[k] || k || '—';
+const fmtDM = iso => { if (!iso) return ''; const d = new Date(iso); return `${d.getDate()}.${d.getMonth() + 1}`; };
+const trunc = (t, n = 70) => { const s = String(t || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+
+// Call segment: minutes first, then unanswered attempts.
+function callText(L) {
+  const parts = [];
+  if (L.calls > 0) parts.push(`📞 ${L.calls > 1 ? `${L.calls} שיחות · ` : ''}${L.minutes} דק'`);
+  else if (L.call_doc) parts.push('📞 שיחה תועדה');
+  if (L.attempts > 0) parts.push(`אין מענה ×${L.attempts}`);
+  return parts.join(' · ');
+}
+
+// Action chips of the day, chronological; repeated kinds collapse into "×n".
+const CHIP = {
+  meeting_booked: a => `פגישה נקבעה${a.start ? ' ' + fmtDM(a.start) : ''}`,
+  meeting_done:   () => 'פגישה בוצעה',
+  meeting_doc:    () => 'פגישה תועדה',
+  offer:          () => 'הצעה נשלחה',
+  contract:       a => a.signed ? 'חוזה נשלח ✓ נחתם' : 'חוזה נשלח',
+  wa:             () => 'וואטסאפ',
+  note:           () => 'הערה',
+  task:           () => 'משימה',
+  file:           () => 'קובץ',
+  lead_created:   () => 'ליד נוצר',
+};
+function chipsOf(L) {
+  const out = [];
+  (L.actions || []).forEach(a => {
+    const f = CHIP[a.kind]; if (!f) return;
+    const label = f(a);
+    const prev = out.find(c => c.label === label && ['wa', 'note', 'task', 'file'].includes(a.kind));
+    if (prev) prev.n += 1; else out.push({ label, n: 1, kind: a.kind });
+  });
+  return out;
+}
+
+function LeadActivityLine({ L, onOpen }) {
+  const chips = chipsOf(L);
+  // nothing beyond the call itself → one line of what was said
+  const fallback = chips.length === 0 ? trunc(L.call_summary || L.call_doc || (L.actions.find(a => a.kind === 'note')?.body)) : '';
+  const transition = L.stage_from || L.stage_to ? `${stageLabel(L.stage_from)} ← ${stageLabel(L.stage_to)}` : (L.stage_text || null);
+  const call = callText(L);
+  return (
+    <div className="flex items-center gap-2 flex-wrap text-xs">
+      <button onClick={onOpen} className="font-bold text-violet-700 hover:underline whitespace-nowrap">{L.name || `ליד #${L.lead_id}`}</button>
+      <span className={`tabular-nums whitespace-nowrap font-semibold ${call ? 'text-slate-800' : 'text-slate-300'}`}>{call || '—'}</span>
+      <span className="text-slate-300">│</span>
+      {chips.length > 0 ? chips.map((c, i) => (
+        <span key={i} className={`px-2 py-0.5 rounded-full whitespace-nowrap ${
+          c.kind === 'contract' ? 'bg-emerald-50 text-emerald-700' :
+          c.kind === 'offer' ? 'bg-amber-50 text-amber-700' :
+          c.kind.startsWith('meeting') ? 'bg-sky-50 text-sky-700' : 'bg-slate-100 text-slate-600'}`}>
+          {c.label}{c.n > 1 ? ` ×${c.n}` : ''}
+        </span>
+      )) : (
+        <span className="text-slate-500 italic truncate" title={L.call_summary || L.call_doc || ''}>{fallback || '—'}</span>
+      )}
+      <span className="text-slate-300">│</span>
+      <span className={`px-2 py-0.5 rounded-full whitespace-nowrap font-bold ${transition ? 'bg-violet-600 text-white' : 'bg-violet-50 text-violet-700'}`}
+        title={transition ? `שלב נוכחי: ${stageLabel(L.current_stage)}` : undefined}>
+        {transition || `שלב: ${stageLabel(L.current_stage)}`}
+      </span>
+      <span className="text-slate-400 tabular-nums mr-auto">{L.last_time}</span>
+    </div>
+  );
+}
+
 export default function ManagementPage() {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('crm_user') || '{}');
@@ -41,6 +117,7 @@ export default function ManagementPage() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(() => new Set());
+  const [leadActivity, setLeadActivity] = useState({}); // uid -> [{ date, leads:[...] }] | 'loading'
 
   useEffect(() => {
     if (!isManager) { navigate('/'); return; }
@@ -53,7 +130,19 @@ export default function ManagementPage() {
       .then(r => setRows(r.data))
       .catch(() => {})
       .finally(() => setLoading(false));
+    setLeadActivity({}); // range changed → per-user lead lines are stale
   }, [from, to]);
+
+  // Lead lines are fetched the first time a user is opened for the current range.
+  useEffect(() => {
+    expanded.forEach(uid => {
+      if (leadActivity[uid] !== undefined) return;
+      setLeadActivity(prev => ({ ...prev, [uid]: 'loading' }));
+      api.get(`/analytics/employee-activity/${uid}/leads?from=${from}&to=${to}`)
+        .then(r => setLeadActivity(prev => ({ ...prev, [uid]: r.data })))
+        .catch(() => setLeadActivity(prev => ({ ...prev, [uid]: [] })));
+    });
+  }, [expanded, from, to, leadActivity]);
 
   function toggle(id) {
     setExpanded(prev => {
@@ -125,7 +214,7 @@ export default function ManagementPage() {
           })}
         </div>
         {loading && <span className="text-xs text-slate-400">טוען...</span>}
-        {isRange && <span className="text-xs text-slate-400">· לחיצה על שורה פותחת פירוט יומי</span>}
+        <span className="text-xs text-slate-400">· לחיצה על עובד פותחת את הלקוחות שטופלו{isRange ? ', לפי יום' : ''}</span>
       </div>
 
       <div className="overflow-x-auto">
@@ -177,8 +266,11 @@ export default function ManagementPage() {
 
                   {open && row.days.map(d => {
                     const dtot = metricTotal(d);
+                    const la = leadActivity[row.id];
+                    const dayLeads = Array.isArray(la) ? (la.find(x => x.date === d.date)?.leads || []) : null;
                     return (
-                      <tr key={`${row.id}-${d.date}`} className="border-b border-slate-100 bg-slate-50/60 text-xs">
+                      <Fragment key={`${row.id}-${d.date}`}>
+                      <tr className="border-b border-slate-100 bg-slate-50/60 text-xs">
                         <td className="px-4 py-2 sticky right-0 bg-slate-50/60 text-slate-500">
                           <span className="font-semibold text-slate-600">{d.date}</span>
                         </td>
@@ -196,6 +288,20 @@ export default function ManagementPage() {
                         </td>
                         <td className="text-center px-3 py-2 tabular-nums text-slate-500">{dtot || '—'}</td>
                       </tr>
+                      {la === 'loading' && (
+                        <tr className="border-b border-slate-100 bg-white"><td colSpan={METRIC_COLS.length + 5} className="px-8 py-1.5 text-xs text-slate-400">טוען לקוחות...</td></tr>
+                      )}
+                      {dayLeads && dayLeads.length === 0 && (
+                        <tr className="border-b border-slate-100 bg-white"><td colSpan={METRIC_COLS.length + 5} className="px-8 py-1.5 text-xs text-slate-400">אין פעילות מול לקוחות ביום זה</td></tr>
+                      )}
+                      {dayLeads && dayLeads.map(L => (
+                        <tr key={`${row.id}-${d.date}-${L.lead_id}`} className="border-b border-slate-100 bg-white hover:bg-violet-50/40">
+                          <td colSpan={METRIC_COLS.length + 5} className="px-8 py-1.5">
+                            <LeadActivityLine L={L} onOpen={() => navigate(`/?lead=${L.lead_id}`)} />
+                          </td>
+                        </tr>
+                      ))}
+                      </Fragment>
                     );
                   })}
                 </Fragment>

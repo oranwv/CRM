@@ -18,7 +18,7 @@ async function logActivity(entityType, entityId, type, body, userId) {
 // GET /api/operations/users — team member list for assignee pickers
 router.get('/users', async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT id, display_name FROM users ORDER BY display_name');
+    const { rows } = await pool.query('SELECT id, display_name FROM users WHERE NOT COALESCE(blocked, false) ORDER BY display_name');
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -143,7 +143,7 @@ router.get('/overview', async (req, res) => {
                COUNT(l.id) FILTER (WHERE l.stage = 'lost') AS lost
         FROM users u
         LEFT JOIN leads l ON l.assigned_to = u.id ${jDate}
-        WHERE u.role IN ('admin','sales')
+        WHERE u.role IN ('admin','sales') AND NOT COALESCE(u.blocked, false)
         GROUP BY u.id, u.display_name
         ORDER BY total DESC
       `, params),
@@ -293,7 +293,7 @@ router.get('/employee-activity', async (req, res) => {
 
     const usersQ = pool.query(`
       SELECT id, display_name, role FROM users
-      WHERE role IN ('admin','manager','sales','production') ORDER BY display_name
+      WHERE role IN ('admin','manager','sales','production') AND NOT COALESCE(blocked, false) ORDER BY display_name
     `);
 
     const [metrics, actions, sessions, users] = await Promise.all([metricsQ, actionsQ, sessionsQ, usersQ]);
@@ -362,6 +362,141 @@ router.get('/employee-activity', async (req, res) => {
       return { id: u.id, display_name: u.display_name, role: u.role, totals, days };
     });
 
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/analytics/employee-activity/:uid/leads?from=YYYY-MM-DD&to=YYYY-MM-DD
+// Phase 51: what one employee did with which customers. Per day (newest first) → per lead
+// (latest touch first): answered-call count + minutes, unanswered attempts, and the actions of
+// that day (meeting booked, offer, contract, WhatsApp, note, task, file, lead created), plus
+// the stage transition of the day (from lead_stage_history; older days fall back to the
+// "🔄 שינוי שלב" timeline notes) and the lead's current stage.
+router.get('/employee-activity/:uid/leads', async (req, res) => {
+  const roles = req.user.roles || [req.user.role];
+  if (!roles.some(r => ['admin', 'manager'].includes(r))) return res.status(403).json({ error: 'Forbidden' });
+  const uid = Number(req.params.uid);
+  if (!uid) return res.status(400).json({ error: 'bad user id' });
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const from = req.query.from || today;
+    const to   = req.query.to   || from;
+    const { rows } = await pool.query(`
+      WITH ev AS (
+        -- answered calls (outbound by the dialer, inbound by whoever picked up)
+        SELECT lead_id, started_at AS ts, 'call' AS kind,
+               jsonb_build_object('min', GREATEST(1, ROUND(duration_sec / 60.0))::int, 'summary', summary, 'direction', direction) AS data
+          FROM calls WHERE COALESCE(answered_by, user_id) = $1 AND lead_id IS NOT NULL
+                       AND status = 'completed' AND COALESCE(duration_sec, 0) > 0
+        UNION ALL
+        -- dials that never became a conversation
+        SELECT lead_id, started_at, 'call_attempt', '{}'::jsonb
+          FROM calls WHERE user_id = $1 AND direction = 'outbound' AND lead_id IS NOT NULL
+                       AND NOT (status = 'completed' AND COALESCE(duration_sec, 0) > 0)
+                       AND status NOT IN ('initiated', 'ringing', 'in-progress')
+        UNION ALL
+        SELECT lead_id, created_at, 'call_attempt', '{}'::jsonb
+          FROM lead_interactions WHERE created_by = $1 AND type = 'call_attempt'
+        UNION ALL
+        -- calls documented by hand (not the dialer's own log)
+        SELECT lead_id, created_at, 'call_doc', jsonb_build_object('body', body)
+          FROM lead_interactions WHERE created_by = $1 AND type = 'call' AND (source IS NULL OR source NOT IN ('dial', 'twilio'))
+        UNION ALL
+        SELECT lead_id, created_at, 'meeting_booked', jsonb_build_object('start', start_time)
+          FROM meetings WHERE booked_by = $1 AND lead_id IS NOT NULL
+        UNION ALL
+        SELECT lead_id, created_at, CASE WHEN source = 'calendar' THEN 'meeting_done' ELSE 'meeting_doc' END, jsonb_build_object('body', body)
+          FROM lead_interactions WHERE created_by = $1 AND type = 'meeting'
+        UNION ALL
+        SELECT lead_id, created_at, 'note', jsonb_build_object('body', body)
+          FROM lead_interactions WHERE created_by = $1 AND type = 'note' AND COALESCE(body, '') NOT LIKE '🔄 שינוי שלב%'
+        UNION ALL
+        SELECT lead_id, timestamp, 'wa', '{}'::jsonb
+          FROM messages WHERE sent_by = $1 AND direction = 'outbound' AND lead_id IS NOT NULL
+        UNION ALL
+        SELECT lead_id, created_at, 'offer', jsonb_build_object('type', offer_type)
+          FROM price_offers WHERE created_by = $1
+        UNION ALL
+        SELECT lead_id, created_at, 'contract', jsonb_build_object('status', status, 'signed', signed_at IS NOT NULL)
+          FROM contracts WHERE created_by = $1
+        UNION ALL
+        SELECT lead_id, created_at, 'task', jsonb_build_object('title', title)
+          FROM tasks WHERE created_by = $1 AND lead_id IS NOT NULL
+        UNION ALL
+        SELECT lead_id, created_at, 'file', jsonb_build_object('name', filename)
+          FROM files WHERE uploaded_by = $1 AND lead_id IS NOT NULL
+        UNION ALL
+        SELECT id, created_at, 'lead_created', '{}'::jsonb
+          FROM leads WHERE created_by = $1
+        UNION ALL
+        SELECT lead_id, created_at, 'stage', jsonb_build_object('from', from_stage, 'to', to_stage)
+          FROM lead_stage_history WHERE changed_by = $1
+        UNION ALL
+        -- before lead_stage_history existed the only trace was the timeline note
+        SELECT lead_id, created_at, 'stage_note', jsonb_build_object('body', body)
+          FROM lead_interactions
+         WHERE created_by = $1 AND type = 'note' AND body LIKE '🔄 שינוי שלב%'
+           AND created_at < (SELECT COALESCE(MIN(created_at), NOW()) FROM lead_stage_history)
+      )
+      SELECT ev.lead_id, ev.kind, ev.data,
+             to_char((ev.ts AT TIME ZONE 'Asia/Jerusalem')::date, 'YYYY-MM-DD') AS day,
+             to_char(ev.ts AT TIME ZONE 'Asia/Jerusalem', 'HH24:MI') AS hhmm,
+             EXTRACT(EPOCH FROM ev.ts)::bigint AS epoch,
+             l.name AS lead_name, l.stage AS current_stage
+      FROM ev JOIN leads l ON l.id = ev.lead_id
+      WHERE ev.ts IS NOT NULL AND (ev.ts AT TIME ZONE 'Asia/Jerusalem')::date BETWEEN $2::date AND $3::date
+      ORDER BY ev.ts DESC
+    `, [uid, from, to]);
+
+    // day → lead → summary line
+    const days = new Map();
+    rows.forEach(r => {
+      if (!days.has(r.day)) days.set(r.day, new Map());
+      const leads = days.get(r.day);
+      if (!leads.has(r.lead_id)) {
+        leads.set(r.lead_id, {
+          lead_id: r.lead_id, name: r.lead_name, current_stage: r.current_stage,
+          last_epoch: Number(r.epoch), last_time: r.hhmm,
+          calls: 0, minutes: 0, attempts: 0, call_summary: null, call_doc: null,
+          stage_from: null, stage_to: null, stage_text: null,
+          actions: [],   // chronological chips: { kind, time, ...details }
+        });
+      }
+      const L = leads.get(r.lead_id);
+      const d = r.data || {};
+      switch (r.kind) {
+        case 'call':
+          L.calls += 1; L.minutes += Number(d.min || 0);
+          if (!L.call_summary && d.summary) L.call_summary = d.summary; // rows are newest first → latest summary wins
+          break;
+        case 'call_attempt': L.attempts += 1; break;
+        case 'call_doc':
+          if (!L.call_doc && d.body) L.call_doc = d.body;
+          L.actions.push({ kind: 'call_doc', time: r.hhmm, epoch: Number(r.epoch) });
+          break;
+        case 'stage':
+          // newest first: the last row seen is the earliest change of the day → its "from"
+          if (!L.stage_to) L.stage_to = d.to;
+          L.stage_from = d.from;
+          break;
+        case 'stage_note':
+          if (!L.stage_text) L.stage_text = String(d.body || '').replace(/^🔄 שינוי שלב:\s*/, '');
+          break;
+        default:
+          L.actions.push({ kind: r.kind, time: r.hhmm, epoch: Number(r.epoch), ...d });
+      }
+    });
+
+    const result = Array.from(days.entries())
+      .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+      .map(([day, leads]) => ({
+        date: day,
+        leads: Array.from(leads.values())
+          .sort((a, b) => b.last_epoch - a.last_epoch)
+          .map(L => ({ ...L, actions: L.actions.sort((a, b) => a.epoch - b.epoch) })),
+      }));
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });

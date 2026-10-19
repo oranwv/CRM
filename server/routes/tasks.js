@@ -6,7 +6,7 @@ const requireAuth = require('../middleware/auth');
 router.get('/users', requireAuth, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT id, display_name FROM users ORDER BY display_name'
+      'SELECT id, display_name FROM users WHERE NOT COALESCE(blocked, false) ORDER BY display_name'
     );
     res.json(rows);
   } catch (err) {

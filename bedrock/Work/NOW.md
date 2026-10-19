@@ -1,10 +1,17 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-10-16
+updated: 2026-10-19
 ---
 
 # Now
+
+## 2026-10-19 — Phase 51: ניהול — customers per employee, stage history, blocked users hidden
+
+- Click an employee in ניהול → under each day row, one line per customer: name (link) → `📞 N שיחות · M דק'` / `אין מענה ×N` → action chips (meeting booked, offer, contract ✓ signed, WA ×N, note…) or the AI call summary when nothing else happened → stage tag (`from ← to` when changed that day, else current stage). Newest first. Range picker unchanged.
+- New `lead_stage_history` table written from PATCH /leads, meeting auto-advance and the Gmail reopen; `price_offers.created_by` added. Older days fall back to the "🔄 שינוי שלב" notes.
+- Blocked users dropped from ניהול, lead/task/תפעול user pickers and the analytics per-rep chart (still visible in הגדרות → משתמשים to unblock).
+- To verify after the Railway deploy: open ניהול, pick yesterday, click שיר.
 
 ## 2026-10-19 — Phase 50: contract viewed/signed icons
 
