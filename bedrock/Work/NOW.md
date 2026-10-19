@@ -6,6 +6,10 @@ updated: 2026-10-19
 
 # Now
 
+## 2026-10-19 — Phase 54: "פגישות שבוצעו" now = calendar meeting + host's summary
+
+- Was counting the booking note (so = פגישות נקבעו). Now the Phase 53 rule, by meeting day. Past numbers changed.
+
 ## 2026-10-19 — Rule: preview before deploy
 
 - Oran: show a real preview (rendered screenshot of the actual code, phone + desktop) and get a yes before pushing UI changes. Harness: build `LeadActivityTable` in a throwaway Vite root with sample data, screenshot with Playwright at 390px and 1100px.

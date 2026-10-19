@@ -1788,6 +1788,16 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 54 — "פגישות שבוצעו" column redefined ✅ Built 2026-10-19
+Oran asked why ניהול showed 2 meetings held for Shir while the calendar showed none. Cause: the
+`meetings_done` metric counted `lead_interactions` of type meeting with source `calendar` — which
+is the "📅 פגישה נקבעה" note written at booking time — so it was really a second count of
+bookings. With his OK the column now uses the Phase 53 rule: a `meetings` row hosted by the user
+(`host_user_id`), already started, customer not declined, **and** a meeting summary the host
+wrote on that lead (type meeting, not the booking note) between 1h before and 3 days after the
+start; counted on the meeting day (`start_time`). Numbers for past days changed accordingly.
+"פגישות שתועדו" (manual summaries) is unchanged.
+
 ### Phase 53 — Meetings held beside the call minutes ✅ Built 2026-10-19
 Oran: "we know a meeting really happened if it is on the calendar AND the user entered a
 meeting summary." The customer line's second column is now "שיחה / פגישה": `🤝 <duration>` for

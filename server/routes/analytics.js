@@ -221,8 +221,19 @@ async function computeEmployeeActivity(from, to, onlyUid = null) {
         SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'calls_documented', 1
           FROM lead_interactions WHERE created_by IS NOT NULL AND type='call' AND direction='outbound' AND (source IS NULL OR source NOT IN ('dial','twilio'))
         UNION ALL
-        SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'meetings_done', 1
-          FROM lead_interactions WHERE created_by IS NOT NULL AND type='meeting' AND source='calendar'
+        -- Meetings held (Oran's rule, 2026-10-19): a calendar meeting hosted by the user that already
+        -- started, not declined by the customer, AND a meeting summary the user wrote on that lead
+        -- (type='meeting', not the booking note) from an hour before to 3 days after the start.
+        -- Counted on the meeting day. (Until 2026-10-19 this counted the "📅 פגישה נקבעה" booking
+        -- note, i.e. bookings, so it always equalled meetings_booked.)
+        SELECT m.host_user_id, (m.start_time AT TIME ZONE 'Asia/Jerusalem')::date, 'meetings_done', 1
+          FROM meetings m
+         WHERE m.host_user_id IS NOT NULL AND m.lead_id IS NOT NULL AND m.start_time < NOW()
+           AND COALESCE(m.customer_status, '') <> 'declined'
+           AND EXISTS (SELECT 1 FROM lead_interactions li
+                        WHERE li.lead_id = m.lead_id AND li.type = 'meeting' AND li.created_by = m.host_user_id
+                          AND (li.source IS NULL OR li.source <> 'calendar')
+                          AND li.created_at BETWEEN m.start_time - INTERVAL '1 hour' AND m.start_time + INTERVAL '3 days')
         UNION ALL
         SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'meetings_documented', 1
           FROM lead_interactions WHERE created_by IS NOT NULL AND type='meeting' AND (source IS NULL OR source<>'calendar')
