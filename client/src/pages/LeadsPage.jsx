@@ -306,14 +306,9 @@ export default function LeadsPage() {
     <div className="min-h-screen pb-16">
       {/* Header */}
       <div className="bg-white border-b border-violet-100 px-4 py-3 flex items-center gap-3 shadow-sm sticky top-0 z-20">
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-base shrink-0"
-          style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}
-        >
-          ש
-        </div>
+        <img src="/logo/app-icon.svg" alt="ProEvent" className="w-9 h-9 rounded-xl shrink-0" />
         <div className="flex-1 min-w-0">
-          <h1 className="text-base font-black text-slate-900 leading-tight">שרביה CRM</h1>
+          <h1 className="text-base font-black text-slate-900 leading-tight">ProEvent CRM</h1>
           <p className="text-slate-400 text-xs leading-tight">{user.display_name}</p>
         </div>
         <button onClick={() => setShowAdd(true)}

@@ -40,7 +40,7 @@ export default function LoginPage() {
         <div className="text-center mb-7">
           <img src="/logo/app-icon.svg" alt="ProEvent" className="inline-block w-16 h-16 rounded-2xl shadow-lg mb-4"
             style={{ boxShadow: '0 8px 24px rgba(124,58,237,0.35)' }} />
-          <h1 className="text-2xl font-black text-slate-900">שרביה CRM</h1>
+          <h1 className="text-2xl font-black text-slate-900">ProEvent CRM</h1>
           <p className="text-[11px] font-bold tracking-tight text-violet-500 mt-0.5" dir="ltr">pro<span className="text-violet-300">event</span></p>
           <p className="text-slate-400 text-sm mt-1">ברוכים הבאים! התחבר להמשך</p>
         </div>

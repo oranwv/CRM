@@ -164,7 +164,7 @@ function GlobalHeader() {
     >
       <div className="order-1 flex items-center gap-2 shrink-0 h-11">
         <img src="/logo/mark-mono-white.svg" alt="" className="w-5 h-5 opacity-90 shrink-0" />
-        <span className="text-white font-black text-sm opacity-90 shrink-0">שרביה CRM</span>
+        <span className="text-white font-black text-sm opacity-90 shrink-0">ProEvent CRM</span>
       </div>
 
       {hasBadges && (

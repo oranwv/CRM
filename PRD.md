@@ -2555,6 +2555,12 @@ server rejects everyone else with 403 in `routes/candidates.js`).
 - Verified: eslint + import resolution on the Mac VM (vite build can't run there — Mac-native
   rolldown binary); server files `node --check`. Not verified: a real calendar/WhatsApp send.
 
+### Phase 50 — "שרביה CRM" → "ProEvent CRM" + bolt logo in the leads header ✅ Built 2026-10-19
+Oran (19.10): the product name shown in the app is now "ProEvent CRM" in all three places —
+top bar (`App.jsx`), leads-page header (`LeadsPage.jsx`) and the login page (`LoginPage.jsx`).
+The purple "ש" square next to the leads-page title is replaced by the bolt app icon
+(`/logo/app-icon.svg`, same 36px rounded box). Nothing else changed.
+
 ### Phase 49 — Analytics page wider than the phone screen ✅ Built 2026-10-17
 Oran's phone (17.10): opening אנליטיקס shifted the whole app sideways — the mode button, KPI
 cards and bottom nav were cut off. Two elements were wider than the viewport, which on mobile

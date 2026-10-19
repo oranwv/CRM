@@ -6,6 +6,10 @@ updated: 2026-10-19
 
 # Now
 
+## 2026-10-19 — Phase 50: product name in the app
+
+- "שרביה CRM" → "ProEvent CRM" (top bar, leads header, login); leads-header "ש" square → bolt app icon.
+
 ## 2026-10-19 — iOS fix + הפעילות שלי tiles (deployed)
 
 - ניהול: customer table now rendered below the metrics table (sticky cell inside the sideways-scrolling table went blank on iOS Safari).
