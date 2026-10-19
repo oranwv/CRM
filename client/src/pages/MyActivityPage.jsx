@@ -1,7 +1,7 @@
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
-import { METRIC_COLS, dayStr, shiftDays, fmtHours, metricTotal, LeadActivityHeader, LeadActivityLine } from './ManagementPage';
+import { METRIC_COLS, dayStr, shiftDays, fmtHours, metricTotal, LeadActivityTable } from './ManagementPage';
 
 // Phase 52 — "הפעילות שלי": the signed-in user's own activity, same range picker and the same
 // customer lines as ניהול, without the per-employee table. Any role.
@@ -25,7 +25,6 @@ export default function MyActivityPage() {
       .finally(() => setLoading(false));
   }, [from, to]);
 
-  const isRange = from !== to;
   const presets = [
     { label: 'היום',     from: todayStr,      to: todayStr },
     { label: 'אתמול',    from: shiftDays(-1), to: shiftDays(-1) },
@@ -110,32 +109,17 @@ export default function MyActivityPage() {
 
       {/* Days → customer lines */}
       <div className="px-4 pt-3">
-        <div>
-          {dayList.length > 0 && <div className="px-3 pb-1"><LeadActivityHeader /></div>}
-          {dayList.map(d => (
-            <Fragment key={d.date}>
-              <div className="flex items-center gap-3 px-3 py-1.5 text-xs text-slate-500 bg-slate-100 rounded-md mt-2">
-                <span className="font-bold text-slate-600">{d.date}</span>
-                {d.metrics && (
-                  <>
-                    <span className="tabular-nums">{d.metrics.first_activity || '—'} – {d.metrics.last_activity || '—'}</span>
-                    <span className="tabular-nums text-sky-700 font-semibold" title={d.metrics.hours_source === 'estimated' ? 'מחושב לפי פעילות' : 'נמדד לפי נוכחות בפועל'}>
-                      {d.metrics.hours_source === 'estimated' && d.metrics.hours ? '≈' : ''}{fmtHours(d.metrics.hours)} שעות
-                    </span>
-                    <span className="tabular-nums">{metricTotal(d.metrics) || 0} פעולות</span>
-                  </>
-                )}
-              </div>
-              {d.leads.length === 0 && <div className="px-3 py-1.5 text-xs text-slate-400">אין פעילות מול לקוחות ביום זה</div>}
-              {d.leads.map(L => (
-                <div key={`${d.date}-${L.lead_id}`} className="px-3 py-1.5 border-b border-slate-100 bg-white hover:bg-violet-50/40">
-                  <LeadActivityLine L={L} onOpen={() => navigate(`/?lead=${L.lead_id}`)} />
-                </div>
-              ))}
-            </Fragment>
-          ))}
-          {!loading && dayList.length === 0 && isRange && <div className="text-center py-10 text-slate-400 text-sm">אין נתונים לטווח זה</div>}
-        </div>
+        <LeadActivityTable
+          loading={loading && dayList.length === 0}
+          empty="אין פעילות מול לקוחות בטווח זה"
+          onOpen={L => navigate(`/?lead=${L.lead_id}`)}
+          days={dayList.map(d => ({
+            date: d.date,
+            leads: d.leads,
+            meta: d.metrics
+              ? `${d.metrics.first_activity || '—'} – ${d.metrics.last_activity || '—'} · ${d.metrics.hours_source === 'estimated' && d.metrics.hours ? '≈' : ''}${fmtHours(d.metrics.hours)} שעות · ${metricTotal(d.metrics) || 0} פעולות`
+              : null,
+          }))} />
       </div>
     </div>
   );

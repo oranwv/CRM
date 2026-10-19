@@ -108,46 +108,75 @@ const Chip = ({ kind, children }) => (
   <span className={`px-2 py-0.5 rounded-full whitespace-nowrap font-semibold ${CHIP_CLS[kind] || 'bg-slate-100 text-slate-600'}`}>{children}</span>
 );
 
-// Sub-header printed once above the customer lines of an opened employee.
-export function LeadActivityHeader() {
+// The customer lines as a real table: לקוח │ שיחה / פגישה │ מה נעשה │ שלב │ שעה, with vertical
+// rules between the columns. It scrolls sideways on its own when the chips are wider than the
+// screen, so the columns never squeeze into each other. `days`: [{ date, leads, meta? }].
+const TD = 'px-3 py-1.5 align-middle border-l border-slate-200 last:border-l-0';
+export function LeadActivityTable({ days, onOpen, loading, empty }) {
   return (
-    <div className="grid items-center gap-x-2 text-[11px] font-bold text-slate-400 grid-cols-[minmax(0,1fr)_auto_auto] sm:grid-cols-[128px_150px_1fr_auto]">
-      <span>לקוח</span><span>שיחה / פגישה</span><span className="hidden sm:block">מה נעשה</span><span>שלב</span>
-    </div>
-  );
-}
-
-export function LeadActivityLine({ L, onOpen }) {
-  const tr = transitionOf(L);
-  const chips = chipsOf(L, tr);
-  const call = callText(L);
-  const afterCls = tr?.lost ? 'bg-red-600 text-white' : 'bg-violet-600 text-white';
-  return (
-    <div className="grid items-center gap-x-2 gap-y-1 text-xs grid-cols-[minmax(0,1fr)_auto_auto] sm:grid-cols-[128px_150px_1fr_auto]">
-      <button onClick={onOpen} className="font-bold text-violet-700 hover:underline text-right truncate" title={L.name || ''}>{L.name || `ליד #${L.lead_id}`}</button>
-      <span className={`tabular-nums leading-tight font-semibold ${L.calls > 0 || L.meetings_held > 0 ? 'text-slate-800' : 'text-slate-400'}`}
-        title={[L.call_summary ? trunc(L.call_summary, 300) : '', L.meetings_held > 0 ? 'משך הפגישה לפי היומן' : ''].filter(Boolean).join('\n') || undefined}>{call}</span>
-      <div className="flex items-center gap-1 flex-wrap min-w-0 col-span-3 order-last sm:col-span-1 sm:order-none">
-        {chips.length === 0 && <span className="text-slate-300">—</span>}
-        {chips.map((c, i) => (
-          <Fragment key={i}>
-            {i > 0 && <span className="text-slate-300 font-bold px-0.5">+</span>}
-            <Chip kind={c.kind}>{c.label}{c.n > 1 ? ` ×${c.n}` : ''}</Chip>
-          </Fragment>
-        ))}
-      </div>
-      <div className="flex items-center gap-1 flex-wrap justify-self-end">
-        {tr ? (
-          <>
-            {tr.from && <span className="px-2 py-0.5 rounded-full font-bold bg-violet-50 text-violet-700">{tr.from}</span>}
-            {tr.from && <span className="text-violet-700 font-black">←</span>}
-            <span className={`px-2 py-0.5 rounded-full font-bold ${afterCls}`}>{tr.to}</span>
-          </>
-        ) : (
-          <span className={`px-2 py-0.5 rounded-full font-bold ${L.current_stage === 'lost' ? 'bg-red-100 text-red-700' : 'bg-violet-50 text-violet-700'}`}>{stageLabel(L.current_stage)}</span>
-        )}
-        <span className="text-slate-400 tabular-nums mr-2">{L.last_time}</span>
-      </div>
+    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+      <table className="text-xs border-collapse w-full" style={{ minWidth: 700 }}>
+        <thead>
+          <tr className="bg-violet-50 text-violet-700">
+            <th className={`${TD} text-right font-black whitespace-nowrap`} style={{ width: 150 }}>לקוח</th>
+            <th className={`${TD} text-right font-black whitespace-nowrap`} style={{ width: 150 }}>שיחה / פגישה</th>
+            <th className={`${TD} text-right font-black`}>מה נעשה</th>
+            <th className={`${TD} text-right font-black whitespace-nowrap`}>שלב</th>
+            <th className={`${TD} text-center font-black`} style={{ width: 52 }}>שעה</th>
+          </tr>
+        </thead>
+        <tbody>
+          {loading && <tr><td colSpan={5} className="px-3 py-2 text-slate-400">טוען לקוחות...</td></tr>}
+          {!loading && days.length === 0 && <tr><td colSpan={5} className="px-3 py-2 text-slate-400">{empty || 'אין פעילות מול לקוחות בטווח זה'}</td></tr>}
+          {days.map(d => (
+            <Fragment key={d.date}>
+              <tr className="bg-slate-100 text-slate-600">
+                <td colSpan={5} className="px-3 py-1 font-bold tabular-nums">
+                  {d.date}{d.meta ? <span className="font-normal text-slate-500 mr-3">{d.meta}</span> : null}
+                </td>
+              </tr>
+              {d.leads.length === 0 && <tr><td colSpan={5} className="px-3 py-1.5 text-slate-400">אין פעילות מול לקוחות ביום זה</td></tr>}
+              {d.leads.map(L => {
+                const tr = transitionOf(L);
+                const chips = chipsOf(L, tr);
+                const afterCls = tr?.lost ? 'bg-red-600 text-white' : 'bg-violet-600 text-white';
+                return (
+                  <tr key={`${d.date}-${L.lead_id}`} className="border-t border-slate-100 hover:bg-violet-50/40">
+                    <td className={`${TD} whitespace-nowrap`}>
+                      <button onClick={() => onOpen(L)} className="font-bold text-violet-700 hover:underline max-w-[150px] truncate block text-right" title={L.name || ''}>{L.name || `ליד #${L.lead_id}`}</button>
+                    </td>
+                    <td className={`${TD} tabular-nums whitespace-nowrap font-semibold ${L.calls > 0 || L.meetings_held > 0 ? 'text-slate-800' : 'text-slate-400'}`}
+                      title={[L.call_summary ? trunc(L.call_summary, 300) : '', L.meetings_held > 0 ? 'משך הפגישה לפי היומן' : ''].filter(Boolean).join('\n') || undefined}>
+                      {callText(L)}
+                    </td>
+                    <td className={`${TD} whitespace-nowrap`}>
+                      {chips.length === 0 && <span className="text-slate-300">—</span>}
+                      {chips.map((c, i) => (
+                        <Fragment key={i}>
+                          {i > 0 && <span className="text-slate-300 font-bold px-1">+</span>}
+                          <Chip kind={c.kind}>{c.label}{c.n > 1 ? ` ×${c.n}` : ''}</Chip>
+                        </Fragment>
+                      ))}
+                    </td>
+                    <td className={`${TD} whitespace-nowrap`}>
+                      {tr ? (
+                        <>
+                          {tr.from && <span className="px-2 py-0.5 rounded-full font-bold bg-violet-50 text-violet-700">{tr.from}</span>}
+                          {tr.from && <span className="text-violet-700 font-black px-1">←</span>}
+                          <span className={`px-2 py-0.5 rounded-full font-bold ${afterCls}`}>{tr.to}</span>
+                        </>
+                      ) : (
+                        <span className={`px-2 py-0.5 rounded-full font-bold ${L.current_stage === 'lost' ? 'bg-red-100 text-red-700' : 'bg-violet-50 text-violet-700'}`}>{stageLabel(L.current_stage)}</span>
+                      )}
+                    </td>
+                    <td className={`${TD} text-center text-slate-400 tabular-nums`}>{L.last_time}</td>
+                  </tr>
+                );
+              })}
+            </Fragment>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -310,16 +339,10 @@ export default function ManagementPage() {
                     <td className={`text-center px-3 py-2.5 font-black tabular-nums ${inactive ? 'text-red-400' : 'text-violet-700'}`}>{tot || '—'}</td>
                   </tr>
 
-                  {open && Array.isArray(leadActivity[row.id]) && (
-                    <tr className="bg-white"><td colSpan={METRIC_COLS.length + 5} className="px-4 pt-2 pb-1"><div className="sticky right-0" style={{ width: 'min(100%, calc(100vw - 2rem))' }}><LeadActivityHeader /></div></td></tr>
-                  )}
                   {open && row.days.map(d => {
                     const dtot = metricTotal(d);
-                    const la = leadActivity[row.id];
-                    const dayLeads = Array.isArray(la) ? (la.find(x => x.date === d.date)?.leads || []) : null;
                     return (
-                      <Fragment key={`${row.id}-${d.date}`}>
-                      <tr className="border-b border-slate-100 bg-slate-50/60 text-xs">
+                      <tr key={`${row.id}-${d.date}`} className="border-b border-slate-100 bg-slate-50/60 text-xs">
                         <td className="px-4 py-2 sticky right-0 bg-slate-50/60 text-slate-500">
                           <span className="font-semibold text-slate-600">{d.date}</span>
                         </td>
@@ -337,24 +360,21 @@ export default function ManagementPage() {
                         </td>
                         <td className="text-center px-3 py-2 tabular-nums text-slate-500">{dtot || '—'}</td>
                       </tr>
-                      {la === 'loading' && (
-                        <tr className="border-b border-slate-100 bg-white"><td colSpan={METRIC_COLS.length + 5} className="px-4 py-1.5 text-xs text-slate-400">טוען לקוחות...</td></tr>
-                      )}
-                      {dayLeads && dayLeads.length === 0 && (
-                        <tr className="border-b border-slate-100 bg-white"><td colSpan={METRIC_COLS.length + 5} className="px-4 py-1.5 text-xs text-slate-400">אין פעילות מול לקוחות ביום זה</td></tr>
-                      )}
-                      {dayLeads && dayLeads.map(L => (
-                        <tr key={`${row.id}-${d.date}-${L.lead_id}`} className="border-b border-slate-100 bg-white hover:bg-violet-50/40">
-                          <td colSpan={METRIC_COLS.length + 5} className="px-4 py-1.5">
-                            <div className="sticky right-0" style={{ width: 'min(100%, calc(100vw - 2rem))' }}>
-                              <LeadActivityLine L={L} onOpen={() => navigate(`/?lead=${L.lead_id}`)} />
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                      </Fragment>
                     );
                   })}
+                  {open && (
+                    <tr className="border-b border-slate-200 bg-white">
+                      <td colSpan={METRIC_COLS.length + 5} className="px-4 py-3">
+                        {/* kept inside the viewport while the metrics table scrolls sideways */}
+                        <div className="sticky right-0" style={{ width: 'min(100%, calc(100vw - 2rem))' }}>
+                          <LeadActivityTable
+                            days={Array.isArray(leadActivity[row.id]) ? leadActivity[row.id] : []}
+                            loading={leadActivity[row.id] === 'loading'}
+                            onOpen={L => navigate(`/?lead=${L.lead_id}`)} />
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                 </Fragment>
               );
             })}
