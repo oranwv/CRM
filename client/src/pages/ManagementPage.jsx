@@ -111,7 +111,7 @@ const Chip = ({ kind, children }) => (
 // Sub-header printed once above the customer lines of an opened employee.
 export function LeadActivityHeader() {
   return (
-    <div className="grid items-center gap-3 text-[11px] font-bold text-slate-400" style={{ gridTemplateColumns: 'minmax(130px,16%) minmax(120px,14%) 1fr auto' }}>
+    <div className="grid items-center gap-2 text-[11px] font-bold text-slate-400" style={{ gridTemplateColumns: '128px 150px 1fr auto' }}>
       <span>לקוח</span><span>שיחה / פגישה</span><span>מה נעשה</span><span>שלב</span>
     </div>
   );
@@ -123,9 +123,9 @@ export function LeadActivityLine({ L, onOpen }) {
   const call = callText(L);
   const afterCls = tr?.lost ? 'bg-red-600 text-white' : 'bg-violet-600 text-white';
   return (
-    <div className="grid items-center gap-3 text-xs" style={{ gridTemplateColumns: 'minmax(130px,16%) minmax(120px,14%) 1fr auto' }}>
+    <div className="grid items-center gap-2 text-xs" style={{ gridTemplateColumns: '128px 150px 1fr auto' }}>
       <button onClick={onOpen} className="font-bold text-violet-700 hover:underline text-right truncate" title={L.name || ''}>{L.name || `ליד #${L.lead_id}`}</button>
-      <span className={`tabular-nums whitespace-nowrap font-semibold ${L.calls > 0 || L.meetings_held > 0 ? 'text-slate-800' : 'text-slate-400'}`}
+      <span className={`tabular-nums leading-tight font-semibold ${L.calls > 0 || L.meetings_held > 0 ? 'text-slate-800' : 'text-slate-400'}`}
         title={[L.call_summary ? trunc(L.call_summary, 300) : '', L.meetings_held > 0 ? 'משך הפגישה לפי היומן' : ''].filter(Boolean).join('\n') || undefined}>{call}</span>
       <div className="flex items-center gap-1 flex-wrap min-w-0">
         {chips.length === 0 && <span className="text-slate-300">—</span>}
@@ -311,7 +311,7 @@ export default function ManagementPage() {
                   </tr>
 
                   {open && Array.isArray(leadActivity[row.id]) && (
-                    <tr className="bg-white"><td colSpan={METRIC_COLS.length + 5} className="px-8 pt-2 pb-1"><LeadActivityHeader /></td></tr>
+                    <tr className="bg-white"><td colSpan={METRIC_COLS.length + 5} className="px-4 pt-2 pb-1"><LeadActivityHeader /></td></tr>
                   )}
                   {open && row.days.map(d => {
                     const dtot = metricTotal(d);
@@ -338,14 +338,14 @@ export default function ManagementPage() {
                         <td className="text-center px-3 py-2 tabular-nums text-slate-500">{dtot || '—'}</td>
                       </tr>
                       {la === 'loading' && (
-                        <tr className="border-b border-slate-100 bg-white"><td colSpan={METRIC_COLS.length + 5} className="px-8 py-1.5 text-xs text-slate-400">טוען לקוחות...</td></tr>
+                        <tr className="border-b border-slate-100 bg-white"><td colSpan={METRIC_COLS.length + 5} className="px-4 py-1.5 text-xs text-slate-400">טוען לקוחות...</td></tr>
                       )}
                       {dayLeads && dayLeads.length === 0 && (
-                        <tr className="border-b border-slate-100 bg-white"><td colSpan={METRIC_COLS.length + 5} className="px-8 py-1.5 text-xs text-slate-400">אין פעילות מול לקוחות ביום זה</td></tr>
+                        <tr className="border-b border-slate-100 bg-white"><td colSpan={METRIC_COLS.length + 5} className="px-4 py-1.5 text-xs text-slate-400">אין פעילות מול לקוחות ביום זה</td></tr>
                       )}
                       {dayLeads && dayLeads.map(L => (
                         <tr key={`${row.id}-${d.date}-${L.lead_id}`} className="border-b border-slate-100 bg-white hover:bg-violet-50/40">
-                          <td colSpan={METRIC_COLS.length + 5} className="px-8 py-1.5">
+                          <td colSpan={METRIC_COLS.length + 5} className="px-4 py-1.5">
                             <LeadActivityLine L={L} onOpen={() => navigate(`/?lead=${L.lead_id}`)} />
                           </td>
                         </tr>
