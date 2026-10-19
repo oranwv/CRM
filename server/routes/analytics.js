@@ -427,13 +427,17 @@ async function computeLeadActivity(uid, from, to) {
                  'documented', EXISTS (
                    SELECT 1 FROM lead_interactions li
                     WHERE li.lead_id = m.lead_id AND li.type = 'meeting' AND li.created_by = $1
+                      AND (li.source IS NULL OR li.source <> 'calendar')
                       AND li.created_at BETWEEN m.start_time - INTERVAL '1 hour' AND m.start_time + INTERVAL '3 days'))
           FROM meetings m
          WHERE m.host_user_id = $1 AND m.lead_id IS NOT NULL AND m.start_time < NOW()
            AND COALESCE(m.customer_status, '') <> 'declined'
         UNION ALL
-        SELECT lead_id, created_at, CASE WHEN source = 'calendar' THEN 'meeting_done' ELSE 'meeting_doc' END, jsonb_build_object('body', body)
-          FROM lead_interactions WHERE created_by = $1 AND type = 'meeting'
+        -- meeting summaries written by hand. (type='meeting' with source='calendar' is the
+        -- "📅 פגישה נקבעה" note the booking writes — that is a booking, already covered by
+        -- meeting_booked above, so it is excluded here.)
+        SELECT lead_id, created_at, 'meeting_doc', jsonb_build_object('body', body)
+          FROM lead_interactions WHERE created_by = $1 AND type = 'meeting' AND (source IS NULL OR source <> 'calendar')
         UNION ALL
         SELECT lead_id, created_at, 'note', jsonb_build_object('body', body)
           FROM lead_interactions WHERE created_by = $1 AND type = 'note' AND COALESCE(body, '') NOT LIKE '🔄 שינוי שלב%'
