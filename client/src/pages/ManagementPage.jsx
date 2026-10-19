@@ -219,6 +219,7 @@ export default function ManagementPage() {
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(() => new Set());
   const [leadActivity, setLeadActivity] = useState({}); // uid -> [{ date, leads:[...] }] | 'loading'
+  const [scrollX, setScrollX] = useState(0); // sideways scroll of the metrics table (RTL: 0 or negative)
 
   useEffect(() => {
     if (!isManager) { navigate('/'); return; }
@@ -318,11 +319,14 @@ export default function ManagementPage() {
         <span className="text-xs text-slate-400">· לחיצה על עובד פותחת את הלקוחות שטופלו{isRange ? ', לפי יום' : ''}</span>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm border-collapse" style={{ minWidth: 820 }}>
+      {/* border-separate, not border-collapse: iOS Safari drops position:sticky on cells of a
+          collapsed-border table, which made the sticky שם column vanish while scrolling sideways.
+          Row borders therefore sit on the cells ([&>td]:border-b) instead of the <tr>. */}
+      <div className="overflow-x-auto" onScroll={e => setScrollX(e.currentTarget.scrollLeft)}>
+        <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 820 }}>
           <thead>
             <tr className="bg-violet-50 text-violet-700">
-              <th className="text-right px-4 py-2.5 font-black border-b border-violet-100 sticky right-0 bg-violet-50">שם</th>
+              <th className="text-right px-4 py-2.5 font-black border-b border-violet-100 sticky right-0 z-10 bg-violet-50">שם</th>
               {METRIC_COLS.map(c => (
                 <th key={c.key} className="text-center px-3 py-2.5 font-bold border-b border-violet-100 whitespace-nowrap">{c.label}</th>
               ))}
@@ -346,8 +350,8 @@ export default function ManagementPage() {
                 <Fragment key={row.id}>
                   <tr
                     onClick={() => row.days.length && toggle(row.id)}
-                    className={`border-b border-slate-100 transition ${row.days.length ? 'cursor-pointer' : ''} ${inactive ? 'bg-red-50' : 'bg-white hover:bg-slate-50'}`}>
-                    <td className={`px-4 py-2.5 font-bold sticky right-0 ${inactive ? 'bg-red-50 text-red-500' : 'bg-white text-slate-800'}`}>
+                    className={`[&>td]:border-b [&>td]:border-slate-100 transition ${row.days.length ? 'cursor-pointer' : ''} ${inactive ? 'bg-red-50' : 'bg-white hover:bg-slate-50'}`}>
+                    <td className={`px-4 py-2.5 font-bold sticky right-0 z-10 ${inactive ? 'bg-red-50 text-red-500' : 'bg-white text-slate-800'}`}>
                       {row.days.length > 0 && <span className="text-slate-400 mr-1">{open ? '▾' : '▸'}</span>}
                       {row.display_name}
                     </td>
@@ -368,8 +372,8 @@ export default function ManagementPage() {
                   {open && row.days.map(d => {
                     const dtot = metricTotal(d);
                     return (
-                      <tr key={`${row.id}-${d.date}`} className="border-b border-slate-100 bg-slate-50/60 text-xs">
-                        <td className="px-4 py-2 sticky right-0 bg-slate-50/60 text-slate-500">
+                      <tr key={`${row.id}-${d.date}`} className="[&>td]:border-b [&>td]:border-slate-100 bg-slate-50/60 text-xs">
+                        <td className="px-4 py-2 sticky right-0 z-10 bg-slate-50 text-slate-500">
                           <span className="font-semibold text-slate-600">{d.date}</span>
                         </td>
                         {METRIC_COLS.map(c => {
@@ -388,6 +392,21 @@ export default function ManagementPage() {
                       </tr>
                     );
                   })}
+                  {open && (
+                    <tr className="[&>td]:border-b [&>td]:border-slate-200 bg-white">
+                      <td colSpan={METRIC_COLS.length + 5} className="px-4 py-3">
+                        {/* Stays under the employee's row and inside the screen while the metrics table
+                            scrolls sideways: a transform that follows scrollLeft (position:sticky in a
+                            table cell went blank on iOS Safari). */}
+                        <div style={{ width: 'min(100%, calc(100vw - 2rem))', transform: `translateX(${scrollX}px)` }}>
+                          <LeadActivityTable
+                            days={Array.isArray(leadActivity[row.id]) ? leadActivity[row.id] : []}
+                            loading={leadActivity[row.id] === 'loading'}
+                            onOpen={L => navigate(`/?lead=${L.lead_id}`)} />
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                 </Fragment>
               );
             })}
@@ -395,21 +414,6 @@ export default function ManagementPage() {
         </table>
       </div>
 
-      {/* Customer lines of each opened employee — rendered below the metrics table, outside its
-          sideways-scrolling container. (They used to sit in a sticky cell inside the table; iOS Safari
-          blanked that cell while scrolling.) */}
-      {sortedRows.filter(row => expanded.has(row.id)).map(row => (
-        <div key={`leads-${row.id}`} className="px-4 pt-4">
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="text-sm font-black text-slate-700">{row.display_name}</span>
-            <span className="text-xs text-slate-400">· לקוחות שטופלו</span>
-          </div>
-          <LeadActivityTable
-            days={Array.isArray(leadActivity[row.id]) ? leadActivity[row.id] : []}
-            loading={leadActivity[row.id] === 'loading'}
-            onOpen={L => navigate(`/?lead=${L.lead_id}`)} />
-        </div>
-      ))}
     </div>
   );
 }

@@ -1862,6 +1862,13 @@ when long, horizontal ←. Oran rejected the first three phone layouts (lines st
 wide metrics table; a two-row grid that mixed columns; the fixed table with the phantom column)
 and approved this one from real rendered screenshots (phone 390px + desktop) on 2026-10-19.
 Rule from then on: render and show screenshots before deploying UI changes.
+iOS Safari (2026-10-19, reported from Oran's iPhone): (a) the sticky שם column vanished while
+scrolling sideways — Safari ignores `position: sticky` on cells of a `border-collapse: collapse`
+table, so the metrics table is now `border-separate border-spacing-0` with row borders on the
+cells; (b) the customer table sat in a sticky cell inside that table and went blank — it now
+sits under the employee's day rows in a plain cell, sized `min(100%, 100vw − 2rem)` and moved
+with `translateX(scrollLeft)` from the container's `onScroll` so it stays on screen. Oran rejected
+the interim "block below the table" placement (he wants it under the employee's name).
 
 **Stage history** — new table `lead_stage_history (lead_id, from_stage, to_stage, changed_by,
 source manual|meeting|gmail, created_at)`, written on every stage change: `PATCH /leads/:id`
