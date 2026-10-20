@@ -6,12 +6,12 @@ updated: 2026-10-19
 
 # Now
 
-## 2026-10-20 — Phase 55: my tasks + overdue gate + nudges (on branch, awaiting Oran's OK)
+## 2026-10-20 — Phase 55: my tasks + overdue gate + nudges (deployed)
 
 - הפעילות שלי opens with tasks (mine / ones I gave; מכירות·הפקה·תפעול·תחזוקה), manager user picker, ✓/⏭/🚫 per task.
 - Overdue window for everyone on app load (× allowed), red pulsing header badge.
 - Daily 09:30 digests: assignee overdue list; giver/managers escalation at 3+ days weekly; postpone ≥3 and cancel notify the giver. Single queue, one WA per 6 s.
-- Rendered previews sent; branch `my-tasks` → merge to main on approval.
+- Deployed from main. Tasks and activity are separate views (tasks first, no date picker); header badge blinks red/yellow. First nudge digest goes out tomorrow 09:30 Israel.
 
 ## 2026-10-19 — Phase 50: product name in the app
 
