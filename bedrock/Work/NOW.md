@@ -6,9 +6,10 @@ updated: 2026-10-20
 
 # Now
 
-## 2026-10-20 — Phase 56: suppliers search by category (built, not yet deployed)
+## 2026-10-20 — Phase 56: suppliers search over the whole card (pushed, deploying)
 
-- "די ג'יי" in the ספקים search returned nothing because search matched only name/phone/email. Now also category + description, apostrophe/space-insensitive, digits-only phone match. Client-only.
+- Search in ספקים now matches every text on the card: name, category, phone, email, description, סוג, תשלום, added-by, notes (interactions) and file names; apostrophe/space-insensitive. Server adds `notes_text`/`files_text` to `GET /suppliers`.
+- Verify after deploy: search a word that is only inside a supplier note (e.g. "מארחת").
 
 ## 2026-10-20 — Phase 55: my tasks + overdue gate + nudges (deployed)
 

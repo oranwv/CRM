@@ -50,18 +50,18 @@ export default function SuppliersPage() {
 
   const allCats = ['הכל', ...categories.map(c => c.name)];
 
-  // Phase 56: search also matches the category and the description, and ignores
-  // apostrophe variants (ג'יי / ג׳יי / ג’יי) and extra spaces, so "די ג'יי" finds every DJ.
-  const norm = v => (v || '').toLowerCase().replace(/[׳'’‘ʼ`]/g, '').replace(/\s+/g, ' ').trim();
+  // Phase 56: the search looks at every text on the supplier's card — name, category, phone,
+  // email, description, סוג, תשלום, who added it, notes/interactions and file names — and
+  // ignores apostrophe variants (ג'יי / ג׳יי / ג’יי) and extra spaces, so "מארחת" finds a
+  // supplier even when the word is only in the description or in a note.
+  const norm = v => (v == null ? '' : String(v)).toLowerCase().replace(/[׳'’‘ʼ`]/g, '').replace(/\s+/g, ' ').trim();
   const q = norm(search);
   const qDigits = q.replace(/\D/g, '');
+  const SEARCH_FIELDS = ['name', 'category', 'phone', 'email', 'description', 'sug', 'payment', 'created_by_name', 'notes_text', 'files_text'];
   const filtered = suppliers.filter(s => {
     const matchCat = activeCategory === 'הכל' || s.category === activeCategory;
     const matchSearch = !q
-      || norm(s.name).includes(q)
-      || norm(s.category).includes(q)
-      || norm(s.description).includes(q)
-      || norm(s.email).includes(q)
+      || SEARCH_FIELDS.some(f => norm(s[f]).includes(q))
       || (qDigits.length >= 3 && (s.phone || '').replace(/\D/g, '').includes(qDigits));
     return matchCat && matchSearch;
   });

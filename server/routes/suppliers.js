@@ -53,7 +53,11 @@ router.get('/', async (req, res) => {
     let where = '';
     if (category) { params.push(category); where = `WHERE s.category = $1`; }
     const { rows } = await pool.query(
-      `SELECT s.*, u.display_name AS created_by_name
+      `SELECT s.*, u.display_name AS created_by_name,
+              (SELECT string_agg(i.body, ' ') FROM supplier_interactions i
+                WHERE i.supplier_id = s.id AND i.body IS NOT NULL) AS notes_text,
+              (SELECT string_agg(f.filename, ' ') FROM supplier_files f
+                WHERE f.supplier_id = s.id) AS files_text
        FROM suppliers s LEFT JOIN users u ON u.id = s.created_by
        ${where} ORDER BY s.name`,
       params
