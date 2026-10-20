@@ -26,3 +26,11 @@ body {
   width: 100%;
   min-height: 100vh;
 }
+
+/* Phase 55: the overdue-tasks badge in the header pulses so it cannot be missed */
+@keyframes crm-blink {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.75); }
+  50%      { box-shadow: 0 0 0 7px rgba(255, 255, 255, 0); }
+}
+.crm-blink { animation: crm-blink 1.4s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) { .crm-blink { animation: none; } }

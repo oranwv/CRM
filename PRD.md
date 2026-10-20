@@ -1800,8 +1800,10 @@ created by the user and assigned to someone else. Open items always; completed o
 date range ("הצג גם שהושלמו בטווח"). `GET /api/my-tasks[?user=]` (user= managers only — admin,
 manager, sales_manager; same on `/analytics/my-activity*`).
 
-**הפעילות שלי** (`MyActivityPage.jsx`): manager user picker ("אני ▾") next to the title; then a
-tasks card with two tabs — "המשימות שלי" / "משימות שנתתי" (count + red overdue count) — and the
+**הפעילות שלי** (`MyActivityPage.jsx`): manager user picker ("אני ▾") next to the title; then two
+separate views switched by big buttons — "✅ משימות" (default, first) and "📈 פעילות" (the tiles and
+customer table) — Oran did not want the tasks stacked above the activity. The tasks view is a
+card with two tabs — "המשימות שלי" / "משימות שנתתי" (count + red overdue count) — and the
 four group pills in Oran's order; rows via `components/TaskItems.jsx` (`TaskRow`): title, status
 pill (באיחור N ימים / היום / פתוחה / הושלמה / לא רלוונטי), customer link, due date, who gave it
 (or who holds it, on the delegated tab), "נדחתה N×"; three buttons ✓ ⏭ 🚫 opening an inline box.
@@ -1819,7 +1821,8 @@ tasks are not counted as "משימות הושלמו" in ניהול. Maintenance 
 `GET /api/my-tasks/overdue` (own lead tasks, תפעול tasks and maintenance past due); if any, the
 window opens by itself listing them with the three actions; it closes itself when the list is
 empty. × closes it for this visit (sessionStorage remembers the count; it re-opens when the
-number grows). The header shows a pulsing red "⏰ N משימות באיחור" badge that reopens it.
+number grows). The header shows a red "⏰ N משימות באיחור" badge (larger than the other badges, with a pulsing
+white glow — `.crm-blink` in index.css) that reopens it.
 
 **Nudges** (`services/taskNudgeService.js`, checked every 10 min, acts once a day at 09:30
 Israel, `settings.task_nudge_last_day`): (1) one digest per assignee listing their overdue lead +

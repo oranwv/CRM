@@ -27,6 +27,7 @@ export default function MyActivityPage() {
   const [taskTab, setTaskTab] = useState('mine');     // 'mine' | 'delegated'
   const [group, setGroup] = useState('sales');        // sales | production | operations | maintenance
   const [showDone, setShowDone] = useState(false);
+  const [section, setSection] = useState('tasks'); // 'tasks' | 'activity' — Oran: separate, tasks first
   const userQ = userId && userId !== me.id ? `&user=${userId}` : '';
 
   useEffect(() => { if (isManager) api.get('/users').then(r => setUsers(r.data)).catch(() => {}); }, [isManager]);
@@ -128,8 +129,18 @@ export default function MyActivityPage() {
         {loading && <span className="text-xs text-slate-400">טוען...</span>}
       </div>
 
-      {/* Phase 55 — tasks first: mine / ones I gave, each split מכירות · הפקה · תפעול · תחזוקה */}
-      <div className="px-4 pt-3">
+      {/* Section switch — משימות first, פעילות second (separate views, Oran 2026-10-20) */}
+      <div className="px-4 pt-3 flex items-center gap-2">
+        {[['tasks', '✅ משימות'], ['activity', '📈 פעילות']].map(([k, label]) => (
+          <button key={k} onClick={() => setSection(k)}
+            className={`flex-1 sm:flex-none sm:px-6 text-sm font-black py-2 rounded-xl transition ${section === k ? 'bg-violet-600 text-white shadow' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Phase 55 — tasks: mine / ones I gave, each split מכירות · הפקה · תפעול · תחזוקה */}
+      {section === 'tasks' && <div className="px-4 pt-3">
         <div className="bg-white border border-slate-200 rounded-xl p-3">
           <div className="flex items-center gap-2 flex-wrap">
             {[['mine', userId === me.id ? 'המשימות שלי' : 'המשימות'], ['delegated', userId === me.id ? 'משימות שנתתי' : 'משימות שנתן/ה']].map(([k, label]) => {
@@ -166,10 +177,10 @@ export default function MyActivityPage() {
             {visible.map(t => <TaskRow key={`${t.kind}-${t.id}`} t={t} showAssignee={taskTab === 'delegated'} onChanged={loadTasks} />)}
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* Range summary — Oran's list (2026-10-19), always all of them, no hours */}
-      <div className="px-4 pt-3">
+      {section === 'activity' && <div className="px-4 pt-3">
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
           {SUMMARY_COLS.map(c => {
             const v = Number(totals[c.key] || 0);
@@ -181,10 +192,10 @@ export default function MyActivityPage() {
             );
           })}
         </div>
-      </div>
+      </div>}
 
       {/* Days → customer lines */}
-      <div className="px-4 pt-3">
+      {section === 'activity' && <div className="px-4 pt-3">
         <LeadActivityTable
           loading={loading && dayList.length === 0}
           empty="אין פעילות מול לקוחות בטווח זה"
@@ -196,7 +207,7 @@ export default function MyActivityPage() {
               ? `${d.metrics.first_activity || '—'} – ${d.metrics.last_activity || '—'} · ${metricTotal(d.metrics) || 0} פעולות`
               : null,
           }))} />
-      </div>
+      </div>}
     </div>
   );
 }

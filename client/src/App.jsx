@@ -197,8 +197,8 @@ function GlobalHeader() {
         {overdueTasks > 0 && (
           <button
             onClick={() => setShowOverdue(true)}
-            className="shrink-0 bg-red-600 text-white text-[10px] font-black rounded-full px-2 py-0.5 leading-none hover:bg-red-700 transition cursor-pointer animate-pulse">
-            ⏰ {overdueTasks > 99 ? '99+' : overdueTasks} משימות באיחור
+            className="crm-blink shrink-0 bg-red-600 text-white text-xs font-black rounded-full px-3 py-1 leading-none hover:bg-red-700 transition cursor-pointer">
+            ⏰ {overdueTasks > 99 ? '99+' : overdueTasks} {overdueTasks === 1 ? 'משימה באיחור' : 'משימות באיחור'}
           </button>
         )}
         {isManager && pendingCount > 0 && (
