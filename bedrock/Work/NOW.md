@@ -1,10 +1,14 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-10-19
+updated: 2026-10-20
 ---
 
 # Now
+
+## 2026-10-20 — Phase 56: suppliers search by category (built, not yet deployed)
+
+- "די ג'יי" in the ספקים search returned nothing because search matched only name/phone/email. Now also category + description, apostrophe/space-insensitive, digits-only phone match. Client-only.
 
 ## 2026-10-20 — Phase 55: my tasks + overdue gate + nudges (deployed)
 

@@ -50,10 +50,19 @@ export default function SuppliersPage() {
 
   const allCats = ['הכל', ...categories.map(c => c.name)];
 
+  // Phase 56: search also matches the category and the description, and ignores
+  // apostrophe variants (ג'יי / ג׳יי / ג’יי) and extra spaces, so "די ג'יי" finds every DJ.
+  const norm = v => (v || '').toLowerCase().replace(/[׳'’‘ʼ`]/g, '').replace(/\s+/g, ' ').trim();
+  const q = norm(search);
+  const qDigits = q.replace(/\D/g, '');
   const filtered = suppliers.filter(s => {
     const matchCat = activeCategory === 'הכל' || s.category === activeCategory;
-    const q = search.toLowerCase();
-    const matchSearch = !q || s.name.toLowerCase().includes(q) || (s.phone || '').includes(q) || (s.email || '').toLowerCase().includes(q);
+    const matchSearch = !q
+      || norm(s.name).includes(q)
+      || norm(s.category).includes(q)
+      || norm(s.description).includes(q)
+      || norm(s.email).includes(q)
+      || (qDigits.length >= 3 && (s.phone || '').replace(/\D/g, '').includes(qDigits));
     return matchCat && matchSearch;
   });
 

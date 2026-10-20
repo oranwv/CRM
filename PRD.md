@@ -2600,6 +2600,13 @@ server rejects everyone else with 403 in `routes/candidates.js`).
 - Verified: eslint + import resolution on the Mac VM (vite build can't run there — Mac-native
   rolldown binary); server files `node --check`. Not verified: a real calendar/WhatsApp send.
 
+### Phase 56 — ספקים: search finds suppliers by category (די ג'יי) ✅ Built 2026-10-20
+Oran's phone (20.10): typing "די ג'יי" in the suppliers search returned "לא נמצאו ספקים תואמים"
+although the די ג'יי tab shows 9 suppliers. Cause: the search only matched name / phone / email,
+never the category. Fix in `SuppliersPage.jsx` (client-only, no server change): the search now
+also matches the category and the description, ignores apostrophe variants (ג'יי / ג׳יי / ג’יי)
+and extra spaces, and matches phones digits-only (3+ digits). Nothing else on the page changed.
+
 ### Phase 50 — "שרביה CRM" → "ProEvent CRM" + bolt logo in the leads header ✅ Built 2026-10-19
 Oran (19.10): the product name shown in the app is now "ProEvent CRM" in all three places —
 top bar (`App.jsx`), leads-page header (`LeadsPage.jsx`) and the login page (`LoginPage.jsx`).
