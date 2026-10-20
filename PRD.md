@@ -1788,6 +1788,48 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 55 — My tasks, the overdue gate, and task nudges ✅ Built 2026-10-20
+Oran: tasks get lost — one WhatsApp at the due time and then nothing; people don't do them.
+Also: הפעילות שלי should start with tasks, split מכירות / הפקה / תפעול / תחזוקה; managers may
+pick another user; a separate tab for tasks I gave others with their status.
+
+**Sources → groups** (`routes/myTasks.js`): lead tasks (`tasks`) → מכירות while the lead is in
+the pipeline, הפקה once in deposit/production/completed; `op_tasks` → תפעול; `op_maintenance`
+due within 7 days + open `op_faults` → תחזוקה. "mine" = assigned to the user; "delegated" =
+created by the user and assigned to someone else. Open items always; completed ones inside the
+date range ("הצג גם שהושלמו בטווח"). `GET /api/my-tasks[?user=]` (user= managers only — admin,
+manager, sales_manager; same on `/analytics/my-activity*`).
+
+**הפעילות שלי** (`MyActivityPage.jsx`): manager user picker ("אני ▾") next to the title; then a
+tasks card with two tabs — "המשימות שלי" / "משימות שנתתי" (count + red overdue count) — and the
+four group pills in Oran's order; rows via `components/TaskItems.jsx` (`TaskRow`): title, status
+pill (באיחור N ימים / היום / פתוחה / הושלמה / לא רלוונטי), customer link, due date, who gave it
+(or who holds it, on the delegated tab), "נדחתה N×"; three buttons ✓ ⏭ 🚫 opening an inline box.
+Then the summary tiles and the customer table as before.
+
+**Actions** `POST /api/my-tasks/:kind/:id/complete|postpone|cancel` (kind lead|op|maintenance;
+assignee, giver or a manager): complete writes result (lead tasks also a ✅ timeline note;
+maintenance logs history + next_due); postpone sets the new date, resets the reminder,
+`postpone_count`++ and `postpone_reason` (lead tasks: ⏭ timeline note) — from the 3rd
+postponement the giver gets a WhatsApp; cancel = "לא רלוונטי" (reason required): lead/op tasks get
+`cancelled_at` + `cancel_reason`, closed with result "לא רלוונטי: …", the giver is told; cancelled
+tasks are not counted as "משימות הושלמו" in ניהול. Maintenance cannot be cancelled.
+
+**The gate** (`components/OverdueTasksModal.jsx`): for every user (managers included). On app load
+`GET /api/my-tasks/overdue` (own lead tasks, תפעול tasks and maintenance past due); if any, the
+window opens by itself listing them with the three actions; it closes itself when the list is
+empty. × closes it for this visit (sessionStorage remembers the count; it re-opens when the
+number grows). The header shows a pulsing red "⏰ N משימות באיחור" badge that reopens it.
+
+**Nudges** (`services/taskNudgeService.js`, checked every 10 min, acts once a day at 09:30
+Israel, `settings.task_nudge_last_day`): (1) one digest per assignee listing their overdue lead +
+תפעול tasks (max 8 lines + "ועוד N") with a link to /my-activity; (2) tasks 3+ days late are
+escalated once a week (`escalated_at`) to the giver — or to admins/managers when the giver is
+the assignee or unknown — again one digest per recipient. All WhatsApps go through one queue
+that sends one message every 6 s (Oran: never in bulk); the postpone/cancel notices use the same
+queue. Migration: `postpone_count`, `postpone_reason`, `nudge_level`, `nudge_sent_at`,
+`escalated_at`, `cancelled_at`, `cancel_reason` on `tasks` and `op_tasks`.
+
 ### Phase 54 — "פגישות שבוצעו" column redefined ✅ Built 2026-10-19
 Oran asked why ניהול showed 2 meetings held for Shir while the calendar showed none. Cause: the
 `meetings_done` metric counted `lead_interactions` of type meeting with source `calendar` — which

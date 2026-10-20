@@ -230,6 +230,24 @@ migrate(`
   ALTER TABLE price_offers ADD COLUMN IF NOT EXISTS created_by INT REFERENCES users(id) ON DELETE SET NULL;
 `).catch(err => console.error('[DB] lead_stage_history migration error:', err.message));
 
+// Phase 55 (2026-10-20): postponements, nudges and "לא רלוונטי" on lead tasks and תפעול tasks.
+migrate(`
+  ALTER TABLE tasks ADD COLUMN IF NOT EXISTS postpone_count INT DEFAULT 0;
+  ALTER TABLE tasks ADD COLUMN IF NOT EXISTS postpone_reason TEXT;
+  ALTER TABLE tasks ADD COLUMN IF NOT EXISTS nudge_level INT DEFAULT 0;
+  ALTER TABLE tasks ADD COLUMN IF NOT EXISTS nudge_sent_at TIMESTAMPTZ;
+  ALTER TABLE tasks ADD COLUMN IF NOT EXISTS escalated_at TIMESTAMPTZ;
+  ALTER TABLE tasks ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ;
+  ALTER TABLE tasks ADD COLUMN IF NOT EXISTS cancel_reason TEXT;
+  ALTER TABLE op_tasks ADD COLUMN IF NOT EXISTS postpone_count INT DEFAULT 0;
+  ALTER TABLE op_tasks ADD COLUMN IF NOT EXISTS postpone_reason TEXT;
+  ALTER TABLE op_tasks ADD COLUMN IF NOT EXISTS nudge_level INT DEFAULT 0;
+  ALTER TABLE op_tasks ADD COLUMN IF NOT EXISTS nudge_sent_at TIMESTAMPTZ;
+  ALTER TABLE op_tasks ADD COLUMN IF NOT EXISTS escalated_at TIMESTAMPTZ;
+  ALTER TABLE op_tasks ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ;
+  ALTER TABLE op_tasks ADD COLUMN IF NOT EXISTS cancel_reason TEXT;
+`).catch(err => console.error('[DB] task nudges migration error:', err.message));
+
 migrate(`ALTER TABLE lead_contacts ADD COLUMN IF NOT EXISTS label TEXT`)
   .catch(err => console.error('[DB] lead_contacts label migration error:', err.message));
 
@@ -898,6 +916,7 @@ app.use('/api/whatsapp',  whatsappRoutes);
 app.use('/api/rsvp',      rsvpRoutes);  // webhook endpoints inside are public; auth applied per-route
 app.use('/api/tasks',     require('./routes/tasks'));       // global task list (auth per-route)
 app.use('/api/tasks',     require('./routes/taskPostpone')); // public postpone links (WhatsApp)
+app.use('/api/my-tasks',  requireAuth, require('./routes/myTasks')); // Phase 55: my tasks + overdue gate
 
 // Protected
 app.use('/api/files',               requireAuth, fileDownloadRoutes);
@@ -1046,6 +1065,10 @@ function startCronJobs() {
     setInterval(runReminders, 2 * 60 * 1000);
   }, 30 * 1000);
   console.log('[Cron] Reminder service started');
+
+  // Phase 55: daily task nudges (09:30 Israel, one digest per person, sent one by one)
+  const { runTaskNudges } = require('./services/taskNudgeService');
+  setTimeout(() => { runTaskNudges(); setInterval(runTaskNudges, 10 * 60 * 1000); }, 60 * 1000);
 
   // AI sales briefings — check hourly; each fires once/day at its configured Israel hour
   const { runSalesBriefings } = require('./services/salesBriefingService');

@@ -251,7 +251,7 @@ async function computeEmployeeActivity(from, to, onlyUid = null) {
           FROM tasks WHERE created_by IS NOT NULL
         UNION ALL
         SELECT assigned_to, (completed_at AT TIME ZONE 'Asia/Jerusalem')::date, 'tasks_completed', 1
-          FROM tasks WHERE assigned_to IS NOT NULL AND completed_at IS NOT NULL
+          FROM tasks WHERE assigned_to IS NOT NULL AND completed_at IS NOT NULL AND cancelled_at IS NULL
         UNION ALL
         SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'leads_created', 1
           FROM leads WHERE created_by IS NOT NULL
@@ -385,13 +385,23 @@ router.get('/employee-activity', async (req, res) => {
   }
 });
 
-// GET /api/analytics/my-activity?from&to — the signed-in user's own row (any role)
+// Who a "my-activity" request is about: the caller, or ?user=<id> for managers (Phase 55).
+function activityUser(req, res) {
+  const asked = Number(req.query.user || 0);
+  if (!asked || asked === req.user.id) return req.user.id;
+  const roles = req.user.roles || [req.user.role];
+  if (!roles.some(r => ['admin', 'manager', 'sales_manager'].includes(r))) { res.status(403).json({ error: 'Forbidden' }); return null; }
+  return asked;
+}
+
+// GET /api/analytics/my-activity?from&to[&user=] — the signed-in user's own row (any role)
 router.get('/my-activity', async (req, res) => {
+  const uid = activityUser(req, res); if (!uid) return;
   try {
     const today = new Date().toISOString().slice(0, 10);
     const from = req.query.from || today;
     const to   = req.query.to   || from;
-    const [row] = await computeEmployeeActivity(from, to, req.user.id);
+    const [row] = await computeEmployeeActivity(from, to, uid);
     res.json(row || null);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -562,11 +572,12 @@ router.get('/employee-activity/:uid/leads', async (req, res) => {
 
 // GET /api/analytics/my-activity/leads?from&to — the signed-in user's own customer lines
 router.get('/my-activity/leads', async (req, res) => {
+  const uid = activityUser(req, res); if (!uid) return;
   try {
     const today = new Date().toISOString().slice(0, 10);
     const from = req.query.from || today;
     const to   = req.query.to   || from;
-    res.json(await computeLeadActivity(req.user.id, from, to));
+    res.json(await computeLeadActivity(uid, from, to));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

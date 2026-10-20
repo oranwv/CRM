@@ -28,6 +28,7 @@ import AIChat           from './components/AIChat';
 import PendingDocsModal  from './components/PendingDocsModal';
 import PaymentSignalsModal from './components/PaymentSignalsModal';
 import UnreadyEventsModal from './components/UnreadyEventsModal';
+import OverdueTasksModal  from './components/OverdueTasksModal';
 import { docTypeLabel }   from './utils/docTypes';
 import { AppModeProvider, useAppMode } from './context/AppModeContext';
 import { CallProvider, useCalls } from './context/CallContext';
@@ -58,6 +59,30 @@ function GlobalHeader() {
   const [showUnready, setShowUnready]   = useState(false);
   const isFinanceUser = isManager || userRoles.includes('finance');
   const [paymentCount, setPaymentCount] = useState(0);
+  // Phase 55: the signed-in user's own overdue tasks — red badge + a window that opens by itself
+  const [overdueTasks, setOverdueTasks] = useState(0);
+  const [showOverdue, setShowOverdue]   = useState(false);
+  const loadOverdueTasks = useCallback(() => {
+    if (!localStorage.getItem('crm_token')) return;
+    api.get('/my-tasks/overdue').then(r => {
+      const n = r.data.count || 0;
+      setOverdueTasks(n);
+      // open once per visit (sessionStorage), and again if the number grew since the user closed it
+      let seen = 0; try { seen = Number(sessionStorage.getItem('crm_overdue_seen') || 0); } catch {}
+      if (n > 0 && n > seen) setShowOverdue(true);
+    }).catch(() => {});
+  }, []);
+  useEffect(() => {
+    if (!localStorage.getItem('crm_token')) return;
+    loadOverdueTasks();
+    const t = setInterval(loadOverdueTasks, 120_000);
+    return () => clearInterval(t);
+  }, [loadOverdueTasks]);
+  function closeOverdue() {
+    try { sessionStorage.setItem('crm_overdue_seen', String(overdueTasks)); } catch {}
+    setShowOverdue(false);
+    loadOverdueTasks();
+  }
   const [showPayments, setShowPayments] = useState(false);
 
   // Amber "תשלומים ללא מסמך" badge — managers + finance
@@ -131,7 +156,7 @@ function GlobalHeader() {
     }
   }, [location.search, isManager, navigate, location.pathname]);
 
-  const hasBadges = (isManager && pendingCount > 0) || (isProduction && unreadyCount > 0) || (isFinanceUser && paymentCount > 0);
+  const hasBadges = overdueTasks > 0 || (isManager && pendingCount > 0) || (isProduction && unreadyCount > 0) || (isFinanceUser && paymentCount > 0);
 
   // Phones (< sm): when there are badges the bar is two rows (brand + mode on top, badges below)
   // and the page spacers (.crm-header-spacer) grow to match — see index.css. Desktop stays one row.
@@ -169,6 +194,13 @@ function GlobalHeader() {
 
       {hasBadges && (
       <div className="order-3 basis-full h-8 sm:order-2 sm:basis-auto sm:flex-1 sm:min-w-0 sm:h-11 sm:mr-2 flex items-center gap-2 overflow-x-auto whitespace-nowrap" style={{ scrollbarWidth: 'none' }}>
+        {overdueTasks > 0 && (
+          <button
+            onClick={() => setShowOverdue(true)}
+            className="shrink-0 bg-red-600 text-white text-[10px] font-black rounded-full px-2 py-0.5 leading-none hover:bg-red-700 transition cursor-pointer animate-pulse">
+            ⏰ {overdueTasks > 99 ? '99+' : overdueTasks} משימות באיחור
+          </button>
+        )}
         {isManager && pendingCount > 0 && (
           <button
             onClick={() => setShowPending(true)}
@@ -200,6 +232,8 @@ function GlobalHeader() {
       {showUnready && (
         <UnreadyEventsModal onClose={() => { setShowUnready(false); loadUnreadyCount(); }} />
       )}
+
+      {showOverdue && !isPublic && <OverdueTasksModal onClose={closeOverdue} />}
 
       {showPending && (
         <PendingDocsModal
