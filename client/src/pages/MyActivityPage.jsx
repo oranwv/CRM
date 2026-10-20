@@ -32,12 +32,13 @@ export default function MyActivityPage() {
 
   useEffect(() => { if (isManager) api.get('/users').then(r => setUsers(r.data)).catch(() => {}); }, [isManager]);
 
+  // Tasks are not date-bound: open ones always, completed ones from the last 30 days.
   function loadTasks() {
-    api.get(`/my-tasks?from=${from}&to=${to}${userQ}`).then(r => setTasks(r.data)).catch(() => setTasks({ mine: {}, delegated: {} }));
+    api.get(`/my-tasks?from=${shiftDays(-29)}&to=${todayStr}${userQ}`).then(r => setTasks(r.data)).catch(() => setTasks({ mine: {}, delegated: {} }));
   }
+  useEffect(() => { loadTasks(); }, [userQ]);
   useEffect(() => {
     setLoading(true);
-    loadTasks();
     Promise.all([
       api.get(`/analytics/my-activity?from=${from}&to=${to}${userQ}`),
       api.get(`/analytics/my-activity/leads?from=${from}&to=${to}${userQ}`),
@@ -101,6 +102,15 @@ export default function MyActivityPage() {
             {users.filter(u => u.id !== me.id).map(u => <option key={u.id} value={u.id}>{u.display_name}</option>)}
           </select>
         )}
+        <div className="flex items-center gap-1 mr-auto sm:mr-0">
+          {[['tasks', '✅ משימות'], ['activity', '📈 פעילות']].map(([k, label]) => (
+            <button key={k} onClick={() => setSection(k)}
+              className={`text-xs font-black px-3 py-1.5 rounded-lg transition ${section === k ? 'bg-violet-600 text-white shadow' : 'bg-white border border-slate-300 text-slate-600 hover:bg-slate-100'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+        {section === 'activity' && <>
         <div className="flex items-center gap-1">
           <button onClick={() => shiftRange(-1)} title="טווח קודם" aria-label="טווח קודם"
             className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-slate-300 text-slate-600 hover:bg-slate-100 font-bold">▶</button>
@@ -127,16 +137,7 @@ export default function MyActivityPage() {
           })}
         </div>
         {loading && <span className="text-xs text-slate-400">טוען...</span>}
-      </div>
-
-      {/* Section switch — משימות first, פעילות second (separate views, Oran 2026-10-20) */}
-      <div className="px-4 pt-3 flex items-center gap-2">
-        {[['tasks', '✅ משימות'], ['activity', '📈 פעילות']].map(([k, label]) => (
-          <button key={k} onClick={() => setSection(k)}
-            className={`flex-1 sm:flex-none sm:px-6 text-sm font-black py-2 rounded-xl transition ${section === k ? 'bg-violet-600 text-white shadow' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'}`}>
-            {label}
-          </button>
-        ))}
+        </>}
       </div>
 
       {/* Phase 55 — tasks: mine / ones I gave, each split מכירות · הפקה · תפעול · תחזוקה */}
@@ -156,7 +157,7 @@ export default function MyActivityPage() {
             })}
             <label className="mr-auto flex items-center gap-1 text-xs text-slate-500 cursor-pointer">
               <input type="checkbox" checked={showDone} onChange={e => setShowDone(e.target.checked)} />
-              הצג גם שהושלמו בטווח
+              הצג גם שהושלמו (30 יום)
             </label>
           </div>
           <div className="flex items-center gap-1 flex-wrap mt-2 border-b border-slate-100 pb-2">
@@ -173,7 +174,7 @@ export default function MyActivityPage() {
           </div>
           <div className="space-y-1.5 mt-2">
             {tasks === null && <p className="text-xs text-slate-400 py-2">טוען משימות...</p>}
-            {tasks && visible.length === 0 && <p className="text-xs text-slate-400 py-2">אין משימות {GROUP_LABELS[group]} {showDone ? 'בטווח' : 'פתוחות'} ✅</p>}
+            {tasks && visible.length === 0 && <p className="text-xs text-slate-400 py-2">אין משימות {GROUP_LABELS[group]} {showDone ? 'ב-30 הימים האחרונים' : 'פתוחות'} ✅</p>}
             {visible.map(t => <TaskRow key={`${t.kind}-${t.id}`} t={t} showAssignee={taskTab === 'delegated'} onChanged={loadTasks} />)}
           </div>
         </div>
