@@ -978,7 +978,9 @@ try {
 } catch (e) { console.error('[Landing] index.html missing:', e.message); }
 app.use('/site', express.static(landingDir, { maxAge: '1d' }));
 app.get('/robots.txt',  (req, res) => res.sendFile(path.join(landingDir, 'robots.txt')));
-app.get('/sitemap.xml', (req, res) => res.sendFile(path.join(landingDir, 'sitemap.xml')));
+// Blog + content pages and the dynamic sitemap (2026-10-21) — server/landing/pages.js
+try { require('./landing/pages').mount(app); }
+catch (e) { console.error('[Landing] pages module failed:', e.message); app.get('/sitemap.xml', (req, res) => res.sendFile(path.join(landingDir, 'sitemap.xml'))); }
 app.get('/', (req, res, next) => {
   const hasApp = /(^|;\s*)crm_app=1/.test(req.headers.cookie || '');
   if (hasApp || Object.keys(req.query).length || !landingHtml) return next();

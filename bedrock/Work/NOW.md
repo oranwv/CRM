@@ -1,10 +1,16 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
 # Now
+
+## 2026-10-21 — Blog + content pages (branch `blog`, awaiting Oran's preview OK)
+
+- `server/landing/pages.js`: Markdown posts in `server/landing/content/blog/` → `/blog`, `/blog/:slug`, dynamic `/sitemap.xml`. Same nav/footer/demo form as the landing page; "בלוג" link only on the new pages (landing nav untouched — Oran's call).
+- Posts: מה זה מערכת CRM · CRM לאולמות אירועים · הסיפור מאחורי ProEvent (venue not named).
+- Previewed with Playwright at 1200px / 390px. Merge to `main` after Oran approves. Next: /about, feature pages (RSVP, leads, contracts), pricing — per the marketing plan.
 
 ## 2026-10-20 — Phase 56: suppliers search over the whole card (pushed, deploying)
 
