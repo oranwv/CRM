@@ -96,16 +96,10 @@ router.get('/leads/:leadId/status', async (req, res) => {
   }
 });
 
-// POST /api/calendar/leads/:leadId/meeting — create a meeting event for a lead
-router.post('/leads/:leadId/meeting', async (req, res) => {
-  const { title, start, end, guestEmail, guestName, sendInvite } = req.body;
-  // Who holds the meeting (staff). Defaults to the person booking it. Internal only — not sent to Google.
-  const hostUserId = req.body.hostUserId ? Number(req.body.hostUserId) : (req.user?.id || null);
-  try {
-    const { rows } = await pool.query('SELECT * FROM leads WHERE id = $1', [req.params.leadId]);
-    const lead = rows[0];
-    if (!lead) return res.status(404).json({ error: 'Lead not found' });
-
+// Books a meeting for a lead: Google event + meetings row + timeline line + host notification +
+// stage auto-advance. Shared by POST /leads/:leadId/meeting and the assistant's "ליד חדש" card
+// (routes/chat.js). `actor` = the staff user doing the booking (req.user).
+async function bookLeadMeeting({ lead, title, start, end, guestEmail, guestName, sendInvite, hostUserId, actor }) {
     const { eventId, eventLink } = await createMeeting({
       leadId: lead.id,
       title,
@@ -125,7 +119,7 @@ router.post('/leads/:leadId/meeting', async (req, res) => {
     await pool.query(
       `INSERT INTO meetings (lead_id, google_event_id, title, start_time, end_time, confirm_token, host_user_id, booked_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [lead.id, eventId, title, start, end, confirmToken, hostUserId, req.user?.id || null]
+      [lead.id, eventId, title, start, end, confirmToken, hostUserId, actor?.id || null]
     );
     const host = await hostName(hostUserId);
 
@@ -137,14 +131,14 @@ router.post('/leads/:leadId/meeting', async (req, res) => {
     await pool.query(
       `INSERT INTO lead_interactions (lead_id, type, direction, body, created_by, source)
        VALUES ($1, 'meeting', 'outbound', $2, $3, 'calendar')`,
-      [lead.id, `📅 פגישה נקבעה: ${title} | ${fmtDate} ${fmtStart}–${fmtEnd}${host ? ` | מקיים: ${host}` : ''}`, req.user?.id || null]
+      [lead.id, `📅 פגישה נקבעה: ${title} | ${fmtDate} ${fmtStart}–${fmtEnd}${host ? ` | מקיים: ${host}` : ''}`, actor?.id || null]
     );
 
     // Booked for someone else → tell them
     {
       const baseUrl0 = process.env.SERVER_URL || 'http://localhost:3001';
-      const who = req.user?.display_name || 'מישהו מהצוות';
-      await notifyHost(hostUserId, req.user?.id,
+      const who = actor?.display_name || 'מישהו מהצוות';
+      await notifyHost(hostUserId, actor?.id,
         `📅 ${who} קבע/ה לך פגישה עם ${lead.name || 'לקוח'}${lead.event_type ? ` (${lead.event_type})` : ''}\n${fmtWhen(start, end)} בשרביה\n🔗 ${baseUrl0}/?lead=${lead.id}&src=wa`);
     }
 
@@ -157,7 +151,7 @@ router.post('/leads/:leadId/meeting', async (req, res) => {
     if (advanced) {
       pool.query(
         `INSERT INTO lead_stage_history (lead_id, from_stage, to_stage, changed_by, source) VALUES ($1, 'contacted', 'meeting_scheduled', $2, 'meeting')`,
-        [lead.id, req.user?.id || null]
+        [lead.id, actor?.id || null]
       ).catch(err => console.error('[Calendar] stage history insert failed:', err.message));
     }
 
@@ -169,7 +163,21 @@ router.post('/leads/:leadId/meeting', async (req, res) => {
     const { rows: mrow } = await pool.query('SELECT id FROM meetings WHERE google_event_id = $1', [eventId]);
     if (mrow[0]) rsvp.maybeSendShortNoticeReminder(mrow[0].id).catch(e => console.error('[Calendar] short-notice reminder:', e.message));
 
-    res.json({ eventId, eventLink, icsUrl, confirmUrl });
+    return { eventId, eventLink, icsUrl, confirmUrl };
+}
+router.bookLeadMeeting = bookLeadMeeting;
+
+// POST /api/calendar/leads/:leadId/meeting — create a meeting event for a lead
+router.post('/leads/:leadId/meeting', async (req, res) => {
+  const { title, start, end, guestEmail, guestName, sendInvite } = req.body;
+  // Who holds the meeting (staff). Defaults to the person booking it. Internal only — not sent to Google.
+  const hostUserId = req.body.hostUserId ? Number(req.body.hostUserId) : (req.user?.id || null);
+  try {
+    const { rows } = await pool.query('SELECT * FROM leads WHERE id = $1', [req.params.leadId]);
+    const lead = rows[0];
+    if (!lead) return res.status(404).json({ error: 'Lead not found' });
+    const out = await bookLeadMeeting({ lead, title, start, end, guestEmail, guestName, sendInvite, hostUserId, actor: req.user });
+    res.json(out);
   } catch (err) {
     console.error('[Calendar] createMeeting error:', err.message);
     res.status(500).json({ error: err.message });

@@ -1788,6 +1788,49 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 57 — Assistant: new lead from a pasted message, meeting + task cards ✅ Built 2026-10-21
+Oran pastes a free-text call summary into the assistant (names, phone, "5 ביוני יום שבת",
+"בערך 50 איש", "30,000 לפני מע״מ", who the customer's contact is, kashrut, chef...) and wants
+a lead created from it, with the dry facts in their fields and everything else in the timeline.
+Rule he set: don't assume — ask.
+
+**Flow (chat only — the WhatsApp bot is untouched):**
+1. The assistant first asks, in one message, about anything unclear: whose phone number it is,
+   who holds the meeting, whether to add a task (and which). Only then it calls `propose_lead`.
+2. **"ליד חדש" card** (`LeadActionCard` in `AIChat.jsx`): every field editable — name (the
+   customers' names), phone, event name (= the full first line, e.g. "מאי ועומרי שבת חתן יוני"),
+   event date + weekday, time, type (list or אחר + detail, e.g. "שבת חתן"), guests, budget (text,
+   "30,000 לפני מע״מ"), email, priority (default רגיל), owner (default the sender). Below it the
+   **timeline entry**: the free text in the user's words, with a 📞 שיחה / 📝 הערה switch
+   (`call` when the message describes a phone call). "צור ליד" → `POST /api/chat/actions`
+   `{kind:'lead'}`: same insert as `POST /api/leads` (source `manual`, `created_by`), calendar
+   "option" sync when there is a date, then the interaction (`source='assistant'`).
+3. After the lead exists, two **separate cards** appear under the green "ליד נוצר ✓" line:
+   - **📅 פגישה ביומן** (`MeetingActionCard`): date (+weekday), start/end, "מקיים את הפגישה"
+     picker (staff list), "לשלוח ללקוח בוואטסאפ" → button "קבע פגישה ושלח לזוג". Action
+     `{kind:'meeting'}` → `bookLeadMeeting()` (the lead card's own booking path, extracted from
+     `POST /calendar/leads/:id/meeting` into a function in `routes/calendar.js` — route behaviour
+     unchanged) + the same WhatsApp ICS message the lead card sends, logged in `messages`.
+   - **✅ משימה**: the existing task card, now with an **אחראי picker** (applies to every task
+     proposal of the assistant, Oran's request).
+   Each card is independent (confirm one, cancel the other).
+4. New general tool `propose_meeting` (lead_id + date/weekday/time/host) so "קבע פגישה עם X
+   ביום שני 12:30" works for any existing lead and shows the same meeting card.
+
+**Dates without a year** are resolved on the server (`resolveDate` in `chat.js`): day+month
+(+weekday) → the next future date whose weekday matches (5.6 "שבת" → 5.6.2027); a weekday alone
+("יום שני") → the next one. No match in 4 years, or an unknown staff name → the tool returns a
+question and the assistant asks instead of guessing. Israel-time conversion for meeting times
+lives server-side (`israelToISO`, mirrors the client util).
+
+**Context rule:** when the chat is opened from a lead card (`context.leadId`), a request for a
+task/meeting/note that names no lead makes the assistant ask "לליד <name>?" first and use that
+`lead_id` after a yes.
+
+Tool gating: `propose_lead` / `propose_meeting` for `LEAD_SET` roles, like `propose_note`.
+Model unchanged (gpt-4o-mini). Preview approved from Playwright screenshots (phone 390px, chat
+panel width) before the push.
+
 ### Phase 55 — My tasks, the overdue gate, and task nudges ✅ Built 2026-10-20
 Oran: tasks get lost — one WhatsApp at the due time and then nothing; people don't do them.
 Also: הפעילות שלי should start with tasks, split מכירות / הפקה / תפעול / תחזוקה; managers may

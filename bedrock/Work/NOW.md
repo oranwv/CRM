@@ -1,10 +1,21 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
 # Now
+
+## 2026-10-21 — Phase 57: assistant creates a lead from a pasted message (pushed, deploying)
+
+- Paste a call summary → assistant asks what's unclear (whose phone, who holds the meeting, task?) →
+  "ליד חדש" card (all fields editable + timeline entry as שיחה/הערה) → after creation, separate
+  📅 פגישה card (host picker, "קבע פגישה ושלח לזוג") and ✅ משימה card (now with an אחראי picker).
+- `propose_meeting` works for any existing lead. Open-lead context: assistant asks "לליד X?" first.
+- Dates without a year resolved server-side by weekday (5.6 שבת → 2027). PRD Phase 57.
+- Verify after deploy: paste the מאי ועומרי message in the chat; check the questions, the card, the
+  meeting WhatsApp to the customer, and the task picker. Model is gpt-4o-mini — if extraction is
+  weak on messy Hebrew, consider gpt-4o for the propose_lead turn.
 
 ## 2026-10-20 — Phase 56: suppliers search over the whole card (pushed, deploying)
 

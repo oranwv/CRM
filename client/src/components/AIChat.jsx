@@ -22,13 +22,250 @@ const TOOL_LABELS = {
   propose_task:       'מכין הצעת משימה...',
   propose_note:       'מכין הערה...',
   propose_fault:      'מכין דיווח תקלה...',
+  propose_lead:       'מכין כרטיס ליד חדש...',
+  propose_meeting:    'מכין כרטיס פגישה...',
 };
 
 const ACTION_META = {
   task:  { icon: '✅', title: 'משימה חדשה',   confirm: 'צור משימה' },
   note:  { icon: '📝', title: 'הערה בליד',     confirm: 'הוסף הערה' },
   fault: { icon: '🔧', title: 'תקלה לתפעול',  confirm: 'פתח תקלה' },
+  lead:  { icon: '🆕', title: 'ליד חדש',       confirm: 'צור ליד' },
+  meeting: { icon: '📅', title: 'פגישה ביומן', confirm: 'קבע פגישה' },
 };
+
+// Staff list for the assignee / host pickers in the chat cards (fetched once per page load)
+let usersCache = null;
+function useStaff() {
+  const [users, setUsers] = useState(usersCache || []);
+  useEffect(() => {
+    if (usersCache) return;
+    const token = localStorage.getItem('crm_token');
+    fetch('/api/users', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : []).then(rows => { if (Array.isArray(rows)) { usersCache = rows; setUsers(rows); } }).catch(() => {});
+  }, []);
+  const me = JSON.parse(localStorage.getItem('crm_user') || '{}');
+  return users.length ? users : (me.id ? [{ id: me.id, display_name: me.display_name || me.username }] : []);
+}
+
+// "פגישה" proposal: date, times, who holds it (picker) and WhatsApp to the customer. Same booking
+// path as the lead card's "קבע פגישה". Nothing happens until "קבע ושלח".
+function MeetingActionCard({ action, onDone }) {
+  const users = useStaff();
+  const me = JSON.parse(localStorage.getItem('crm_user') || '{}');
+  const [f, setF] = useState(() => ({
+    date: action.date || '', start: action.start_time || '', end: action.end_time || '',
+    host: action.host_user_id ? String(action.host_user_id) : (me.id ? String(me.id) : ''),
+    wa: action.send_whatsapp !== false && !!action.phone,
+  }));
+  const [state, setState] = useState(action.state || 'pending');
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const inputCls = 'w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:border-violet-400';
+  const lbl = 'block text-[10px] font-bold text-slate-500 mb-0.5';
+
+  async function confirm() {
+    setState('saving'); setError('');
+    try {
+      const token = localStorage.getItem('crm_token');
+      const r = await fetch('/api/chat/actions', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ kind: 'meeting', lead_id: action.lead_id, title: action.title, date: f.date, start_time: f.start, end_time: f.end || null, host_user_id: f.host ? Number(f.host) : null, send_whatsapp: !!f.wa && !!action.phone }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || 'שגיאה');
+      setResult(data); setState('done'); onDone?.('done');
+    } catch (e) { setState('error'); setError(e.message || 'שגיאה'); }
+  }
+
+  if (state === 'done') {
+    return (
+      <div className="my-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 space-y-0.5">
+        <div className="font-bold">📅 פגישה נקבעה ✓ · {action.lead_name}</div>
+        {!!result?.done?.length && <div className="text-emerald-700">{result.done.join(' · ')}</div>}
+        {!!result?.failed?.length && <div className="text-red-600">לא הצליח: {result.failed.join(', ')}</div>}
+      </div>
+    );
+  }
+  if (state === 'cancelled') {
+    return <div className="my-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">📅 פגישה — בוטל</div>;
+  }
+  return (
+    <div className="my-2 rounded-xl border border-violet-200 bg-violet-50/60 p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-black text-violet-800">📅 פגישה ביומן</span>
+        {action.lead_name && <span className="text-[11px] text-slate-500 truncate max-w-[55%]">{action.lead_name}</span>}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="col-span-2"><label className={lbl}>תאריך{f.date && heDay(f.date) ? ` · יום ${heDay(f.date)}` : ''}</label>
+          <input type="date" value={f.date} onChange={e => set('date', e.target.value)} className={inputCls} dir="ltr" /></div>
+        <div><label className={lbl}>התחלה</label><input type="time" value={f.start} onChange={e => set('start', e.target.value)} className={inputCls} dir="ltr" /></div>
+        <div><label className={lbl}>סיום</label><input type="time" value={f.end} onChange={e => set('end', e.target.value)} className={inputCls} dir="ltr" /></div>
+        <div className="col-span-2"><label className={lbl}>מקיים את הפגישה</label>
+          <select value={f.host} onChange={e => set('host', e.target.value)} className={inputCls}>
+            {users.map(u => <option key={u.id} value={String(u.id)}>{u.display_name || u.username}</option>)}
+          </select></div>
+        <label className="col-span-2 flex items-center gap-2 text-[11px] text-slate-600 cursor-pointer">
+          <input type="checkbox" checked={!!f.wa && !!action.phone} disabled={!action.phone} onChange={e => set('wa', e.target.checked)} className="accent-violet-600" />
+          לשלוח ללקוח בוואטסאפ את פרטי הפגישה{!action.phone ? ' (אין טלפון)' : ''}
+        </label>
+      </div>
+      {error && <p className="text-[11px] text-red-600">{error}</p>}
+      <div className="flex gap-2">
+        <button onClick={confirm} disabled={state === 'saving' || !f.date || !f.start}
+          className="flex-1 text-xs font-bold text-white rounded-lg py-1.5 disabled:opacity-50"
+          style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+          {state === 'saving' ? 'קובע...' : (f.wa && action.phone ? 'קבע פגישה ושלח לזוג' : 'קבע פגישה')}
+        </button>
+        <button onClick={() => { setState('cancelled'); onDone?.('cancelled'); }} disabled={state === 'saving'}
+          className="text-xs font-bold text-slate-500 border border-slate-200 rounded-lg px-3 py-1.5 bg-white">בטל</button>
+      </div>
+    </div>
+  );
+}
+
+const LEAD_EVENT_TYPES = ['חתונה', 'בר/בת מצווה', 'אירוסין', 'יום הולדת', 'כנס', 'אירוע חברה', 'חינה'];
+const LEAD_PRIORITIES  = [['normal', 'רגיל'], ['hot', 'גבוה'], ['urgent', 'דחוף']];
+const HE_DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+function heDay(ymd) { if (!ymd) return ''; const d = new Date(ymd + 'T00:00:00Z'); return isNaN(d) ? '' : HE_DAYS[d.getUTCDay()]; }
+
+// "ליד חדש" proposal: every field editable, plus the timeline entry, an optional meeting
+// (same booking path as the lead card + WhatsApp to the customer) and an optional task.
+// Nothing is written until "צור ליד".
+function LeadActionCard({ action, onDone }) {
+  const meta = ACTION_META.lead;
+  const me = JSON.parse(localStorage.getItem('crm_user') || '{}');
+  const users = useStaff();
+  const [f, setF] = useState(() => ({
+    name: action.name || '', phone: action.phone || '', email: action.email || '',
+    event_name: action.event_name || '', event_date: action.event_date || '', event_time: action.event_time || '', event_end_time: action.event_end_time || '',
+    event_type: action.event_type || '', guest_count: action.guest_count || '', budget: action.budget || '',
+    priority: action.priority || 'normal', assigned_to: action.assigned_to ? String(action.assigned_to) : (me.id ? String(me.id) : ''),
+    log_on: !!action.log?.body, log_type: action.log?.type || 'note', log_body: action.log?.body || '',
+  }));
+  const [state, setState] = useState(action.state || 'pending');
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const inputCls = 'w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:border-violet-400';
+  const lbl = 'block text-[10px] font-bold text-slate-500 mb-0.5';
+  const typeIsOther = f.event_type && !LEAD_EVENT_TYPES.includes(f.event_type);
+
+  async function confirm() {
+    setState('saving'); setError('');
+    try {
+      const token = localStorage.getItem('crm_token');
+      const payload = {
+        kind: 'lead', name: f.name, phone: f.phone, email: f.email, event_name: f.event_name,
+        event_date: f.event_date || null, event_time: f.event_time || null, event_end_time: f.event_end_time || null,
+        event_type: f.event_type || null, guest_count: f.guest_count || null, budget: f.budget || null,
+        source: action.source || 'manual', priority: f.priority, assigned_to: f.assigned_to ? Number(f.assigned_to) : null,
+        log: f.log_on && f.log_body.trim() ? { type: f.log_type, body: f.log_body } : null,
+      };
+      const r = await fetch('/api/chat/actions', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || 'שגיאה');
+      setResult(data); setState('done'); onDone?.('done');
+    } catch (e) {
+      setState('error'); setError(e.message || 'שגיאה');
+    }
+  }
+
+  if (state === 'done') {
+    const leadRef = { lead_id: result?.lead_id, lead_name: result?.lead_name || f.name, phone: f.phone };
+    return (
+      <>
+        <div className="my-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 space-y-0.5">
+          <div className="font-bold">{meta.icon} ליד נוצר ✓ · <a href={`/?lead=${result?.lead_id}`} className="underline">{result?.lead_name || f.name}</a></div>
+          {!!result?.done?.length && <div className="text-emerald-700">{result.done.join(' · ')}</div>}
+          {!!result?.failed?.length && <div className="text-red-600">לא הצליח: {result.failed.join(', ')}</div>}
+        </div>
+        {/* The meeting and the task the message mentioned come as their own cards, each with its own picker + button */}
+        {action.meeting && <MeetingActionCard action={{ kind: 'meeting', ...action.meeting, ...leadRef }} />}
+        {action.task && <ActionCard action={{ kind: 'task', ...action.task, ...leadRef }} />}
+      </>
+    );
+  }
+  if (state === 'cancelled') {
+    return <div className="my-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">{meta.icon} {meta.title} — בוטל</div>;
+  }
+  const userOpts = users;
+  const toggle = (k, label) => (
+    <label className="flex items-center gap-2 text-xs font-black text-violet-800 cursor-pointer select-none">
+      <input type="checkbox" checked={!!f[k]} onChange={e => set(k, e.target.checked)} className="accent-violet-600" />
+      {label}
+    </label>
+  );
+  return (
+    <div className="my-2 rounded-xl border border-violet-200 bg-violet-50/60 p-3 space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-black text-violet-800">{meta.icon} {meta.title}</span>
+        <span className="text-[11px] text-slate-500">ניתן לערוך כל שדה לפני האישור</span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div><label className={lbl}>שם *</label><input value={f.name} onChange={e => set('name', e.target.value)} className={inputCls} /></div>
+        <div><label className={lbl}>טלפון</label><input value={f.phone} onChange={e => set('phone', e.target.value)} className={inputCls} dir="ltr" placeholder="05X-XXXXXXX" /></div>
+        <div className="col-span-2"><label className={lbl}>שם האירוע</label><input value={f.event_name} onChange={e => set('event_name', e.target.value)} className={inputCls} /></div>
+        <div className="col-span-2"><label className={lbl}>תאריך האירוע{f.event_date && heDay(f.event_date) ? ` · יום ${heDay(f.event_date)}` : ''}</label>
+          <input type="date" value={f.event_date} onChange={e => set('event_date', e.target.value)} className={inputCls} dir="ltr" /></div>
+        <div><label className={lbl}>שעת האירוע</label><input type="time" value={f.event_time} onChange={e => set('event_time', e.target.value)} className={inputCls} dir="ltr" /></div>
+        <div><label className={lbl}>שעת סיום</label><input type="time" value={f.event_end_time} onChange={e => set('event_end_time', e.target.value)} className={inputCls} dir="ltr" /></div>
+        <div><label className={lbl}>סוג אירוע</label>
+          <select value={typeIsOther ? 'אחר' : f.event_type} onChange={e => set('event_type', e.target.value === 'אחר' ? (typeIsOther ? f.event_type : 'אחר') : e.target.value)} className={inputCls}>
+            <option value="">—</option>
+            {LEAD_EVENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            <option value="אחר">אחר</option>
+          </select></div>
+        <div><label className={lbl}>פירוט סוג</label>
+          <input value={typeIsOther ? f.event_type : ''} onChange={e => set('event_type', e.target.value || 'אחר')} disabled={!typeIsOther && f.event_type !== 'אחר'} className={`${inputCls} disabled:bg-slate-50`} placeholder="למשל שבת חתן" /></div>
+        <div><label className={lbl}>מוזמנים</label><input value={f.guest_count} onChange={e => set('guest_count', e.target.value)} className={inputCls} dir="ltr" /></div>
+        <div><label className={lbl}>תקציב</label><input value={f.budget} onChange={e => set('budget', e.target.value)} className={inputCls} /></div>
+        <div><label className={lbl}>אימייל</label><input value={f.email} onChange={e => set('email', e.target.value)} className={inputCls} dir="ltr" /></div>
+        <div><label className={lbl}>עדיפות</label>
+          <select value={f.priority} onChange={e => set('priority', e.target.value)} className={inputCls}>
+            {LEAD_PRIORITIES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select></div>
+        <div className="col-span-2"><label className={lbl}>אחראי</label>
+          <select value={f.assigned_to} onChange={e => set('assigned_to', e.target.value)} className={inputCls}>
+            {userOpts.map(u => <option key={u.id} value={String(u.id)}>{u.display_name || u.username}</option>)}
+          </select></div>
+      </div>
+
+      <div className="rounded-lg border border-violet-100 bg-white/70 p-2 space-y-1.5">
+        <div className="flex items-center justify-between">
+          {toggle('log_on', 'תיעוד בציר הזמן')}
+          {f.log_on && (
+            <div className="flex gap-1 text-[11px]">
+              {[['call', '📞 שיחה'], ['note', '📝 הערה']].map(([v, l]) => (
+                <button key={v} type="button" onClick={() => set('log_type', v)}
+                  className={`px-2 py-0.5 rounded-full border ${f.log_type === v ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-slate-600 border-slate-200'}`}>{l}</button>
+              ))}
+            </div>
+          )}
+        </div>
+        {f.log_on && <textarea value={f.log_body} onChange={e => set('log_body', e.target.value)} rows={6} className={inputCls} />}
+      </div>
+
+      {error && <p className="text-[11px] text-red-600">{error}</p>}
+      <div className="flex gap-2">
+        <button onClick={confirm} disabled={state === 'saving' || !f.name.trim()}
+          className="flex-1 text-xs font-bold text-white rounded-lg py-1.5 disabled:opacity-50"
+          style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+          {state === 'saving' ? 'שומר...' : meta.confirm}
+        </button>
+        <button onClick={() => { setState('cancelled'); onDone?.('cancelled'); }} disabled={state === 'saving'}
+          className="text-xs font-bold text-slate-500 border border-slate-200 rounded-lg px-3 py-1.5 bg-white">
+          בטל
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // datetime-local value in Israel time, whatever the device timezone (2026-10-15)
 function toLocalInput(iso) { return isoToIsraelLocal(iso); }
@@ -36,9 +273,11 @@ function toLocalInput(iso) { return isoToIsraelLocal(iso); }
 // A proposal the assistant made (task / note / fault). Nothing exists until "אשר".
 function ActionCard({ action, onDone }) {
   const meta = ACTION_META[action.kind] || { icon: '⚡', title: 'פעולה', confirm: 'אשר' };
+  const staff = useStaff();
   const [form, setForm] = useState(() => ({
     title: action.title || '', body: action.body || '', description: action.description || '',
     due_at: toLocalInput(action.due_at),
+    assigned_to: action.assigned_to ? String(action.assigned_to) : '',
   }));
   const [state, setState] = useState(action.state || 'pending'); // pending | saving | done | cancelled | error
   const [error, setError] = useState('');
@@ -49,7 +288,7 @@ function ActionCard({ action, onDone }) {
     try {
       const token = localStorage.getItem('crm_token');
       const payload = { kind: action.kind, lead_id: action.lead_id, assigned_to: action.assigned_to };
-      if (action.kind === 'task')  Object.assign(payload, { title: form.title, due_at: israelLocalToISO(form.due_at) });
+      if (action.kind === 'task')  Object.assign(payload, { title: form.title, due_at: israelLocalToISO(form.due_at), assigned_to: form.assigned_to ? Number(form.assigned_to) : action.assigned_to });
       if (action.kind === 'note')  Object.assign(payload, { body: form.body });
       if (action.kind === 'fault') Object.assign(payload, { title: form.title, description: form.description });
       const r = await fetch('/api/chat/actions', {
@@ -89,8 +328,15 @@ function ActionCard({ action, onDone }) {
             className={inputCls} style={{ direction: 'ltr' }} />
         </div>
       )}
-      {action.kind === 'task' && action.assigned_name && (
-        <p className="text-[11px] text-slate-500">אחראי: {action.assigned_name} · תזכורת בוואטסאפ</p>
+      {action.kind === 'task' && (
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-slate-500 whitespace-nowrap">אחראי:</span>
+          <select value={form.assigned_to} onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))} className={inputCls}>
+            {!form.assigned_to && <option value="">{action.assigned_name || 'אני'}</option>}
+            {staff.map(u => <option key={u.id} value={String(u.id)}>{u.display_name || u.username}</option>)}
+          </select>
+          <span className="text-[11px] text-slate-400 whitespace-nowrap">· תזכורת בוואטסאפ</span>
+        </div>
       )}
       {action.kind === 'note' && (
         <textarea value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))} rows={3} className={inputCls} />
@@ -316,7 +562,7 @@ function Message({ msg, mediaMap, fileMap, leadId, leadName }) {
       )}
       {msg.actions?.length > 0 && (
         <div className="w-[92%]" dir="rtl">
-          {msg.actions.map(a => <ActionCard key={a.id} action={a} />)}
+          {msg.actions.map(a => a.kind === 'lead' ? <LeadActionCard key={a.id} action={a} /> : a.kind === 'meeting' ? <MeetingActionCard key={a.id} action={a} /> : <ActionCard key={a.id} action={a} />)}
         </div>
       )}
     </div>

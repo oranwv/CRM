@@ -46,6 +46,11 @@ voice notes. (Verified 2026-09-08 against the source; earlier notes here said Cl
   get_employee_activity — plus **proposal** tools propose_task / propose_note /
   propose_fault (2026-09-13): they never write; the route emits an SSE `action` event, the
   chat shows a confirm card, and only "אשר" hits `POST /api/chat/actions`.
+  2026-10-21: propose_lead (new lead from a pasted call summary — `LeadActionCard`, then separate
+  meeting + task cards) and propose_meeting (`MeetingActionCard`, host picker, WhatsApp ICS to the
+  customer via `bookLeadMeeting()` exported from `routes/calendar.js`). Dates without a year are
+  resolved server-side by weekday (`resolveDate` in `routes/chat.js`); tools return a `question`
+  instead of guessing. Task card has an assignee picker. PRD Phase 57.
 - Knowledge files with `stored_name` are listed in the prompt as `[[file:ID]]` and render as
   chips; media/file chips have "שלח בוואטסאפ" → `POST /api/chat/send` (`services/waOutbound.js`,
   Green API uploadFile + sendFileByUrl; external media URLs go as text).

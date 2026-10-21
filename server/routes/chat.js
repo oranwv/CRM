@@ -280,15 +280,209 @@ const TOOL_DEFS = {
         required: ['title']
       }
     }
+  },
+  propose_meeting: {
+    type: 'function',
+    function: {
+      name: 'propose_meeting',
+      description: 'מציע לקבוע פגישה ביומן עם ליד קיים (המשתמש בוחר מי מקיים ומאשר בכרטיס; הכרטיס גם שולח לזוג בוואטסאפ את פרטי הפגישה). השתמש כשהמשתמש אומר "קבע פגישה עם X ביום שני ב-12:30". חפש את הליד עם get_leads אם צריך. אם לא ברור מי מקיים את הפגישה — אפשר להציע ולתת למשתמש לבחור בכרטיס.',
+      parameters: {
+        type: 'object',
+        properties: {
+          lead_id:           { type: 'number', description: 'מזהה הליד' },
+          meeting_day:       { type: 'integer', description: 'יום בחודש (1-31), אם נאמר תאריך' },
+          meeting_month:     { type: 'integer', description: 'חודש (1-12), אם נאמר' },
+          meeting_year:      { type: 'integer', description: 'שנה, רק אם נאמרה' },
+          meeting_weekday:   { type: 'string', description: 'יום בשבוע אם נאמר (למשל "שני") — השרת מוצא את המועד הקרוב' },
+          meeting_time:      { type: 'string', description: 'שעת התחלה HH:MM' },
+          meeting_end_time:  { type: 'string', description: 'שעת סיום HH:MM (ברירת מחדל: שעה אחרי)' },
+          meeting_host_name: { type: 'string', description: 'מי מהצוות מקיים את הפגישה, אם המשתמש ציין' },
+          meeting_send_whatsapp: { type: 'boolean', description: 'לשלוח ללקוח בוואטסאפ (ברירת מחדל true)' }
+        },
+        required: ['lead_id', 'meeting_time']
+      }
+    }
+  },
+  propose_lead: {
+    type: 'function',
+    function: {
+      name: 'propose_lead',
+      description: 'מציע ליצור ליד חדש מתוך הודעה חופשית שהמשתמש הדביק (סיכום שיחה עם לקוח: שמות, טלפון, אירוע, תאריך, כמות, מחיר...). המשתמש רואה כרטיס "ליד חדש" עם כל השדות, עורך ומאשר — שום דבר לא נשמר בלי אישור. הכלי בונה בכרטיס גם: תיעוד בציר הזמן של הליד (הטקסט החופשי), פגישה ביומן אם נקבעה, ומשימה אם המשתמש ביקש. לפני שקוראים לכלי, שאל את המשתמש על כל דבר לא ברור (ראה כללים). אל תקרא לכלי יותר מפעם אחת לאותו ליד.',
+      parameters: {
+        type: 'object',
+        properties: {
+          name:              { type: 'string', description: 'שם הליד — שמות הלקוחות/הזוג (למשל "מאי ועומרי")' },
+          phone:             { type: 'string', description: 'טלפון, ספרות בלבד. רק אם ברור של מי המספר' },
+          email:             { type: 'string' },
+          event_name:        { type: 'string', description: 'שם האירוע — התיאור המלא כפי שהמשתמש כתב בשורה הראשונה (למשל "מאי ועומרי שבת חתן יוני")' },
+          event_day:         { type: 'integer', description: 'יום בחודש של האירוע (1-31), אם נאמר' },
+          event_month:       { type: 'integer', description: 'חודש האירוע (1-12), אם נאמר' },
+          event_year:        { type: 'integer', description: 'שנת האירוע, רק אם נאמרה במפורש. אל תנחש — השרת מחשב' },
+          event_weekday:     { type: 'string', description: 'יום בשבוע של האירוע אם נאמר: ראשון/שני/שלישי/רביעי/חמישי/שישי/שבת' },
+          event_time:        { type: 'string', description: 'שעת התחלה HH:MM (למשל "12:00" ל"12 בצהריים")' },
+          event_end_time:    { type: 'string', description: 'שעת סיום HH:MM, רק אם נאמרה' },
+          event_type:        { type: 'string', enum: ['חתונה', 'בר/בת מצווה', 'אירוסין', 'יום הולדת', 'כנס', 'אירוע חברה', 'חינה', 'אחר'], description: 'סוג האירוע מהרשימה. "שבת חתן", "ברית", "אירוע משפחתי" וכו\' = "אחר" + event_type_detail' },
+          event_type_detail: { type: 'string', description: 'פירוט סוג האירוע כשבחרת "אחר" (למשל "שבת חתן")' },
+          guest_count:       { type: 'integer', description: 'כמות מוזמנים, אם נאמרה' },
+          budget:            { type: 'string', description: 'תקציב/מחיר שנאמר, כטקסט (למשל "30,000 לפני מע\\"מ")' },
+          priority:          { type: 'string', enum: ['רגיל', 'גבוה', 'דחוף'], description: 'ברירת מחדל רגיל' },
+          assign_to_name:    { type: 'string', description: 'שם העובד האחראי על הליד, רק אם המשתמש ציין מישהו אחר מעצמו' },
+          log_type:          { type: 'string', enum: ['call', 'note'], description: 'סוג התיעוד בציר הזמן: call אם ההודעה מתארת שיחת טלפון עם הלקוח, אחרת note' },
+          log_text:          { type: 'string', description: 'כל המידע החופשי מההודעה שלא נכנס לשדות מובנים, בלשון המשתמש, מסודר בשורות: מי הלקוחות ומאיפה, מי אחראי מצד הלקוח, מה נאמר על מחיר/תפריט/כשרות/שף, התרשמות מהשיחה, המלצה, וכו\'. אל תשמיט פרטים' },
+          meeting_day:       { type: 'integer', description: 'יום בחודש של הפגישה (1-31), אם נאמר תאריך' },
+          meeting_month:     { type: 'integer', description: 'חודש הפגישה (1-12), אם נאמר' },
+          meeting_year:      { type: 'integer', description: 'שנת הפגישה, רק אם נאמרה' },
+          meeting_weekday:   { type: 'string', description: 'יום בשבוע של הפגישה אם נאמר (למשל "שני") — השרת מוצא את המועד הקרוב' },
+          meeting_time:      { type: 'string', description: 'שעת הפגישה HH:MM' },
+          meeting_end_time:  { type: 'string', description: 'שעת סיום הפגישה HH:MM (ברירת מחדל: שעה אחרי)' },
+          meeting_host_name: { type: 'string', description: 'מי מהצוות מקיים את הפגישה — חובה לשאול את המשתמש לפני' },
+          meeting_send_whatsapp: { type: 'boolean', description: 'לשלוח לזוג בוואטסאפ את פרטי הפגישה (ברירת מחדל true אם יש טלפון)' },
+          task_title:        { type: 'string', description: 'כותרת משימה להוסיף, רק אם המשתמש ביקש משימה' },
+          task_due:          { type: 'string', description: 'מועד המשימה ISO 8601 (2026-11-02T10:00:00)' },
+          task_assign_to_name: { type: 'string', description: 'אחראי למשימה, אם שונה מהמשתמש' }
+        },
+        required: ['name', 'event_name']
+      }
+    }
   }
 };
 
 const FIN_SET = new Set(['admin', 'manager', 'finance']);
 
+// ── propose_lead helpers ─────────────────────────────────────────────────────
+const HE_WEEKDAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+function weekdayIndex(v) {
+  if (v === undefined || v === null || v === '') return null;
+  if (typeof v === 'number') return (v >= 0 && v <= 6) ? v : null;
+  const s = String(v).replace(/^יום\s+/, '').replace(/^ה/, '').trim();
+  const i = HE_WEEKDAYS.findIndex(w => s.startsWith(w) || w.startsWith(s));
+  return i >= 0 ? i : null;
+}
+function ilToday() {
+  const p = new Date().toLocaleDateString('sv', { timeZone: 'Asia/Jerusalem' }); // yyyy-mm-dd
+  return p;
+}
+function ymd(d) { return d.toISOString().slice(0, 10); }
+function utcDate(y, m, d) { const dt = new Date(Date.UTC(y, m - 1, d)); return (dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d) ? dt : null; }
+// Resolve "5 ביוני יום שבת" (no year) → the next future date with that day/month whose weekday
+// matches. Returns { date } or { error } (weekday never matches in the next 4 years / bad input).
+function resolveDate({ day, month, year, weekday }) {
+  const wd = weekdayIndex(weekday);
+  const today = ilToday();
+  if (year) {
+    const dt = utcDate(Number(year), Number(month), Number(day));
+    if (!dt) return { error: 'תאריך לא תקין' };
+    if (wd !== null && dt.getUTCDay() !== wd) return { error: `התאריך ${day}.${month}.${year} חל ביום ${HE_WEEKDAYS[dt.getUTCDay()]}, לא ${HE_WEEKDAYS[wd]}` };
+    return { date: ymd(dt), weekday: HE_WEEKDAYS[dt.getUTCDay()] };
+  }
+  if (day && month) {
+    const y0 = Number(today.slice(0, 4));
+    const tried = [];
+    for (let y = y0; y <= y0 + 4; y++) {
+      const dt = utcDate(y, Number(month), Number(day));
+      if (!dt) continue;
+      if (ymd(dt) < today) continue;
+      if (wd !== null && dt.getUTCDay() !== wd) { tried.push(`${day}.${month}.${y} = יום ${HE_WEEKDAYS[dt.getUTCDay()]}`); continue; }
+      return { date: ymd(dt), weekday: HE_WEEKDAYS[dt.getUTCDay()] };
+    }
+    return { error: `${day}.${month} לא חל ביום ${wd !== null ? HE_WEEKDAYS[wd] : '?'} בשנים הקרובות (${tried.join(', ')})` };
+  }
+  if (wd !== null) {
+    // Next occurrence of that weekday, strictly after today
+    const t = new Date(today + 'T00:00:00Z');
+    for (let i = 1; i <= 7; i++) {
+      const dt = new Date(t.getTime() + i * 86400000);
+      if (dt.getUTCDay() === wd) return { date: ymd(dt), weekday: HE_WEEKDAYS[wd] };
+    }
+  }
+  return { error: 'חסר תאריך' };
+}
+function normTime(t) {
+  if (!t) return null;
+  const m = String(t).match(/^(\d{1,2})(?::(\d{2}))?$/);
+  if (!m) return null;
+  const h = Number(m[1]), mi = Number(m[2] || 0);
+  if (h > 23 || mi > 59) return null;
+  return `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}`;
+}
+function addHour(t) { const [h, m] = t.split(':').map(Number); return `${String((h + 1) % 24).padStart(2, '0')}:${String(m).padStart(2, '0')}`; }
+async function findUserByName(name) {
+  if (!name) return null;
+  const { rows } = await pool.query(
+    `SELECT id, display_name FROM users WHERE NOT COALESCE(blocked, false) AND (display_name ILIKE $1 OR username ILIKE $1) LIMIT 1`,
+    [`%${String(name).trim()}%`]
+  );
+  return rows[0] || null;
+}
+const PRIORITY_MAP = { 'רגיל': 'normal', 'גבוה': 'hot', 'דחוף': 'urgent' };
+// Book a meeting for a lead through the same path as the lead card's "קבע פגישה", then (optionally)
+// WhatsApp the ICS link to the customer. Used by the chat 'meeting' action. Returns { eventId, done[], failed[] }.
+async function bookMeetingForLead({ lead, date, start_time, end_time, host_user_id, send_whatsapp, title, actor }) {
+  const { sendTextToPhones } = require('../services/waOutbound');
+  const { bookLeadMeeting } = require('./calendar');
+  const st = normTime(start_time);
+  const start = israelToISO(date, st);
+  const end   = israelToISO(date, normTime(end_time) || addHour(st));
+  const booked = await bookLeadMeeting({
+    lead, title: String(title || '').trim() || `פגישה עם ${lead.name}`, start, end,
+    guestEmail: lead.email || null, guestName: lead.name, sendInvite: false,
+    hostUserId: host_user_id ? Number(host_user_id) : actor.id, actor,
+  });
+  const out = { eventId: booked.eventId, done: ['פגישה נקבעה'], failed: [] };
+  if (send_whatsapp && lead.phone) {
+    const { normalizePhone } = require('../utils/phoneUtils');
+    const to = normalizePhone(lead.phone);
+    if (to) {
+      const dateHe = new Date(start).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Jerusalem' });
+      const text = `שלום! קישור לפגישה שנקבעה לך ל-${dateHe} בשעה ${st} בשרביה:\n${booked.icsUrl}`;
+      const sent = await sendTextToPhones([to], text);
+      if (sent.length) {
+        await pool.query(
+          `INSERT INTO messages (lead_id, channel, direction, body, timestamp, contact_value, sent_by) VALUES ($1, 'whatsapp', 'outbound', $2, NOW(), $3, $4)`,
+          [lead.id, text, to, actor.id]
+        );
+        out.done.push('נשלח וואטסאפ ללקוח');
+      } else out.failed.push('וואטסאפ ללקוח');
+      if (lead.email) { const { sendMeetingInvite } = require('../services/calendarService'); sendMeetingInvite(booked.eventId).catch(() => {}); }
+    }
+  }
+  return out;
+}
+
+// Shared by propose_lead / propose_meeting: resolve the date, time, host → meeting fields or { error }
+async function buildMeetingProposal(args, user, leadName, hasPhone) {
+  const r = resolveDate({ day: args.meeting_day, month: args.meeting_month, year: args.meeting_year, weekday: args.meeting_weekday });
+  const t = normTime(args.meeting_time);
+  if (r.error) return { error: `מועד הפגישה: ${r.error}` };
+  if (!t) return { error: 'מועד הפגישה: חסרה שעה' };
+  const host = await findUserByName(args.meeting_host_name);
+  if (args.meeting_host_name && !host) return { error: `לא נמצא משתמש בשם "${args.meeting_host_name}" — שאל מי מקיים את הפגישה` };
+  return { meeting: {
+    date: r.date, weekday: r.weekday, start_time: t, end_time: normTime(args.meeting_end_time) || addHour(t),
+    host_user_id: host?.id || user.id, host_name: host?.display_name || (user.display_name || user.username),
+    title: `פגישה עם ${leadName}`,
+    send_whatsapp: args.meeting_send_whatsapp !== false && hasPhone,
+  } };
+}
+// 'YYYY-MM-DD' + 'HH:MM' in Israel time → ISO (mirrors client/src/utils/israelTime.js)
+function israelOffsetMin(d) {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(d);
+  const g = t => Number(parts.find(x => x.type === t).value);
+  return (Date.UTC(g('year'), g('month') - 1, g('day'), g('hour'), g('minute'), g('second')) - d.getTime()) / 60000;
+}
+function israelToISO(date, time) {
+  const [y, mo, d] = date.split('-').map(Number);
+  const [hh, mm] = (time || '00:00').split(':').map(Number);
+  const naive = Date.UTC(y, mo - 1, d, hh, mm, 0);
+  let off = israelOffsetMin(new Date(naive));
+  off = israelOffsetMin(new Date(naive - off * 60000));
+  return new Date(naive - off * 60000).toISOString();
+}
+
 function getToolsForUser(userRoles) {
   const tools = [TOOL_DEFS.get_my_tasks, TOOL_DEFS.propose_task];
   if (hasRole(userRoles, LEAD_SET))   tools.push(TOOL_DEFS.get_today_schedule, TOOL_DEFS.get_schedule);
-  if (hasRole(userRoles, LEAD_SET))   tools.push(TOOL_DEFS.get_leads, TOOL_DEFS.get_lead_details, TOOL_DEFS.get_lead_documents, TOOL_DEFS.propose_note);
+  if (hasRole(userRoles, LEAD_SET))   tools.push(TOOL_DEFS.get_leads, TOOL_DEFS.get_lead_details, TOOL_DEFS.get_lead_documents, TOOL_DEFS.propose_note, TOOL_DEFS.propose_lead, TOOL_DEFS.propose_meeting);
   if (hasRole(userRoles, SALES_SET))  tools.push(TOOL_DEFS.get_urgent_leads, TOOL_DEFS.get_sales_worklist, TOOL_DEFS.get_analytics_kpis);
   if (hasRole(userRoles, OPS_SET))    tools.push(TOOL_DEFS.get_op_tasks, TOOL_DEFS.get_maintenance, TOOL_DEFS.get_event_brief, TOOL_DEFS.propose_fault);
   if (hasRole(userRoles, SUPPLY_SET)) tools.push(TOOL_DEFS.get_suppliers);
@@ -703,6 +897,68 @@ async function executeTool(name, args, user) {
       return { proposal: { kind: 'fault', title, description: String(args.description || '').trim() || null } };
     }
 
+    case 'propose_meeting': {
+      const { rows } = await pool.query('SELECT id, name, phone FROM leads WHERE id = $1 AND ($2 = true OR assigned_to = $3)', [Number(args.lead_id), isAM, uid]);
+      if (!rows[0]) return { error: 'ליד לא נמצא' };
+      const mr = await buildMeetingProposal(args, user, rows[0].name, !!rows[0].phone);
+      if (mr.error) return { question: mr.error };
+      return { proposal: { kind: 'meeting', lead_id: rows[0].id, lead_name: rows[0].name, phone: rows[0].phone || '', ...mr.meeting } };
+    }
+
+    case 'propose_lead': {
+      const name = String(args.name || '').trim();
+      if (!name) return { error: 'חסר שם ללקוח' };
+      const problems = [];
+
+      // Event date: server-side resolution so "5 ביוני יום שבת" lands on the right year
+      let event_date = null, event_weekday = null;
+      if (args.event_day || args.event_month || args.event_year) {
+        const r = resolveDate({ day: args.event_day, month: args.event_month, year: args.event_year, weekday: args.event_weekday });
+        if (r.error) problems.push(`תאריך האירוע: ${r.error}`);
+        else { event_date = r.date; event_weekday = r.weekday; }
+      }
+      const event_time     = normTime(args.event_time);
+      const event_end_time = normTime(args.event_end_time);
+
+      // Meeting (optional) — shown as a separate card after the lead is created
+      let meeting = null;
+      if (args.meeting_day || args.meeting_weekday || args.meeting_time) {
+        const mr = await buildMeetingProposal(args, user, name, !!args.phone);
+        if (mr.error) problems.push(mr.error); else meeting = mr.meeting;
+      }
+      if (problems.length) return { question: problems.join('\n') };
+
+      const eventType = args.event_type === 'אחר' && String(args.event_type_detail || '').trim()
+        ? String(args.event_type_detail).trim()
+        : (args.event_type || null);
+      const assignee = await findUserByName(args.assign_to_name);
+      const taskAssignee = await findUserByName(args.task_assign_to_name);
+      const logText = String(args.log_text || '').trim();
+      const taskTitle = String(args.task_title || '').trim();
+
+      return {
+        proposal: {
+          kind: 'lead', name,
+          phone: args.phone ? String(args.phone).replace(/[^\d+]/g, '') : '',
+          email: args.email || '',
+          event_name: String(args.event_name || '').trim() || name,
+          event_date, event_weekday, event_time, event_end_time,
+          event_type: eventType,
+          guest_count: args.guest_count ? String(args.guest_count) : '',
+          budget: args.budget ? String(args.budget) : '',
+          source: 'manual',
+          priority: PRIORITY_MAP[args.priority] || 'normal',
+          assigned_to: assignee?.id || uid, assigned_name: assignee?.display_name || (user.display_name || user.username),
+          log: logText ? { type: args.log_type === 'call' ? 'call' : 'note', body: logText } : null,
+          meeting,
+          task: taskTitle ? {
+            title: taskTitle, due_at: args.task_due || null,
+            assigned_to: taskAssignee?.id || uid, assigned_name: taskAssignee?.display_name || (user.display_name || user.username),
+          } : null,
+        },
+      };
+    }
+
     default:
       return { error: `Unknown tool: ${name}` };
   }
@@ -819,6 +1075,28 @@ function formatToolResult(name, result) {
       ).join('\n');
     }
 
+    case 'propose_lead':
+      if (result?.question) {
+        return `לא ניתן להכין את הכרטיס עדיין:\n${result.question}\nשאל את המשתמש בקצרה ואז קרא לכלי שוב עם התשובה.`;
+      }
+      if (result?.proposal) {
+        const p = result.proposal;
+        const parts = [`כרטיס "ליד חדש" הוצג למשתמש לאישור (${p.name}${p.event_date ? `, ${p.event_date}${p.event_weekday ? ' יום ' + p.event_weekday : ''}` : ''}).`];
+        if (p.meeting) parts.push(`אחרי יצירת הליד יופיע כרטיס פגישה (${p.meeting.date} ${p.meeting.start_time}, מקיים: ${p.meeting.host_name} — ניתן לשנות בכרטיס) עם כפתור שליחה לזוג.`);
+        if (p.task) parts.push(`אחרי יצירת הליד יופיע כרטיס משימה: ${p.task.title} (אחראי ניתן לבחירה בכרטיס).`);
+        parts.push('אל תקרא לכלי שוב. כתוב משפט קצר: מה מופיע בכרטיס ושהוא יכול לערוך כל שדה לפני האישור. אל תכתוב שהליד נוצר — הוא ממתין לאישור.');
+        return parts.join(' ');
+      }
+      return JSON.stringify(result);
+
+    case 'propose_meeting':
+      if (result?.question) return `לא ניתן להכין את הכרטיס עדיין:\n${result.question}\nשאל את המשתמש בקצרה ואז קרא לכלי שוב.`;
+      if (result?.proposal) {
+        const p = result.proposal;
+        return `כרטיס פגישה הוצג למשתמש (${p.lead_name}, ${p.date} יום ${p.weekday} ${p.start_time}–${p.end_time}, מקיים: ${p.host_name}). בכרטיס הוא בוחר מי מקיים ולוחץ "קבע ושלח". אל תקרא לכלי שוב. כתוב משפט קצר. אל תכתוב שהפגישה נקבעה — היא ממתינה לאישור.`;
+      }
+      return JSON.stringify(result);
+
     case 'propose_task':
     case 'propose_note':
     case 'propose_fault':
@@ -865,7 +1143,8 @@ router.post('/', requireAuth, async (req, res) => {
     let leadContext = '';
     if (context.leadId) {
       const leadDetails = await executeTool('get_lead_details', { lead_id: Number(context.leadId) }, user);
-      leadContext = `\n\nפרטי הליד שהמשתמש מסתכל עליו כרגע:\n${formatToolResult('get_lead_details', leadDetails)}`;
+      leadContext = `\n\nפרטי הליד שהמשתמש מסתכל עליו כרגע (lead_id=${Number(context.leadId)}):\n${formatToolResult('get_lead_details', leadDetails)}
+- כלל הקשר: כשהמשתמש מבקש משימה, פגישה או הערה בלי לציין ליד — שאל קודם במשפט אחד אם זה עבור הליד הזה (בשם), ורק אחרי "כן" הצע עם lead_id הזה. אם הוא אומר ליד אחר — חפש אותו עם get_leads.`;
     }
 
     // Load knowledge base from DB
@@ -895,9 +1174,10 @@ router.post('/', requireAuth, async (req, res) => {
 
 כללים:
 - ענה תמיד בעברית, בצורה תמציתית ומועילה
-- אתה קורא נתונים; פעולות (משימה, הערה בליד, תקלה) אתה רק מציע דרך הכלים propose_* — המשתמש מאשר בכרטיס. אל תטען שביצעת משהו.
+- אתה קורא נתונים; פעולות (משימה, הערה בליד, תקלה, ליד חדש, פגישה) אתה רק מציע דרך הכלים propose_* — המשתמש מאשר בכרטיס. אל תטען שביצעת משהו.
 - כשהמשתמש מדווח על תקלה באולם (תאורה, חשמל, מיזוג, ציוד): קודם ענה מתוך מדריכי התפעול אם יש, ואז הצע לפתוח תקלה לתפעול (propose_fault) אם זה לא נפתר.
 - כששואלים "מה הלו"ז שלי ומה הכי דחוף" — שלב לו"ז היום עם רשימת AI מכירות ומשימות שעבר מועדן, ותן תשובה מסודרת לפי סדר עדיפות.
+- ליד חדש מהודעה חופשית: כשהמשתמש מדביק סיכום שיחה עם לקוח (שמות, טלפון, אירוע, תאריך, כמות, מחיר) ומבקש להכניס ליד — הכלי הוא propose_lead. לפני הקריאה, אל תניח הנחות: שאל בהודעה אחת וקצרה על כל מה שלא ברור, למשל (1) של מי מספר הטלפון אם ההודעה לא ברורה; (2) מי מהצוות מקיים את הפגישה, אם נקבעה פגישה; (3) האם להוסיף משימה (ואיזו). רק אחרי שהמשתמש ענה — קרא לכלי פעם אחת עם כל הפרטים (כולל פרטי הפגישה והמשימה — הם יופיעו ככרטיסים נפרדים אחרי יצירת הליד, ושם המשתמש בוחר מקיים/אחראי ולוחץ שלח). לקביעת פגישה לליד קיים — propose_meeting. תאריך בלי שנה: העבר יום+חודש+יום בשבוע והשרת מחשב; אם הכלי מחזיר שאלה (יום בשבוע לא מתאים, משתמש לא נמצא) — שאל את המשתמש וקרא שוב. שם הליד = שמות הלקוחות; שם האירוע = התיאור המלא מהשורה הראשונה. סוג אירוע שלא ברשימה (שבת חתן, ברית) = "אחר" + event_type_detail. כמות מוזמנים ותקציב נכנסים לשדות שלהם; כל שאר המידע (מאיפה הלקוחות, מי אחראי מצדם, מה נאמר על מחיר/תפריט/כשרות/שף, התרשמות, המלצה) נכנס במלואו ל-log_text, ואם ההודעה מתארת שיחת טלפון — log_type=call.
 - כשמציין ליד, צרף: [שם](/?lead=ID) וטלפון: [מספר](tel:מספר)
 - כשמציין ספק, צרף: [שם](/suppliers?id=ID) וטלפון: [מספר](tel:מספר)
 - אל תמציא קישורים לקבצים/מדיה ואל תכתוב כתובות אחסון (למשל supabase.co). מדיה אפשר להציג רק דרך תגית [[media:ID]] מתוך הרשימה למטה. אם אין קובץ/מדיה מתאימים — אמור זאת במפורש ואל תמציא קישור.${knowledgeSection}`;
@@ -1168,6 +1448,55 @@ router.post('/actions', requireAuth, async (req, res) => {
         );
       } catch {}
       return res.json({ ok: true, fault_id: rows[0].id });
+    }
+    if (a.kind === 'lead') {
+      if (!hasRole(userRoles, LEAD_SET)) return res.status(403).json({ error: 'אין הרשאה' });
+      const name = String(a.name || '').trim();
+      if (!name) return res.status(400).json({ error: 'חסר שם' });
+      const eventDate = a.event_date && /^\d{4}-\d{2}-\d{2}$/.test(a.event_date) ? a.event_date : null;
+      const evTime = normTime(a.event_time), evEnd = normTime(a.event_end_time);
+      const phone = a.phone ? String(a.phone).trim() : null;
+      const sourceOk = ['manual', 'whatsapp', 'instagram', 'facebook', 'website_form', 'website_popup', 'call_event', 'telekol', 'landing'];
+      const source = sourceOk.includes(a.source) ? a.source : 'manual';
+      const priority = ['normal', 'hot', 'urgent', 'cold'].includes(a.priority) ? a.priority : 'normal';
+
+      // 1. The lead — same insert as POST /api/leads
+      const { rows: lrows } = await pool.query(
+        `INSERT INTO leads (name, phone, email, event_name, event_date, event_time, event_end_time, event_type, guest_count, budget, source, assigned_to, priority, created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+        [name, phone, a.email ? String(a.email).trim() : null, String(a.event_name || '').trim() || name, eventDate, evTime, evEnd,
+         a.event_type ? String(a.event_type).trim() : null, a.guest_count ? String(a.guest_count) : null, a.budget ? String(a.budget) : null,
+         source, a.assigned_to ? Number(a.assigned_to) : user.id, priority, user.id]
+      );
+      const lead = lrows[0];
+      if (lead.event_date) {
+        const { syncLeadToCalendar } = require('../services/calendarService');
+        syncLeadToCalendar(lead.id, 'option', user.id).catch(err => console.error('[Chat] lead calendar sync failed:', err.message));
+      }
+      const out = { ok: true, lead_id: lead.id, lead_name: lead.name, done: [], failed: [] };
+
+      // 2. Timeline entry — the free text from the message (call or note)
+      const logBody = String(a.log?.body || '').trim();
+      if (logBody) {
+        try {
+          const type = a.log?.type === 'call' ? 'call' : 'note';
+          await pool.query(
+            `INSERT INTO lead_interactions (lead_id, type, direction, body, created_by, source) VALUES ($1, $2, 'outbound', $3, $4, 'assistant')`,
+            [lead.id, type, logBody, user.id]
+          );
+          out.done.push(type === 'call' ? 'שיחה תועדה' : 'הערה נוספה');
+        } catch (e) { console.error('[Chat] lead log failed:', e.message); out.failed.push('תיעוד'); }
+      }
+
+      return res.json(out);
+    }
+    if (a.kind === 'meeting') {
+      if (!hasRole(userRoles, LEAD_SET)) return res.status(403).json({ error: 'אין הרשאה' });
+      if (!a.lead_id || !a.date || !normTime(a.start_time)) return res.status(400).json({ error: 'חסר ליד, תאריך או שעה' });
+      const { rows } = await pool.query('SELECT * FROM leads WHERE id = $1', [Number(a.lead_id)]);
+      if (!rows[0]) return res.status(404).json({ error: 'ליד לא נמצא' });
+      const out = await bookMeetingForLead({ lead: rows[0], date: a.date, start_time: a.start_time, end_time: a.end_time, host_user_id: a.host_user_id, send_whatsapp: !!a.send_whatsapp, title: a.title, actor: user });
+      return res.json({ ok: true, lead_id: rows[0].id, lead_name: rows[0].name, ...out });
     }
     res.status(400).json({ error: 'פעולה לא מוכרת' });
   } catch (err) {
