@@ -5281,7 +5281,8 @@ function ProductionSection({ leadId, lead, onUpdated, users = [] }) {
           <label className="text-sm text-slate-500 block mb-1">הערות</label>
           <textarea value={form.production_notes}
             onChange={e => setForm(f => ({ ...f, production_notes: e.target.value }))}
-            className={`${cls} resize-none`} rows={3} placeholder="הערות..." />
+            ref={el => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
+            className={`${cls} resize-none overflow-hidden`} rows={3} placeholder="הערות..." />
         </div>
         <button onClick={save} disabled={saving}
           className="w-full bg-violet-600 text-white font-bold py-2 rounded-xl text-base disabled:opacity-50">
