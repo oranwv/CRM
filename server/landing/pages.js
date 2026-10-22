@@ -205,7 +205,7 @@ function nav() {
       <a href="/#finance" style="color:inherit;text-decoration:none" class="navlink">כספים</a>
       <a href="/#management" style="color:inherit;text-decoration:none" class="navlink">ניהול עובדים</a>
       <a href="/#compare" style="color:inherit;text-decoration:none" class="navlink">השוואה</a>
-      <a href="/blog" style="color:var(--color-accent-300);text-decoration:none" class="navlink">בלוג</a>
+      <a href="/blog" style="color:var(--color-accent-300);text-decoration:none" class="navlink">מאמרים</a>
     </div>
     <button class="lp-burger" type="button" aria-label="תפריט" aria-expanded="false" onclick="var n=document.querySelector('.lp-nav');n.classList.toggle('open');this.setAttribute('aria-expanded',n.classList.contains('open'))"><span aria-hidden="true">☰</span></button>
     <div class="lp-navcta" style="display:flex;align-items:center;gap:10px;margin-inline-start:auto">
@@ -219,7 +219,7 @@ function footer() {
   return `
   <footer style="border-top:1px solid var(--color-divider);padding:28px 40px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;font-size:13px;color:var(--color-neutral-500)">
     <div style="display:flex;align-items:center;gap:8px"><img src="/logo/mark-gradient.svg" width="16" height="16" alt=""><span>ProEvent · CRM לעולם האירועים</span></div>
-    <div style="display:flex;gap:18px;flex-wrap:wrap"><a href="/blog" style="color:inherit;text-decoration:none">בלוג</a><a href="/#demo" style="color:inherit;text-decoration:none">קבעו דמו</a></div>
+    <div style="display:flex;gap:18px;flex-wrap:wrap"><a href="/blog" style="color:inherit;text-decoration:none">מאמרים</a><a href="/#demo" style="color:inherit;text-decoration:none">קבעו דמו</a></div>
     <div>© 2026 ProEvent. כל הזכויות שמורות.</div>
   </footer>`;
 }
@@ -355,14 +355,14 @@ function postPage(post) {
       '@context': 'https://schema.org', '@type': 'BreadcrumbList',
       itemListElement: [
         { '@type': 'ListItem', position: 1, name: 'ProEvent', item: `${SITE}/` },
-        { '@type': 'ListItem', position: 2, name: 'בלוג', item: `${SITE}/blog` },
+        { '@type': 'ListItem', position: 2, name: 'מאמרים', item: `${SITE}/blog` },
         { '@type': 'ListItem', position: 3, name: post.title, item: url },
       ],
     },
   ];
   const body = `
   <article class="pg-wrap">
-    <div class="pg-kicker"><a href="/blog">בלוג</a><span>·</span><span>${esc(post.meta.topic || 'CRM לאירועים')}</span></div>
+    <div class="pg-kicker"><a href="/blog">מאמרים</a><span>·</span><span>${esc(post.meta.topic || 'CRM לאירועים')}</span></div>
     <h1 class="pg-title">${esc(post.title)}</h1>
     ${post.description ? `<p class="pg-lead">${esc(post.description)}</p>` : ''}
     <div class="pg-meta">
@@ -372,19 +372,19 @@ function postPage(post) {
     </div>
     <div class="pg-body">${post.html}</div>
   </article>
-  ${others.length ? `<aside class="pg-more"><h3>עוד מהבלוג</h3>${others.map(o => `<a class="card" href="/blog/${o.slug}">${esc(o.title)}</a>`).join('')}</aside>` : ''}`;
+  ${others.length ? `<aside class="pg-more"><h3>עוד מאמרים</h3>${others.map(o => `<a class="card" href="/blog/${o.slug}">${esc(o.title)}</a>`).join('')}</aside>` : ''}`;
   return layout({ title: post.title, description: post.description, canonical: url, jsonLd, body });
 }
 
 function blogIndex() {
   const url = `${SITE}/blog`;
   const jsonLd = [{
-    '@context': 'https://schema.org', '@type': 'Blog', name: `הבלוג של ${SITE_NAME}`, url, inLanguage: 'he',
+    '@context': 'https://schema.org', '@type': 'Blog', name: `מאמרים — ${SITE_NAME}`, url, inLanguage: 'he',
     blogPost: posts.map(p => ({ '@type': 'BlogPosting', headline: p.title, url: `${SITE}/blog/${p.slug}`, datePublished: p.date })),
   }];
   const body = `
   <section class="pg-list">
-    <div class="pg-kicker">הבלוג של ProEvent</div>
+    <div class="pg-kicker">מאמרים</div>
     <h1 class="pg-title" style="font-size:36px">ניהול אולם אירועים, לידים וכסף — מהשטח</h1>
     <p class="pg-lead">מה שלמדנו מניהול אולם אירועים אמיתי ומבניית המערכת שמנהלת אותו: לידים, חוזים, אישורי הגעה, רווח לאירוע ו-AI למכירות.</p>
     <div style="margin-top:36px">
@@ -397,7 +397,7 @@ function blogIndex() {
       </a>`).join('')}
     </div>
   </section>`;
-  return layout({ title: 'בלוג — ניהול אולמות אירועים, לידים ו-CRM', description: 'מאמרים מהשטח על ניהול אולם אירועים: לידים מוואטסאפ, חוזים דיגיטליים, אישורי הגעה, רווח לאירוע ומערכת CRM לענף האירועים.', canonical: url, ogType: 'website', jsonLd, body });
+  return layout({ title: 'מאמרים — ניהול אולמות אירועים, לידים ו-CRM', description: 'מאמרים מהשטח על ניהול אולם אירועים: לידים מוואטסאפ, חוזים דיגיטליים, אישורי הגעה, רווח לאירוע ומערכת CRM לענף האירועים.', canonical: url, ogType: 'website', jsonLd, body });
 }
 
 function sitemap() {

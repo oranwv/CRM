@@ -1636,7 +1636,7 @@ logo on customer documents, not the product's.
 
 Markdown files under `server/landing/content/blog/*.md` (front matter: `title`, `description`,
 `date`, `updated`, `topic`, `author`, `slug`, `draft`) are rendered at boot into the landing
-page's Nocturne look (same nav + "בלוג" link, footer, demo form → `/api/public/demo-request`,
+page's Nocturne look (same nav + "מאמרים" link (URL stays /blog), footer, demo form → `/api/public/demo-request`,
 GA via `GA_MEASUREMENT_ID`). Routes: `GET /blog` (index, newest first), `GET /blog/:slug`
 (BlogPosting + BreadcrumbList JSON-LD, canonical, OG), `GET /sitemap.xml` (now dynamic —
 the static `server/landing/sitemap.xml` was removed). Unknown slugs fall through to the SPA.
