@@ -12,6 +12,22 @@ function mediaMimeToExt(mime) {
   return map[mime] || 'bin';
 }
 
+// Contact cards (vCard) shared in WhatsApp → one text line per contact: "👤 name · phone".
+function contactCardText(msg) {
+  const list = msg.typeMessage === 'contactsArrayMessage'
+    ? (msg.contactsArrayMessageData?.contacts || msg.contactsArrayMessage?.contacts || [])
+    : [msg.contactMessageData || msg.contactMessage || {}];
+  const lines = list.map(c => {
+    const vcard = c.vcard || '';
+    const name = (c.displayName || (vcard.match(/^FN:(.+)$/m) || [])[1] || '').trim();
+    let phone = ((vcard.match(/waid=(\d+)/) || [])[1] || (vcard.match(/^TEL[^:]*:(.+)$/m) || [])[1] || '').replace(/[^\d+]/g, '');
+    if (/^972\d{8,9}$/.test(phone)) phone = '0' + phone.slice(3);
+    if (/^0\d{9}$/.test(phone)) phone = phone.replace(/^(\d{3})(\d{3})(\d{4})$/, '$1-$2-$3');
+    return `👤 ${[name, phone].filter(Boolean).join(' · ')}`.trim();
+  }).filter(l => l.length > 2);
+  return lines.length ? lines.join('\n') : '👤 איש קשר';
+}
+
 async function saveInboundMedia(msg, leadId, externalId, chatId) {
   const d = msg.imageMessageData || msg.fileMessageData || {};
   let mediaUrl = d.downloadUrl || d.url || null;
@@ -120,7 +136,7 @@ async function processNotification(notification) {
       return;
     }
   }
-  const SUPPORTED = ['textMessage','extendedTextMessage','imageMessage','documentMessage','audioMessage','extendedAudioMessage','videoMessage'];
+  const SUPPORTED = ['textMessage','extendedTextMessage','imageMessage','documentMessage','audioMessage','extendedAudioMessage','videoMessage','contactMessage','contactsArrayMessage'];
   if (!SUPPORTED.includes(msg.typeMessage)) return;
 
   const chatId      = body.senderData?.chatId || body.senderData?.sender || '';
@@ -135,7 +151,9 @@ async function processNotification(notification) {
     ? (msg.textMessageData?.textMessage || '')
     : msg.typeMessage === 'extendedTextMessage'
       ? (msg.extendedTextMessageData?.text || '')
-      : ((msg.imageMessageData || msg.fileMessageData || {}).caption || `[${msg.typeMessage}]`);
+      : ['contactMessage','contactsArrayMessage'].includes(msg.typeMessage)
+        ? contactCardText(msg)
+        : ((msg.imageMessageData || msg.fileMessageData || {}).caption || `[${msg.typeMessage}]`);
 
   const { rows: dup } = await pool.query('SELECT id FROM messages WHERE external_id = $1', [externalId]);
   if (dup.length) return;
@@ -145,7 +163,7 @@ async function processNotification(notification) {
 
   // Resolve final message body (download media if needed)
   let text = previewText;
-  if (!['textMessage','extendedTextMessage'].includes(msg.typeMessage)) {
+  if (!['textMessage','extendedTextMessage','contactMessage','contactsArrayMessage'].includes(msg.typeMessage)) {
     ({ text } = await saveInboundMedia(msg, leadId, externalId, chatId));
   }
 

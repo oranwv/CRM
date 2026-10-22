@@ -1795,8 +1795,9 @@ leaves `downloadUrl` empty, so the CRM stored only the placeholder. Both inbound
 (`whatsappPoller.js`, `routes/whatsapp.js`) now call Green API's `downloadFile` (up to 3 tries,
 2s/4s apart) when the URL is missing, then save the file and the `[[FILE:…]]` marker as usual.
 Applies to new messages only — files that already arrived as placeholders cannot be recovered.
-Contact cards (`contactMessage`) are still ignored (not logged at all) — pending Oran's OK on
-how to show them.
+Contact cards (`contactMessage` / `contactsArrayMessage`) were dropped entirely; approved by
+Oran, they are now logged as a text line per contact — "👤 שם · 050-951-3258" (name and phone
+parsed from the vCard; Israeli numbers shown in local format).
 
 ### Phase 58 — Notes field grows with the text ✅ Built 2026-10-22
 Oran (phone, 22.10): the הערות textarea in the lead card was fixed at 3 rows and scrolled
