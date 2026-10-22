@@ -1,10 +1,14 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-10-21
+updated: 2026-10-22
 ---
 
 # Now
+
+## 2026-10-22 — Phase 58: notes field auto-grows
+
+- Lead-card הערות textarea grows with its content instead of scrolling inside (approved from a text preview).
 
 ## 2026-10-21 — Phase 57: assistant creates a lead from a pasted message (pushed, deploying)
 

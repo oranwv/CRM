@@ -1788,6 +1788,11 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 58 — Notes field grows with the text ✅ Built 2026-10-22
+Oran (phone, 22.10): the הערות textarea in the lead card was fixed at 3 rows and scrolled
+inside itself while typing. Now it auto-grows to fit the text (3 rows minimum, no inner
+scroll); the שמור button moves down with it. `LeadCard.jsx` only — same styling.
+
 ### Phase 57 — Assistant: new lead from a pasted message, meeting + task cards ✅ Built 2026-10-21
 Oran pastes a free-text call summary into the assistant (names, phone, "5 ביוני יום שבת",
 "בערך 50 איש", "30,000 לפני מע״מ", who the customer's contact is, kashrut, chef...) and wants

@@ -50,3 +50,4 @@
 {"ts":"2026-10-20T09:10:00Z","type":"phase_built","phase":56,"summary":"Suppliers search now matches category/description; apostrophe-insensitive","files":["client/src/pages/SuppliersPage.jsx","PRD.md"]}
 {"ts":"2026-10-20T09:20:00Z","type":"phase_built","phase":56,"summary":"Suppliers search extended to notes, files and all card fields","files":["server/routes/suppliers.js","client/src/pages/SuppliersPage.jsx","PRD.md"]}
 {"ts":"2026-10-21T11:55:00Z","type":"phase_built","phase":57,"summary":"Assistant: new lead from pasted message + separate meeting/task cards, propose_meeting, open-lead context rule","files":["server/routes/chat.js","server/routes/calendar.js","client/src/components/AIChat.jsx","PRD.md"]}
+{"ts": "2026-10-22T09:15:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "Lead card notes textarea auto-grows with the text (min 3 rows, no inner scroll)"}
