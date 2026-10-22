@@ -1788,6 +1788,16 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 59 — Inbound WhatsApp files that arrived without a download link ✅ Built 2026-10-22
+Oran (22.10): a file a customer sent showed on the timeline as a grey "📎 קובץ" with nothing
+to click. Cause: Green API sometimes delivers the notification before the file is ready and
+leaves `downloadUrl` empty, so the CRM stored only the placeholder. Both inbound paths
+(`whatsappPoller.js`, `routes/whatsapp.js`) now call Green API's `downloadFile` (up to 3 tries,
+2s/4s apart) when the URL is missing, then save the file and the `[[FILE:…]]` marker as usual.
+Applies to new messages only — files that already arrived as placeholders cannot be recovered.
+Contact cards (`contactMessage`) are still ignored (not logged at all) — pending Oran's OK on
+how to show them.
+
 ### Phase 58 — Notes field grows with the text ✅ Built 2026-10-22
 Oran (phone, 22.10): the הערות textarea in the lead card was fixed at 3 rows and scrolled
 inside itself while typing. Now it auto-grows to fit the text (3 rows minimum, no inner

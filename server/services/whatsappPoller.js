@@ -12,9 +12,22 @@ function mediaMimeToExt(mime) {
   return map[mime] || 'bin';
 }
 
-async function saveInboundMedia(msg, leadId, externalId) {
+async function saveInboundMedia(msg, leadId, externalId, chatId) {
   const d = msg.imageMessageData || msg.fileMessageData || {};
-  const mediaUrl = d.downloadUrl || d.url || null;
+  let mediaUrl = d.downloadUrl || d.url || null;
+  // Green API sometimes delivers the notification before the file is ready and leaves
+  // downloadUrl empty; its downloadFile method returns the URL once it exists.
+  if (!mediaUrl && chatId && externalId) {
+    for (let attempt = 0; attempt < 3 && !mediaUrl; attempt++) {
+      if (attempt) await new Promise(r => setTimeout(r, 2000 * attempt));
+      try {
+        const r = await axios.post(`${BASE()}/downloadFile/${TOKEN()}`, { chatId, idMessage: externalId }, { timeout: 15000 });
+        mediaUrl = r.data?.downloadUrl || null;
+      } catch (err) {
+        console.error('[WhatsApp] downloadFile error:', err.message);
+      }
+    }
+  }
   if (!mediaUrl) return { text: d.fileName ? `📎 ${d.fileName}` : (d.caption || `[${msg.typeMessage}]`) };
 
   const caption  = d.caption || '';
@@ -133,7 +146,7 @@ async function processNotification(notification) {
   // Resolve final message body (download media if needed)
   let text = previewText;
   if (!['textMessage','extendedTextMessage'].includes(msg.typeMessage)) {
-    ({ text } = await saveInboundMedia(msg, leadId, externalId));
+    ({ text } = await saveInboundMedia(msg, leadId, externalId, chatId));
   }
 
   await pool.query(

@@ -6,6 +6,10 @@ updated: 2026-10-22
 
 # Now
 
+## 2026-10-22 — Phase 59: inbound WhatsApp files without downloadUrl
+
+- downloadFile fallback (3 tries) in poller + webhook. Open: contact cards are dropped entirely — proposed showing them as a text line (name · phone), waiting for Oran.
+
 ## 2026-10-22 — Phase 58: notes field auto-grows
 
 - Lead-card הערות textarea grows with its content instead of scrolling inside (approved from a text preview).
