@@ -927,6 +927,10 @@ app.use('/api/leads/:id/production-checklist', requireAuth, productionChecklistR
 app.use('/api/leads/:id/event-brief',          requireAuth, eventBriefRoutes);
 app.use('/api/leads',               requireAuth, leadsRoutes);
 app.use('/api/leads/:leadId/files', requireAuth, filesRoutes);
+app.get('/api/version', (req, res) => {
+  const { versionInfo, readChangelog } = require('./utils/version');
+  res.json({ ...versionInfo(), changelog: readChangelog(10) });
+});
 app.use('/api/admin',               requireAuth, adminRoutes);
 app.get('/api/drive/debug',         driveDebugHandler);
 app.use('/api/drive',               requireAuth, driveRoutes);

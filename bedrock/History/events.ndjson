@@ -53,3 +53,4 @@
 {"ts": "2026-10-22T09:15:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "Lead card notes textarea auto-grows with the text (min 3 rows, no inner scroll)"}
 {"ts": "2026-10-22T09:40:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "Inbound WhatsApp media: fall back to Green API downloadFile when the notification has no downloadUrl (poller + webhook)"}
 {"ts": "2026-10-22T09:50:00Z", "type": "feature", "tool": "cowork", "slug": "CRM", "summary": "Inbound WhatsApp contact cards logged on the timeline as '👤 name · phone' (poller + webhook)"}
+{"ts": "2026-10-22T10:00:00Z", "type": "feature", "tool": "cowork", "slug": "CRM", "summary": "Versioning: CHANGELOG.md, /api/version (version+commit+build time), footer in settings, assistant answers 'what version'. Rule: every push bumps the version."}

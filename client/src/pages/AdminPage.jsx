@@ -1237,6 +1237,7 @@ export default function AdminPage() {
           </button>
         </div>
 
+        <VersionFooter />
       </div>
 
       {showItemEditor && (
@@ -1324,5 +1325,18 @@ export default function AdminPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// Running version line at the bottom of הגדרות (from /api/version).
+function VersionFooter() {
+  const [v, setV] = useState(null);
+  useEffect(() => { api.get('/version').then(r => setV(r.data)).catch(() => {}); }, []);
+  if (!v) return null;
+  const built = v.buildTime ? new Date(v.buildTime).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : null;
+  return (
+    <p className="text-center text-[11px] text-slate-400 pt-2" dir="rtl">
+      ProEvent CRM · גרסה {v.version}{built ? ` · נבנה ${built}` : ''}{v.commit ? ` · ${v.commit}` : ''}
+    </p>
   );
 }

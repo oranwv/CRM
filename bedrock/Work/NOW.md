@@ -6,6 +6,10 @@ updated: 2026-10-22
 
 # Now
 
+## 2026-10-22 — Phase 60: versions
+
+- CHANGELOG.md + package.json version + /api/version + footer in הגדרות + assistant knows the version. RULE: every push bumps the version and adds a changelog entry.
+
 ## 2026-10-22 — Phase 59: inbound WhatsApp files without downloadUrl
 
 - downloadFile fallback (3 tries) in poller + webhook. Contact cards now logged as "👤 name · phone" text lines (approved).

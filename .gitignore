@@ -25,3 +25,4 @@ bedrock/.obsidian/workspaces.json
 # Cowork session scratch (screenshots, temp exports)
 Claude outputs/
 *.tgz
+.build-time

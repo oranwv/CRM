@@ -24,6 +24,7 @@ COPY client/package*.json ./client/
 RUN cd client && npm ci
 
 COPY . .
+RUN date -u +"%Y-%m-%dT%H:%M:%SZ" > .build-time
 RUN cd client && npm run build
 
 EXPOSE 3001

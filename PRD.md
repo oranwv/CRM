@@ -1788,6 +1788,19 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 60 — Software versions ✅ Built 2026-10-22
+Oran (22.10): wants to ask the assistant "what version is running" and get a real answer.
+- `CHANGELOG.md` (Hebrew, newest first) — one entry per push, numbered semver-style
+  (fix = x.y.Z, feature = x.Y.0, big change = X.0.0); starts at **1.0.0** = today's state.
+  `package.json` `version` is bumped together with it.
+- `server/utils/version.js` — version + commit (`RAILWAY_GIT_COMMIT_SHA`) + build time
+  (`.build-time`, written by the Dockerfile; git-ignored). `GET /api/version` (public) returns
+  these plus the last 10 changelog entries.
+- הגדרות: grey footer line "ProEvent CRM · גרסה 1.0.0 · נבנה dd/mm/yy hh:mm · commit".
+- Assistant: system prompt gets a "גרסת התוכנה" section (current version + last 5 entries) and
+  a rule to answer version questions from it.
+Working rule from now on: every push to main = changelog entry + version bump.
+
 ### Phase 59 — Inbound WhatsApp files that arrived without a download link ✅ Built 2026-10-22
 Oran (22.10): a file a customer sent showed on the timeline as a grey "📎 קובץ" with nothing
 to click. Cause: Green API sometimes delivers the notification before the file is ready and

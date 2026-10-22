@@ -69,3 +69,6 @@ each with its own bottom tabs: מכירות, הפקה, תפעול, ספקים, �
 - `crm_app` cookie (server-set, 1y) = "serve the app at `/`, not the landing page". Never rely
   on JS-written cookies for this — Safari drops them after 7 days.
 - Only `www.proevent.co.il` has DNS; the bare domain does not resolve.
+
+## Versioning (from 2026-10-22)
+- `CHANGELOG.md` + `package.json` version; every push to main bumps the version (fix x.y.Z / feature x.Y.0 / major X.0.0) and adds a Hebrew changelog entry. `/api/version` + footer in הגדרות + assistant context read from it.
