@@ -1,11 +1,16 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-10-22
+updated: 2026-10-25
 ---
 
 # Now
 
+## 2026-10-25 — Phase 61: מאמרים (content pages) — merged to main, deploying (1.1.0)
+
+- `server/landing/pages.js`: Markdown posts in `server/landing/content/blog/` → `/blog`, `/blog/:slug`, dynamic `/sitemap.xml`. Same nav/footer/demo form as the landing page; "מאמרים" link only on the new pages (landing nav untouched — Oran's call).
+- Posts: מה זה מערכת CRM · CRM לאולמות אירועים · הסיפור מאחורי ProEvent (venue not named).
+- Previewed with Playwright at 1200px / 390px; Oran approved the preview on 2026-10-25 ("let it start ranking"), wants more text edits later. Next: /about, feature pages (RSVP, leads, contracts), pricing — per the marketing plan.
 ## 2026-10-22 — Phase 60: versions
 
 - CHANGELOG.md + package.json version + /api/version + footer in הגדרות + assistant knows the version. RULE: every push bumps the version and adds a changelog entry.

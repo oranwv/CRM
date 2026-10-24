@@ -1,6 +1,6 @@
 # Sharabiya CRM — Product Requirements Document
 
-> **Last updated:** 2026-09-08
+> **Last updated:** 2026-10-21
 > **Live at:** https://www.proevent.co.il
 > **Hosting:** Railway (auto-deploy from GitHub `main` branch)
 > **DB + Storage:** Supabase (PostgreSQL + Storage bucket `crm-files`)
@@ -1631,6 +1631,19 @@ footer; `client/public/favicon.svg` replaced; app `index.html` → `<title>ProEv
 "שרביה CRM" with a small "proevent" wordmark; the app top bar shows the white mono mark next
 to "שרביה CRM". Contract / offer PDFs keep `client/public/logo.jpg` — that is Sharviya's
 logo on customer documents, not the product's.
+
+## Blog + content pages (`server/landing/pages.js`) ✅ Built 2026-10-21
+
+Markdown files under `server/landing/content/blog/*.md` (front matter: `title`, `description`,
+`date`, `updated`, `topic`, `author`, `slug`, `draft`) are rendered at boot into the landing
+page's Nocturne look (same nav + "מאמרים" link (URL stays /blog), footer, demo form → `/api/public/demo-request`,
+GA via `GA_MEASUREMENT_ID`). Routes: `GET /blog` (index, newest first), `GET /blog/:slug`
+(BlogPosting + BreadcrumbList JSON-LD, canonical, OG), `GET /sitemap.xml` (now dynamic —
+the static `server/landing/sitemap.xml` was removed). Unknown slugs fall through to the SPA.
+Tiny built-in Markdown subset (headings, paragraphs, bold/italic, links, lists, `- [ ]`
+checklists, blockquotes, rules) — no new dependency. New post = new `.md` file + deploy.
+First three posts: `what-is-crm`, `crm-for-event-venues`, `our-story` (founder story, venue
+not named). Marketing plan: Claude Project doc `claude/proevent-marketing-plan.md`.
 
 ## Runtime DB Migrations (boot)
 
