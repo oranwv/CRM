@@ -1801,6 +1801,39 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 62 — Download / send any file + in-app file viewer ✅ Built 2026-10-26 (1.2.0)
+Oran (25–26.10): files in the CRM (contracts, price offers, designed HTML menus, uploads)
+opened in a Chrome tab with no way to save or send them; he wants download + send
+everywhere a file appears, PDF output, and a ⋮ menu when a file is open. Approved mock-up
+26.10; added: the send window offers "to the customer" (lead's WhatsApp/email) or
+"share on WhatsApp in general" (any contact).
+- **Server** — `services/fileBox.js` + `routes/filebox.js` (`/api/filebox`, auth). A file is
+  addressed by a ref: `lead:<fileId>` (files table), `supplier:<sid>:<fileId>`
+  (supplier_files), `ops:<activityLogId>` (op_activity_log 'file' rows). Routes: `info`
+  (name, mime, contacts of the lead/supplier), `url` (10-min signed URL for viewing),
+  `download?format=pdf|original`, `send` (via whatsapp|email, to[], message, subject).
+- **HTML → PDF**: Puppeteer opens the signed URL at 820px wide, waits for fonts, and prints
+  one page sized to the document (background + frame intact, no A4 cuts). Non-HTML files
+  are sent/downloaded as stored. `waOutbound.sendFileToPhones` accepts a `buffer` and
+  returns `sent.msgIds` (phone → idMessage) so the 30-min sync recognises the rows.
+- **History**: lead WhatsApp → `messages` rows with `[[FILE:id|name]]`; lead email →
+  `lead_interactions` email row; supplier → `supplier_interactions` (file_id). Production
+  files are sent without a history row.
+- **Client** — `files/fileBox.js` (refs, `openFileViewer`, `openFileSend`, `downloadFile`,
+  `shareFile` via the Web Share API), `components/FileBoxHost.jsx` mounted once in
+  `App.jsx`: full-screen viewer (image / HTML iframe / PDF iframe on desktop, Google viewer
+  on phones / audio) with ⋮ → הורד (כ-PDF) / שלח / פתח בדפדפן, back button closes it; send
+  sheet: ללקוח (chips of the lead's phones + emails → Sharabiya WhatsApp/Gmail) and לכל אחד
+  (phone share sheet with the file attached when the browser supports it, else download;
+  plus "another number / email" fields). `components/FileActions.jsx` = the two small
+  buttons, placed in: lead files list, timeline `[[FILE]]` markers, WhatsApp bubbles,
+  supplier files + supplier interactions, production activity log. `openFile` in LeadCard
+  and SupplierCard now opens the viewer instead of a new tab.
+- Not changed: Finance (Drive/Gmail links), Green Invoice documents, AI chat knowledge files,
+  candidate CVs — external links as before.
+- Also in this push: root `package.json` was committed empty in 1.1.1 (would have failed the
+  Railway build) — restored at 1.2.0.
+
 ### Phase 60 — Software versions ✅ Built 2026-10-22
 Oran (22.10): wants to ask the assistant "what version is running" and get a real answer.
 - `CHANGELOG.md` (Hebrew, newest first) — one entry per push, numbered semver-style

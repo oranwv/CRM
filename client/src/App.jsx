@@ -33,6 +33,7 @@ import { docTypeLabel }   from './utils/docTypes';
 import { AppModeProvider, useAppMode } from './context/AppModeContext';
 import { CallProvider, useCalls } from './context/CallContext';
 import CallBar from './components/CallBar';
+import FileBoxHost from './components/FileBoxHost';
 import usePresencePing from './hooks/usePresencePing';
 import api from './api';
 
@@ -469,6 +470,7 @@ function AppRoutes() {
       <GlobalHeader />
       <CallBar />
       <AIChat />
+      <FileBoxHost />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/" element={

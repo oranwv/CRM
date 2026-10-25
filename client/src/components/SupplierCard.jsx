@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
+import FileActions from './FileActions';
+import { openFileViewer, supplierFileRef } from '../files/fileBox';
 import api from '../api';
 
 const CATEGORY_COLORS = {
@@ -145,11 +147,9 @@ export default function SupplierCard({ supplierId, onClose, categories: categori
     setInteractions(prev => prev.filter(i => i.id !== id));
   }
 
-  async function openInteractionFile(fileId) {
-    try {
-      const res = await api.get(`/suppliers/${supplierId}/files/${fileId}/url`);
-      window.open(res.data.url, '_blank');
-    } catch {}
+  // Phase 62: in-app viewer (⋮ → הורד / שלח / פתח בדפדפן) instead of a browser tab
+  function openInteractionFile(fileId, hint) {
+    openFileViewer(supplierFileRef(supplierId, fileId), hint);
   }
 
   async function sendWhatsApp() {
@@ -193,11 +193,8 @@ export default function SupplierCard({ supplierId, onClose, categories: categori
     finally { setUploading(false); if (fileInputRef.current) fileInputRef.current.value = ''; }
   }
 
-  async function openFile(file) {
-    try {
-      const res = await api.get(`/suppliers/${supplierId}/files/${file.id}/url`);
-      window.open(res.data.url, '_blank');
-    } catch {}
+  function openFile(file) {
+    openFileViewer(supplierFileRef(supplierId, file.id), { filename: file.filename, mime: file.file_type });
   }
 
   async function deleteFile(id) {
@@ -408,11 +405,14 @@ export default function SupplierCard({ supplierId, onClose, categories: categori
                   </div>
                   <p className="text-sm text-slate-700 whitespace-pre-wrap">{int.body}</p>
                   {int.file_id && int.file_name && (
-                    <button onClick={() => openInteractionFile(int.file_id)}
-                      className="mt-1.5 flex items-center gap-1 text-xs text-violet-600 hover:text-violet-800 hover:underline">
-                      <span>{fileIcon(int.file_mime)}</span>
-                      <span className="truncate">{int.file_name}</span>
-                    </button>
+                    <span className="mt-1.5 flex items-center gap-1.5 max-w-full">
+                      <button onClick={() => openInteractionFile(int.file_id, { filename: int.file_name, mime: int.file_mime })}
+                        className="flex items-center gap-1 text-xs text-violet-600 hover:text-violet-800 hover:underline min-w-0">
+                        <span>{fileIcon(int.file_mime)}</span>
+                        <span className="truncate">{int.file_name}</span>
+                      </button>
+                      <FileActions fileRef={supplierFileRef(supplierId, int.file_id)} filename={int.file_name} mime={int.file_mime} size="xs" />
+                    </span>
                   )}
                 </div>
               </div>
@@ -476,6 +476,7 @@ export default function SupplierCard({ supplierId, onClose, categories: categori
                     )}
                   </div>
                 </div>
+                <FileActions fileRef={supplierFileRef(supplierId, f.id)} filename={f.filename} mime={f.file_type} size="xs" />
                 <button onClick={() => deleteFile(f.id)}
                   className="hidden group-hover:block text-red-400 hover:text-red-600 text-sm font-bold">✕</button>
               </div>

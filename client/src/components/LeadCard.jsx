@@ -10,6 +10,8 @@ import InvoiceModal from './InvoiceModal';
 import PendingDocDetail from './PendingDocDetail';
 import AddSupplierModal from './AddSupplierModal';
 import SupplierCard from './SupplierCard';
+import FileActions from './FileActions';
+import { openFileViewer, leadFileRef } from '../files/fileBox';
 import ContractTrackIcons from './ContractTrackIcons';
 import { docTypeLabel } from '../utils/docTypes';
 import { israelToISO, israelLocalToISO, isoToIsraelLocal } from '../utils/israelTime';
@@ -1119,21 +1121,11 @@ function Section({ title, action, children }) {
   );
 }
 
-/* ── OPEN FILE via signed URL ── */
-async function openFile(fileId) {
-  const win = window.open('', '_blank');
-  try {
-    const token = localStorage.getItem('crm_token');
-    const res = await fetch(`/api/files/${fileId}/url`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) throw new Error('לא ניתן לפתוח את הקובץ');
-    const { url } = await res.json();
-    win.location.href = url;
-  } catch {
-    win?.close();
-    alert('שגיאה בפתיחת הקובץ');
-  }
+/* ── OPEN FILE — in-app viewer with its own ⋮ menu (הורד / שלח / פתח בדפדפן), Phase 62.
+   Used to send the browser to a Supabase signed URL, which on the installed app
+   opened a Chrome tab with no way to save or send the file. ── */
+function openFile(fileId, hint) {
+  openFileViewer(leadFileRef(fileId), hint);
 }
 
 /* ── VOICE NOTES (WhatsApp audio) ── */
@@ -1278,7 +1270,7 @@ function FilesSection({ leadId, files, onChanged, isAdmin }) {
               ) : (
                 <>
                   <button
-                    onClick={e => { e.stopPropagation(); openFile(f.id); }}
+                    onClick={e => { e.stopPropagation(); openFile(f.id, { filename: f.filename, mime: f.file_type }); }}
                     className="text-base font-semibold text-violet-700 hover:underline block w-full max-w-full text-right wrap-break-word sm:truncate">
                     {f.filename}
                   </button>
@@ -1286,6 +1278,9 @@ function FilesSection({ leadId, files, onChanged, isAdmin }) {
                 </>
               )}
             </div>
+            {!isAudioFile(f.filename, f.file_type) && (
+              <FileActions fileRef={leadFileRef(f.id)} filename={f.filename} mime={f.file_type} />
+            )}
             {(isAdmin || f.file_type !== 'contract') && (
               <button onClick={() => deleteFile(f.id)}
                 className="shrink-0 text-slate-400 hover:text-red-500 transition text-sm font-medium px-2 py-1 rounded-lg hover:bg-red-50 border border-transparent hover:border-red-200">
@@ -1494,11 +1489,14 @@ function BodyWithFile({ body: rawBody }) {
       {files.map((f, i) => isAudioFile(f.name) ? (
         <VoiceNotePlayer key={i} fileId={f.id} />
       ) : (
-        <button key={i}
-          onClick={e => { e.stopPropagation(); openFile(f.id); }}
-          className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-violet-50 border border-slate-200 hover:border-violet-300 text-sm font-semibold text-slate-700 hover:text-violet-700 transition">
-          {fileIconByExt(f.name)} {f.name}
-        </button>
+        <span key={i} className="inline-flex items-center gap-1 mt-1.5 max-w-full">
+          <button
+            onClick={e => { e.stopPropagation(); openFile(f.id, { filename: f.name }); }}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-violet-50 border border-slate-200 hover:border-violet-300 text-sm font-semibold text-slate-700 hover:text-violet-700 transition min-w-0 wrap-anywhere">
+            {fileIconByExt(f.name)} {f.name}
+          </button>
+          <FileActions fileRef={leadFileRef(f.id)} filename={f.name} size="xs" />
+        </span>
       ))}
       {recIds.map(id => <RecordingPlayer key={id} callId={id} />)}
       {transcript && (
@@ -4714,11 +4712,14 @@ function WaBubbleBody({ body }) {
       {files.map((f, i) => isAudioFile(f.name) ? (
         <VoiceNotePlayer key={i} fileId={f.id} />
       ) : (
-        <button key={i}
-          onClick={e => { e.stopPropagation(); openFile(f.id); }}
-          className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-violet-50 border border-slate-200 hover:border-violet-300 text-sm font-semibold text-slate-700 hover:text-violet-700 transition max-w-full wrap-anywhere">
-          {fileIconByExt(f.name)} {f.name}
-        </button>
+        <span key={i} className="inline-flex items-center gap-1 mt-1.5 max-w-full">
+          <button
+            onClick={e => { e.stopPropagation(); openFile(f.id, { filename: f.name }); }}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-violet-50 border border-slate-200 hover:border-violet-300 text-sm font-semibold text-slate-700 hover:text-violet-700 transition min-w-0 wrap-anywhere">
+            {fileIconByExt(f.name)} {f.name}
+          </button>
+          <FileActions fileRef={leadFileRef(f.id)} filename={f.name} size="xs" />
+        </span>
       ))}
     </div>
   );

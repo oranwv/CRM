@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import FileActions from '../components/FileActions';
+import { openFileViewer, opsFileRef } from '../files/fileBox';
 import api from '../api';
 import ChecklistDetail    from '../components/ops/ChecklistDetail';
 import FaultDetail        from '../components/ops/FaultDetail';
@@ -198,18 +200,22 @@ function ActivityLogSection({ entityType, entityId, refreshTrigger }) {
       try { meta = JSON.parse(entry.body); } catch {}
       const displayUrl = meta.signed_url || meta.url;
       const isImage = meta.mime_type?.startsWith('image/');
+      // Phase 62: open in the in-app viewer (⋮ → הורד / שלח / פתח בדפדפן) + the two buttons
+      const ref = opsFileRef(entry.id);
+      const hint = { filename: meta.filename, mime: meta.mime_type };
       return (
-        <div>
+        <div className="flex items-end gap-2 flex-wrap">
           {isImage ? (
-            <a href={displayUrl} target="_blank" rel="noopener noreferrer">
+            <button type="button" onClick={() => openFileViewer(ref, hint)} className="block">
               <img src={displayUrl} alt={meta.filename} className="max-h-40 rounded-lg border border-slate-200 mt-1 object-contain" />
-            </a>
+            </button>
           ) : (
-            <a href={displayUrl} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-violet-600 font-semibold hover:underline mt-0.5">
+            <button type="button" onClick={() => openFileViewer(ref, hint)}
+              className="inline-flex items-center gap-1.5 text-violet-600 font-semibold hover:underline mt-0.5 text-right">
               <span>📎</span> {meta.filename}
-            </a>
+            </button>
           )}
+          <FileActions fileRef={ref} filename={meta.filename} mime={meta.mime_type} size="xs" />
         </div>
       );
     }

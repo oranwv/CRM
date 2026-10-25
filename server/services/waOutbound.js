@@ -36,21 +36,26 @@ async function sendTextToPhones(phones, message) {
   return sent;
 }
 
-// { signedUrl, fileName, mime, caption } → phones that received the file
-async function sendFileToPhones(phones, { signedUrl, fileName, mime = 'application/octet-stream', caption = '' }) {
-  const fileRes = await axios.get(signedUrl, { responseType: 'arraybuffer', timeout: 30000 });
+// { signedUrl | buffer, fileName, mime, caption } → phones that received the file.
+// `buffer` skips the download (used for files converted on the fly, e.g. HTML → PDF).
+// Resolves to { sent, msgIds } — msgIds maps phone → Green API idMessage so the
+// caller can log the row with the external id the 30-min sync will recognise.
+async function sendFileToPhones(phones, { signedUrl, buffer, fileName, mime = 'application/octet-stream', caption = '' }) {
+  const bytes = buffer || Buffer.from((await axios.get(signedUrl, { responseType: 'arraybuffer', timeout: 30000 })).data);
   const fd = new FormData();
-  fd.append('file', Buffer.from(fileRes.data), { filename: fileName, contentType: mime });
+  fd.append('file', bytes, { filename: fileName, contentType: mime });
   const up = await axios.post(method('uploadFile'), fd, { headers: fd.getHeaders(), maxBodyLength: Infinity });
   const urlFile = up.data?.urlFile;
   if (!urlFile) throw new Error('Green API upload returned no urlFile');
 
   const sent = [];
+  sent.msgIds = {}; // phone → idMessage (extra property so existing callers that treat the result as an array keep working)
   for (const phone of phones) {
     try {
       await slot();
-      await axios.post(method('sendFileByUrl'), { chatId: `${phone}@c.us`, urlFile, fileName, caption });
+      const { data } = await axios.post(method('sendFileByUrl'), { chatId: `${phone}@c.us`, urlFile, fileName, caption });
       sent.push(phone);
+      sent.msgIds[phone] = data?.idMessage || null;
     } catch (err) {
       console.error('[waOutbound] file send failed for', phone, err.response?.data || err.message);
     }

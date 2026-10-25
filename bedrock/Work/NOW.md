@@ -1,10 +1,18 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-10-25
+updated: 2026-10-26
 ---
 
 # Now
+
+## 2026-10-26 — Phase 62: download / send any file + in-app viewer (1.2.0)
+
+- `/api/filebox` (info/url/download/send) over refs `lead:<id>` / `supplier:<sid>:<id>` / `ops:<logId>`; HTML menus → one-page PDF that looks like the screen (Puppeteer, 820px, fonts awaited).
+- `FileBoxHost` (viewer with ⋮ הורד/שלח/פתח בדפדפן + send sheet: ללקוח via Sharabiya WA/Gmail, לכל אחד via phone share sheet) mounted in App; `FileActions` buttons beside every file (lead files, timeline, WA bubbles, suppliers, production log).
+- Restored root `package.json` (committed empty in 1.1.1 → Railway build would fail).
+- Built in the cloud without the Mac: client `vite build` passes; fileBox resolver + HTML→PDF exercised against a stub DB. Not yet seen live — verify on the phone after deploy (installed PWA: viewer instead of Chrome tab, share sheet opens WhatsApp with the PDF).
+- Still open: contract preview deposit edits revert on the signing page/PDF (18.10); "add line" box that grows + contract assistant (mock approved 22.10, not built).
 
 ## 2026-10-25 — Phase 61: מאמרים (content pages) — merged to main, deploying (1.1.0)
 

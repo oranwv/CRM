@@ -920,6 +920,7 @@ app.use('/api/my-tasks',  requireAuth, require('./routes/myTasks')); // Phase 55
 
 // Protected
 app.use('/api/files',               requireAuth, fileDownloadRoutes);
+app.use('/api/filebox',             requireAuth, require('./routes/filebox')); // Phase 62: download / view / send any file
 app.use('/api/leads/:id/price-offer', requireAuth, priceOfferRoutes);
 app.use('/api/leads/:id/contracts',   requireAuth, contractLeadRouter);
 app.use('/api/contracts',             contractPublicRouter);
