@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
+import { openLead } from '../utils/openLead';
 
 // Events in the next 7 days with something still open (brief / checklist / deposit / אחראי הפקה).
 // Opened from the red "אירועים לא מוכנים" badge in the header. Clicking a row opens the lead.
@@ -37,7 +38,7 @@ export default function UnreadyEventsModal({ onClose }) {
 
   function openLead(id) {
     onClose();
-    navigate(`/?lead=${id}`);
+    openLead(navigate, id);
   }
 
   return (

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
+import { openLead } from '../utils/openLead';
 
 const TIERS = [
   { key: 1, title: 'חוזים שנשלחו וטרם נחתמו', color: 'border-red-300 bg-red-50',     dot: 'bg-red-500' },
@@ -148,7 +149,7 @@ export default function SalesWorklistPage() {
   }, []);
   useEffect(load, [load]);
 
-  const openLead = id => navigate(`/?lead=${id}`);
+  const openLeadFromHere = id => openLead(navigate, id);
   const byTier = t => (items || []).filter(i => i.tier === t);
 
   return (
@@ -177,7 +178,7 @@ export default function SalesWorklistPage() {
                   <span className="text-xs text-slate-400">({list.length})</span>
                 </div>
                 <div className="space-y-2">
-                  {list.map(it => <WorklistItem key={it.lead_id} it={it} onOpen={openLead} />)}
+                  {list.map(it => <WorklistItem key={it.lead_id} it={it} onOpen={openLeadFromHere} />)}
                 </div>
               </div>
             );

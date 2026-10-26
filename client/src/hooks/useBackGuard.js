@@ -10,6 +10,15 @@ const stack = [];
 // Counter of synthetic history.back() calls we issue ourselves (on programmatic
 // close), so their popstate events are ignored instead of closing an outer overlay.
 let suppress = 0;
+// The synthetic back() is issued from a guard's cleanup, after that guard's own popstate
+// listener is gone — so if no other guard was open, nobody consumed the counter and the NEXT
+// real back gesture was swallowed (the card needed two "back"s). One module-level listener,
+// registered before any guard's, now consumes those synthetic pops for everyone. (Phase 63)
+if (typeof window !== 'undefined') {
+  window.addEventListener('popstate', e => {
+    if (suppress > 0) { suppress -= 1; e.stopImmediatePropagation(); }
+  });
+}
 
 /**
  * Intercepts a browser "back" gesture (Windows back button / Mac trackpad swipe →
@@ -37,8 +46,6 @@ export default function useBackGuard(isOpen, onClose, { isDirty = false } = {}) 
     let armed = true;
 
     const onPop = () => {
-      // Ignore popstate events caused by our own synthetic history.back().
-      if (suppress > 0) { suppress -= 1; return; }
       // Only the topmost guard handles a real back gesture.
       if (stack[stack.length - 1] !== entry) return;
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../api';
 import LeadCard from '../components/LeadCard';
 import AddLeadModal from '../components/AddLeadModal';
@@ -156,7 +156,9 @@ function DateTimeCell({ value }) {
 }
 
 export default function LeadsPage() {
-  const { setOpenLeadId } = useAppMode();
+  const { setOpenLeadId, mode, setMode } = useAppMode();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [tab, setTab]           = useState('new');
   const [leads, setLeads]       = useState([]);
   const [loading, setLoading]   = useState(true);
@@ -194,15 +196,38 @@ export default function LeadsPage() {
   // Whether we need to fetch the combined 'active' set (both new + in_process)
   const inActiveFilterMode = isActiveSection && hasFilter(activeFilter) && !debouncedSearch;
 
+  // Where to go back to when the card opened from another screen (הפעילות שלי, ניהול, a modal…)
+  // — set by utils/openLead.js through router state. Phase 63.
+  const returnRef = useRef(null);
   useEffect(() => {
     const leadParam = searchParams.get('lead');
     if (leadParam) {
       const id = Number(leadParam);
+      if (location.state?.returnTo) returnRef.current = { to: location.state.returnTo, mode: location.state.returnMode };
       setSelectedId(id);
       setOpenLeadId(id);
-      setSearchParams({}, { replace: true });
+      setSearchParams({}, { replace: true, state: location.state });
     }
   }, [searchParams]);
+
+  function closeLead() {
+    setSelectedId(null); setOpenLeadId(null);
+    const back = returnRef.current;
+    if (!back) return;
+    returnRef.current = null;
+    // The card's back-guard pops its own history entry right after a programmatic close
+    // (history.back() → popstate). Navigate only after that settles, so we replace the
+    // leads-list entry and not the entry the guard is about to drop.
+    let done = false;
+    const go = () => {
+      if (done) return; done = true;
+      window.removeEventListener('popstate', go);
+      if (back.mode && back.mode !== mode) setMode(back.mode);
+      navigate(back.to, { replace: true });
+    };
+    window.addEventListener('popstate', go);
+    setTimeout(go, 150);
+  }
 
   // Fetch users for the filter panel
   useEffect(() => {
@@ -559,7 +584,7 @@ export default function LeadsPage() {
       </div>
 
       {selectedId && (
-        <LeadCard leadId={selectedId} onClose={() => { setSelectedId(null); setOpenLeadId(null); }} onUpdated={loadLeads} />
+        <LeadCard leadId={selectedId} onClose={closeLead} onUpdated={loadLeads} />
       )}
       {showAdd && (
         <AddLeadModal onClose={() => setShowAdd(false)} onSaved={() => { setShowAdd(false); loadLeads(); }} />

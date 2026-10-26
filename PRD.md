@@ -1801,6 +1801,25 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 63 — Back button + "×" returns to where you came from ✅ Built 2026-10-26 (v1.3.0)
+Oran (from the phone): opening a lead from הפעילות שלי and pressing × should go back to הפעילות
+שלי, and in general × should return to the previous screen; also a back button.
+- `utils/openLead.js` — every in-app lead link (TaskItems, UnreadyEventsModal, PaymentSignalsModal,
+  ManagementPage, MyActivityPage, SalesWorklistPage, CallBar) calls `openLead(navigate, id)`, which
+  navigates to `/?lead=<id>` with router state `{ returnTo, returnMode }` (the current path and
+  `crm_mode`). `LeadsPage` keeps that in a ref; its `closeLead` restores the mode and
+  `navigate(returnTo, { replace: true })` — after the card's back-guard has popped its own history
+  entry (it waits for that popstate, or 150 ms). Links from outside the app (WhatsApp, calendar,
+  mail) carry no state, so they behave as before (card closes, leads list stays).
+- Header: a "‹ חזרה" button next to the mode dropdown, on every screen — `window.history.back()`,
+  so an open card closes first (useBackGuard) and otherwise the previous page is shown.
+- Bug fixed in `hooks/useBackGuard.js`: the synthetic `history.back()` issued on a programmatic
+  close was consumed by a counter that only a *still-listening* guard decremented; with no other
+  guard open it stayed set and swallowed the next real back gesture (the card needed two backs).
+  A module-level popstate listener now consumes those synthetic pops.
+Verified with a Playwright flow (open from הפעילות שלי → × → back on הפעילות שלי in ניהול mode;
+header back from a card and from a page).
+
 ### Phase 62 — Download / send any file + in-app file viewer ✅ Built 2026-10-26 (1.2.0)
 Oran (25–26.10): files in the CRM (contracts, price offers, designed HTML menus, uploads)
 opened in a Chrome tab with no way to save or send them; he wants download + send

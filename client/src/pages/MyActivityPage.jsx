@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
+import { openLead } from '../utils/openLead';
 import { METRIC_COLS, dayStr, shiftDays, metricTotal, LeadActivityTable } from './ManagementPage';
 import { TaskRow, GROUP_LABELS, GROUP_ORDER } from '../components/TaskItems';
 
@@ -200,7 +201,7 @@ export default function MyActivityPage() {
         <LeadActivityTable
           loading={loading && dayList.length === 0}
           empty="אין פעילות מול לקוחות בטווח זה"
-          onOpen={L => navigate(`/?lead=${L.lead_id}`)}
+          onOpen={L => openLead(navigate, L.lead_id)}
           days={dayList.map(d => ({
             date: d.date,
             leads: d.leads,

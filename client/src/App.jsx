@@ -262,6 +262,14 @@ function GlobalHeader() {
       )}
 
       <div className="order-2 sm:order-3 flex items-center gap-1.5 shrink-0 h-11">
+      {/* Phase 63: a back button everywhere — the browser's own back, so an open card closes first
+          (useBackGuard) and a card opened from another screen returns there. */}
+      <button onClick={() => window.history.back()} title="חזרה למסך הקודם" aria-label="חזרה"
+        className="flex items-center gap-1 text-xs font-black px-2.5 py-1.5 rounded-xl cursor-pointer hover:bg-white/25 transition"
+        style={{ background: 'rgba(255,255,255,0.18)', color: '#fff' }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+        <span className="hidden sm:inline">חזרה</span>
+      </button>
       <div ref={dropRef} className="relative">
         <button
           onClick={() => setDropOpen(o => !o)}

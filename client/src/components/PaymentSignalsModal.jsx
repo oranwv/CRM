@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
+import { openLead } from '../utils/openLead';
 
 // "תשלומים ללא מסמך" — deposits / full payments an employee marked as received in the
 // lead card, with no receipt issued yet. Opened from the amber badge in the header
@@ -21,7 +22,7 @@ export default function PaymentSignalsModal({ onClose }) {
 
   function openLead(id) {
     onClose();
-    navigate(`/?lead=${id}`);
+    openLead(navigate, id);
   }
 
   async function dismiss(e, id) {

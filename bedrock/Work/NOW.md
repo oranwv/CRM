@@ -6,6 +6,10 @@ updated: 2026-10-26
 
 # Now
 
+## 2026-10-26 — Phase 63 (v1.3.0): back button + × returns to origin screen
+
+- `openLead()` helper carries returnTo/returnMode; LeadsPage returns there on close. Header ‹ חזרה everywhere. useBackGuard stale-suppress bug fixed. On branch `back-nav` pending Oran's OK.
+
 ## 2026-10-26 — Phase 62: download / send any file + in-app viewer (1.2.0)
 
 - `/api/filebox` (info/url/download/send) over refs `lead:<id>` / `supplier:<sid>:<id>` / `ops:<logId>`; HTML menus → one-page PDF that looks like the screen (Puppeteer, 820px, fonts awaited).

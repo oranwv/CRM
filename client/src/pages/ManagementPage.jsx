@@ -1,6 +1,7 @@
 import { useState, useEffect, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
+import { openLead } from '../utils/openLead';
 
 export const METRIC_COLS = [
   { key: 'calls_made',          label: 'שיחות שבוצעו' },
@@ -402,7 +403,7 @@ export default function ManagementPage() {
                           <LeadActivityTable
                             days={Array.isArray(leadActivity[row.id]) ? leadActivity[row.id] : []}
                             loading={leadActivity[row.id] === 'loading'}
-                            onOpen={L => navigate(`/?lead=${L.lead_id}`)} />
+                            onOpen={L => openLead(navigate, L.lead_id, 'ניהול')} />
                         </div>
                       </td>
                     </tr>

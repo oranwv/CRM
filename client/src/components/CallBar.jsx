@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCalls } from '../context/CallContext';
+import { openLead } from '../utils/openLead';
 
 function useTimer(startedAt) {
   const [now, setNow] = useState(Date.now());
@@ -77,7 +78,7 @@ export default function CallBar() {
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
             <div className="flex-1 min-w-0">
               <button
-                onClick={() => active.leadId && navigate(`/?lead=${active.leadId}`)}
+                onClick={() => active.leadId && openLead(navigate, active.leadId)}
                 className={`block text-right font-black truncate ${active.leadId ? 'hover:underline' : ''}`}>
                 {active.leadName || 'שיחה'}
               </button>

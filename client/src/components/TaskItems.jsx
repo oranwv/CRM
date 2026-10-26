@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
+import { openLead } from '../utils/openLead';
 
 // Phase 55 — one task row (lead / תפעול / תחזוקה / תקלה) with the three ways to deal with it:
 // בוצע (with a result line), דחייה (new date + optional reason), לא רלוונטי (reason).
@@ -91,7 +92,7 @@ export function TaskRow({ t, showAssignee, onChanged }) {
             <span className="text-[10px] text-slate-400 border border-slate-200 rounded px-1">{KIND_LABEL[t.kind]}</span>
           </div>
           <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-x-3 gap-y-0.5 flex-wrap">
-            {t.lead_id && <button onClick={() => navigate(`/?lead=${t.lead_id}`)} className="text-violet-700 font-bold hover:underline">{t.who}</button>}
+            {t.lead_id && <button onClick={() => openLead(navigate, t.lead_id)} className="text-violet-700 font-bold hover:underline">{t.who}</button>}
             <span className={`tabular-nums ${t.overdue && open ? 'text-red-600 font-bold' : ''}`}>יעד: {fmtDue(t.due_date)}</span>
             {showAssignee
               ? <span>אצל: <b className="text-slate-700">{t.assigned_name || '—'}</b></span>
