@@ -1830,6 +1830,9 @@ Oran (from the phone): opening a lead from הפעילות שלי and pressing ×
   A module-level popstate listener now consumes those synthetic pops.
 Verified with a Playwright flow (open from הפעילות שלי → × → back on הפעילות שלי in ניהול mode;
 header back from a card and from a page).
+- 1.3.1 (same day, Oran: "I was on Shir's activity, yesterday, opened a lead, × took me to my own
+  tasks"): `MyActivityPage` keeps user / view / from / to in the URL (`?user=&view=activity&from=&to=`,
+  replace-navigation), so `returnTo` carries the full state and the page restores it on mount.
 
 ### Phase 62 — Download / send any file + in-app file viewer ✅ Built 2026-10-26 (1.2.0)
 Oran (25–26.10): files in the CRM (contracts, price offers, designed HTML menus, uploads)

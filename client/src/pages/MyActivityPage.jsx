@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api';
 import { openLead } from '../utils/openLead';
 import { METRIC_COLS, dayStr, shiftDays, metricTotal, LeadActivityTable } from './ManagementPage';
@@ -13,22 +13,32 @@ const SUMMARY_COLS = SUMMARY_ORDER.map(k => METRIC_COLS.find(c => c.key === k)).
 // customer lines as ניהול, without the per-employee table. Any role.
 export default function MyActivityPage() {
   const navigate = useNavigate();
+  // Page state lives in the URL (?user=&view=&from=&to=) so coming back from a lead card
+  // (× / back) lands on the same user, view and range. Phase 63.
+  const [params, setParams] = useSearchParams();
   const me = JSON.parse(localStorage.getItem('crm_user') || '{}');
   const isManager = (me.roles?.length ? me.roles : [me.role]).some(r => ['admin', 'manager', 'sales_manager'].includes(r));
   const todayStr = dayStr(new Date());
-  const [from, setFrom] = useState(todayStr);
-  const [to, setTo]     = useState(todayStr);
+  const [from, setFrom] = useState(params.get('from') || todayStr);
+  const [to, setTo]     = useState(params.get('to') || todayStr);
   const [row, setRow]   = useState(null);     // { totals, days } of the user
   const [leadDays, setLeadDays] = useState([]); // [{ date, leads }]
   const [loading, setLoading] = useState(false);
   // Phase 55: tasks first, and managers may look at another user
-  const [userId, setUserId] = useState(me.id);
+  const [userId, setUserId] = useState(Number(params.get('user')) || me.id);
   const [users, setUsers] = useState([]);
   const [tasks, setTasks] = useState(null);           // { mine, delegated }
   const [taskTab, setTaskTab] = useState('mine');     // 'mine' | 'delegated'
   const [group, setGroup] = useState('sales');        // sales | production | operations | maintenance
   const [showDone, setShowDone] = useState(false);
-  const [section, setSection] = useState('tasks'); // 'tasks' | 'activity' — Oran: separate, tasks first
+  const [section, setSection] = useState(params.get('view') === 'activity' ? 'activity' : 'tasks'); // 'tasks' | 'activity' — Oran: separate, tasks first
+  useEffect(() => {
+    const next = {};
+    if (userId !== me.id) next.user = String(userId);
+    if (section !== 'tasks') next.view = section;
+    if (from !== todayStr || to !== todayStr) { next.from = from; next.to = to; }
+    setParams(next, { replace: true });
+  }, [userId, section, from, to]);
   const userQ = userId && userId !== me.id ? `&user=${userId}` : '';
 
   useEffect(() => { if (isManager) api.get('/users').then(r => setUsers(r.data)).catch(() => {}); }, [isManager]);
