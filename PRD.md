@@ -1801,6 +1801,14 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 66 — Common-task dropdown in the task dialogs ✅ Built 2026-10-26 (1.4.0)
+Oran: when the system prompts for a task after an action, offer a dropdown of the usual tasks
+besides free text. `TaskPresetSelect` (LeadCard.jsx) — options: להביא לפגישה · לעשות פולואו אפ ·
+לשלוח הצעת מחיר · לשלוח חוזה — sits above the title field in `AddTaskModal` (post-call prompt,
+"+ משימה", AI-advisor task) and in the follow-up step of `TaskActionModal`. Picking fills the
+title, which stays editable; free text still works as before. Preset list is a constant
+(`TASK_PRESETS`) — change there when Oran adds more.
+
 ### Phase 65 — Draggable active-call bar ✅ Built 2026-10-26 (1.3.2)
 Oran: mid-call the softphone bar sat over the calendar and he could not see the dates. The
 active-call bar (`CallBar.jsx`) is now draggable like the AI-assistant button — mouse or touch,

@@ -6,6 +6,12 @@ updated: 2026-10-26
 
 # Now
 
+## 2026-10-26 — Phase 66: task presets dropdown (1.4.0)
+
+- `TaskPresetSelect` in LeadCard.jsx (AddTaskModal + TaskActionModal follow-up). List in `TASK_PRESETS`.
+- Next (approved by Oran): dialing clarity (server `answerOnBridge` + app call states), EAS Update for the dialer app (build 8).
+
+
 ## 2026-10-26 — Phase 65: draggable call bar (1.3.2)
 
 - `CallBar.jsx`: active-call bar draggable (mouse/touch), ⋮⋮ grip, position in localStorage `call-bar-pos`, clamped to viewport. Approved via preview before push.

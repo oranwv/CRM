@@ -5522,6 +5522,19 @@ function CalendarSection({ lead, leadId, editForm, calStatus, onUpdated, allPhon
 }
 
 /* ── ADD TASK MODAL ── */
+// Common task titles (Oran's list) — a dropdown next to the free-text title. Picking one fills
+// the title, which stays editable; "אחר" keeps whatever was typed.
+const TASK_PRESETS = ['להביא לפגישה', 'לעשות פולואו אפ', 'לשלוח הצעת מחיר', 'לשלוח חוזה'];
+function TaskPresetSelect({ value, onPick, className }) {
+  const current = TASK_PRESETS.includes(value) ? value : '';
+  return (
+    <select value={current} onChange={e => { if (e.target.value) onPick(e.target.value); }} className={className}>
+      <option value="">משימה נפוצה…</option>
+      {TASK_PRESETS.map(t => <option key={t} value={t}>{t}</option>)}
+    </select>
+  );
+}
+
 function AddTaskModal({ leadId, users, onClose, onSaved, defaultAssignedTo, initial = null }) {
   const [form, setForm] = useState({ title: initial?.title || '', due_date: initial?.due_date || '', due_time: initial?.due_time || '', assigned_to: defaultAssignedTo ? String(defaultAssignedTo) : '', remind_via: 'whatsapp' });
   const [saving, setSaving] = useState(false);
@@ -5541,8 +5554,9 @@ function AddTaskModal({ leadId, users, onClose, onSaved, defaultAssignedTo, init
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl p-5 w-96 mx-4 space-y-3" onClick={e => e.stopPropagation()}>
         <h3 className="font-black text-slate-800 text-lg text-right">+ משימה חדשה</h3>
+        <TaskPresetSelect value={form.title} onPick={t => setForm(f => ({ ...f, title: t }))} className={cls} />
         <input autoFocus value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-          className={cls} placeholder="כותרת המשימה..." />
+          className={cls} placeholder="או כתוב כותרת משימה..." />
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="text-sm text-slate-500 block mb-1 text-right">תאריך</label>
@@ -5807,8 +5821,9 @@ function TaskActionModal({ task, leadId, lead, users, allPhones, allPhoneLabels,
         {/* Follow-up */}
         {mode === 'followup' && (
           <div className="space-y-2">
+            <TaskPresetSelect value={followTitle} onPick={setFollowTitle} className={`${cls} text-right`} />
             <input value={followTitle} onChange={e => setFollowTitle(e.target.value)}
-              className={`${cls} text-right`} autoFocus placeholder="כותרת משימת המשך..." />
+              className={`${cls} text-right`} autoFocus placeholder="או כתוב כותרת משימת המשך..." />
             <div className="flex gap-2">
               <PickerDateInput value={followDueDate} onChange={setFollowDueDate} className={`${cls} flex-1`} />
               <PickerTimeInput value={followDueTime} onChange={setFollowDueTime} className={`${cls} w-28`} />
