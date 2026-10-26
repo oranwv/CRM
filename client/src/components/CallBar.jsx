@@ -1,9 +1,72 @@
 // Floating softphone UI: incoming-call prompt, active-call bar, error toast.
 // Rendered once in App; state comes from CallContext.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCalls } from '../context/CallContext';
-import { openLead } from '../utils/openLead';
+
+// The active-call bar can be dragged anywhere (like the AI assistant button) so it does not
+// cover the calendar or whatever the user needs to see mid-call. Position persists per browser.
+// null = default spot (top centre); after a drag = {left, top} in px, clamped to the viewport.
+const POS_KEY = 'call-bar-pos';
+function useDraggableBar() {
+  const [pos, setPos] = useState(() => {
+    try { const s = localStorage.getItem(POS_KEY); return s ? JSON.parse(s) : null; } catch { return null; }
+  });
+  const ref = useRef(null);
+  const posRef = useRef(pos);
+  useEffect(() => { posRef.current = pos; }, [pos]);
+
+  // Keep the bar on screen if the window shrinks (phone rotation, resize)
+  useEffect(() => {
+    function clampToWindow() {
+      const el = ref.current, p = posRef.current;
+      if (!el || !p) return;
+      const r = el.getBoundingClientRect();
+      const next = {
+        left: Math.max(0, Math.min(window.innerWidth - r.width, p.left)),
+        top: Math.max(0, Math.min(window.innerHeight - r.height, p.top)),
+      };
+      if (next.left !== p.left || next.top !== p.top) setPos(next);
+    }
+    window.addEventListener('resize', clampToWindow);
+    return () => window.removeEventListener('resize', clampToWindow);
+  }, []);
+
+  function onDragStart(e) {
+    if (e.target.closest('button')) return;          // buttons keep their own taps
+    const el = ref.current; if (!el) return;
+    const r = el.getBoundingClientRect();
+    const start = { x: e.touches ? e.touches[0].clientX : e.clientX, y: e.touches ? e.touches[0].clientY : e.clientY };
+    const origin = { left: r.left, top: r.top };
+    function onMove(ev) {
+      const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
+      const cy = ev.touches ? ev.touches[0].clientY : ev.clientY;
+      if (ev.cancelable) ev.preventDefault();          // no page scroll while dragging on touch
+      const next = {
+        left: Math.max(0, Math.min(window.innerWidth - r.width, origin.left + (cx - start.x))),
+        top: Math.max(0, Math.min(window.innerHeight - r.height, origin.top + (cy - start.y))),
+      };
+      posRef.current = next;
+      setPos(next);
+    }
+    function onUp() {
+      try { if (posRef.current) localStorage.setItem(POS_KEY, JSON.stringify(posRef.current)); } catch {}
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onUp);
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('touchend', onUp);
+  }
+
+  const style = pos
+    ? { left: pos.left, top: pos.top, transform: 'none' }
+    : { top: 60 };
+  return { ref, style, onDragStart, dragged: !!pos };
+}
 
 function useTimer(startedAt) {
   const [now, setNow] = useState(Date.now());
@@ -32,6 +95,7 @@ export default function CallBar() {
   const navigate = useNavigate();
   const timer = useTimer(active?.startedAt);
   const [pickOut, setPickOut] = useState(false);
+  const drag = useDraggableBar();
 
   // "Speaker" = the loud output (built-in speakers) vs a headset. One tap toggles when there are
   // exactly two options; more options open a small picker.
@@ -73,12 +137,14 @@ export default function CallBar() {
       )}
 
       {active && (
-        <div className="fixed left-1/2 -translate-x-1/2 z-[90] w-[92%] max-w-md" style={{ top: 60 }} dir="rtl">
-          <div className="rounded-2xl shadow-2xl bg-slate-900 text-white px-4 py-3 border border-white/10 flex items-center gap-3">
+        <div ref={drag.ref} className="fixed left-1/2 -translate-x-1/2 z-[90] w-[92%] max-w-md" style={drag.style} dir="rtl"
+          onMouseDown={drag.onDragStart} onTouchStart={drag.onDragStart} title="אפשר לגרור את החלון">
+          <div className="rounded-2xl shadow-2xl bg-slate-900 text-white px-4 py-3 border border-white/10 flex items-center gap-3 cursor-grab active:cursor-grabbing select-none" style={{ touchAction: 'none' }}>
+            <span className="text-slate-500 text-base leading-none shrink-0" aria-hidden="true">⋮⋮</span>
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
             <div className="flex-1 min-w-0">
               <button
-                onClick={() => active.leadId && openLead(navigate, active.leadId)}
+                onClick={() => active.leadId && navigate(`/?lead=${active.leadId}`)}
                 className={`block text-right font-black truncate ${active.leadId ? 'hover:underline' : ''}`}>
                 {active.leadName || 'שיחה'}
               </button>

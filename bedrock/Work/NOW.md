@@ -6,6 +6,14 @@ updated: 2026-10-26
 
 # Now
 
+## 2026-10-26 — Phase 65: draggable call bar (1.3.2)
+
+- `CallBar.jsx`: active-call bar draggable (mouse/touch), ⋮⋮ grip, position in localStorage `call-bar-pos`, clamped to viewport. Approved via preview before push.
+- Dialer app: Android build 7 (deep-link dial, paste caret, speaker fix, speed) **still not built** on Expo — "Build from GitHub → Android / main / preview". iOS build 7 is on TestFlight.
+- Open (Oran, 26/10): task prompt after an action should offer a dropdown of presets (להביא לפגישה / פולואו אפ / הצעת מחיר / חוזה) besides free text; dialing feedback unclear (silence / odd ringback / timer during ring / mute during ring) — see Phase notes when built; auto-update of the dialer app (EAS Update) requested.
+- Open from Gili (iPhone): app call drops when a cellular call *rings* — investigate CallKit / audio interruption in the dialer app.
+
+
 ## 2026-10-26 — Phase 64: completed stage needs full payment + undo (1.3.1)
 
 - `CompleteEventModal` collects amount+date when missing; tapping the active completed stage offers to go back to הפקה; server 400 `full_payment_required`. Cloud session, pushed.

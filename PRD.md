@@ -1801,6 +1801,15 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 65 — Draggable active-call bar ✅ Built 2026-10-26 (1.3.2)
+Oran: mid-call the softphone bar sat over the calendar and he could not see the dates. The
+active-call bar (`CallBar.jsx`) is now draggable like the AI-assistant button — mouse or touch,
+a ⋮⋮ grip at its edge, clamped to the viewport, position persisted in `localStorage`
+(`call-bar-pos`) per browser, re-clamped on resize/rotation. Buttons keep their own taps (a drag
+never starts from a button). Default spot unchanged (top centre) until the user moves it. The
+incoming-call prompt and the error toast are not draggable (short-lived). Preview approved by
+Oran before the push, per his rule.
+
 ### Phase 64 — "אירוע הסתיים והתקבל תשלום": full payment required + undo ✅ Built 2026-10-26 (1.3.1)
 Oran (26.10): leads sometimes got the completed stage by a stray tap and he could not undo it; and
 the stage must not be reachable without the full payment recorded.
