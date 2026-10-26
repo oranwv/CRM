@@ -350,11 +350,24 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
     }
   }
 
-  async function changeStage(stageKey) {
+  const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const [showUncompleteConfirm, setShowUncompleteConfirm] = useState(false);
+  const fullPaymentRecorded = Number(lead?.full_payment_amount) > 0 && !!lead?.full_payment_date;
+
+  async function changeStage(stageKey, extra = {}) {
     if (stageKey === 'lost') { setShowLostModal(true); return; }
+    // "אירוע הסתיים והתקבל תשלום" (26.10): tapping it while it is the current stage offers to
+    // undo (back to הפקה); moving into it requires the full payment (amount + date) — collected
+    // in a modal when missing. The server enforces the same rule.
+    if (stageKey === 'completed' && lead?.stage === 'completed') { setShowUncompleteConfirm(true); return; }
+    if (stageKey === 'completed' && !fullPaymentRecorded && !extra.full_payment_amount) { setShowCompleteModal(true); return; }
     setSavingStage(true);
-    await api.patch(`/leads/${leadId}`, { stage: stageKey });
-    await load(); onUpdated();
+    try {
+      await api.patch(`/leads/${leadId}`, { stage: stageKey, ...extra });
+      await load(); onUpdated();
+    } catch (e) {
+      alert(e?.response?.data?.message || 'שינוי השלב נכשל');
+    }
     setSavingStage(false);
   }
 
@@ -596,13 +609,14 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
                     {lead.meeting_event_id && <SendReminderButton eventId={lead.meeting_event_id} />}
                     <button onClick={() => setShowAddTask(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition">+ משימה</button>
                     {mode !== 'הפקה' && <button onClick={() => setShowPriceOffer(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition">הצעת מחיר</button>}
-                    {mode === 'הפקה' && (lead.stage === 'deposit' || lead.stage === 'production') && (
+                    {mode === 'הפקה' && (lead.stage === 'deposit' || lead.stage === 'production' || lead.stage === 'completed') && (
                       <button
                         onClick={() => !savingStage && changeStage('completed')}
                         disabled={savingStage}
-                        className="text-sm font-bold px-2.5 py-1 rounded-xl bg-slate-700 text-white hover:bg-slate-800 transition"
+                        title={lead.stage === 'completed' ? 'לחץ כדי לבטל את הסימון' : undefined}
+                        className={`text-sm font-bold px-2.5 py-1 rounded-xl transition ${lead.stage === 'completed' ? 'bg-slate-100 text-slate-700 border border-slate-300 hover:border-red-300' : 'bg-slate-700 text-white hover:bg-slate-800'}`}
                       >
-                        אירוע הסתיים והתקבל תשלום
+                        {lead.stage === 'completed' ? '✓ אירוע הסתיים והתקבל תשלום' : 'אירוע הסתיים והתקבל תשלום'}
                       </button>
                     )}
                     {mode !== 'הפקה' && <button onClick={() => setShowContract(true)} className="text-sm font-bold px-2.5 py-1 rounded-xl bg-violet-700 text-white hover:bg-violet-800 transition">חוזה</button>}
@@ -936,6 +950,26 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
       )}
 
       {showLostModal && <LostModal onClose={() => setShowLostModal(false)} onConfirm={markLost} />}
+      {showCompleteModal && (
+        <CompleteEventModal lead={lead} onClose={() => setShowCompleteModal(false)}
+          onConfirm={async (amount, date) => {
+            setShowCompleteModal(false);
+            await changeStage('completed', { full_payment_amount: amount, full_payment_date: date, full_payment_confirmed: true });
+          }} />
+      )}
+      {showUncompleteConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={() => setShowUncompleteConfirm(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-5 w-80 mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="font-black text-slate-800 text-lg text-right mb-2">לבטל את הסימון?</h3>
+            <p className="text-base text-slate-600 text-right mb-4">הליד יחזור לשלב "הפקה". פרטי התשלום שנשמרו לא נמחקים.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setShowUncompleteConfirm(false)} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl text-base">לא</button>
+              <button onClick={async () => { setShowUncompleteConfirm(false); await changeStage('production'); }}
+                className="flex-1 bg-slate-700 text-white font-bold py-2 rounded-xl text-base">כן, החזר להפקה</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showAddSupplier && (
         <AddSupplierModal
@@ -6142,6 +6176,39 @@ function ScheduleMeetingModal({ lead, leadId, users = [], allPhones, allPhoneLab
             <button onClick={onDone} className="w-full bg-violet-600 text-white font-bold py-2 rounded-xl text-base">סגור</button>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// Shown when moving a lead to "אירוע הסתיים והתקבל תשלום" without the full payment recorded.
+function CompleteEventModal({ lead, onClose, onConfirm }) {
+  const [amount, setAmount] = useState(lead?.full_payment_amount || '');
+  const [date, setDate]     = useState(lead?.full_payment_date ? String(lead.full_payment_date).split('T')[0] : '');
+  const ok = Number(amount) > 0 && !!date;
+  const cls = 'w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-violet-400 bg-white';
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl p-5 w-80 mx-4" onClick={e => e.stopPropagation()}>
+        <h3 className="font-black text-slate-800 text-lg text-right mb-2">אירוע הסתיים והתקבל תשלום</h3>
+        <p className="text-base text-slate-600 text-right mb-3">כדי לסמן שהאירוע הסתיים והתקבל תשלום, יש למלא את פרטי התשלום המלא:</p>
+        <div className="space-y-2 mb-4">
+          <div>
+            <label className="text-sm text-slate-500 block mb-1">סכום תשלום מלא (₪)</label>
+            <input type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} className={cls} placeholder="0" />
+          </div>
+          <div>
+            <label className="text-sm text-slate-500 block mb-1">תאריך קבלת התשלום</label>
+            <PickerDateInput value={date} onChange={setDate} className={cls} />
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl text-base">ביטול</button>
+          <button onClick={() => ok && onConfirm(amount, date)} disabled={!ok}
+            className="flex-1 bg-slate-700 text-white font-bold py-2 rounded-xl text-base disabled:opacity-50">
+            שמור וסמן כהסתיים
+          </button>
+        </div>
       </div>
     </div>
   );

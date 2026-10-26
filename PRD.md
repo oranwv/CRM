@@ -1801,6 +1801,17 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 64 — "אירוע הסתיים והתקבל תשלום": full payment required + undo ✅ Built 2026-10-26 (1.3.1)
+Oran (26.10): leads sometimes got the completed stage by a stray tap and he could not undo it; and
+the stage must not be reachable without the full payment recorded.
+- `changeStage('completed')` in `LeadCard.jsx`: if the lead is already `completed` → confirm
+  dialog "לבטל את הסימון?" → `production`. If `full_payment_amount`/`full_payment_date` are
+  missing → `CompleteEventModal` (amount + date, button enabled only when both are filled) →
+  PATCH `{stage:'completed', full_payment_amount, full_payment_date, full_payment_confirmed:true}`.
+  The הפקה-mode button stays visible on completed leads (outlined, ✓) so it can undo too.
+- Server `PATCH /leads/:id`: moving into `completed` without amount>0 and date (from body or
+  the row) → 400 `full_payment_required`. `full_payment_amount`/`_date` added to the
+  empty-string→NULL set.
 ### Phase 63 — Back button + "×" returns to where you came from ✅ Built 2026-10-26 (v1.3.0)
 Oran (from the phone): opening a lead from הפעילות שלי and pressing × should go back to הפעילות
 שלי, and in general × should return to the previous screen; also a back button.

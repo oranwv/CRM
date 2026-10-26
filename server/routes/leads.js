@@ -263,16 +263,26 @@ router.patch('/:id', async (req, res) => {
   if (!fields.length) return res.status(400).json({ error: 'No valid fields' });
   const sets = fields.map((f, i) => `${f} = $${i + 2}`).join(', ');
   // Typed columns reject '' — treat empty strings as NULL for them
-  const TYPED = new Set(['deposit_amount', 'deposit_date', 'event_date', 'guest_count', 'budget', 'assigned_to']);
+  const TYPED = new Set(['deposit_amount', 'deposit_date', 'full_payment_amount', 'full_payment_date', 'event_date', 'guest_count', 'budget', 'assigned_to']);
   const vals = fields.map(f => (TYPED.has(f) && req.body[f] === '') ? null : req.body[f]);
   try {
     // Capture the row before the update: stage for the transition log, payment flags for
     // the "תשלום ללא מסמך" signal
     const { rows: cur } = await pool.query(
-      'SELECT stage, deposit_confirmed, full_payment_confirmed FROM leads WHERE id = $1', [req.params.id]
+      'SELECT stage, deposit_confirmed, full_payment_confirmed, full_payment_amount, full_payment_date FROM leads WHERE id = $1', [req.params.id]
     );
     const prevRow  = cur[0] || null;
     const oldStage = fields.includes('stage') ? (prevRow?.stage || null) : null;
+
+    // "אירוע הסתיים והתקבל תשלום" needs the full payment recorded (amount + date) — Oran, 26.10.
+    // The client collects them in a modal; this is the guard that cannot be bypassed.
+    if (req.body.stage === 'completed' && prevRow?.stage !== 'completed') {
+      const amount = 'full_payment_amount' in req.body ? req.body.full_payment_amount : prevRow?.full_payment_amount;
+      const date   = 'full_payment_date'   in req.body ? req.body.full_payment_date   : prevRow?.full_payment_date;
+      if (!(Number(amount) > 0) || !date) {
+        return res.status(400).json({ error: 'full_payment_required', message: 'יש למלא סכום ותאריך של התשלום המלא לפני סימון האירוע כהסתיים' });
+      }
+    }
 
     const { rows } = await pool.query(
       `UPDATE leads SET ${sets}, updated_at = NOW() WHERE id = $1 RETURNING *`,

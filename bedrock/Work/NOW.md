@@ -6,6 +6,9 @@ updated: 2026-10-26
 
 # Now
 
+## 2026-10-26 — Phase 64: completed stage needs full payment + undo (1.3.1)
+
+- `CompleteEventModal` collects amount+date when missing; tapping the active completed stage offers to go back to הפקה; server 400 `full_payment_required`. Cloud session, pushed.
 ## 2026-10-26 — Phase 63 (v1.3.0): back button + × returns to origin screen
 
 - `openLead()` helper carries returnTo/returnMode; LeadsPage returns there on close. Header ‹ חזרה everywhere. useBackGuard stale-suppress bug fixed. Deployed to main.
