@@ -6,6 +6,10 @@ updated: 2026-10-26
 
 # Now
 
+## 2026-10-29 — Phase 67 (1.4.1): רווחים overflow on phones
+
+- Cost-line amount input had an intrinsic min width → page wider than viewport. `min-w-0` + `overflow-x-hidden`. Open question to Oran: leads list "שם האירוע" column shows event_name over name — he asked how the alternative (name + small event line) would look.
+
 ## 2026-10-26 — Phase 66: task presets dropdown (1.4.0)
 
 - `TaskPresetSelect` in LeadCard.jsx (AddTaskModal + TaskActionModal follow-up). List in `TASK_PRESETS`.

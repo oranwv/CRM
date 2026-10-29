@@ -81,7 +81,7 @@ function CostEditor({ event, onSaved }) {
               placeholder="תיאור (למשל: מלצרים)" className={`${inputCls} flex-1 font-semibold min-w-0`} />
             <button onClick={() => removeLine(i)} className="text-rose-400 hover:text-rose-600 font-bold px-1">×</button>
           </div>
-          <div className="flex items-center gap-1.5 text-xs text-slate-500">
+          <div className="flex items-center gap-1.5 text-xs text-slate-500 min-w-0">
             <label className="shrink-0">כמות</label>
             <input type="number" value={l.qty ?? ''} onChange={e => setLine(i, 'qty', e.target.value)}
               placeholder="—" className={`${inputCls} w-16 text-center`} dir="ltr" />
@@ -91,12 +91,12 @@ function CostEditor({ event, onSaved }) {
               placeholder="—" className={`${inputCls} w-20 text-center`} dir="ltr" />
             <span className="shrink-0">=</span>
             {isComputed(l) ? (
-              <span className="flex-1 text-center font-bold text-slate-700 bg-slate-100 rounded-lg py-1.5" dir="ltr">
+              <span className="flex-1 min-w-0 text-center font-bold text-slate-700 bg-slate-100 rounded-lg py-1.5 truncate" dir="ltr">
                 ₪{fmt(lineAmount(l))}
               </span>
             ) : (
               <input type="number" value={l.amount} onChange={e => setLine(i, 'amount', e.target.value)}
-                placeholder="סכום ₪" className={`${inputCls} flex-1 text-center`} dir="ltr" />
+                placeholder="סכום ₪" className={`${inputCls} flex-1 min-w-0 text-center`} dir="ltr" />
             )}
           </div>
           <input value={l.basis || ''} onChange={e => setLine(i, 'basis', e.target.value)}
@@ -172,7 +172,7 @@ export default function SalesPerformancePage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-4 space-y-4" dir="rtl">
+    <div className="max-w-2xl mx-auto px-4 py-4 space-y-4 overflow-x-hidden" dir="rtl">
       {/* Month navigation (chevrons are bidi-mirrored in RTL — sources swapped so they point outward) */}
       <div className="bg-white rounded-2xl shadow-sm border border-violet-100 flex items-center justify-between px-4 py-3">
         <button onClick={nextMonth} className="text-slate-500 hover:text-violet-700 px-3 py-1 rounded-lg hover:bg-violet-50 transition font-bold text-lg">‹</button>

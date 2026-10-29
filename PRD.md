@@ -1801,6 +1801,14 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 67 — רווחים page wider than the phone screen ✅ Built 2026-10-29 (1.4.1)
+Oran's phone (29.10): opening רווחים shifted the whole page right and cut it off. The cost
+line "כמות × מחיר ליח' = סכום" overflowed: the `flex-1` amount input (`type=number`) keeps its
+intrinsic ~150px minimum, so the row was ~450px on a 360px screen and widened the layout
+viewport (same mechanism as Phase 49 on analytics). `SalesPerformancePage.jsx`: `min-w-0` on
+the amount input / computed-amount span and on the row; page root `overflow-x-hidden`. Desktop
+unchanged.
+
 ### Phase 66 — Common-task dropdown in the task dialogs ✅ Built 2026-10-26 (1.4.0)
 Oran: when the system prompts for a task after an action, offer a dropdown of the usual tasks
 besides free text. `TaskPresetSelect` (LeadCard.jsx) — options: להביא לפגישה · לעשות פולואו אפ ·
