@@ -52,6 +52,20 @@ pool.query(`
   END$$;
 `).catch(() => {});
 
+// Human-readable error for the UI: which step failed, HTTP status, and Green Invoice's own
+// errorCode/errorMessage when the response carries one (their 4xx bodies use those keys).
+function giErrorText(err) {
+  const giData = err.response?.data;
+  const status = err.response?.status;
+  const body = typeof giData === 'string' ? giData
+    : giData && (giData.errorMessage || giData.message || giData.error)
+      ? [giData.errorCode ? `קוד ${giData.errorCode}` : null, giData.errorMessage || giData.message || giData.error].filter(Boolean).join(' — ')
+      : (giData && Object.keys(giData).length ? JSON.stringify(giData) : null);
+  const step = err.giStep ? `${err.giStep}: ` : '';
+  const hint = status === 404 && !body ? ' (התשובה חזרה ריקה — ייתכן שהמפתח/הסוד של ה-API הוחלפו או שהשירות של חשבונית ירוקה לא זמין כרגע)' : '';
+  return `חשבונית ירוקה — ${step}שגיאה ${status || ''}${body ? `: ${body}` : ''}${hint}`.replace(/\s+:/g, ':');
+}
+
 function managerOnly(req, res, next) {
   if (!['admin', 'manager'].includes(req.user.role))
     return res.status(403).json({ error: 'אין הרשאה' });
@@ -68,6 +82,7 @@ async function getToken() {
     });
   } catch (authErr) {
     console.error('[GreenInvoice] Auth endpoint FAILED — status:', authErr.response?.status, '— body:', JSON.stringify(authErr.response?.data));
+    authErr.giStep = 'התחברות לחשבונית ירוקה (מפתח API)';
     throw authErr;
   }
   const data  = res.data;
@@ -126,7 +141,13 @@ async function createAndSaveDoc(docPayload, leadId, userId) {
   const headers = { Authorization: `Bearer ${token}` };
 
   console.log('[GreenInvoice] Sending payload:', JSON.stringify(docPayload));
-  const { data: doc } = await axios.post(`${GI_BASE}/documents`, docPayload, { headers });
+  let doc;
+  try {
+    ({ data: doc } = await axios.post(`${GI_BASE}/documents`, docPayload, { headers }));
+  } catch (docErr) {
+    docErr.giStep = 'יצירת המסמך';
+    throw docErr;
+  }
   console.log('[GreenInvoice] Doc response:', JSON.stringify(doc));
 
   const docId     = doc.id;
@@ -264,8 +285,7 @@ router.post('/document', async (req, res) => {
     const giData = err.response?.data;
     const status = err.response?.status;
     console.error('[GreenInvoice] HTTP', status, '— body:', JSON.stringify(giData), '— message:', err.message);
-    const giMsg = (typeof giData === 'string' ? giData : (giData?.message || giData?.error || JSON.stringify(giData))) || err.message;
-    res.status(500).json({ error: `GreenInvoice ${status || ''}: ${giMsg}` });
+    res.status(500).json({ error: giErrorText(err) });
   }
 });
 
@@ -379,8 +399,7 @@ router.post('/pending/:id/approve', managerOnly, async (req, res) => {
     const giData = err.response?.data;
     const status = err.response?.status;
     console.error('[GreenInvoice] Approve HTTP', status, '— body:', JSON.stringify(giData), '— message:', err.message);
-    const giMsg = (typeof giData === 'string' ? giData : (giData?.message || giData?.error || JSON.stringify(giData))) || err.message;
-    res.status(500).json({ error: `GreenInvoice ${status || ''}: ${giMsg}` });
+    res.status(500).json({ error: giErrorText(err) });
   }
 });
 

@@ -6,6 +6,10 @@ updated: 2026-10-26
 
 # Now
 
+## 2026-10-29 — Phase 68 (1.4.2): Green Invoice error text
+
+- Oran got a bodiless 404 on approve. Error text now names the step + GI errorCode/errorMessage. Open: find the actual cause in Railway logs (auth vs documents) — if auth, the API key/secret in Railway env may have been rotated.
+
 ## 2026-10-29 — Phase 67 (1.4.1): רווחים overflow on phones
 
 - Cost-line amount input had an intrinsic min width → page wider than viewport. `min-w-0` + `overflow-x-hidden`. Open question to Oran: leads list "שם האירוע" column shows event_name over name — he asked how the alternative (name + small event line) would look.

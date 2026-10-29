@@ -1801,6 +1801,14 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 68 — Green Invoice errors say what failed ✅ Built 2026-10-29 (1.4.2)
+Oran hit "GreenInvoice 404: Request failed with status code 404" on אשר וצור מסמך — the text
+came from axios because Green Invoice's body was empty, so nothing said whether the token call
+or the document call failed. `greeninvoice.js`: `giStep` tagged on auth / document errors,
+`giErrorText()` builds "חשבונית ירוקה — <שלב>: שגיאה <status>: קוד <errorCode> — <errorMessage>",
+with a hint on an empty 404 (API key/secret replaced, or GI down). Root cause of Oran's 404 still
+to be read from the Railway log (`[GreenInvoice] Auth endpoint FAILED` vs `HTTP 404 — body`).
+
 ### Phase 67 — רווחים page wider than the phone screen ✅ Built 2026-10-29 (1.4.1)
 Oran's phone (29.10): opening רווחים shifted the whole page right and cut it off. The cost
 line "כמות × מחיר ליח' = סכום" overflowed: the `flex-1` amount input (`type=number`) keeps its
