@@ -5,7 +5,8 @@ const { uploadBuffer }  = require('../services/storageService');
 const { normalizePhone } = require('../utils/phoneUtils');
 
 const router  = express.Router();
-const GI_BASE = 'https://api.greeninvoice.co.il/api/v1';
+const GI_BASE      = 'https://api.greeninvoice.co.il/api/v1';
+const GI_AUTH_BASE = process.env.GREENINVOICE_AUTH_BASE || 'https://api.morning.co';
 
 const DOC_NAMES = {
   300: 'חשבונית-עסקה',
@@ -76,9 +77,13 @@ async function getToken() {
   console.log('[GreenInvoice] Authenticating — key prefix:', (process.env.GREENINVOICE_API_KEY || '').slice(0, 8));
   let res;
   try {
-    res = await axios.post(`${GI_BASE}/account/token`, {
-      id:     process.env.GREENINVOICE_API_KEY,
-      secret: process.env.GREENINVOICE_SECRET,
+    // Morning (Green Invoice) moved authentication in June 2026: the old
+    // POST api.greeninvoice.co.il/api/v1/account/token {id, secret} now returns an empty 404.
+    // Tokens come from the OAuth host; documents etc. stay on GI_BASE.
+    res = await axios.post(`${GI_AUTH_BASE}/idp/v1/oauth/token`, {
+      grant_type:    'client_credentials',
+      client_id:     process.env.GREENINVOICE_API_KEY,
+      client_secret: process.env.GREENINVOICE_SECRET,
     });
   } catch (authErr) {
     console.error('[GreenInvoice] Auth endpoint FAILED — status:', authErr.response?.status, '— body:', JSON.stringify(authErr.response?.data));

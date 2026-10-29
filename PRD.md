@@ -1801,6 +1801,14 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 69 — Green Invoice auth moved to Morning OAuth ✅ Built 2026-10-29 (1.4.3)
+Root cause of Oran's 404: Morning (Green Invoice) retired `POST /api/v1/account/token {id,secret}`
+in June 2026 ([help-center/api-updates-26](https://www.greeninvoice.co.il/help-center/api-updates-26/));
+it now answers an empty 404. `getToken()` posts to `https://api.morning.co/idp/v1/oauth/token`
+with `{grant_type:'client_credentials', client_id, client_secret}` (same env key/secret) and reads
+`accessToken`. Resource calls (`/documents`, PDF) stay on `api.greeninvoice.co.il/api/v1`.
+`GREENINVOICE_AUTH_BASE` env overrides the auth host (sandbox: `api.sandbox.morning.dev`).
+
 ### Phase 68 — Green Invoice errors say what failed ✅ Built 2026-10-29 (1.4.2)
 Oran hit "GreenInvoice 404: Request failed with status code 404" on אשר וצור מסמך — the text
 came from axios because Green Invoice's body was empty, so nothing said whether the token call

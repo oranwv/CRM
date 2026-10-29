@@ -6,6 +6,10 @@ updated: 2026-10-26
 
 # Now
 
+## 2026-10-29 — Phase 69 (1.4.3): Green Invoice auth fixed
+
+- Cause of the 404: Morning retired `account/token` (June 2026). Token now from `api.morning.co/idp/v1/oauth/token` (client_credentials). Waiting for Oran to retry the pending חשבונית מס קבלה.
+
 ## 2026-10-29 — Phase 68 (1.4.2): Green Invoice error text
 
 - Oran got a bodiless 404 on approve. Error text now names the step + GI errorCode/errorMessage. Open: find the actual cause in Railway logs (auth vs documents) — if auth, the API key/secret in Railway env may have been rotated.

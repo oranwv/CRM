@@ -111,3 +111,6 @@ voice notes. (Verified 2026-09-08 against the source; earlier notes here said Cl
 - `services/meetingRsvpService.js` owns all meeting reminders (customer + host). Green API
   interactive buttons (beta) with link fallback; text answers parsed too. Status lives in
   `meetings.customer_status`; the Google event title/colour mirrors it.
+
+## Green Invoice (Morning)
+- Auth: `POST https://api.morning.co/idp/v1/oauth/token` `{grant_type:client_credentials, client_id, client_secret}` → `accessToken` (since 2026-10-29; old `account/token` returns empty 404). Resource API: `https://api.greeninvoice.co.il/api/v1`. Route `server/routes/greeninvoice.js`.
