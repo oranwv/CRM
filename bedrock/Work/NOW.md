@@ -6,6 +6,10 @@ updated: 2026-10-26
 
 # Now
 
+## 2026-10-30 — GA4 + Search Console
+
+- GA4 property "ProEvent" created by Oran, ID G-GJS5B65VR9 — now the code default (1.1.2). Search Console: Domain property proevent.co.il, TXT verification record added at Box (hostname empty = apex); first VERIFY failed (DNS not propagated yet) — Oran to retry; then submit sitemap.xml and request indexing for the 3 articles.
+
 ## 2026-10-29 — Phase 69 (1.4.3): Green Invoice auth fixed
 
 - Cause of the 404: Morning retired `account/token` (June 2026). Token now from `api.morning.co/idp/v1/oauth/token` (client_credentials). Waiting for Oran to retry the pending חשבונית מס קבלה.

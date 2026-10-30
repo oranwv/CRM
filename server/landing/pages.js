@@ -288,7 +288,7 @@ const DEMO_JS = `
 </script>`;
 
 function gaSnippet() {
-  const ga = process.env.GA_MEASUREMENT_ID;
+  const ga = process.env.GA_MEASUREMENT_ID || 'G-GJS5B65VR9'; // GA4 property "ProEvent" (2026-10-30); env var overrides
   if (!ga) return '';
   return `<script async src="https://www.googletagmanager.com/gtag/js?id=${ga}"></script>\n<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${ga}');</script>`;
 }

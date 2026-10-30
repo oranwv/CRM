@@ -975,7 +975,7 @@ const landingDir  = path.join(__dirname, 'landing');
 let landingHtml = '';
 try {
   landingHtml = fs.readFileSync(path.join(landingDir, 'index.html'), 'utf8');
-  const ga = process.env.GA_MEASUREMENT_ID;
+  const ga = process.env.GA_MEASUREMENT_ID || 'G-GJS5B65VR9'; // GA4 property "ProEvent" (2026-10-30); env var overrides
   if (ga) {
     landingHtml = landingHtml.replace('<!--GA-->',
       `<script async src="https://www.googletagmanager.com/gtag/js?id=${ga}"></script>\n<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${ga}');</script>`);

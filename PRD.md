@@ -1613,8 +1613,8 @@ path and points to `/sitemap.xml`.
 
 SEO baked in: title/description, canonical `https://www.proevent.co.il/`, Open Graph +
 Twitter card (`/site/og.png`), JSON-LD `SoftwareApplication` + `FAQPage` (from the FAQ
-texts), Inter/Heebo via Google Fonts, Phosphor icons via unpkg. Set env
-`GA_MEASUREMENT_ID` (G-…) and the gtag snippet is injected at boot; the demo form fires
+texts), Inter/Heebo via Google Fonts, Phosphor icons via unpkg. GA4 property "ProEvent" `G-GJS5B65VR9` is the default (2026-10-30); env
+`GA_MEASUREMENT_ID` overrides it. The gtag snippet is injected at boot; the demo form fires
 `generate_lead` on success. Mobile: the README's "under 900px" rules (one column, static
 invoice card, burger nav, 36px h1) live in the page's own `<style>`.
 
