@@ -6,6 +6,12 @@ updated: 2026-10-26
 
 # Now
 
+## 2026-11-01 — 1.4.5 (Phase 70): duplicate-lead phone match prefers the open lead; call bar drag fixed on iPhone
+
+- `findLeadByPhone`: open before lost/completed, then updated_at DESC. `CallBar.jsx`: fractional position, pointer events, double-tap reset.
+- Dialer app build 8 (EAS Update + call-state polish, commit 6b03974): Android Gradle build **failed** on EAS (4d1e14f5) — waiting for the "Run gradlew" log tail from Oran; iOS build 8 not run yet.
+
+
 ## 2026-10-30 — GA4 + Search Console
 
 - GA4 property "ProEvent" created by Oran, ID G-GJS5B65VR9 — now the code default (1.4.4). Search Console: Domain property proevent.co.il, TXT verification record added at Box (hostname empty = apex); first VERIFY failed (DNS not propagated yet) — Oran to retry; then submit sitemap.xml and request indexing for the 3 articles.

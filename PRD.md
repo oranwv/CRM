@@ -1801,6 +1801,18 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 70 — Duplicate leads: inbound call/WhatsApp lands on the open one; call bar drag fixed on iPhone ✅ Built 2026-11-01 (1.4.5)
+**Duplicates.** Oran (28/10): a missed call from a customer who exists twice went into the closed
+duplicate instead of the open lead. `findLeadByPhone` (phoneUtils.js — used by inbound calls,
+missed-call WhatsApp, app free-dial matching and the WhatsApp pollers) now orders candidates:
+open stages before `lost`/`completed`, then most recently updated, then newest id — for the
+lead phone and for extra contacts alike. No change when a phone matches a single lead.
+**Call bar on iPhone.** Gili: the active-call bar ended up half off the left edge and could not
+be dragged. Rewritten: position stored as viewport fractions (`call-bar-pos-v2`, {fx, fy}) and
+converted to px on every render with the bar's real size, so it can never be off-screen on any
+screen size, orientation or zoom; pointer events with pointer capture instead of touch/mouse
+pairs (reliable on iOS Safari); double-tap on the bar body resets to the default spot.
+
 ### Phase 69 — Green Invoice auth moved to Morning OAuth ✅ Built 2026-10-29 (1.4.3)
 Root cause of Oran's 404: Morning (Green Invoice) retired `POST /api/v1/account/token {id,secret}`
 in June 2026 ([help-center/api-updates-26](https://www.greeninvoice.co.il/help-center/api-updates-26/));

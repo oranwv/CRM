@@ -5,65 +5,77 @@ import { useNavigate } from 'react-router-dom';
 import { useCalls } from '../context/CallContext';
 
 // The active-call bar can be dragged anywhere (like the AI assistant button) so it does not
-// cover the calendar or whatever the user needs to see mid-call. Position persists per browser.
-// null = default spot (top centre); after a drag = {left, top} in px, clamped to the viewport.
-const POS_KEY = 'call-bar-pos';
+// cover the calendar or whatever the user needs to see mid-call. Position persists per browser
+// as FRACTIONS of the viewport ({fx, fy} in 0..1) so a saved spot can never land off-screen on a
+// different screen size / orientation / zoom level. null = default spot (top centre).
+// Pointer events (not touch/mouse pairs) — reliable on iOS Safari. Double-tap the grip resets.
+const POS_KEY = 'call-bar-pos-v2';
 function useDraggableBar() {
   const [pos, setPos] = useState(() => {
-    try { const s = localStorage.getItem(POS_KEY); return s ? JSON.parse(s) : null; } catch { return null; }
+    try {
+      const s = localStorage.getItem(POS_KEY); const p = s ? JSON.parse(s) : null;
+      return p && Number.isFinite(p.fx) && Number.isFinite(p.fy) ? p : null;
+    } catch { return null; }
   });
   const ref = useRef(null);
   const posRef = useRef(pos);
   useEffect(() => { posRef.current = pos; }, [pos]);
 
-  // Keep the bar on screen if the window shrinks (phone rotation, resize)
+  // px position for the current viewport; always keeps the whole bar inside the screen
+  function toPx(p, el) {
+    const r = el?.getBoundingClientRect();
+    const w = r?.width || 0, h = r?.height || 0;
+    const maxL = Math.max(0, window.innerWidth - w), maxT = Math.max(0, window.innerHeight - h);
+    return { left: Math.round(Math.min(maxL, Math.max(0, p.fx * maxL))), top: Math.round(Math.min(maxT, Math.max(0, p.fy * maxT))) };
+  }
+  const [, force] = useState(0);
   useEffect(() => {
-    function clampToWindow() {
-      const el = ref.current, p = posRef.current;
-      if (!el || !p) return;
-      const r = el.getBoundingClientRect();
-      const next = {
-        left: Math.max(0, Math.min(window.innerWidth - r.width, p.left)),
-        top: Math.max(0, Math.min(window.innerHeight - r.height, p.top)),
-      };
-      if (next.left !== p.left || next.top !== p.top) setPos(next);
-    }
-    window.addEventListener('resize', clampToWindow);
-    return () => window.removeEventListener('resize', clampToWindow);
+    const re = () => force(n => n + 1);
+    window.addEventListener('resize', re);
+    window.addEventListener('orientationchange', re);
+    return () => { window.removeEventListener('resize', re); window.removeEventListener('orientationchange', re); };
   }, []);
 
+  const lastTap = useRef(0);
   function onDragStart(e) {
     if (e.target.closest('button')) return;          // buttons keep their own taps
     const el = ref.current; if (!el) return;
+    // double-tap/click on the bar body → back to the default spot
+    const now = Date.now();
+    if (now - lastTap.current < 350) { lastTap.current = 0; setPos(null); try { localStorage.removeItem(POS_KEY); } catch {} return; }
+    lastTap.current = now;
+    if (e.cancelable) e.preventDefault();
     const r = el.getBoundingClientRect();
-    const start = { x: e.touches ? e.touches[0].clientX : e.clientX, y: e.touches ? e.touches[0].clientY : e.clientY };
+    const start = { x: e.clientX, y: e.clientY };
     const origin = { left: r.left, top: r.top };
+    const id = e.pointerId;
+    try { el.setPointerCapture(id); } catch {}
     function onMove(ev) {
-      const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
-      const cy = ev.touches ? ev.touches[0].clientY : ev.clientY;
-      if (ev.cancelable) ev.preventDefault();          // no page scroll while dragging on touch
-      const next = {
-        left: Math.max(0, Math.min(window.innerWidth - r.width, origin.left + (cx - start.x))),
-        top: Math.max(0, Math.min(window.innerHeight - r.height, origin.top + (cy - start.y))),
-      };
+      if (ev.pointerId !== id) return;
+      if (ev.cancelable) ev.preventDefault();          // no page scroll while dragging
+      const maxL = Math.max(0, window.innerWidth - r.width), maxT = Math.max(0, window.innerHeight - r.height);
+      const left = Math.min(maxL, Math.max(0, origin.left + (ev.clientX - start.x)));
+      const top = Math.min(maxT, Math.max(0, origin.top + (ev.clientY - start.y)));
+      const next = { fx: maxL ? left / maxL : 0, fy: maxT ? top / maxT : 0 };
       posRef.current = next;
       setPos(next);
     }
-    function onUp() {
+    function onUp(ev) {
+      if (ev.pointerId !== id) return;
       try { if (posRef.current) localStorage.setItem(POS_KEY, JSON.stringify(posRef.current)); } catch {}
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-      window.removeEventListener('touchmove', onMove);
-      window.removeEventListener('touchend', onUp);
+      try { el.releasePointerCapture(id); } catch {}
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerup', onUp);
+      el.removeEventListener('pointercancel', onUp);
     }
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    window.addEventListener('touchmove', onMove, { passive: false });
-    window.addEventListener('touchend', onUp);
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onUp);
+    el.addEventListener('pointercancel', onUp);
   }
 
-  const style = pos
-    ? { left: pos.left, top: pos.top, transform: 'none' }
+  const px = pos && ref.current ? toPx(pos, ref.current) : null;
+  const style = px
+    ? { left: px.left, top: px.top, transform: 'none' }
     : { top: 60 };
   return { ref, style, onDragStart, dragged: !!pos };
 }
@@ -137,9 +149,9 @@ export default function CallBar() {
       )}
 
       {active && (
-        <div ref={drag.ref} className="fixed left-1/2 -translate-x-1/2 z-[90] w-[92%] max-w-md" style={drag.style} dir="rtl"
-          onMouseDown={drag.onDragStart} onTouchStart={drag.onDragStart} title="אפשר לגרור את החלון">
-          <div className="rounded-2xl shadow-2xl bg-slate-900 text-white px-4 py-3 border border-white/10 flex items-center gap-3 cursor-grab active:cursor-grabbing select-none" style={{ touchAction: 'none' }}>
+        <div ref={drag.ref} className="fixed left-1/2 -translate-x-1/2 z-[90] w-[92%] max-w-md" style={{ ...drag.style, touchAction: 'none' }} dir="rtl"
+          onPointerDown={drag.onDragStart} title="אפשר לגרור את החלון · לחיצה כפולה מחזירה למקום">
+          <div className="rounded-2xl shadow-2xl bg-slate-900 text-white px-4 py-3 border border-white/10 flex items-center gap-3 cursor-grab active:cursor-grabbing select-none" style={{ touchAction: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}>
             <span className="text-slate-500 text-base leading-none shrink-0" aria-hidden="true">⋮⋮</span>
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
             <div className="flex-1 min-w-0">
