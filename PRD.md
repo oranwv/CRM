@@ -1801,6 +1801,13 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 70b — Call bar on phones: vertical-only drag, stays centred ✅ Built 2026-11-02 (1.4.6)
+Oran: on the phone a touch threw the bar to the screen edge and it could only move up/down.
+Cause: the bar is 92% of the width, leaving ~30px of sideways room, so any wobble snapped it to
+an edge. Now, when there is less than 80px of sideways slack (phones), the bar stays centred
+horizontally and drags only vertically — which is what frees the calendar; on wider screens it
+still moves freely. Double-tap reset unchanged.
+
 ### Phase 70 — Duplicate leads: inbound call/WhatsApp lands on the open one; call bar drag fixed on iPhone ✅ Built 2026-11-01 (1.4.5)
 **Duplicates.** Oran (28/10): a missed call from a customer who exists twice went into the closed
 duplicate instead of the open lead. `findLeadByPhone` (phoneUtils.js — used by inbound calls,

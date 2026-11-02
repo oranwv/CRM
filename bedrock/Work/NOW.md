@@ -6,6 +6,9 @@ updated: 2026-10-26
 
 # Now
 
+## 2026-11-02 — 1.4.6: call bar on phones drags vertically only (no sideways slack)
+
+
 ## 2026-11-01 — 1.4.5 (Phase 70): duplicate-lead phone match prefers the open lead; call bar drag fixed on iPhone
 
 - `findLeadByPhone`: open before lost/completed, then updated_at DESC. `CallBar.jsx`: fractional position, pointer events, double-tap reset.

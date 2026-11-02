@@ -21,12 +21,17 @@ function useDraggableBar() {
   const posRef = useRef(pos);
   useEffect(() => { posRef.current = pos; }, [pos]);
 
+  // On a phone the bar is nearly as wide as the screen, so there are only a few px of sideways
+  // room: any finger wobble threw it to an edge. Below this much slack the bar stays centred and
+  // only moves up/down; on wider screens it moves freely.
+  const MIN_SIDEWAYS = 80;
   // px position for the current viewport; always keeps the whole bar inside the screen
   function toPx(p, el) {
     const r = el?.getBoundingClientRect();
     const w = r?.width || 0, h = r?.height || 0;
     const maxL = Math.max(0, window.innerWidth - w), maxT = Math.max(0, window.innerHeight - h);
-    return { left: Math.round(Math.min(maxL, Math.max(0, p.fx * maxL))), top: Math.round(Math.min(maxT, Math.max(0, p.fy * maxT))) };
+    const left = maxL < MIN_SIDEWAYS ? maxL / 2 : Math.min(maxL, Math.max(0, p.fx * maxL));
+    return { left: Math.round(left), top: Math.round(Math.min(maxT, Math.max(0, p.fy * maxT))) };
   }
   const [, force] = useState(0);
   useEffect(() => {
@@ -56,7 +61,7 @@ function useDraggableBar() {
       const maxL = Math.max(0, window.innerWidth - r.width), maxT = Math.max(0, window.innerHeight - r.height);
       const left = Math.min(maxL, Math.max(0, origin.left + (ev.clientX - start.x)));
       const top = Math.min(maxT, Math.max(0, origin.top + (ev.clientY - start.y)));
-      const next = { fx: maxL ? left / maxL : 0, fy: maxT ? top / maxT : 0 };
+      const next = { fx: maxL < MIN_SIDEWAYS ? 0.5 : (maxL ? left / maxL : 0.5), fy: maxT ? top / maxT : 0 };
       posRef.current = next;
       setPos(next);
     }
