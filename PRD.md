@@ -1801,6 +1801,12 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 72b — Extra-phone row: delete button pushed off-screen ✅ Built 2026-11-06 (1.4.9)
+Follow-up to Phase 72: in ✏️ עריכה → טלפונים נוספים the same long label made the row wider than
+the screen, so the 🗑️ button was unreachable and the contact could not be removed.
+`ExtraPhonesEdit`: label `min-w-0 max-w-[45%] truncate` (full text in tooltip), value
+`min-w-0 truncate`, button `shrink-0`.
+
 ### Phase 72 — Recipient picker blown up by a long contact label ✅ Built 2026-11-06 (1.4.8)
 Oran + Gili (6.11): choosing "שלח הודעת וואטסאפ" on איריס showed a wall of page text under the
 second phone number. The extra contact 0545552607 (`lead_contacts`) has a `label` that holds a

@@ -5070,10 +5070,10 @@ function ExtraPhonesEdit({ leadId, contacts, onChanged, cls }) {
       <label className="text-sm text-slate-500">טלפונים נוספים</label>
       <div className="space-y-1.5 mt-0.5">
         {phones.map(c => (
-          <div key={c.id} className="flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-1.5 border border-slate-200">
-            {c.label && <span className="text-sm font-semibold text-slate-500 shrink-0">{c.label}</span>}
-            <span className="flex-1 text-base text-slate-700" dir="ltr">{c.value}</span>
-            <button type="button" onClick={() => remove(c.id)} className="text-slate-300 hover:text-red-400 text-sm px-1">🗑️</button>
+          <div key={c.id} className="flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-1.5 border border-slate-200 min-w-0">
+            {c.label && <span className="text-sm font-semibold text-slate-500 min-w-0 max-w-[45%] truncate" title={c.label}>{c.label}</span>}
+            <span className="flex-1 min-w-0 text-base text-slate-700 truncate" dir="ltr">{c.value}</span>
+            <button type="button" onClick={() => remove(c.id)} className="text-slate-300 hover:text-red-400 text-sm px-1 shrink-0">🗑️</button>
           </div>
         ))}
         <div className="flex gap-2">

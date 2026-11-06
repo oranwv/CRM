@@ -63,3 +63,4 @@
 {"ts": "2026-10-29T15:05:00Z", "type": "fix", "tool": "cloud", "slug": "CRM", "summary": "Phase 69 (1.4.3): Green Invoice auth moved to Morning OAuth (api.morning.co/idp/v1/oauth/token, client_credentials) — old account/token returned empty 404"}
 {"ts": "2026-11-06T09:55:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.4.7: meeting booking validates the guest email; invalid lead email no longer breaks WhatsApp invites (Google 'Invalid attendee email')"}
 {"ts": "2026-11-06T10:05:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.4.8: recipient picker renders phone first and truncates the contact label; POST lead contacts caps label at 60 chars"}
+{"ts": "2026-11-06T10:15:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.4.9: extra-phone row in the lead edit form truncates a long label so the delete button stays on screen"}
