@@ -99,13 +99,23 @@ router.get('/leads/:leadId/status', async (req, res) => {
 // Books a meeting for a lead: Google event + meetings row + timeline line + host notification +
 // stage auto-advance. Shared by POST /leads/:leadId/meeting and the assistant's "ליד חדש" card
 // (routes/chat.js). `actor` = the staff user doing the booking (req.user).
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 async function bookLeadMeeting({ lead, title, start, end, guestEmail, guestName, sendInvite, hostUserId, actor }) {
+    // Only a real address goes to Google as an attendee. Leads from the call parser / voicemail
+    // sometimes carry junk in `email` ("לא ידוע", a phone number…) and Google then rejects the
+    // whole event with "Invalid attendee email". A WhatsApp invite does not need the email at all.
+    const rawEmail = (guestEmail || lead.email || '').trim();
+    const validEmail = EMAIL_RE.test(rawEmail) ? rawEmail : null;
+    if (sendInvite && !validEmail) {
+      const e = new Error(rawEmail ? `כתובת האימייל של הליד לא תקינה (${rawEmail}) — תקן אותה בכרטיס או שלח דרך וואטסאפ` : 'לליד אין כתובת אימייל — הוסף אימייל בכרטיס או שלח דרך וואטסאפ');
+      e.status = 400; throw e;
+    }
     const { eventId, eventLink } = await createMeeting({
       leadId: lead.id,
       title,
       start,
       end,
-      guestEmail: guestEmail || lead.email || null,
+      guestEmail: validEmail,
       guestName:  guestName  || lead.name  || null,
       sendInvite: !!sendInvite,
     });
@@ -180,7 +190,7 @@ router.post('/leads/:leadId/meeting', async (req, res) => {
     res.json(out);
   } catch (err) {
     console.error('[Calendar] createMeeting error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 

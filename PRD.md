@@ -1801,6 +1801,14 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 71 — Meeting via WhatsApp failed on a bad lead email ✅ Built 2026-11-06 (1.4.7)
+Oran (6.11): "קבע פגישה → וואטסאפ" showed "Invalid attendee email". `bookLeadMeeting`
+(`routes/calendar.js`) always passed `guestEmail || lead.email` to Google as an attendee; leads
+from the call parser can carry junk there, and Google rejects the whole event. Now the address is
+validated first: invalid/empty → no attendee (WhatsApp invite works, Google event still created);
+when the user chose the email invite with no valid address → 400 with a Hebrew message
+("כתובת האימייל של הליד לא תקינה (…)" / "לליד אין כתובת אימייל"), which the dialog already shows.
+
 ### Phase 70b — Call bar on phones: vertical-only drag, stays centred ✅ Built 2026-11-02 (1.4.6)
 Oran: on the phone a touch threw the bar to the screen edge and it could only move up/down.
 Cause: the bar is 92% of the width, leaving ~30px of sideways room, so any wobble snapped it to

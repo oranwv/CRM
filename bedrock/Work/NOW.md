@@ -6,6 +6,10 @@ updated: 2026-10-26
 
 # Now
 
+## 2026-11-06 — Phase 71 (1.4.7): meeting invite with a bad lead email
+
+- Guest email validated before Google; invalid → dropped (WhatsApp path works), email path → clear 400.
+
 ## 2026-11-02 — 1.4.6: call bar on phones drags vertically only (no sideways slack)
 
 
