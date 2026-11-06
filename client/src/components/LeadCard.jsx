@@ -161,9 +161,10 @@ function ContactCheckList({ title, options, labels = {}, value, onChange }) {
     <div className="space-y-1">
       {title && <label className="text-xs font-bold text-slate-500 block">{title}</label>}
       {options.map(v => (
-        <label key={v} className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
-          <input type="checkbox" checked={selected.includes(v)} onChange={() => toggle(v)} />
-          {labels?.[v] ? `${labels[v]} (${v})` : v}
+        <label key={v} className="flex items-center gap-2 cursor-pointer text-sm text-slate-700 min-w-0">
+          <input type="checkbox" checked={selected.includes(v)} onChange={() => toggle(v)} className="shrink-0" />
+          <span className="shrink-0" dir="ltr">{v}</span>
+          {labels?.[v] && <span className="min-w-0 truncate text-slate-500" title={labels[v]}>— {String(labels[v]).slice(0, 60)}</span>}
         </label>
       ))}
       {selected.length > 1 && (

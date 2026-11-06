@@ -6,6 +6,10 @@ updated: 2026-10-26
 
 # Now
 
+## 2026-11-06 — Phase 72 (1.4.8): recipient picker + contact label cap
+
+- Picker shows phone first, label truncated; server caps new labels at 60 chars.
+
 ## 2026-11-06 — Phase 71 (1.4.7): meeting invite with a bad lead email
 
 - Guest email validated before Google; invalid → dropped (WhatsApp path works), email path → clear 400.

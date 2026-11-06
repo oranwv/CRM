@@ -1801,6 +1801,15 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 72 — Recipient picker blown up by a long contact label ✅ Built 2026-11-06 (1.4.8)
+Oran + Gili (6.11): choosing "שלח הודעת וואטסאפ" on איריס showed a wall of page text under the
+second phone number. The extra contact 0545552607 (`lead_contacts`) has a `label` that holds a
+whole page of pasted text, and `ContactCheckList` rendered "label (phone)" unbounded.
+`LeadCard.jsx` `ContactCheckList`: phone first (ltr), label after it, truncated to one line
+(60 chars, full text in the tooltip). `routes/leads.js` POST contacts: label collapsed to one
+line and capped at 60 chars. The bad label on איריס stays until the contact is removed and
+re-added (or edited) — the picker now just shows it shortened.
+
 ### Phase 71 — Meeting via WhatsApp failed on a bad lead email ✅ Built 2026-11-06 (1.4.7)
 Oran (6.11): "קבע פגישה → וואטסאפ" showed "Invalid attendee email". `bookLeadMeeting`
 (`routes/calendar.js`) always passed `guestEmail || lead.email` to Google as an attendee; leads

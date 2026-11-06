@@ -622,7 +622,10 @@ router.get('/:id/contacts', async (req, res) => {
 // POST /api/leads/:id/contacts
 router.post('/:id/contacts', async (req, res) => {
   try {
-    const { type, value, label } = req.body;
+    const { type, value } = req.body;
+    // A label is a short tag ("אמא של הכלה"), never a paragraph — one pasted page of text here
+    // once broke the recipient pickers. Cap it and keep it to one line.
+    const label = String(req.body.label || '').replace(/\s+/g, ' ').trim().slice(0, 60) || null;
     if (!type || !value) return res.status(400).json({ error: 'type and value required' });
     const { rows } = await pool.query(
       'INSERT INTO lead_contacts (lead_id, type, value, label) VALUES ($1, $2, $3, $4) RETURNING *',
