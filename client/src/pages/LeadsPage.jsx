@@ -496,8 +496,11 @@ export default function LeadsPage() {
                         {lead.avatar_url && (
                           <img src={lead.avatar_url} className="w-7 h-7 rounded-full object-cover shrink-0" onError={e => e.target.style.display='none'} />
                         )}
-                        <span>{lead.event_name || lead.name || '—'}</span>
+                        <span>{lead.name || lead.event_name || '—'}</span>
                       </div>
+                      {lead.name && lead.event_name && lead.event_name !== lead.name && (
+                        <p className="text-xs font-normal text-slate-400 mt-0.5">🎉 {lead.event_name}</p>
+                      )}
                       <SearchMatchTags lead={lead} search={debouncedSearch} />
                     </td>
                     <td className="px-2 py-3">

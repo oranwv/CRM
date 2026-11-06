@@ -6,6 +6,10 @@ updated: 2026-10-26
 
 # Now
 
+## 2026-11-06 — Phase 73 (1.5.0): leads list name column
+
+- Main line = lead name; small 🎉 event_name under it when different. Closes the open question from 29.10.
+
 ## 2026-11-06 — Phase 72 (1.4.8): recipient picker + contact label cap
 
 - Picker shows phone first, label truncated; server caps new labels at 60 chars. 1.4.9: extra-phone row in the edit form truncates the label so 🗑️ is reachable.

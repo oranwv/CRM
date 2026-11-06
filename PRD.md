@@ -1801,6 +1801,13 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 73 — Leads list shows the lead name, event name underneath ✅ Built 2026-11-06 (1.5.0)
+Oran (29.10 + 6.11): editing a lead's name did not show in the list because the "שם האירוע"
+column rendered `event_name || name`, and leads from the voicemail/call parser carry a
+short event_name ("נועם"). Approved from a text preview: `LeadsPage.jsx` now renders
+`name || event_name` as the main line and, when both exist and differ, a small grey
+"🎉 event_name" line under it. All lead lists, desktop and phone.
+
 ### Phase 72b — Extra-phone row: delete button pushed off-screen ✅ Built 2026-11-06 (1.4.9)
 Follow-up to Phase 72: in ✏️ עריכה → טלפונים נוספים the same long label made the row wider than
 the screen, so the 🗑️ button was unreachable and the contact could not be removed.
