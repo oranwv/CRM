@@ -5449,7 +5449,12 @@ function CalendarSection({ lead, leadId, editForm, calStatus, onUpdated, allPhon
               {meeting ? formatMeetingDateTime(meeting.start_time) : '...'}
             </span>
             {meeting?.host_name && (
-              <span className="block text-xs text-violet-600 font-semibold mt-0.5">מקיים/ת: {meeting.host_name}</span>
+              <span className="block text-xs text-violet-600 font-semibold mt-0.5">
+                מקיים/ת: {meeting.host_name}
+                {meeting.booked_by_name && meeting.booked_by !== meeting.host_user_id && (
+                  <span className="text-slate-500 font-normal"> · נקבעה ע״י {meeting.booked_by_name}</span>
+                )}
+              </span>
             )}
             {meeting && (
               <span className={`inline-block text-[11px] font-bold px-2 py-0.5 rounded-full border mt-1 ${

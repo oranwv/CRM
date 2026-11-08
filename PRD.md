@@ -1801,6 +1801,13 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 75 — Meeting shows who booked it ✅ Built 2026-11-08 (1.7.0)
+Oran: when he books a meeting for Gili, she should see that he booked it. `meetings.booked_by`
+was already stored; now `GET /calendar/meetings/:eventId/details` also returns `booked_by_name`,
+and the violet meeting box on the lead card shows "מקיים/ת: גילי · נקבעה ע״י אורן" (the suffix
+only when booker ≠ host). The "📅 פגישה נקבעה" interaction line gets "| נקבע ע״י: <name>" under
+the same condition. Google event description deliberately unchanged (customers see it).
+
 ### Phase 74 — Schedule meeting: end time auto-fills to start + 45 min ✅ Built 2026-11-08 (1.6.0)
 Oran (08/11): when booking a meeting and picking the start time, the end should be set
 automatically 45 minutes later (pick 19:00 → end 19:45). `ScheduleMeetingModal` (LeadCard.jsx):

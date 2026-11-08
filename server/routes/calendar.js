@@ -132,6 +132,8 @@ async function bookLeadMeeting({ lead, title, start, end, guestEmail, guestName,
       [lead.id, eventId, title, start, end, confirmToken, hostUserId, actor?.id || null]
     );
     const host = await hostName(hostUserId);
+    // Who booked it — shown only when it is not the host themself (Phase 75)
+    const bookedBy = actor?.id && Number(actor.id) !== Number(hostUserId) ? (actor.display_name || actor.username || null) : null;
 
     const startDt = new Date(start);
     const endDt   = new Date(end);
@@ -141,7 +143,7 @@ async function bookLeadMeeting({ lead, title, start, end, guestEmail, guestName,
     await pool.query(
       `INSERT INTO lead_interactions (lead_id, type, direction, body, created_by, source)
        VALUES ($1, 'meeting', 'outbound', $2, $3, 'calendar')`,
-      [lead.id, `📅 פגישה נקבעה: ${title} | ${fmtDate} ${fmtStart}–${fmtEnd}${host ? ` | מקיים: ${host}` : ''}`, actor?.id || null]
+      [lead.id, `📅 פגישה נקבעה: ${title} | ${fmtDate} ${fmtStart}–${fmtEnd}${host ? ` | מקיים: ${host}` : ''}${bookedBy ? ` | נקבע ע״י: ${bookedBy}` : ''}`, actor?.id || null]
     );
 
     // Booked for someone else → tell them
@@ -319,8 +321,10 @@ router.get('/meetings/:eventId/status', async (req, res) => {
 router.get('/meetings/:eventId/details', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT m.*, u.display_name AS host_name FROM meetings m
-       LEFT JOIN users u ON u.id = m.host_user_id WHERE m.google_event_id = $1`,
+      `SELECT m.*, u.display_name AS host_name, b.display_name AS booked_by_name FROM meetings m
+       LEFT JOIN users u ON u.id = m.host_user_id
+       LEFT JOIN users b ON b.id = m.booked_by
+       WHERE m.google_event_id = $1`,
       [req.params.eventId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Meeting not found' });

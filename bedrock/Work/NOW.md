@@ -6,6 +6,10 @@ updated: 2026-11-08
 
 # Now
 
+## 2026-11-08 — 1.7.0 (Phase 75): meeting box shows who booked it
+
+- `booked_by_name` joined in details endpoint; shown only when booker ≠ host. Oran confirmed end time must stay editable (it is).
+
 ## 2026-11-08 — 1.6.0 (Phase 74): meeting end time auto = start + 45 min
 
 - `ScheduleMeetingModal` only (LeadCard.jsx): `onStartChange` → `addMinutesToTime`. Postpone modal untouched — ask Oran whether he wants the same there.
