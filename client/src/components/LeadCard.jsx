@@ -6028,6 +6028,16 @@ function MeetingActionModal({ lead, leadId, eventId, meeting, allPhones, allPhon
 }
 
 /* ── SCHEDULE MEETING MODAL ── */
+// Default meeting length; 'HH:MM' + minutes → 'HH:MM' (wraps past midnight).
+const MEETING_DEFAULT_MINUTES = 45;
+function addMinutesToTime(hhmm, minutes) {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(hhmm || '');
+  if (!match) return '';
+  const h = Number(match[1]), m = Number(match[2]);
+  const total = ((h * 60 + m + minutes) % 1440 + 1440) % 1440;
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
 function ScheduleMeetingModal({ lead, leadId, users = [], allPhones, allPhoneLabels, onClose, onDone }) {
   const currentUser = JSON.parse(localStorage.getItem('crm_user') || '{}');
   // Who holds the meeting — internal only (never shown to the customer). Defaults to whoever books it.
@@ -6039,7 +6049,12 @@ function ScheduleMeetingModal({ lead, leadId, users = [], allPhones, allPhoneLab
   const [title, setTitle]       = useState(`פגישה עם ${lead.name || ''}`);
   const [date, setDate]         = useState(tomorrowStr);
   const [startTime, setStart]   = useState('10:00');
-  const [endTime, setEnd]       = useState('11:00');
+  const [endTime, setEnd]       = useState(addMinutesToTime('10:00', MEETING_DEFAULT_MINUTES));
+  // Picking a start time moves the end to start + 45 min; the end stays editable afterwards.
+  function onStartChange(t) {
+    setStart(t);
+    if (t) setEnd(addMinutesToTime(t, MEETING_DEFAULT_MINUTES));
+  }
   const [delivery, setDelivery] = useState(lead.phone ? 'whatsapp' : 'email');
   const [waPhone, setWaPhone]   = useState(allPhones?.[0] || lead?.phone || '');
   const [step, setStep]         = useState(1); // 1=form, 2=done
@@ -6122,7 +6137,7 @@ function ScheduleMeetingModal({ lead, leadId, users = [], allPhones, allPhoneLab
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-sm text-slate-500 block mb-1 text-right">שעת התחלה</label>
-                <PickerTimeInput value={startTime} onChange={setStart} className={cls} />
+                <PickerTimeInput value={startTime} onChange={onStartChange} className={cls} />
               </div>
               <div>
                 <label className="text-sm text-slate-500 block mb-1 text-right">שעת סיום</label>

@@ -1801,6 +1801,13 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 74 — Schedule meeting: end time auto-fills to start + 45 min ✅ Built 2026-11-08 (1.6.0)
+Oran (08/11): when booking a meeting and picking the start time, the end should be set
+automatically 45 minutes later (pick 19:00 → end 19:45). `ScheduleMeetingModal` (LeadCard.jsx):
+`onStartChange` sets end = `addMinutesToTime(start, MEETING_DEFAULT_MINUTES)` (45; wraps past
+midnight); default opens as 10:00–10:45 instead of 10:00–11:00. The end field stays editable —
+a manual end is kept until the start is changed again. The postpone (דחיית פגישה) modal and
+event-brief times are unchanged.
 ### Phase 73 — Leads list shows the lead name, event name underneath ✅ Built 2026-11-06 (1.5.0)
 Oran (29.10 + 6.11): editing a lead's name did not show in the list because the "שם האירוע"
 column rendered `event_name || name`, and leads from the voicemail/call parser carry a

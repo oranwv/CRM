@@ -1,11 +1,14 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-10-26
+updated: 2026-11-08
 ---
 
 # Now
 
+## 2026-11-08 — 1.6.0 (Phase 74): meeting end time auto = start + 45 min
+
+- `ScheduleMeetingModal` only (LeadCard.jsx): `onStartChange` → `addMinutesToTime`. Postpone modal untouched — ask Oran whether he wants the same there.
 ## 2026-11-06 — Phase 73 (1.5.0): leads list name column
 
 - Main line = lead name; small 🎉 event_name under it when different. Closes the open question from 29.10.
