@@ -24,7 +24,7 @@ export default function CallLeadPage() {
     if (!lead) return;
     setError('');
     if (!lead.phone) { setError('לליד אין מספר טלפון'); return; }
-    if (/Android/i.test(navigator.userAgent) && calls.config?.app_registered) {
+    if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) && calls.config?.app_registered) {
       setStatus('פותח את אפליקציית החייגן…');
       tryOpenDialerApp(lead);
       setTimeout(() => navigate(`/?lead=${lead.id}`, { replace: true }), 1500);

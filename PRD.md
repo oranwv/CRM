@@ -1801,6 +1801,15 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 76 — "התקשר" on iPhone goes through the dialer app; button never hidden by a failed config fetch ✅ Built 2026-11-09 (1.7.1)
+Gili (iPhone, has the app): the "התקשר" button vanished from a lead card. Two causes fixed:
+(1) `CallButtons` returned null whenever `/calls/config` had failed once (weak mobile network),
+and the context never retried — now the previous config is kept on error and the fetch retries
+after 5s and on returning to the foreground; (2) app routing was Android-only — iPhone users
+with the app registered now also dial through the ProEvent Dialer deep link (`CallButtons` and
+`/call/:leadId`), and the button is enabled for them even when the browser softphone is not
+ready. Desktop and users without the app are unchanged.
+
 ### Phase 75 — Meeting shows who booked it ✅ Built 2026-11-08 (1.7.0)
 Oran: when he books a meeting for Gili, she should see that he booked it. `meetings.booked_by`
 was already stored; now `GET /calendar/meetings/:eventId/details` also returns `booked_by_name`,

@@ -24,13 +24,23 @@ export function CallProvider({ children }) {
   const incomingRef = useRef(null);
   const loggedIn = !!localStorage.getItem('crm_token');
 
+  // One failed fetch (phone on a weak network while the page loads) used to leave calling off —
+  // and the "התקשר" buttons hidden — until a full reload. Keep the previous config on error and
+  // retry: after 5s, and whenever the tab comes back to the foreground without a config.
   const loadConfig = useCallback(async () => {
     if (!localStorage.getItem('crm_token')) return;
     try { const r = await api.get('/calls/config'); setConfig(r.data); return r.data; }
-    catch { setConfig({ enabled: false }); }
+    catch { setConfig(c => (c.enabled ? c : { enabled: false, failed: true })); }
   }, []);
 
   useEffect(() => { loadConfig(); }, [loadConfig, loggedIn]);
+  useEffect(() => {
+    if (!config.failed) return;
+    const t = setTimeout(loadConfig, 5000);
+    const onVisible = () => { if (document.visibilityState === 'visible') loadConfig(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearTimeout(t); document.removeEventListener('visibilitychange', onVisible); };
+  }, [config.failed, loadConfig]);
   useEffect(() => { activeRef.current = active; }, [active]);
   useEffect(() => { incomingRef.current = incoming; }, [incoming]);
 

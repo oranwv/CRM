@@ -1366,14 +1366,15 @@ function CallButtons({ lead, phone }) {
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState(false);
   const [note, setNote] = useState('');
-  if (!calls.enabled) return null;
-
-  // On Android phones the "ProEvent Dialer" app gives a real dialer (speaker, background,
-  // locked-screen ringing). When this user has the app registered we hand the call to it and
-  // never dial from the browser as well (the old "try the app, else browser after 1.5s" race
-  // could start both and left the button stuck). Users without the app dial from the browser.
-  const isAndroid = /Android/i.test(navigator.userAgent);
-  const useApp = isAndroid && !!calls.config?.app_registered;
+  // On phones the "ProEvent Dialer" app gives a real dialer (speaker, background, locked-screen
+  // ringing). When this user has the app registered we hand the call to it — Android and iPhone
+  // alike — and never dial from the browser as well (the old "try the app, else browser after
+  // 1.5s" race could start both and left the button stuck). Users without the app dial from the
+  // browser softphone. The button shows as soon as either path is available, so a failed
+  // /calls/config fetch (flaky mobile network) cannot hide it for an app user.
+  const isPhone = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const useApp = isPhone && !!calls.config?.app_registered;
+  if (!calls.enabled && !useApp) return null;
   async function browserCall() {
     setMenu(false);
     if (useApp) { tryOpenDialerApp(target); return; }
@@ -1395,8 +1396,8 @@ function CallButtons({ lead, phone }) {
     <span className="relative inline-flex items-center gap-1">
       <button
         onClick={browserCall}
-        disabled={busy || !!calls.active || !calls.ready}
-        title={calls.ready ? 'התקשר מהמערכת (מוקלט, מוצג המספר של שרביה)' : 'הטלפון עוד לא מחובר'}
+        disabled={busy || !!calls.active || !(useApp || calls.ready)}
+        title={useApp ? 'התקשר דרך אפליקציית החייגן' : calls.ready ? 'התקשר מהמערכת (מוקלט, מוצג המספר של שרביה)' : 'הטלפון עוד לא מחובר'}
         className="px-2.5 py-1 rounded-lg text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 transition"
       >📞 התקשר</button>
       <button

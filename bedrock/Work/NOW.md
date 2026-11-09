@@ -6,6 +6,12 @@ updated: 2026-11-08
 
 # Now
 
+## 2026-11-09 — 1.7.1 (Phase 76): התקשר on iPhone via the app; config fetch retries
+
+- Open: Twilio cannot route calls to 054-555-2606 (carrier message "לא ניתן להשלים את השיחה"; works from a normal phone) — waiting for Oran's Twilio call-log screenshot (error/SIP code) to open a Twilio ticket / check Geo permissions.
+- Dialer app build 8 (EAS Update): Android Gradle build failed on EAS — need the "Run gradlew" log; iOS build 8 not run yet.
+
+
 ## 2026-11-08 — 1.7.0 (Phase 75): meeting box shows who booked it
 
 - `booked_by_name` joined in details endpoint; shown only when booker ≠ host. Oran confirmed end time must stay editable (it is).
