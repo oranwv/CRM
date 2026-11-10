@@ -1801,6 +1801,18 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 77 — ניהול: view the work of blocked employees ✅ Built 2026-11-10 (1.8.0)
+Oran (10.11): once an employee is blocked their row vanished from ניהול → פעילות עובדים, so
+their past work could not be reviewed. Approved from a text preview.
+- `GET /analytics/employee-activity?blocked=1` also returns blocked users, each row flagged
+  `blocked`. Without the flag the endpoint behaves as before (`computeEmployeeActivity`
+  `includeBlocked` option; "הפעילות שלי" is unaffected).
+- `ManagementPage.jsx`: toolbar dropdown "עובדים חסומים" — ללא (default, page as before) /
+  כל החסומים (n) / one blocked user. Chosen rows are added in grey with a "🚫 חסום" tag, listed
+  after the active employees, expandable to days and handled customers like any row. A blocked
+  row with no activity is not painted red. The dropdown only appears when blocked users exist.
+- Blocking itself is unchanged (login, tasks, briefings, calls).
+
 ### Phase 76 — "התקשר" on iPhone goes through the dialer app; button never hidden by a failed config fetch ✅ Built 2026-11-09 (1.7.1)
 Gili (iPhone, has the app): the "התקשר" button vanished from a lead card. Two causes fixed:
 (1) `CallButtons` returned null whenever `/calls/config` had failed once (weak mobile network),

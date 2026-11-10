@@ -67,3 +67,4 @@
 {"ts": "2026-11-06T10:25:00Z", "type": "feature", "tool": "cowork", "slug": "CRM", "summary": "1.5.0: leads list shows lead name as main line with event name in small grey text underneath"}
 {"ts": "2026-11-08T18:45:00Z", "type": "feature", "tool": "cloud", "slug": "CRM", "summary": "Phase 74 (1.6.0): schedule-meeting modal — picking a start time auto-sets the end to start + 45 min; default 10:00–10:45"}
 {"ts": "2026-11-08T18:55:00Z", "type": "feature", "tool": "cloud", "slug": "CRM", "summary": "Phase 75 (1.7.0): lead-card meeting box + interaction line show who booked the meeting when booker ≠ host (booked_by_name from details endpoint)"}
+{"ts": "2026-11-10T08:10:00Z", "type": "feature", "tool": "cowork", "slug": "CRM", "summary": "1.8.0: ניהול employee-activity can show blocked employees via a dropdown (none/all/one); endpoint ?blocked=1 flags rows"}

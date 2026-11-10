@@ -221,6 +221,8 @@ export default function ManagementPage() {
   const [expanded, setExpanded] = useState(() => new Set());
   const [leadActivity, setLeadActivity] = useState({}); // uid -> [{ date, leads:[...] }] | 'loading'
   const [scrollX, setScrollX] = useState(0); // sideways scroll of the metrics table (RTL: 0 or negative)
+  // Blocked employees are hidden by default; the dropdown shows one of them ('<id>') or all ('all').
+  const [showBlocked, setShowBlocked] = useState('none');
 
   useEffect(() => {
     if (!isManager) { navigate('/'); return; }
@@ -229,7 +231,7 @@ export default function ManagementPage() {
   useEffect(() => {
     if (!isManager) return;
     setLoading(true);
-    api.get(`/analytics/employee-activity?from=${from}&to=${to}`)
+    api.get(`/analytics/employee-activity?from=${from}&to=${to}&blocked=1`)
       .then(r => setRows(r.data))
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -255,7 +257,10 @@ export default function ManagementPage() {
     });
   }
 
-  const sortedRows = [...rows].sort((a, b) => metricTotal(b.totals) - metricTotal(a.totals));
+  const blockedUsers = rows.filter(r => r.blocked);
+  const sortedRows = rows
+    .filter(r => !r.blocked || showBlocked === 'all' || String(r.id) === showBlocked)
+    .sort((a, b) => (a.blocked - b.blocked) || (metricTotal(b.totals) - metricTotal(a.totals)));
   const isRange = from !== to;
 
   const presets = [
@@ -316,6 +321,14 @@ export default function ManagementPage() {
             );
           })}
         </div>
+        {blockedUsers.length > 0 && (
+          <select value={showBlocked} onChange={e => setShowBlocked(e.target.value)} aria-label="עובדים חסומים"
+            className={`text-xs font-bold px-2 py-1.5 rounded-lg border bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-violet-400 ${showBlocked === 'none' ? 'border-slate-300 text-slate-600' : 'border-violet-400 text-violet-700'}`}>
+            <option value="none">עובדים חסומים: ללא</option>
+            <option value="all">כל החסומים ({blockedUsers.length})</option>
+            {blockedUsers.map(u => <option key={u.id} value={String(u.id)}>{u.display_name}</option>)}
+          </select>
+        )}
         {loading && <span className="text-xs text-slate-400">טוען...</span>}
         <span className="text-xs text-slate-400">· לחיצה על עובד פותחת את הלקוחות שטופלו{isRange ? ', לפי יום' : ''}</span>
       </div>
@@ -345,16 +358,18 @@ export default function ManagementPage() {
             )}
             {sortedRows.map(row => {
               const tot = metricTotal(row.totals);
-              const inactive = tot === 0 && !row.totals.hours;
+              const inactive = !row.blocked && tot === 0 && !row.totals.hours; // a blocked user with no activity is expected, not an alert
               const open = expanded.has(row.id);
+              const rowBg = inactive ? 'bg-red-50' : row.blocked ? 'bg-slate-100' : 'bg-white';
               return (
                 <Fragment key={row.id}>
                   <tr
                     onClick={() => row.days.length && toggle(row.id)}
-                    className={`[&>td]:border-b [&>td]:border-slate-100 transition ${row.days.length ? 'cursor-pointer' : ''} ${inactive ? 'bg-red-50' : 'bg-white hover:bg-slate-50'}`}>
-                    <td className={`px-4 py-2.5 font-bold sticky right-0 z-10 ${inactive ? 'bg-red-50 text-red-500' : 'bg-white text-slate-800'}`}>
+                    className={`[&>td]:border-b [&>td]:border-slate-100 transition ${row.days.length ? 'cursor-pointer' : ''} ${rowBg} ${inactive || row.blocked ? '' : 'hover:bg-slate-50'}`}>
+                    <td className={`px-4 py-2.5 font-bold sticky right-0 z-10 ${rowBg} ${inactive ? 'text-red-500' : row.blocked ? 'text-slate-500' : 'text-slate-800'}`}>
                       {row.days.length > 0 && <span className="text-slate-400 mr-1">{open ? '▾' : '▸'}</span>}
                       {row.display_name}
+                      {row.blocked && <span className="mr-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-300 text-slate-700 align-middle">🚫 חסום</span>}
                     </td>
                     {METRIC_COLS.map(c => {
                       const val = Number(row.totals[c.key] || 0);

@@ -6,6 +6,10 @@ updated: 2026-11-08
 
 # Now
 
+## 2026-11-10 — Phase 77 (1.8.0): blocked employees in ניהול
+
+- Dropdown "עובדים חסומים" (none / all / one) adds their rows in grey; endpoint `?blocked=1`. Not verified against live data (no DB access from the cloud session) — Oran to confirm on the phone.
+
 ## 2026-11-09 — 1.7.1 (Phase 76): התקשר on iPhone via the app; config fetch retries
 
 - Open: Twilio cannot route calls to 054-555-2606 (carrier message "לא ניתן להשלים את השיחה"; works from a normal phone) — waiting for Oran's Twilio call-log screenshot (error/SIP code) to open a Twilio ticket / check Geo permissions.

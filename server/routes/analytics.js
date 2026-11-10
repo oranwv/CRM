@@ -202,7 +202,7 @@ function sessionSeconds(epochs) {
 // computed from presence heartbeats (tracked) or, for days without heartbeat data,
 // estimated from action timestamps with 2h session-gap splitting.
 // Shared by the managers' ניהול table and each user's own "הפעילות שלי" page (onlyUid).
-async function computeEmployeeActivity(from, to, onlyUid = null) {
+async function computeEmployeeActivity(from, to, onlyUid = null, { includeBlocked = false } = {}) {
     const params = [from, to];
 
     // Per (user, day, metric) counts.
@@ -298,11 +298,11 @@ async function computeEmployeeActivity(from, to, onlyUid = null) {
     `, params);
 
     const usersQ = onlyUid
-      ? pool.query(`SELECT id, display_name, role FROM users WHERE id = $1`, [onlyUid])
+      ? pool.query(`SELECT id, display_name, role, COALESCE(blocked, false) AS blocked FROM users WHERE id = $1`, [onlyUid])
       : pool.query(`
-      SELECT id, display_name, role FROM users
-      WHERE role IN ('admin','manager','sales','production') AND NOT COALESCE(blocked, false) ORDER BY display_name
-    `);
+      SELECT id, display_name, role, COALESCE(blocked, false) AS blocked FROM users
+      WHERE role IN ('admin','manager','sales','production') AND ($1::boolean OR NOT COALESCE(blocked, false)) ORDER BY display_name
+    `, [includeBlocked]);
 
     const [metrics, actions, sessions, users] = await Promise.all([metricsQ, actionsQ, sessionsQ, usersQ]);
 
@@ -367,7 +367,7 @@ async function computeEmployeeActivity(from, to, onlyUid = null) {
         totals.hours += d.hours;
       });
       totals.hours = +totals.hours.toFixed(2);
-      return { id: u.id, display_name: u.display_name, role: u.role, totals, days };
+      return { id: u.id, display_name: u.display_name, role: u.role, blocked: !!u.blocked, totals, days };
     });
     return result;
 }
@@ -379,7 +379,9 @@ router.get('/employee-activity', async (req, res) => {
     const today = new Date().toISOString().slice(0, 10);
     const from = req.query.from || req.query.date || today;
     const to   = req.query.to   || req.query.date || from;
-    res.json(await computeEmployeeActivity(from, to));
+    // ?blocked=1 — also return blocked users (flagged `blocked: true`) so a manager can still
+    // review their past work in ניהול; the page hides them unless picked in its dropdown.
+    res.json(await computeEmployeeActivity(from, to, null, { includeBlocked: req.query.blocked === '1' }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
