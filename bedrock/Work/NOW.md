@@ -6,6 +6,10 @@ updated: 2026-11-08
 
 # Now
 
+## 2026-11-10 — Phase 78 (1.9.0): hours gap 30 min + daily report (branch `hours-report`, awaiting OK)
+
+- Presence session gap 2h → 30 min; days before 2026-11-11 re-estimated from action timestamps (≈). Daily report window per employee in ניהול with CSV download; "מתחילת החודש" preset.
+
 ## 2026-11-10 — Phase 77 (1.8.0): blocked employees in ניהול
 
 - Dropdown "עובדים חסומים" (none / all / one) adds their rows in grey; endpoint `?blocked=1`. Not verified against live data (no DB access from the cloud session) — Oran to confirm on the phone.

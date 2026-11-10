@@ -1801,6 +1801,24 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 78 — Work hours: 30-minute gap; daily report per employee ✅ Built 2026-11-10 (1.9.0)
+Oran: ניהול showed 210 hours for Shir last month — not plausible. Cause: a "session" was first
+ping → last ping with any gap up to **2 hours** bridged (`routes/presence.js`), so scattered
+glances at the CRM through the day (and evening) became one long work day.
+- **Gap = 30 minutes** (his choice): `presence.js` extends a session only if the previous ping
+  was ≤ 30 min ago; `SESSION_GAP_SEC` in `analytics.js` (the estimate from action timestamps) is
+  30 min too, with a 5-minute floor per estimated session.
+- **Past days**: `user_sessions` keeps only start/end, so sessions merged under the 2-hour rule
+  cannot be split. For days before `TRACKED_FROM_DAY = 2026-11-11` the hours ignore the heartbeat
+  sessions and are re-estimated from action timestamps (interactions, WhatsApp, tasks, files,
+  contracts… plus call start and end, so talk time is inside) with the 30-minute rule — shown
+  with ≈ and a tooltip. It is an approximation (work done without touching the CRM is not seen).
+- **Daily report** (`components/DailyReportModal.jsx`, button "📄 דוח יומי" beside the employee's
+  name in ניהול): one row per calendar day of the selected range — date, weekday, actions (the
+  ניהול total: all metrics except talk minutes), talk minutes — empty days shown as "—",
+  Fri/Sat shaded, a totals row with the number of active days, and "הורדה לאקסל" (CSV with BOM,
+  built in the browser). New range preset "מתחילת החודש".
+
 ### Phase 77 — ניהול: view the work of blocked employees ✅ Built 2026-11-10 (1.8.0)
 Oran (10.11): once an employee is blocked their row vanished from ניהול → פעילות עובדים, so
 their past work could not be reviewed. Approved from a text preview.

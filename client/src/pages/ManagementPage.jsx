@@ -2,6 +2,7 @@ import { useState, useEffect, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import { openLead } from '../utils/openLead';
+import DailyReportModal from '../components/DailyReportModal';
 
 export const METRIC_COLS = [
   { key: 'calls_made',          label: 'שיחות שבוצעו' },
@@ -267,7 +268,9 @@ export default function ManagementPage() {
     { label: 'היום',     from: todayStr,      to: todayStr },
     { label: '7 ימים',  from: shiftDays(-6),  to: todayStr },
     { label: '30 ימים', from: shiftDays(-29), to: todayStr },
+    { label: 'מתחילת החודש', from: todayStr.slice(0, 8) + '01', to: todayStr },
   ];
+  const [reportRow, setReportRow] = useState(null); // employee whose daily report is open (Phase 78)
 
   // Page the selected window backward/forward by its own length (one day when a
   // single day is selected). dir = -1 (older) / +1 (newer). Forward is clamped to today.
@@ -310,7 +313,7 @@ export default function ManagementPage() {
             className="border border-slate-300 rounded-xl px-2 py-1.5 text-sm text-slate-700 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
             style={{ direction: 'ltr' }} />
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-wrap">
           {presets.map(p => {
             const active = from === p.from && to === p.to;
             return (
@@ -370,6 +373,10 @@ export default function ManagementPage() {
                       {row.days.length > 0 && <span className="text-slate-400 mr-1">{open ? '▾' : '▸'}</span>}
                       {row.display_name}
                       {row.blocked && <span className="mr-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-300 text-slate-700 align-middle">🚫 חסום</span>}
+                      {row.days.length > 0 && (
+                        <button onClick={e => { e.stopPropagation(); setReportRow(row); }} title="דוח יומי: פעולות ודקות שיחה לכל יום בטווח"
+                          className="mr-2 text-[11px] font-bold px-2 py-0.5 rounded-lg bg-violet-100 text-violet-700 hover:bg-violet-200 align-middle whitespace-nowrap">📄 דוח יומי</button>
+                      )}
                     </td>
                     {METRIC_COLS.map(c => {
                       const val = Number(row.totals[c.key] || 0);
@@ -401,7 +408,7 @@ export default function ManagementPage() {
                         <td className="text-center px-3 py-2 tabular-nums text-slate-500">{d.first_activity || '—'}</td>
                         <td className="text-center px-3 py-2 tabular-nums text-slate-500">{d.last_activity || '—'}</td>
                         <td className="text-center px-3 py-2 tabular-nums text-sky-700"
-                          title={d.hours_source === 'estimated' ? 'מחושב לפי פעילות, ללא מעקב נוכחות' : 'נמדד לפי נוכחות בפועל'}>
+                          title={d.hours_source === 'estimated' ? 'הערכה לפי שעות הפעולות שנרשמו (הפסקה מעל 30 דק׳ לא נספרת)' : 'נמדד לפי נוכחות במערכת (הפסקה מעל 30 דק׳ לא נספרת)'}>
                           {d.hours_source === 'estimated' && d.hours ? '≈' : ''}{fmtHours(d.hours)}
                         </td>
                         <td className="text-center px-3 py-2 tabular-nums text-slate-500">{dtot || '—'}</td>
@@ -430,6 +437,7 @@ export default function ManagementPage() {
         </table>
       </div>
 
+      {reportRow && <DailyReportModal row={reportRow} from={from} to={to} metricTotal={metricTotal} onClose={() => setReportRow(null)} />}
     </div>
   );
 }

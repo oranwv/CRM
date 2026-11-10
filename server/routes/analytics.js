@@ -183,7 +183,12 @@ const METRIC_KEYS = [
   'calls_made', 'call_minutes', 'calls_documented', 'meetings_booked', 'meetings_done', 'meetings_documented',
   'notes', 'wa_sent', 'tasks_created', 'tasks_completed', 'leads_created', 'files_uploaded',
 ];
-const SESSION_GAP_SEC = 2 * 60 * 60; // a gap > 2h ends a work session
+const SESSION_GAP_SEC = 30 * 60; // a gap > 30 min ends a work session (was 2h until 2026-11-10)
+// Heartbeat sessions recorded before this day were merged with the old 2-hour gap and cannot be
+// split again (only start/end are stored), so for those days the hours are re-estimated from the
+// action timestamps with the 30-minute rule instead (shown with ≈).
+const TRACKED_FROM_DAY = '2026-11-11';
+const EST_SESSION_FLOOR_SEC = 5 * 60; // an estimated session counts at least 5 minutes
 
 // Sum the spans (last−first) of each session, splitting on idle gaps > 2h.
 function sessionSeconds(epochs) {
@@ -191,10 +196,10 @@ function sessionSeconds(epochs) {
   epochs.sort((a, b) => a - b);
   let total = 0, start = epochs[0], prev = epochs[0];
   for (let i = 1; i < epochs.length; i++) {
-    if (epochs[i] - prev > SESSION_GAP_SEC) { total += prev - start; start = epochs[i]; }
+    if (epochs[i] - prev > SESSION_GAP_SEC) { total += Math.max(prev - start, EST_SESSION_FLOOR_SEC); start = epochs[i]; }
     prev = epochs[i];
   }
-  return total + (prev - start);
+  return total + Math.max(prev - start, EST_SESSION_FLOOR_SEC);
 }
 
 // GET /api/analytics/employee-activity?from=YYYY-MM-DD&to=YYYY-MM-DD  (date= also accepted)
@@ -282,6 +287,8 @@ async function computeEmployeeActivity(from, to, onlyUid = null, { includeBlocke
         UNION ALL SELECT checked_by, checked_at FROM production_checklist WHERE checked_by IS NOT NULL
         UNION ALL SELECT updated_by, updated_at FROM event_briefs WHERE updated_by IS NOT NULL
         UNION ALL SELECT created_by, created_at FROM contracts WHERE created_by IS NOT NULL
+        UNION ALL SELECT COALESCE(answered_by, user_id), started_at FROM calls WHERE COALESCE(answered_by, user_id) IS NOT NULL AND status = 'completed' AND COALESCE(duration_sec, 0) > 0
+        UNION ALL SELECT COALESCE(answered_by, user_id), started_at + (duration_sec || ' seconds')::interval FROM calls WHERE COALESCE(answered_by, user_id) IS NOT NULL AND status = 'completed' AND COALESCE(duration_sec, 0) > 0
       ) e
       WHERE ts IS NOT NULL AND (ts AT TIME ZONE 'Asia/Jerusalem')::date BETWEEN $1::date AND $2::date
       ORDER BY uid, epoch
@@ -349,7 +356,7 @@ async function computeEmployeeActivity(from, to, onlyUid = null, { includeBlocke
     // resolve hours per (user, day): tracked if heartbeat exists, else estimated.
     byUser.forEach((days, uid) => {
       days.forEach((d, day) => {
-        const tracked = hbByUserDay.get(`${uid}|${day}`);
+        const tracked = day >= TRACKED_FROM_DAY ? hbByUserDay.get(`${uid}|${day}`) : null;
         if (tracked != null) { d.hours = +(tracked / 3600).toFixed(2); d.hours_source = 'tracked'; }
         else { d.hours = +((d.estimated_hours || 0)).toFixed(2); d.hours_source = (d.estimated_hours ? 'estimated' : null); }
         delete d.estimated_hours;

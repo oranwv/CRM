@@ -3,16 +3,16 @@ const router  = express.Router();
 const pool    = require('../db/pool');
 
 // POST /api/presence/ping — record a heartbeat for the current user.
-// Extends the user's latest session if the previous ping was within the 2-hour
-// gap window; otherwise opens a new session. The 2h gap is the work-session
-// break threshold (an idle gap longer than that starts a fresh session), and a
-// session's span is first_ping → last_ping.
+// Extends the user's latest session if the previous ping was within the 30-minute
+// gap window; otherwise opens a new session. 30 min is the work-session break threshold
+// (Oran, 2026-11-10 — it was 2 hours, which turned scattered glances at the phone into one
+// long "work day": 210 h in a month). A session's span is first_ping → last_ping.
 router.post('/ping', async (req, res) => {
   try {
     await pool.query(
       `WITH latest AS (
          SELECT id FROM user_sessions
-         WHERE user_id = $1 AND last_ping_at >= NOW() - INTERVAL '2 hours'
+         WHERE user_id = $1 AND last_ping_at >= NOW() - INTERVAL '30 minutes'
          ORDER BY last_ping_at DESC LIMIT 1
        ), upd AS (
          UPDATE user_sessions SET last_ping_at = NOW()
