@@ -6,7 +6,7 @@ updated: 2026-11-08
 
 # Now
 
-## 2026-11-10 — Phase 78 (1.9.0): hours gap 30 min + daily report (branch `hours-report`, awaiting OK)
+## 2026-11-10 — Phase 78 (1.9.0): hours gap 30 min + daily report (deployed)
 
 - Presence session gap 2h → 30 min; days before 2026-11-11 re-estimated from action timestamps (≈). Daily report window per employee in ניהול with CSV download; "מתחילת החודש" preset.
 
