@@ -1817,8 +1817,8 @@ opens the list of leads (lead name → card, "התקשר" → call through the a
   - *פגישות נקבעו* was counted from `meetings.booked_by`; the row is deleted when a meeting is cancelled
     or the lead moves to לא סגרו, so bookings disappeared. Now counted from the persistent booking note
     (`type='meeting' AND source='calendar'`, `created_by` = the booker) — includes bookings for another host.
-  - *דקות שיחה* rounded every call up to a minute; now seconds are summed and rounded once per day
-    (per lead-day in the customer lines).
+  - *דקות שיחה*: unchanged — each call is rounded to a minute on its own (min 1). A sum-of-seconds
+    version was proposed and **rejected by Oran** ("תשאיר את העיגול שקיים היום").
   - *הערות* included system-written notes in the user's name (stage change, contract sent, booking…);
     now only human notes (`HUMAN_NOTE`).
   - Customer lines showed "אין מענה ×2" for one unanswered system dial (call row + its auto note);

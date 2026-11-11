@@ -6,9 +6,9 @@ updated: 2026-11-11
 
 # Now
 
-## 2026-11-11 — Phase 79 (1.10.0): הפעילות שלי lists + counter audit (branch `activity-lists`, waiting for Oran's OK)
+## 2026-11-11 — Phase 79 (1.10.0): הפעילות שלי lists + counter audit (deployed)
 
-- Unanswered-calls tile; calls / unanswered / meetings-booked tiles open lead lists (card + התקשר). Counter fixes (bookings from booking notes, minutes from seconds, human notes only) also change ניהול numbers. Verified on a scratch DB only — not against production data.
+- Unanswered-calls tile; calls / unanswered / meetings-booked tiles open lead lists (card + התקשר). Counter fixes (bookings from booking notes, human notes only; call-minutes rounding left as is — Oran's decision) also change ניהול numbers. Verified on a scratch DB only — not against production data.
 
 ## 2026-11-10 — Phase 78 (1.9.0): hours gap 30 min + daily report (deployed)
 

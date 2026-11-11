@@ -230,9 +230,7 @@ async function computeEmployeeActivity(from, to, onlyUid = null, { includeBlocke
           FROM calls WHERE user_id IS NOT NULL AND direction='outbound' AND status='completed' AND COALESCE(duration_sec,0) > 0
         UNION ALL
         -- Talk time: minutes on answered calls (outbound by the dialer, inbound by whoever answered), rounded per call
-        -- (weight = seconds; turned into minutes once per day below. Until 2026-11-11 every call was
-        -- rounded up to a full minute on its own, so 20 short calls showed as 20 minutes.)
-        SELECT COALESCE(answered_by, user_id), (started_at AT TIME ZONE 'Asia/Jerusalem')::date, 'call_minutes', duration_sec
+        SELECT COALESCE(answered_by, user_id), (started_at AT TIME ZONE 'Asia/Jerusalem')::date, 'call_minutes', GREATEST(1, ROUND(duration_sec / 60.0))::int
           FROM calls WHERE COALESCE(answered_by, user_id) IS NOT NULL AND status='completed' AND COALESCE(duration_sec,0) > 0
         UNION ALL
         -- Outbound calls that were not answered: system dials that never connected, plus the
@@ -353,8 +351,7 @@ async function computeEmployeeActivity(from, to, onlyUid = null, { includeBlocke
     };
 
     metrics.rows.forEach(r => {
-      // talk time arrives as seconds per day → whole minutes (at least 1 when there was any)
-      dayOf(r.uid, r.day)[r.metric] = r.metric === 'call_minutes' ? Math.max(1, Math.round(r.cnt / 60)) : r.cnt;
+      dayOf(r.uid, r.day)[r.metric] = r.cnt;
     });
 
     // first/last activity + estimated session hours from action timestamps.
@@ -457,7 +454,7 @@ async function computeLeadActivity(uid, from, to) {
       WITH ev AS (
         -- answered calls (outbound by the dialer, inbound by whoever picked up)
         SELECT lead_id, started_at AS ts, 'call' AS kind,
-               jsonb_build_object('sec', duration_sec, 'summary', summary, 'direction', direction) AS data
+               jsonb_build_object('min', GREATEST(1, ROUND(duration_sec / 60.0))::int, 'summary', summary, 'direction', direction) AS data
           FROM calls WHERE COALESCE(answered_by, user_id) = $1 AND lead_id IS NOT NULL
                        AND status = 'completed' AND COALESCE(duration_sec, 0) > 0
         UNION ALL
@@ -557,7 +554,7 @@ async function computeLeadActivity(uid, from, to) {
       const d = r.data || {};
       switch (r.kind) {
         case 'call':
-          L.calls += 1; L.seconds = (L.seconds || 0) + Number(d.sec || 0);
+          L.calls += 1; L.minutes += Number(d.min || 0);
           if (!L.call_summary && d.summary) L.call_summary = d.summary; // rows are newest first → latest summary wins
           break;
         case 'call_attempt': L.attempts += 1; break;
@@ -588,7 +585,7 @@ async function computeLeadActivity(uid, from, to) {
         date: day,
         leads: Array.from(leads.values())
           .sort((a, b) => b.last_epoch - a.last_epoch)
-          .map(L => ({ ...L, minutes: L.calls ? Math.max(1, Math.round((L.seconds || 0) / 60)) : 0, actions: L.actions.sort((a, b) => a.epoch - b.epoch) })),
+          .map(L => ({ ...L, actions: L.actions.sort((a, b) => a.epoch - b.epoch) })),
       }));
     return result;
 }
