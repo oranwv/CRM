@@ -179,7 +179,17 @@ router.get('/overview', async (req, res) => {
   }
 });
 
+// Shared row filters (Phase 79) — the same definitions feed the counters and the drill-down lists.
+const UNANSWERED_CALL = `user_id IS NOT NULL AND direction = 'outbound'
+            AND NOT (status = 'completed' AND COALESCE(duration_sec, 0) > 0)
+            AND status NOT IN ('initiated', 'ringing', 'in-progress')`;
+const MANUAL_ATTEMPT = `type = 'call_attempt' AND direction = 'outbound' AND COALESCE(source, '') <> 'twilio'`;
+const BOOKING_NOTE = `type = 'meeting' AND source = 'calendar'`;
+const HUMAN_NOTE = `COALESCE(source, '') <> 'calendar'
+            AND COALESCE(body, '') !~ '^(🔄|✅|🔁|⏭|🚫|❌|🗓|📅|📲|📵|חוזה נוצר|חוזה נשלח)'`;
+
 const METRIC_KEYS = [
+  'calls_unanswered',
   'calls_made', 'call_minutes', 'calls_documented', 'meetings_booked', 'meetings_done', 'meetings_documented',
   'notes', 'wa_sent', 'tasks_created', 'tasks_completed', 'leads_created', 'files_uploaded',
 ];
@@ -220,8 +230,19 @@ async function computeEmployeeActivity(from, to, onlyUid = null, { includeBlocke
           FROM calls WHERE user_id IS NOT NULL AND direction='outbound' AND status='completed' AND COALESCE(duration_sec,0) > 0
         UNION ALL
         -- Talk time: minutes on answered calls (outbound by the dialer, inbound by whoever answered), rounded per call
-        SELECT COALESCE(answered_by, user_id), (started_at AT TIME ZONE 'Asia/Jerusalem')::date, 'call_minutes', GREATEST(1, ROUND(duration_sec / 60.0))::int
+        -- (weight = seconds; turned into minutes once per day below. Until 2026-11-11 every call was
+        -- rounded up to a full minute on its own, so 20 short calls showed as 20 minutes.)
+        SELECT COALESCE(answered_by, user_id), (started_at AT TIME ZONE 'Asia/Jerusalem')::date, 'call_minutes', duration_sec
           FROM calls WHERE COALESCE(answered_by, user_id) IS NOT NULL AND status='completed' AND COALESCE(duration_sec,0) > 0
+        UNION ALL
+        -- Outbound calls that were not answered: system dials that never connected, plus the
+        -- "לא ענה" taps logged by hand. (The system's own call_attempt note for an unanswered dial
+        -- has source 'twilio' and is the same event as the calls row, so it is not counted twice.)
+        SELECT user_id, (started_at AT TIME ZONE 'Asia/Jerusalem')::date, 'calls_unanswered', 1
+          FROM calls WHERE ${UNANSWERED_CALL}
+        UNION ALL
+        SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'calls_unanswered', 1
+          FROM lead_interactions WHERE created_by IS NOT NULL AND ${MANUAL_ATTEMPT}
         UNION ALL
         SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'calls_documented', 1
           FROM lead_interactions WHERE created_by IS NOT NULL AND type='call' AND direction='outbound' AND (source IS NULL OR source NOT IN ('dial','twilio'))
@@ -243,11 +264,16 @@ async function computeEmployeeActivity(from, to, onlyUid = null, { includeBlocke
         SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'meetings_documented', 1
           FROM lead_interactions WHERE created_by IS NOT NULL AND type='meeting' AND (source IS NULL OR source<>'calendar')
         UNION ALL
-        SELECT booked_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'meetings_booked', 1
-          FROM meetings WHERE booked_by IS NOT NULL
+        -- Meetings booked, counted from the booking note (written for whoever pressed "קבע פגישה",
+        -- also when the meeting is hosted by someone else). The meetings row itself is deleted when
+        -- the meeting is cancelled or the lead moves to לא סגרו, which made past bookings vanish.
+        SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'meetings_booked', 1
+          FROM lead_interactions WHERE created_by IS NOT NULL AND ${BOOKING_NOTE}
         UNION ALL
+        -- Notes the user actually wrote — not the lines the system adds in their name
+        -- (stage change, task done/postponed, meeting cancelled/moved, contract sent…).
         SELECT created_by, (created_at AT TIME ZONE 'Asia/Jerusalem')::date, 'notes', 1
-          FROM lead_interactions WHERE created_by IS NOT NULL AND type='note'
+          FROM lead_interactions WHERE created_by IS NOT NULL AND type='note' AND ${HUMAN_NOTE}
         UNION ALL
         SELECT sent_by, (timestamp AT TIME ZONE 'Asia/Jerusalem')::date, 'wa_sent', 1
           FROM messages WHERE sent_by IS NOT NULL AND direction='outbound'
@@ -326,7 +352,10 @@ async function computeEmployeeActivity(from, to, onlyUid = null, { includeBlocke
       return days.get(day);
     };
 
-    metrics.rows.forEach(r => { dayOf(r.uid, r.day)[r.metric] = r.cnt; });
+    metrics.rows.forEach(r => {
+      // talk time arrives as seconds per day → whole minutes (at least 1 when there was any)
+      dayOf(r.uid, r.day)[r.metric] = r.metric === 'call_minutes' ? Math.max(1, Math.round(r.cnt / 60)) : r.cnt;
+    });
 
     // first/last activity + estimated session hours from action timestamps.
     const actByUserDay = new Map(); // "uid|day" -> { epochs:[], first, last }
@@ -428,7 +457,7 @@ async function computeLeadActivity(uid, from, to) {
       WITH ev AS (
         -- answered calls (outbound by the dialer, inbound by whoever picked up)
         SELECT lead_id, started_at AS ts, 'call' AS kind,
-               jsonb_build_object('min', GREATEST(1, ROUND(duration_sec / 60.0))::int, 'summary', summary, 'direction', direction) AS data
+               jsonb_build_object('sec', duration_sec, 'summary', summary, 'direction', direction) AS data
           FROM calls WHERE COALESCE(answered_by, user_id) = $1 AND lead_id IS NOT NULL
                        AND status = 'completed' AND COALESCE(duration_sec, 0) > 0
         UNION ALL
@@ -439,7 +468,7 @@ async function computeLeadActivity(uid, from, to) {
                        AND status NOT IN ('initiated', 'ringing', 'in-progress')
         UNION ALL
         SELECT lead_id, created_at, 'call_attempt', '{}'::jsonb
-          FROM lead_interactions WHERE created_by = $1 AND type = 'call_attempt'
+          FROM lead_interactions WHERE created_by = $1 AND ${MANUAL_ATTEMPT}
         UNION ALL
         -- calls documented by hand (not the dialer's own log)
         SELECT lead_id, created_at, 'call_doc', jsonb_build_object('body', body)
@@ -470,7 +499,7 @@ async function computeLeadActivity(uid, from, to) {
           FROM lead_interactions WHERE created_by = $1 AND type = 'meeting' AND (source IS NULL OR source <> 'calendar')
         UNION ALL
         SELECT lead_id, created_at, 'note', jsonb_build_object('body', body)
-          FROM lead_interactions WHERE created_by = $1 AND type = 'note' AND COALESCE(body, '') NOT LIKE '🔄 שינוי שלב%'
+          FROM lead_interactions WHERE created_by = $1 AND type = 'note' AND ${HUMAN_NOTE}
         UNION ALL
         SELECT lead_id, timestamp, 'wa', '{}'::jsonb
           FROM messages WHERE sent_by = $1 AND direction = 'outbound' AND lead_id IS NOT NULL
@@ -528,7 +557,7 @@ async function computeLeadActivity(uid, from, to) {
       const d = r.data || {};
       switch (r.kind) {
         case 'call':
-          L.calls += 1; L.minutes += Number(d.min || 0);
+          L.calls += 1; L.seconds = (L.seconds || 0) + Number(d.sec || 0);
           if (!L.call_summary && d.summary) L.call_summary = d.summary; // rows are newest first → latest summary wins
           break;
         case 'call_attempt': L.attempts += 1; break;
@@ -559,7 +588,7 @@ async function computeLeadActivity(uid, from, to) {
         date: day,
         leads: Array.from(leads.values())
           .sort((a, b) => b.last_epoch - a.last_epoch)
-          .map(L => ({ ...L, actions: L.actions.sort((a, b) => a.epoch - b.epoch) })),
+          .map(L => ({ ...L, minutes: L.calls ? Math.max(1, Math.round((L.seconds || 0) / 60)) : 0, actions: L.actions.sort((a, b) => a.epoch - b.epoch) })),
       }));
     return result;
 }
@@ -587,6 +616,59 @@ router.get('/my-activity/leads', async (req, res) => {
     const from = req.query.from || today;
     const to   = req.query.to   || from;
     res.json(await computeLeadActivity(uid, from, to));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/analytics/my-activity/list?kind=calls|unanswered|meetings_booked&from&to[&user=]
+// Phase 79 — the rows behind a counter on הפעילות שלי, newest first, so a tile can be opened:
+// which leads were called / did not answer / got a meeting booked. Same filters as the counters.
+router.get('/my-activity/list', async (req, res) => {
+  const uid = activityUser(req, res); if (!uid) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const from = req.query.from || today, to = req.query.to || from;
+  const DAY = col => `(${col} AT TIME ZONE 'Asia/Jerusalem')::date BETWEEN $2::date AND $3::date`;
+  const WHEN = col => `to_char(${col} AT TIME ZONE 'Asia/Jerusalem', 'YYYY-MM-DD') AS day, to_char(${col} AT TIME ZONE 'Asia/Jerusalem', 'HH24:MI') AS hhmm`;
+  try {
+    let sql;
+    if (req.query.kind === 'calls') {
+      sql = `SELECT c.lead_id, l.name AS lead_name, COALESCE(l.phone, c.to_number) AS phone, l.stage,
+                    ${WHEN('c.started_at')}, c.duration_sec, c.summary, NULL::text AS detail, c.started_at AS ts
+             FROM calls c LEFT JOIN leads l ON l.id = c.lead_id
+             WHERE c.user_id = $1 AND c.direction = 'outbound' AND c.status = 'completed' AND COALESCE(c.duration_sec, 0) > 0
+               AND ${DAY('c.started_at')}
+             ORDER BY ts DESC`;
+    } else if (req.query.kind === 'unanswered') {
+      sql = `SELECT * FROM (
+               SELECT c.lead_id, l.name AS lead_name, COALESCE(l.phone, c.to_number) AS phone, l.stage,
+                      ${WHEN('c.started_at')}, NULL::int AS duration_sec, NULL::text AS summary,
+                      CASE c.status WHEN 'busy' THEN 'תפוס' WHEN 'failed' THEN 'נכשל' WHEN 'canceled' THEN 'נותק לפני מענה' ELSE 'אין מענה' END AS detail,
+                      c.started_at AS ts
+               FROM calls c LEFT JOIN leads l ON l.id = c.lead_id
+               WHERE c.user_id = $1 AND ${UNANSWERED_CALL.replace(/\b(user_id|direction|status|duration_sec)\b/g, 'c.$1')} AND ${DAY('c.started_at')}
+               UNION ALL
+               SELECT i.lead_id, l.name, l.phone, l.stage, ${WHEN('i.created_at')}, NULL, NULL, 'סומן "לא ענה"', i.created_at
+               FROM lead_interactions i JOIN leads l ON l.id = i.lead_id
+               WHERE i.created_by = $1 AND ${MANUAL_ATTEMPT.replace(/\b(type|direction|source)\b/g, 'i.$1')} AND ${DAY('i.created_at')}
+             ) x ORDER BY ts DESC`;
+    } else if (req.query.kind === 'meetings_booked') {
+      // detail = the booking line itself (title | date time | host | booked by); `cancelled` when no
+      // meetings row from that booking survives (cancelled, or the lead moved to לא סגרו)
+      sql = `SELECT i.lead_id, l.name AS lead_name, l.phone, l.stage, ${WHEN('i.created_at')},
+                    NULL::int AS duration_sec, NULL::text AS summary,
+                    regexp_replace(i.body, '^📅 פגישה נקבעה:[[:space:]]*', '') AS detail,
+                    NOT EXISTS (SELECT 1 FROM meetings m WHERE m.lead_id = i.lead_id
+                                 AND m.created_at BETWEEN i.created_at - INTERVAL '2 minutes' AND i.created_at + INTERVAL '2 minutes') AS cancelled,
+                    i.created_at AS ts
+             FROM lead_interactions i JOIN leads l ON l.id = i.lead_id
+             WHERE i.created_by = $1 AND ${BOOKING_NOTE.replace(/\b(type|source)\b/g, 'i.$1')} AND ${DAY('i.created_at')}
+             ORDER BY ts DESC`;
+    } else {
+      return res.status(400).json({ error: 'kind לא מוכר' });
+    }
+    const { rows } = await pool.query(sql, [uid, from, to]);
+    res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -1360,7 +1360,7 @@ export function tryOpenDialerApp(lead) {
 // "התקשר" dials from the browser and shows the venue's Israeli number to the customer;
 // "דרך הנייד" makes Twilio ring the rep's own mobile first, then bridges to the lead.
 // Both are recorded and summarized onto the lead timeline by the server.
-function CallButtons({ lead, phone }) {
+export function CallButtons({ lead, phone }) {
   const calls = useCalls();
   const target = { ...lead, phone: phone || lead.phone };
   const [busy, setBusy] = useState(false);

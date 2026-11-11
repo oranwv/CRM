@@ -1801,6 +1801,31 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 79 — הפעילות שלי: unanswered calls, clickable lists, counter audit ✅ Built 2026-11-11 (1.10.0)
+Oran: add unanswered outbound calls to הפעילות שלי; clicking calls / unanswered / meetings booked
+opens the list of leads (lead name → card, "התקשר" → call through the app); and check the numbers —
+"it feels like there should be more" (e.g. a meeting he booked for someone else).
+- **New tile "שיחות שלא נענו"** (`calls_unanswered`, הפעילות שלי only, not a ניהול column): outbound
+  system dials that did not end `completed` with a duration (and are not still in progress) + manual
+  "לא ענה" attempts (`call_attempt`, source ≠ twilio).
+- **Lists**: `GET /api/analytics/my-activity/list?kind=calls|unanswered|meetings_booked&from&to[&user=]`
+  (managers may pass `user`). `ActivityListModal.jsx` — lead name opens the card (`openLead`, returns
+  to the list: `?list=` is kept in the URL), `CallButtons` (now exported from `LeadCard.jsx`) dials.
+  Meetings rows show what was booked (booking-note text) and a "בוטלה" pill when no meeting row exists.
+- **Counter audit (by code + scratch DB, not on production data)** — fixes in the shared
+  `computeEmployeeActivity` / `computeLeadActivity`, so ניהול numbers change too:
+  - *פגישות נקבעו* was counted from `meetings.booked_by`; the row is deleted when a meeting is cancelled
+    or the lead moves to לא סגרו, so bookings disappeared. Now counted from the persistent booking note
+    (`type='meeting' AND source='calendar'`, `created_by` = the booker) — includes bookings for another host.
+  - *דקות שיחה* rounded every call up to a minute; now seconds are summed and rounded once per day
+    (per lead-day in the customer lines).
+  - *הערות* included system-written notes in the user's name (stage change, contract sent, booking…);
+    now only human notes (`HUMAN_NOTE`).
+  - Customer lines showed "אין מענה ×2" for one unanswered system dial (call row + its auto note);
+    attempts now count only manual ones.
+  - Unchanged by design: "שיחות שבוצעו" = answered outbound; minutes also include answered inbound;
+    "שיחות שתועדו" = manual call logs.
+
 ### Phase 78 — Work hours: 30-minute gap; daily report per employee ✅ Built 2026-11-10 (1.9.0)
 Oran: ניהול showed 210 hours for Shir last month — not plausible. Cause: a "session" was first
 ping → last ping with any gap up to **2 hours** bridged (`routes/presence.js`), so scattered

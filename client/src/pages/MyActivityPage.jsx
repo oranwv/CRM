@@ -4,10 +4,14 @@ import api from '../api';
 import { openLead } from '../utils/openLead';
 import { METRIC_COLS, dayStr, shiftDays, metricTotal, LeadActivityTable } from './ManagementPage';
 import { TaskRow, GROUP_LABELS, GROUP_ORDER } from '../components/TaskItems';
+import ActivityListModal from '../components/ActivityListModal';
 
 // The summary tiles, in the order Oran asked for (no hours, no "leads created")
-const SUMMARY_ORDER = ['calls_made','call_minutes','calls_documented','meetings_booked','meetings_done','meetings_documented','notes','wa_sent','tasks_created','tasks_completed','files_uploaded'];
-const SUMMARY_COLS = SUMMARY_ORDER.map(k => METRIC_COLS.find(c => c.key === k)).filter(Boolean);
+const SUMMARY_ORDER = ['calls_made','calls_unanswered','call_minutes','calls_documented','meetings_booked','meetings_done','meetings_documented','notes','wa_sent','tasks_created','tasks_completed','files_uploaded'];
+const EXTRA_COLS = [{ key: 'calls_unanswered', label: 'שיחות שלא נענו' }]; // הפעילות שלי only — not a ניהול column
+const SUMMARY_COLS = SUMMARY_ORDER.map(k => [...METRIC_COLS, ...EXTRA_COLS].find(c => c.key === k)).filter(Boolean);
+// Tiles that open the list behind the number (Phase 79)
+const TILE_LIST = { calls_made: 'calls', calls_unanswered: 'unanswered', meetings_booked: 'meetings_booked' };
 
 // Phase 52 — "הפעילות שלי": the signed-in user's own activity, same range picker and the same
 // customer lines as ניהול, without the per-employee table. Any role.
@@ -31,14 +35,17 @@ export default function MyActivityPage() {
   const [taskTab, setTaskTab] = useState('mine');     // 'mine' | 'delegated'
   const [group, setGroup] = useState('sales');        // sales | production | operations | maintenance
   const [showDone, setShowDone] = useState(false);
+  // which counter's list is open: calls | unanswered | meetings_booked — kept in the URL too, so × on a lead card opened from the list returns to the list
+  const [listKind, setListKind] = useState(params.get('list') || null);
   const [section, setSection] = useState(params.get('view') === 'activity' ? 'activity' : 'tasks'); // 'tasks' | 'activity' — Oran: separate, tasks first
   useEffect(() => {
     const next = {};
     if (userId !== me.id) next.user = String(userId);
     if (section !== 'tasks') next.view = section;
     if (from !== todayStr || to !== todayStr) { next.from = from; next.to = to; }
+    if (listKind) next.list = listKind;
     setParams(next, { replace: true });
-  }, [userId, section, from, to]);
+  }, [userId, section, from, to, listKind]);
   const userQ = userId && userId !== me.id ? `&user=${userId}` : '';
 
   useEffect(() => { if (isManager) api.get('/users').then(r => setUsers(r.data)).catch(() => {}); }, [isManager]);
@@ -196,11 +203,14 @@ export default function MyActivityPage() {
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
           {SUMMARY_COLS.map(c => {
             const v = Number(totals[c.key] || 0);
+            const list = TILE_LIST[c.key];
+            const Tag = list && v > 0 ? 'button' : 'div';
             return (
-              <div key={c.key} className={`rounded-xl border px-2 py-1.5 text-center ${v > 0 ? 'bg-white border-slate-200' : 'bg-slate-50 border-slate-100'}`}>
+              <Tag key={c.key} onClick={list && v > 0 ? () => setListKind(list) : undefined}
+                className={`rounded-xl border px-2 py-1.5 text-center ${v > 0 ? 'bg-white border-slate-200' : 'bg-slate-50 border-slate-100'} ${list && v > 0 ? 'cursor-pointer hover:border-violet-400 hover:shadow-sm transition' : ''}`}>
                 <div className={`text-lg font-black tabular-nums leading-tight ${v > 0 ? 'text-violet-700' : 'text-slate-300'}`}>{v}</div>
-                <div className="text-[11px] text-slate-500 leading-tight">{c.label}</div>
-              </div>
+                <div className="text-[11px] text-slate-500 leading-tight">{c.label}{list && v > 0 ? <span className="text-violet-500"> ‹</span> : null}</div>
+              </Tag>
             );
           })}
         </div>
@@ -220,6 +230,7 @@ export default function MyActivityPage() {
               : null,
           }))} />
       </div>}
+      {listKind && <ActivityListModal kind={listKind} from={from} to={to} userQ={userQ} onClose={() => setListKind(null)} />}
     </div>
   );
 }
