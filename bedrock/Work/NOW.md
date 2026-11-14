@@ -6,7 +6,7 @@ updated: 2026-11-14
 
 # Now
 
-## 2026-11-14 — Phase 81 (1.11.0): several assignees per task (branch `multi-assignees`, waiting for Oran's OK)
+## 2026-11-14 — Phase 81 (1.11.0): several assignees per task (deployed)
 
 - `extra_assignees INT[]` on tasks / op_tasks / op_maintenance / op_faults; first assignee stays in the old column. One shared task — any assignee closes it for all. `AssigneesSelect.jsx` ("+ אחראי נוסף"). Verified on scratch DB only.
 - Open question for Oran: credit "משימות שהושלמו" in ניהול to whoever actually completed (today: main assignee).
