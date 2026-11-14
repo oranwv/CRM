@@ -1801,6 +1801,109 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 83 — נוכחות: NFC clock-in/out + vacation & sick days 📝 SPEC — awaiting Oran's approval (2026-11-14, branch `attendance-module`, target 1.13.0)
+Oran: "מודול של כניסה ויציאה לעובדים על ידי זה שיצמידו את הטלפון ל-NFC בכניסה לעסק או על הבר…
+שיכלול גם חופשים וימי מחלה שהעובדים מזינים… לפי התוכנה הכי טובה שקיימת היום, ממשק ממש פשוט."
+Nothing is built yet. Mock-up (4 screens): https://claude.ai/artifact/Wh99AD1SvqxDH9ccTJsAgn
+
+**Scope (his words):** permanent employees only ("עובדים קבועים"), not every worker. Today only the
+office staff have CRM users; a permanent employee without one gets a clock-only user.
+
+**Research — what the leading apps do** (Connecteam, Homebase, Deputy, Jibble, Buddy Punch):
+one-tap clock-in with no screens to click through; hours logged automatically into a timesheet the
+employee can see; employee asks for a correction, manager approves, every edit is logged; time off
+requested in-app with the balance shown and updated automatically; the manager gets alerts (missed
+punch, request waiting) instead of hunting; a "who is working now" view. Those are the patterns
+copied here — nothing else from those products (no scheduling, no payroll, no selfie/biometrics).
+
+**Hardware:** passive NFC tags (NTAG213/215), anti-metal + PVC/waterproof for the bar. Each tag is
+written once (NFC Tools app) with `https://www.proevent.co.il/clock?t=<token>` and locked. No app
+install: iPhone and Android open the URL on tap.
+
+**Employee flow**
+1. Tap the tag → `/clock?t=…` opens. Not logged in → login, then back to the same URL (sessions
+   are 30-day sliding, so this happens about once).
+2. The punch happens **on open**, no button: no open shift → clock-in; open shift → clock-out.
+   Big confirmation ("נכנסת למשמרת 18:02 · הבר"), with "ביטול" for 10 seconds.
+3. A second tap within 2 minutes of the previous punch is ignored (shows the current state) so a
+   double tap cannot open-and-close a shift.
+4. New tab "שעות" (`/my-hours`): this month's days (in–out, total), month total, vacation balance,
+   sick balance, buttons "דיווח חופשה" / "דיווח מחלה", and "בקשת תיקון" on a day with a problem.
+
+**Anti-fraud (the tag URL can be saved and opened from home)**
+- Location: the browser's GPS position is taken with the punch and must be within a radius of the
+  venue (setting, default 150 m). Outside the radius → refused with a clear message.
+- Location refused / unavailable → the punch is saved but flagged "ללא מיקום" and waits for a
+  manager's approval.
+- Device: the first phone a user punches from is registered; a punch from another phone is saved
+  flagged "מכשיר חדש" for manager approval (approving registers the new phone).
+- Upgrade path, not in v1: NTAG 424 DNA tags (one-time cryptographic URL per tap).
+
+**Absences (entered by the employee)**
+- Types: חופשה, מחלה. From–to dates, optional half day, optional note.
+- מחלה: registered immediately, the manager is notified; the employee is asked to attach a photo
+  of the doctor's certificate (stored in `crm-files`, visible to managers only).
+- חופשה: a request — status ממתין → אושר / נדחה by a manager; counts against the balance only
+  when approved.
+- Balances: sick days accrue 1.5 per full month up to 90 (חוק דמי מחלה); vacation = a yearly quota
+  the manager sets per employee (the legal entitlement depends on seniority and work week, so it is
+  not computed). Each employee has an opening balance the manager types in once. The system counts
+  **days only** — it does not compute sick pay (day 1 unpaid, days 2–3 at 50%) or overtime pay;
+  that stays with payroll / the accountant.
+
+**Manager screen** — new tab "נוכחות" in ניהול mode (admin / manager):
+- "במשמרת עכשיו": who is clocked in, since when, which tag.
+- "ממתין לטיפול": vacation requests, missing clock-outs, correction requests, flagged punches —
+  each closed with one tap.
+- "סיכום החודש": per employee — hours, vacation days, sick days; tap a row for the day list with
+  edit; "הורדה לאקסל" (same CSV-with-BOM approach as the daily report, Phase 78).
+- Manual add/edit of a punch: managers only, a reason is required, and the old and new values are
+  kept (who, when). Punches are never deleted — a cancelled one is marked void. Attendance records
+  must be kept for years (חוק שעות עבודה ומנוחה §25 / חוק הגנת השכר), so nothing is hard-deleted.
+- Missing clock-out: a shift open more than 14 hours (setting) is marked "חסרה יציאה" — it is NOT
+  closed automatically. The employee proposes the time ("בקשת תיקון"), the manager approves.
+- Notifications to managers go by WhatsApp through the existing reminder channel.
+
+**Who clocks:** per-user switch "מחתים נוכחות" in הגדרות → משתמשים. New role `attendance` = sees only
+`/clock` and "שעות" (for a permanent employee who is not a CRM user).
+
+**Data model (new tables; existing tables untouched except `users`)**
+```
+attendance_tags:    id, token (unique, random), label ('כניסה' | 'הבר'), active, created_at
+attendance_shifts:  id, user_id, clock_in_at, clock_out_at,
+                    in_tag_id, out_tag_id, in_lat, in_lng, in_accuracy_m, out_lat, out_lng, out_accuracy_m,
+                    in_device, out_device, flag ('no_location' | 'new_device' | NULL),
+                    status ('ok' | 'pending' | 'void'), source ('nfc' | 'manual'), created_at
+attendance_edits:   id, shift_id, edited_by, edited_at, reason, old_in, old_out, new_in, new_out
+attendance_fix_requests: id, shift_id, user_id, proposed_out, note, status, decided_by, decided_at
+attendance_absences: id, user_id, type ('vacation' | 'sick'), from_date, to_date, half_day, note,
+                    file_path, status ('pending' | 'approved' | 'rejected'), decided_by, decided_at, created_at
+attendance_devices: id, user_id, device_id, label, approved_at
+users (+):          attendance_enabled BOOL, employment_start DATE, vacation_quota_days NUMERIC,
+                    vacation_opening NUMERIC, sick_opening NUMERIC
+settings:           venue lat/lng, radius_m (150), open_shift_alert_h (14)
+```
+All times stored as TIMESTAMPTZ, displayed in Israel time (`utils/israelTime.js`). A shift belongs
+to the calendar day of its clock-in (night shifts that end after midnight stay on one row).
+
+**API (`/api/attendance`, require auth):** `POST /punch` {token, lat, lng, accuracy, device} ·
+`POST /punch/:id/undo` · `GET /me?month=` · `POST /absences` · `POST /fix-requests` ·
+managers: `GET /now` · `GET /pending` · `POST /pending/:kind/:id/decide` · `GET /month?month=` ·
+`GET /user/:id?month=` · `PUT /shifts/:id` · `POST /shifts` · `GET/POST /tags` · `PUT /users/:id/settings`.
+
+**Not touched:** the existing "שעות" estimate in ניהול (heartbeat sessions, Phase 78) stays exactly
+as it is. Whether clocked hours should replace it for clocking employees is an open question for
+Oran — to be decided only after the module runs for a while.
+
+**Open questions for Oran**
+1. Punch on open (fastest, as specified) or a confirm button after the tap?
+2. Vacation needs manager approval; sick is registered at once — OK?
+3. Who approves: Oran only, or every manager-role user?
+4. Radius 150 m and 14 h "missing clock-out" — OK as defaults?
+
+**Build order once approved:** (a) tags + punch + "שעות" + manager "נוכחות"; (b) absences +
+balances; (c) Excel export + WhatsApp alerts. One release, 1.13.0, preview shown before deploy.
+
 ### Phase 83 — "פתיחת יום": ranked day plan for sales ✅ Built 2026-11-14 (1.13.0)
 Oran: the morning WhatsApp did not reflect the most urgent things to do. Reworked around a
 ranked plan, defined with him (`services/dayPlanService.js`, one SQL over active leads +
