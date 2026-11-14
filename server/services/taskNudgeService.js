@@ -52,14 +52,14 @@ const dayStr = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '
 
 // Overdue lead + תפעול tasks with how many days late, assignee and creator.
 const OVERDUE_SQL = `
-  SELECT 'lead' AS kind, t.id, t.title, l.name AS who, t.assigned_to, t.created_by,
+  SELECT 'lead' AS kind, t.id, t.title, l.name AS who, t.assigned_to, t.extra_assignees, t.created_by,
          ((NOW() AT TIME ZONE 'Asia/Jerusalem')::date - (t.due_at AT TIME ZONE 'Asia/Jerusalem')::date) AS days_late,
          t.escalated_at
   FROM tasks t JOIN leads l ON l.id = t.lead_id
   WHERE t.completed_at IS NULL AND t.assigned_to IS NOT NULL AND t.due_at IS NOT NULL
     AND (t.due_at AT TIME ZONE 'Asia/Jerusalem')::date < (NOW() AT TIME ZONE 'Asia/Jerusalem')::date
   UNION ALL
-  SELECT 'op', t.id, t.title, NULL, t.assigned_to, t.created_by,
+  SELECT 'op', t.id, t.title, NULL, t.assigned_to, t.extra_assignees, t.created_by,
          ((NOW() AT TIME ZONE 'Asia/Jerusalem')::date - t.due_date), t.escalated_at
   FROM op_tasks t
   WHERE t.status <> 'done' AND t.assigned_to IS NOT NULL AND t.due_date IS NOT NULL
@@ -85,12 +85,16 @@ async function runTaskNudges() {
     if (!rows.length) return;
     const { rows: users } = await pool.query(`SELECT id, display_name, phone, role, roles FROM users WHERE NOT COALESCE(blocked, false)`);
     const byId = new Map(users.map(u => [u.id, u]));
-    rows.forEach(r => { r.assigned_name = byId.get(r.assigned_to)?.display_name || null; });
+    // Phase 81: a task may have several assignees — each of them gets it in his own digest
+    rows.forEach(r => {
+      r.all_assignees = [...new Set([r.assigned_to, ...(r.extra_assignees || [])])].filter(id => byId.has(id));
+      r.assigned_name = r.all_assignees.map(id => byId.get(id).display_name).join(', ') || null;
+    });
     const managers = users.filter(u => (u.roles?.length ? u.roles : [u.role]).some(x => ['admin', 'manager'].includes(x)));
 
     // 1. one digest per assignee
     const perAssignee = new Map();
-    rows.forEach(r => { if (!perAssignee.has(r.assigned_to)) perAssignee.set(r.assigned_to, []); perAssignee.get(r.assigned_to).push(r); });
+    rows.forEach(r => r.all_assignees.forEach(uid => { if (!perAssignee.has(uid)) perAssignee.set(uid, []); perAssignee.get(uid).push(r); }));
     for (const [uid, list] of perAssignee) {
       list.sort((a, b) => b.days_late - a.days_late);
       queueNudge(uid,
@@ -103,7 +107,7 @@ async function runTaskNudges() {
       (!r.escalated_at || (Date.now() - new Date(r.escalated_at).getTime()) > RE_ESCALATE_DAYS * 86400000));
     const perRecipient = new Map();
     for (const r of toEscalate) {
-      const giver = r.created_by && r.created_by !== r.assigned_to ? [r.created_by] : managers.map(m => m.id).filter(id => id !== r.assigned_to);
+      const giver = r.created_by && !r.all_assignees.includes(r.created_by) ? [r.created_by] : managers.map(m => m.id).filter(id => !r.all_assignees.includes(id));
       for (const rid of giver) { if (!perRecipient.has(rid)) perRecipient.set(rid, []); perRecipient.get(rid).push(r); }
     }
     for (const [rid, list] of perRecipient) {

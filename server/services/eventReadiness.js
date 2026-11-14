@@ -127,16 +127,16 @@ async function getUnconfirmedPayments({ productionManagerId = null } = {}) {
 // tasks on active events.
 async function getOpenProductionTasks({ assignedTo = null } = {}) {
   const { rows } = await pool.query(`
-    SELECT t.id, t.title, t.due_at, t.assigned_to, u.display_name AS assigned_name,
+    SELECT t.id, t.title, t.due_at, t.assigned_to,
+           (SELECT string_agg(ux.display_name, ', ' ORDER BY (ux.id = t.assigned_to) DESC, ux.display_name) FROM users ux WHERE ux.id = t.assigned_to OR ux.id = ANY(t.extra_assignees)) AS assigned_name,
            l.id AS lead_id, l.name AS lead_name, l.event_date
     FROM tasks t
     JOIN leads l ON l.id = t.lead_id
-    LEFT JOIN users u ON u.id = t.assigned_to
     WHERE t.completed_at IS NULL
       AND t.due_at IS NOT NULL
       AND (t.due_at AT TIME ZONE 'Asia/Jerusalem')::date <= $1::date
       AND l.stage = ANY($2::text[])
-      AND ($3::int IS NULL OR t.assigned_to = $3)
+      AND ($3::int IS NULL OR t.assigned_to = $3 OR $3 = ANY(t.extra_assignees))
     ORDER BY t.due_at ASC
   `, [israelToday(), [...ACTIVE_STAGES, 'completed'], assignedTo]);
   return rows;

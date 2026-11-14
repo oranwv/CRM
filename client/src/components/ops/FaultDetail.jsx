@@ -1,3 +1,4 @@
+import AssigneesSelect from '../AssigneesSelect';
 import { useState, useEffect } from 'react';
 import api from '../../api';
 
@@ -43,7 +44,7 @@ export default function FaultDetail({ onBack, users, onRefresh }) {
     try {
       const { data } = await api.post('/operations/faults', {
         title: form.title, description: form.description,
-        assignee_id: form.assignee_id || null,
+        assignee_ids: form.assignee_ids || [],
       });
       setFaults(prev => [data, ...prev]);
       setForm(null);
@@ -136,14 +137,8 @@ export default function FaultDetail({ onBack, users, onRefresh }) {
               rows={2}
               className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-400 resize-none"
             />
-            <select
-              value={form.assignee_id}
-              onChange={e => setForm(f => ({ ...f, assignee_id: e.target.value }))}
-              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
-            >
-              <option value="">הקצה לאחראי...</option>
-              {users.map(u => <option key={u.id} value={u.id}>{u.display_name}</option>)}
-            </select>
+            <AssigneesSelect selectCls="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-400" emptyLabel="הקצה לאחראי..." users={users}
+              ids={form.assignee_ids || []} onChange={ids => setForm(f => ({ ...f, assignee_ids: ids }))} />
             <button
               onClick={submitFault}
               className="w-full py-3 rounded-2xl text-white font-black text-sm cursor-pointer"

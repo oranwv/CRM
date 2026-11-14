@@ -1,5 +1,6 @@
 const router  = require('express').Router();
 const pool    = require('../db/pool');
+const A       = require('../utils/assignees');
 const multer  = require('multer');
 const os      = require('os');
 const fs      = require('fs');
@@ -57,9 +58,8 @@ router.get('/tasks', async (req, res) => {
   const done = req.query.done === '1';
   try {
     const { rows } = await pool.query(`
-      SELECT t.*, u1.display_name AS assigned_to_name, u2.display_name AS created_by_name
+      SELECT t.*, ${A.ids('t', 'assigned_to')} AS assignee_ids, ${A.names('t', 'assigned_to')} AS assigned_to_name, u2.display_name AS created_by_name
       FROM op_tasks t
-      LEFT JOIN users u1 ON t.assigned_to = u1.id
       LEFT JOIN users u2 ON t.created_by = u2.id
       WHERE ${done ? "t.status = 'done'" : "t.status != 'done'"}
       ORDER BY ${done ? 't.completed_at DESC NULLS LAST' :
@@ -73,13 +73,14 @@ router.get('/tasks', async (req, res) => {
 });
 
 router.post('/tasks', async (req, res) => {
-  const { title, description, assigned_to, priority, due_date } = req.body;
+  const { title, description, priority, due_date } = req.body;
   if (!title) return res.status(400).json({ error: 'כותרת חובה' });
+  const who = A.fromBody(req.body, 'assigned_to');
   try {
     const { rows } = await pool.query(
-      `INSERT INTO op_tasks (title, description, assigned_to, created_by, priority, due_date)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [title, description || null, assigned_to || null, req.user.id, priority || 'normal', due_date || null]
+      `INSERT INTO op_tasks (title, description, assigned_to, created_by, priority, due_date, extra_assignees)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [title, description || null, who.primary, req.user.id, priority || 'normal', due_date || null, who.extras || []]
     );
     res.json(rows[0]);
   } catch (err) {
@@ -88,16 +89,18 @@ router.post('/tasks', async (req, res) => {
 });
 
 router.put('/tasks/:id', async (req, res) => {
-  const { title, description, assigned_to, priority, due_date, status, notes } = req.body;
+  const { title, description, priority, due_date, status, notes } = req.body;
+  const who = A.fromBody(req.body, 'assigned_to');
   try {
     const { rows: existing } = await pool.query('SELECT status FROM op_tasks WHERE id=$1', [req.params.id]);
     if (!existing.length) return res.status(404).json({ error: 'Not found' });
     const oldStatus = existing[0].status;
     const { rows } = await pool.query(
       `UPDATE op_tasks SET title=$1, description=$2, assigned_to=$3, priority=$4, due_date=$5, status=$6,
-       notes=$7, completed_at = CASE WHEN $6='done' THEN COALESCE(completed_at, NOW()) ELSE NULL END
+       notes=$7, completed_at = CASE WHEN $6='done' THEN COALESCE(completed_at, NOW()) ELSE NULL END,
+       extra_assignees = ${A.setExtras('$9', '$3')}
        WHERE id=$8 RETURNING *`,
-      [title, description || null, assigned_to || null, priority || 'normal', due_date || null, status || 'open', notes || null, req.params.id]
+      [title, description || null, who.primary, priority || 'normal', due_date || null, status || 'open', notes || null, req.params.id, who.extras]
     );
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
     if (status && status !== oldStatus) {
@@ -262,8 +265,8 @@ router.put('/checklist-runs/:id', async (req, res) => {
 router.get('/maintenance', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT m.*, u.display_name AS assignee_name
-       FROM op_maintenance m LEFT JOIN users u ON m.assignee_id = u.id
+      `SELECT m.*, ${A.ids('m', 'assignee_id')} AS assignee_ids, ${A.names('m', 'assignee_id')} AS assignee_name
+       FROM op_maintenance m
        ORDER BY m.next_due ASC NULLS LAST`
     );
     res.json(rows);
@@ -275,8 +278,8 @@ router.get('/maintenance', async (req, res) => {
 router.get('/maintenance/:id', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT m.*, u.display_name AS assignee_name FROM op_maintenance m
-       LEFT JOIN users u ON m.assignee_id = u.id WHERE m.id = $1`,
+      `SELECT m.*, ${A.ids('m', 'assignee_id')} AS assignee_ids, ${A.names('m', 'assignee_id')} AS assignee_name FROM op_maintenance m
+       WHERE m.id = $1`,
       [req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
@@ -293,14 +296,15 @@ router.get('/maintenance/:id', async (req, res) => {
 });
 
 router.post('/maintenance', async (req, res) => {
-  const { name, interval_days, assignee_id } = req.body;
+  const { name, interval_days } = req.body;
+  const who = A.fromBody(req.body, 'assignee_id');
   if (!name || !interval_days) return res.status(400).json({ error: 'שם ומרווח זמן חובה' });
   const next_due = new Date();
   next_due.setDate(next_due.getDate() + parseInt(interval_days));
   try {
     const { rows } = await pool.query(
-      `INSERT INTO op_maintenance (name, interval_days, assignee_id, next_due) VALUES ($1, $2, $3, $4) RETURNING *`,
-      [name, parseInt(interval_days), assignee_id || null, next_due.toISOString().split('T')[0]]
+      `INSERT INTO op_maintenance (name, interval_days, assignee_id, next_due, extra_assignees) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [name, parseInt(interval_days), who.primary, next_due.toISOString().split('T')[0], who.extras || []]
     );
     res.json(rows[0]);
   } catch (err) {
@@ -309,12 +313,17 @@ router.post('/maintenance', async (req, res) => {
 });
 
 router.put('/maintenance/:id', async (req, res) => {
-  const { name, interval_days, assignee_id, status } = req.body;
+  const { name, interval_days, status } = req.body;
+  const who = A.fromBody(req.body, 'assignee_id');
   try {
     const { rows } = await pool.query(
       `UPDATE op_maintenance SET name=COALESCE($1, name), interval_days=COALESCE($2, interval_days),
-       assignee_id=$3, status=COALESCE($4, status) WHERE id=$5 RETURNING *`,
-      [name || null, interval_days ? parseInt(interval_days) : null, assignee_id || null, status || null, req.params.id]
+       assignee_id = CASE WHEN $7 THEN $3 ELSE assignee_id END,
+       status=COALESCE($4, status),
+       extra_assignees = CASE WHEN $7 THEN ${A.setExtras('$6', '$3')} ELSE extra_assignees END
+       WHERE id=$5 RETURNING *`,
+      [name || null, interval_days ? parseInt(interval_days) : null, who.primary, status || null, req.params.id, who.extras,
+       'assignee_id' in req.body || Array.isArray(req.body.assignee_ids)]
     );
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);
@@ -363,10 +372,9 @@ router.get('/faults', async (req, res) => {
   const all = req.query.all === 'true';
   try {
     const { rows } = await pool.query(
-      `SELECT f.*, u1.display_name AS reported_by_name, u2.display_name AS assignee_name
+      `SELECT f.*, u1.display_name AS reported_by_name, ${A.ids('f', 'assignee_id')} AS assignee_ids, ${A.names('f', 'assignee_id')} AS assignee_name
        FROM op_faults f
        LEFT JOIN users u1 ON f.reported_by = u1.id
-       LEFT JOIN users u2 ON f.assignee_id = u2.id
        ${all ? '' : "WHERE f.status != 'resolved'"}
        ORDER BY f.created_at DESC`
     );
@@ -379,10 +387,9 @@ router.get('/faults', async (req, res) => {
 router.get('/faults/:id', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT f.*, u1.display_name AS reported_by_name, u2.display_name AS assignee_name
+      `SELECT f.*, u1.display_name AS reported_by_name, ${A.ids('f', 'assignee_id')} AS assignee_ids, ${A.names('f', 'assignee_id')} AS assignee_name
        FROM op_faults f
        LEFT JOIN users u1 ON f.reported_by = u1.id
-       LEFT JOIN users u2 ON f.assignee_id = u2.id
        WHERE f.id = $1`,
       [req.params.id]
     );
@@ -394,12 +401,13 @@ router.get('/faults/:id', async (req, res) => {
 });
 
 router.post('/faults', async (req, res) => {
-  const { title, description, assignee_id } = req.body;
+  const { title, description } = req.body;
+  const who = A.fromBody(req.body, 'assignee_id');
   if (!title) return res.status(400).json({ error: 'כותרת חובה' });
   try {
     const { rows } = await pool.query(
-      `INSERT INTO op_faults (title, description, reported_by, assignee_id) VALUES ($1, $2, $3, $4) RETURNING *`,
-      [title, description || null, req.user.id, assignee_id || null]
+      `INSERT INTO op_faults (title, description, reported_by, assignee_id, extra_assignees) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [title, description || null, req.user.id, who.primary, who.extras || []]
     );
     res.json(rows[0]);
   } catch (err) {
@@ -408,16 +416,18 @@ router.post('/faults', async (req, res) => {
 });
 
 router.put('/faults/:id', async (req, res) => {
-  const { status, assignee_id, title, description, notes } = req.body;
+  const { status, title, description, notes } = req.body;
+  const who = A.fromBody(req.body, 'assignee_id');
   try {
     const { rows: existing } = await pool.query('SELECT status FROM op_faults WHERE id=$1', [req.params.id]);
     if (!existing.length) return res.status(404).json({ error: 'Not found' });
     const oldStatus = existing[0].status;
     const { rows } = await pool.query(
       `UPDATE op_faults SET status=$1, assignee_id=$2, title=COALESCE($3, title), description=$4,
-       notes=$5, resolved_at = CASE WHEN $1='resolved' THEN NOW() ELSE NULL END
+       notes=$5, resolved_at = CASE WHEN $1='resolved' THEN NOW() ELSE NULL END,
+       extra_assignees = ${A.setExtras('$7', '$2')}
        WHERE id=$6 RETURNING *`,
-      [status || 'open', assignee_id || null, title || null, description || null, notes || null, req.params.id]
+      [status || 'open', who.primary, title || null, description || null, notes || null, req.params.id, who.extras]
     );
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
     if (status && status !== oldStatus) {

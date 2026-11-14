@@ -879,6 +879,15 @@ migrate(`
   );
 `).catch(err => console.error('[DB] ai_knowledge_files migration error:', err.message));
 
+// Phase 81 (2026-11-14): several assignees per task. The first stays in assigned_to / assignee_id,
+// the others in extra_assignees.
+migrate(`
+  ALTER TABLE tasks ADD COLUMN IF NOT EXISTS extra_assignees INT[] NOT NULL DEFAULT '{}';
+  ALTER TABLE op_tasks ADD COLUMN IF NOT EXISTS extra_assignees INT[] NOT NULL DEFAULT '{}';
+  ALTER TABLE op_maintenance ADD COLUMN IF NOT EXISTS extra_assignees INT[] NOT NULL DEFAULT '{}';
+  ALTER TABLE op_faults ADD COLUMN IF NOT EXISTS extra_assignees INT[] NOT NULL DEFAULT '{}';
+`).catch(err => console.error('[DB] extra_assignees migration error:', err.message));
+
 // One-time cleanup (2026-08-06): nightly scans that ran with the old
 // Drive-readonly token errored at folder creation and wrongly stamped invoice
 // emails as is_invoice=false with no file records — permanently skipping them.

@@ -150,15 +150,15 @@ async function runReminders() {
 
     const dueTasks = await pool.query(`
       SELECT t.id, t.title, t.lead_id, l.name AS lead_name, l.phone AS lead_phone, l.stage AS lead_stage,
-             u.phone AS user_phone, u.display_name
+             (SELECT array_agg(u.phone) FROM users u
+               WHERE (u.id = t.assigned_to OR u.id = ANY(t.extra_assignees)) AND u.phone IS NOT NULL) AS user_phones
       FROM tasks t
       JOIN leads l ON l.id = t.lead_id
-      LEFT JOIN users u ON u.id = t.assigned_to
       WHERE t.completed_at IS NULL
         AND t.due_at BETWEEN NOW() - INTERVAL '1 hour' AND NOW() + INTERVAL '2 minutes'
         AND t.remind_via = 'whatsapp'
         AND t.remind_sent_at IS NULL
-        AND u.phone IS NOT NULL
+        AND EXISTS (SELECT 1 FROM users u WHERE (u.id = t.assigned_to OR u.id = ANY(t.extra_assignees)) AND u.phone IS NOT NULL)
     `);
 
     for (const task of dueTasks.rows) {
@@ -182,10 +182,15 @@ async function runReminders() {
       const summaryBlock = summary ? `---\n${summary}\n---\n` : '';
       const phoneBlock = task.lead_phone ? `📞 ${task.lead_phone}\n` : '';
 
-      await sendWhatsApp(
-        task.user_phone,
-        `⏰ תזכורת משימה: "${task.title}" - ${task.lead_name}\n${phoneBlock}${summaryBlock}לפתיחת הליד: ${baseUrl}/?lead=${task.lead_id}\nפעולות (הושלם / דחייה / המשך): ${actionUrl}`
-      );
+      // Phase 81: one message per assignee (a task may have several), a few seconds apart
+      const phones = [...new Set(task.user_phones || [])];
+      for (let i = 0; i < phones.length; i++) {
+        if (i > 0) await new Promise(r => setTimeout(r, 4000));
+        await sendWhatsApp(
+          phones[i],
+          `⏰ תזכורת משימה: "${task.title}" - ${task.lead_name}\n${phoneBlock}${summaryBlock}לפתיחת הליד: ${baseUrl}/?lead=${task.lead_id}\nפעולות (הושלם / דחייה / המשך): ${actionUrl}`
+        );
+      }
     }
 
     if (noContact.rows.length + offerStale.rows.length + contractStale.rows.length + dueTasks.rows.length > 0) {

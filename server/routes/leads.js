@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const pool   = require('../db/pool');
+const A = require('../utils/assignees');
 const fs     = require('fs');
 const path   = require('path');
 const multer = require('multer');
@@ -462,8 +463,8 @@ router.patch('/:id/interactions/:interactionId', async (req, res) => {
 router.get('/:id/tasks', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT t.*, u.display_name AS assigned_name
-       FROM tasks t LEFT JOIN users u ON u.id = t.assigned_to
+      `SELECT t.*, ${A.ids('t', 'assigned_to')} AS assignee_ids, ${A.names('t', 'assigned_to')} AS assigned_name
+       FROM tasks t
        WHERE t.lead_id = $1 ORDER BY t.due_at ASC NULLS LAST`,
       [req.params.id]
     );
@@ -475,12 +476,13 @@ router.get('/:id/tasks', async (req, res) => {
 
 // POST /api/leads/:id/tasks
 router.post('/:id/tasks', async (req, res) => {
-  const { title, due_at, remind_via = 'app', assigned_to } = req.body;
+  const { title, due_at, remind_via = 'app' } = req.body;
+  const who = A.fromBody(req.body, 'assigned_to');
   try {
     const { rows } = await pool.query(
-      `INSERT INTO tasks (lead_id, title, due_at, remind_via, assigned_to, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [req.params.id, title, due_at || null, remind_via, assigned_to || req.user.id, req.user.id]
+      `INSERT INTO tasks (lead_id, title, due_at, remind_via, assigned_to, created_by, extra_assignees)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [req.params.id, title, due_at || null, remind_via, who.primary || req.user.id, req.user.id, who.extras || []]
     );
     res.status(201).json(rows[0]);
   } catch (err) {

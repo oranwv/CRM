@@ -1801,6 +1801,32 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 81 — Several assignees on one task ✅ Built 2026-11-14 (1.11.0)
+Oran: "אני רוצה שעל משימה אחת יהיה ניתן לבחור כמה אחראים". His choices: **one shared task** — whoever
+marks done / postpones / cancels does it for everyone — and **every task type** (lead tasks, תפעול
+tasks, periodic maintenance, faults).
+- **DB**: `extra_assignees INT[] NOT NULL DEFAULT '{}'` on `tasks`, `op_tasks`, `op_maintenance`,
+  `op_faults`. The first assignee stays in the old column (`assigned_to` / `assignee_id`), so all
+  existing data and code paths keep working. Helpers in `server/utils/assignees.js`
+  (`has`, `hasNot`, `ids`, `names`, `fromBody`, `setExtras`).
+- **API**: create/update accept `assignee_ids` (array, first = main); the old single field still
+  works (AI chat, WhatsApp follow-up link). Lists return `assignee_ids` and the name field
+  (`assigned_name` / `assigned_to_name` / `assignee_name`) is now all names, "שיר, גילי".
+- **Where every assignee counts**: המשימות שלי + the overdue gate/badge (`myTasks.js`), permission
+  to act, משימות page filter, תפעול person filter, AI chat "my tasks", production briefing, the
+  due-time WhatsApp reminder (one message per assignee, 4 s apart) and the daily overdue digest
+  (each assignee gets it; escalation skips a giver who is himself an assignee). "משימות שנתתי" hides
+  a task when the giver is one of its assignees.
+- **UI**: `AssigneesSelect.jsx` — the same select as before; once someone is chosen a small
+  "+ אחראי נוסף" link adds another select (× removes). Used in the lead-card new/edit task, משימות
+  edit, and תפעול new/detail for tasks, maintenance and faults.
+- Also fixed on the way: toggling a maintenance item's status (`PUT` with only `status`) used to
+  wipe its assignee.
+- Not changed: "משימות שהושלמו" in ניהול is still credited to the main (first) assignee; the AI
+  assistant still creates tasks with a single assignee.
+- Verified on a scratch Postgres (37 checks: create/edit/list/filter/complete per type, old-client
+  bodies, reminder + digest queries) and rendered from the real code — not on production data.
+
 ### Phase 80 — Worklist/briefing: "נעלם / לא עונה" no longer counted as "contract sent" ✅ Built 2026-11-14 (1.10.1)
 Oran: the WhatsApp briefing listed leads under "חוזים שנשלחו וטרם נחתמו" that never got a
 contract. Cause: `classify()` in `services/salesAdvisor.js` put every lead in stage

@@ -1,3 +1,4 @@
+import AssigneesSelect, { assigneeIdsOf } from '../components/AssigneesSelect';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import api from '../api';
 import LeadCard from '../components/LeadCard';
@@ -7,7 +8,7 @@ import { israelLocalToISO, isoToIsraelLocal } from '../utils/israelTime';
 function TaskEditModal({ task, users, onSaved, onClose }) {
   const [title, setTitle]           = useState(task.title);
   const [dueAt, setDueAt]           = useState(isoToIsraelLocal(task.due_at));
-  const [assignedTo, setAssignedTo] = useState(task.assigned_to || '');
+  const [assignees, setAssignees]   = useState(assigneeIdsOf(task, 'assigned_to'));
   const [saving, setSaving]         = useState(false);
 
   async function save() {
@@ -16,7 +17,7 @@ function TaskEditModal({ task, users, onSaved, onClose }) {
       await api.patch(`/tasks/${task.id}`, {
         title,
         due_at: israelLocalToISO(dueAt),
-        assigned_to: assignedTo || null,
+        assignee_ids: assignees.map(Number),
       });
       onSaved();
     } finally {
@@ -31,10 +32,8 @@ function TaskEditModal({ task, users, onSaved, onClose }) {
         <h3 className="font-black text-slate-800 text-base">עריכת משימה</h3>
         <input className={inputCls} placeholder="כותרת *" value={title} onChange={e => setTitle(e.target.value)} />
         <input className={inputCls} type="datetime-local" value={dueAt} onChange={e => setDueAt(e.target.value)} />
-        <select className={inputCls} value={assignedTo} onChange={e => setAssignedTo(e.target.value)}>
-          <option value="">ללא שיוך</option>
-          {users.map(u => <option key={u.id} value={u.id}>{u.display_name || u.username}</option>)}
-        </select>
+        <AssigneesSelect ids={assignees} onChange={setAssignees} users={users} selectCls={inputCls}
+          emptyLabel="ללא שיוך" nameOf={u => u.display_name || u.username} />
         <div className="flex gap-2 pt-1">
           <button onClick={save} disabled={saving || !title.trim()}
             className="flex-1 py-2.5 rounded-xl font-black text-sm text-white disabled:opacity-50"
@@ -342,6 +341,7 @@ export default function TasksPage() {
         title:      followTitle.trim(),
         due_at:     israelLocalToISO(followDate),
         assigned_to: activeTask.assigned_to,
+        ...(activeTask.assignee_ids?.length ? { assignee_ids: activeTask.assignee_ids } : {}),
         remind_via:  activeTask.remind_via,
       });
       dismissSheet();
