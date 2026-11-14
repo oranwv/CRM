@@ -1801,6 +1801,17 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 80 — Worklist/briefing: "נעלם / לא עונה" no longer counted as "contract sent" ✅ Built 2026-11-14 (1.10.1)
+Oran: the WhatsApp briefing listed leads under "חוזים שנשלחו וטרם נחתמו" that never got a
+contract. Cause: `classify()` in `services/salesAdvisor.js` put every lead in stage
+`process_no_answer` into tier 1, on the assumption that the stage (which sits after
+`contract_sent` in the pipeline) implies a contract. It does not — a lead can go quiet at
+any point. Fix: tier 1 = an unsigned `contracts` row (and no signed one) **or** stage
+`contract_sent`; a `process_no_answer` lead is classified by what was actually sent
+(contract → 1, price offer → 2, otherwise 3 with reason "בתהליך ונעלם / לא עונה", shown
+as "נעלם / לא עונה" in the WhatsApp item). Affects `/api/sales/worklist`, the AI-sales
+screen and both briefings; no UI change.
+
 ### Phase 79 — הפעילות שלי: unanswered calls, clickable lists, counter audit ✅ Built 2026-11-11 (1.10.0)
 Oran: add unanswered outbound calls to הפעילות שלי; clicking calls / unanswered / meetings booked
 opens the list of leads (lead name → card, "התקשר" → call through the app); and check the numbers —

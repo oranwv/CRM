@@ -102,7 +102,8 @@ function itemBlock(idx, it, baseUrl) {
     ? (it.contract_sent_at ? `חוזה נשלח ${fmtShort(it.contract_sent_at)} (${agoText(daysAgo(it.contract_sent_at))})` : 'חוזה נשלח')
     : it.tier === 2
       ? (it.offer_sent_at ? `הצעת מחיר נשלחה ${fmtShort(it.offer_sent_at)} (${agoText(daysAgo(it.offer_sent_at))})` : 'הצעת מחיר נשלחה')
-      : (it.priority === 'דחוף' || it.priority === 'גבוה') ? `עדיפות ${it.priority}` : '';
+      : (it.priority === 'דחוף' || it.priority === 'גבוה') ? `עדיפות ${it.priority}`
+        : it.stage === 'process_no_answer' ? 'נעלם / לא עונה' : '';
   const line2 = [...evParts, sent].filter(Boolean).join(' · ');
   const lines = [head];
   if (line2) lines.push(`   ${line2}`);

@@ -90,13 +90,20 @@ function classify(row) {
   const nearEvent = eventDays != null && eventDays >= 0 && eventDays <= NEAR_EVENT_DAYS;
 
   let tier, reason;
-  if ((hasUnsignedContract && !hasSignedContract) || stage === 'contract_sent' || stage === 'process_no_answer') {
+  // 'process_no_answer' (בתהליך ונעלם / לא עונה) says nothing about a contract — a lead can
+  // go quiet at any point of the process. It is classified by what was actually sent
+  // (contract record → tier 1, price offer → tier 2, otherwise tier 3), never by the stage
+  // alone. Until 1.10.1 the stage itself forced tier 1, so leads that never got a contract
+  // showed up under "חוזים שנשלחו וטרם נחתמו".
+  if ((hasUnsignedContract && !hasSignedContract) || stage === 'contract_sent') {
     tier = 1; reason = 'חוזה נשלח וטרם נחתם';
   } else if (hasOffer || stage === 'offer_sent' || stage === 'negotiation') {
     tier = 2; reason = 'נשלחה הצעת מחיר';
   } else {
     tier = 3;
-    reason = (row.priority === 'דחוף' || row.priority === 'גבוה') ? `עדיפות ${row.priority}` : `אין קשר ${daysSince} ימים`;
+    reason = (row.priority === 'דחוף' || row.priority === 'גבוה') ? `עדיפות ${row.priority}`
+      : stage === 'process_no_answer' ? 'בתהליך ונעלם / לא עונה'
+      : `אין קשר ${daysSince} ימים`;
   }
 
   const last_contact = row.last_body != null

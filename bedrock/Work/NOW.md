@@ -6,6 +6,14 @@ updated: 2026-11-11
 
 # Now
 
+## 2026-11-14 — Phase 80 (1.10.1): "נעלם / לא עונה" was counted as "contract sent"
+
+- `classify()` (services/salesAdvisor.js) forced tier 1 for stage `process_no_answer`, so
+  leads with no contract appeared under "חוזים שנשלחו וטרם נחתמו" in the WhatsApp briefing
+  and the AI-sales worklist. Now classified by what was really sent (contract / offer /
+  nothing → tier 3 marked "נעלם / לא עונה"). Stage `contract_sent` without a contract row
+  still counts as tier 1 (the rep marked it by hand; shows "חוזה נשלח" with no date).
+
 ## 2026-11-11 — Phase 79 (1.10.0): הפעילות שלי lists + counter audit (deployed)
 
 - Unanswered-calls tile; calls / unanswered / meetings-booked tiles open lead lists (card + התקשר). Counter fixes (bookings from booking notes, human notes only; call-minutes rounding left as is — Oran's decision) also change ניהול numbers. Verified on a scratch DB only — not against production data.
