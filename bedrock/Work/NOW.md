@@ -6,6 +6,13 @@ updated: 2026-11-14
 
 # Now
 
+## 2026-11-14 — Phase 83 SPEC: נוכחות (NFC clock-in/out + vacation/sick) — awaiting Oran's approval
+
+- Spec only, nothing built. Branch `attendance-module` (not merged, no version bump yet; target 1.13.0). Full spec: PRD Phase 83. Mock-up: https://claude.ai/artifact/Wh99AD1SvqxDH9ccTJsAgn
+- NFC tag → `/clock?t=token` → punch on open; GPS radius + registered device against cheating; employee tab "שעות", manager tab "נוכחות" in ניהול; absences entered by employees (sick = registered at once, vacation = needs approval); days counted only, no pay calculation.
+- Scope: permanent employees only (per-user switch + new clock-only role `attendance`). Existing ניהול hours estimate (Phase 78) untouched.
+- Waiting on Oran: the 4 open questions in the PRD entry, and OK on the mock-up, before building.
+
 ## 2026-11-14 — Phase 82 (1.12.0): several assignees per task (deployed)
 
 - `extra_assignees INT[]` on tasks / op_tasks / op_maintenance / op_faults; first assignee stays in the old column. One shared task — any assignee closes it for all. `AssigneesSelect.jsx` ("+ אחראי נוסף"). Verified on scratch DB only.
