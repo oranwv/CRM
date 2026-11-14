@@ -1808,8 +1808,9 @@ for a blocked user (`BLOCKED_MSG`), blocking a user in the admin screen clears
 build 8) unregisters its push and returns to the login screen on 401/403, and login itself is
 refused for blocked users. (2) **Inbound through the app**: `buildRingPlan` rings a user who has
 the app registered as a Voice client only (no PSTN leg to their mobile) — owner first, then the
-queue — so a business call is recognisable as such and never mixes with personal calls; users
-without the app keep mobile + browser. `<Client>` now carries `leadId`; the app shows
+queue — so a business call is recognisable as such and never mixes with personal calls; if the
+app does not answer within its timeout, the same person's mobile rings as a backup before the
+next teammate (Oran's choice, same day); users without the app keep mobile + browser. `<Client>` now carries `leadId`; the app shows
 "פתח כרטיס ליד ב-CRM" on the ringing screen and during the call (opens `/?lead=ID`).
 Build 8 of the app (v1.1.0, expo-updates 57.0.28) shipped the same day: iOS → TestFlight,
 Android APK via Expo; from here JS changes go out with `eas update`.

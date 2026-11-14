@@ -252,19 +252,30 @@ async function buildRingPlan(lead) {
     `SELECT id, display_name, phone, abroad_mode, call_queue_order, app_registered_at FROM users
      WHERE COALESCE(blocked, false) = false AND (role IN ('admin','manager','sales') OR roles && ARRAY['admin','manager','sales','sales_manager']::text[])
      ORDER BY call_queue_order NULLS LAST, id`);
-  // A user with the ProEvent Dialer app rings in the app (Oran, 2026-11-14): the call is then
-  // recognisably a business call and the app shows the lead; their mobile number is not dialed.
-  // Users without the app keep ringing on their mobile (and the browser softphone).
+  // A user with the ProEvent Dialer app rings in the app first (Oran, 2026-11-14): the call is
+  // then recognisably a business call and the app shows the lead. If the app does not answer
+  // (phone off / registration dropped), the same person's mobile rings as a plain call before
+  // the next teammate (Oran's backup rule). Users without the app keep mobile + browser.
   const inApp = (u) => !!u.app_registered_at;
+  const mobile = (u) => (u.phone && !u.abroad_mode) ? tw.toE164(u.phone) : null;
   const owner = lead?.assigned_to ? users.find(u => u.id === lead.assigned_to) : null;
   if (owner) {
-    if (!inApp(owner) && owner.phone && !owner.abroad_mode) steps.push({ kind: 'number', userId: owner.id, phone: tw.toE164(owner.phone), timeout: MOBILE_TIMEOUT, label: owner.display_name });
-    steps.push({ kind: 'client', userId: owner.id, timeout: CLIENT_TIMEOUT, label: owner.display_name });
+    if (inApp(owner)) {
+      steps.push({ kind: 'client', userId: owner.id, timeout: CLIENT_TIMEOUT, label: owner.display_name });
+      if (mobile(owner)) steps.push({ kind: 'number', userId: owner.id, phone: mobile(owner), timeout: MOBILE_TIMEOUT, label: owner.display_name, backup: true });
+    } else {
+      if (mobile(owner)) steps.push({ kind: 'number', userId: owner.id, phone: mobile(owner), timeout: MOBILE_TIMEOUT, label: owner.display_name });
+      steps.push({ kind: 'client', userId: owner.id, timeout: CLIENT_TIMEOUT, label: owner.display_name });
+    }
   }
   for (const u of users) {
     if (owner && u.id === owner.id) continue;
-    if (inApp(u)) steps.push({ kind: 'client', userId: u.id, timeout: QUEUE_TIMEOUT, label: u.display_name });
-    else steps.push({ kind: 'both', userId: u.id, phone: (u.phone && !u.abroad_mode) ? tw.toE164(u.phone) : null, timeout: QUEUE_TIMEOUT, label: u.display_name });
+    if (inApp(u)) {
+      steps.push({ kind: 'client', userId: u.id, timeout: QUEUE_TIMEOUT, label: u.display_name });
+      if (mobile(u)) steps.push({ kind: 'number', userId: u.id, phone: mobile(u), timeout: QUEUE_TIMEOUT, label: u.display_name, backup: true });
+    } else {
+      steps.push({ kind: 'both', userId: u.id, phone: mobile(u), timeout: QUEUE_TIMEOUT, label: u.display_name });
+    }
   }
   return steps;
 }
