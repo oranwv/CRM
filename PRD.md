@@ -1801,10 +1801,48 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
-### Phase 83 — נוכחות: NFC clock-in/out + vacation & sick days 📝 SPEC — awaiting Oran's approval (2026-11-14, branch `attendance-module`, target 1.13.0)
+### Phase 83 — נוכחות: NFC clock-in/out + vacation & sick days 🔨 Built 2026-11-14 (1.13.0) on branch `attendance-module` — NOT merged, awaiting Oran's OK on the screens
 Oran: "מודול של כניסה ויציאה לעובדים על ידי זה שיצמידו את הטלפון ל-NFC בכניסה לעסק או על הבר…
 שיכלול גם חופשים וימי מחלה שהעובדים מזינים… לפי התוכנה הכי טובה שקיימת היום, ממשק ממש פשוט."
-Nothing is built yet. Mock-up (4 screens): https://claude.ai/artifact/Wh99AD1SvqxDH9ccTJsAgn
+Mock-up (4 screens): https://claude.ai/artifact/Wh99AD1SvqxDH9ccTJsAgn
+
+**Oran's decisions (2026-11-14):** (1) the punch happens at once on the tap, no confirm button;
+(2) vacation AND sick both need approval; (3) every manager-role user approves (admin / manager);
+(4) defaults 150 m radius and 14 h "missing clock-out" are fine.
+
+**As built** (differences from the spec below are listed here; the rest is as specified):
+- Files: `server/routes/attendance.js` (schema `SCHEMA_SQL` run on the boot migration chain, API,
+  `runOpenShiftCheck` every 30 min), `client/src/pages/attendance/{ClockPage,MyHoursPage,AttendancePage}.jsx`,
+  `client/src/utils/attendance.js`; wiring in `server/index.js`, `App.jsx` (routes `/clock`,
+  `/my-hours`, `/attendance`; nav tabs "שעות" for clocking users in every mode and "נוכחות" with a
+  pending badge in ניהול; both added after the mode's own tabs, which are unchanged).
+- Sick days are a request like vacation (pending → approved / rejected); the employee can withdraw
+  a pending request. `days` is stored per absence: range length by default, 0.5 for a half day,
+  and for a multi-day range the employee types how many work days it is (a manager can change it
+  on approval through the API).
+- Balances: per employee a `balance_date` + the balances true on that date; from then vacation
+  accrues quota/12 per full month, sick 1.5 per full month capped at 90, approved days are deducted.
+  Balances show "—" until a manager sets them.
+- `/clock` removes the token from the address as soon as it loads, so a tab reloaded by the phone
+  never punches again; a second tap within 2 minutes changes nothing; "ביטול" works for 20 s on
+  the server (10 s shown).
+- Until the venue position is saved (נוכחות → הגדרות → "אני עכשיו בעסק"), punches are accepted from
+  anywhere — the setup screen says so. GPS accuracy (up to 200 m) is given as slack so a poor fix
+  does not lock out someone who is there.
+- Flags are per side (`in_flag` / `out_flag`); approving a "new device" punch registers that phone;
+  a manager can reset an employee's registered phone.
+- Clock-only users: permission "נוכחות בלבד" (`attendance`) in הגדרות → משתמשים. `requireAuth` answers
+  403 to such a user for every API except `/api/attendance`; the client shows them only `/clock`
+  and `/my-hours`. The per-user switch "מחתים נוכחות", the balances, the tags and the venue are in
+  נוכחות → הגדרות (not in the user form, which is unchanged apart from the new permission).
+- Managers are told by WhatsApp (existing task-nudge queue) about a new request, a flagged punch
+  and a missing clock-out; the employee is told when a request is decided.
+- Excel: month summary and per-employee day list (CSV with BOM, built in the browser).
+- Verified on a scratch Postgres only: 47 API checks (permissions, punch in/out, double tap, undo,
+  radius, no-location and new-device flags, missing clock-out → fix request → approval with audit
+  row, absences and balances, manual add/edit) and the screens in headless Chromium at phone size.
+  NOT verified: a real NFC tag on a real phone, GPS behaviour on iPhone Safari, the certificate
+  photo upload to Supabase, and the WhatsApp notifications (no Green API in the test).
 
 **Scope (his words):** permanent employees only ("עובדים קבועים"), not every worker. Today only the
 office staff have CRM users; a permanent employee without one gets a clock-only user.
@@ -1841,8 +1879,8 @@ install: iPhone and Android open the URL on tap.
 
 **Absences (entered by the employee)**
 - Types: חופשה, מחלה. From–to dates, optional half day, optional note.
-- מחלה: registered immediately, the manager is notified; the employee is asked to attach a photo
-  of the doctor's certificate (stored in `crm-files`, visible to managers only).
+- מחלה: a request like vacation (changed by Oran — see decisions above); the employee is asked to
+  attach a photo of the doctor's certificate (stored in `crm-files`, opened by managers through a signed link).
 - חופשה: a request — status ממתין → אושר / נדחה by a manager; counts against the balance only
   when approved.
 - Balances: sick days accrue 1.5 per full month up to 90 (חוק דמי מחלה); vacation = a yearly quota
@@ -1895,14 +1933,12 @@ managers: `GET /now` · `GET /pending` · `POST /pending/:kind/:id/decide` · `G
 as it is. Whether clocked hours should replace it for clocking employees is an open question for
 Oran — to be decided only after the module runs for a while.
 
-**Open questions for Oran**
-1. Punch on open (fastest, as specified) or a confirm button after the tap?
-2. Vacation needs manager approval; sick is registered at once — OK?
-3. Who approves: Oran only, or every manager-role user?
-4. Radius 150 m and 14 h "missing clock-out" — OK as defaults?
+**Still open for Oran:** should clocked hours replace the ניהול hours estimate for clocking
+employees (untouched for now).
 
-**Build order once approved:** (a) tags + punch + "שעות" + manager "נוכחות"; (b) absences +
-balances; (c) Excel export + WhatsApp alerts. One release, 1.13.0, preview shown before deploy.
+**Go-live steps (after merge):** order + write the tags (נוכחות → הגדרות → נקודות החתמה → copy the
+link → NFC Tools → lock), save the venue position while standing in the venue, mark who clocks and
+type each employee's balances.
 
 ### Phase 83 — "פתיחת יום": ranked day plan for sales ✅ Built 2026-11-14 (1.13.0)
 Oran: the morning WhatsApp did not reflect the most urgent things to do. Reworked around a
