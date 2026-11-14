@@ -40,6 +40,11 @@ call is OpenAI: `gpt-4o-mini` almost everywhere, `gpt-4o` for /reply, `whisper-1
 voice notes. (Verified 2026-09-08 against the source; earlier notes here said Claude.)
 - AI chat assistant (`routes/chat.js`, floating button, SSE streaming, role-scoped tools).
 - WhatsApp sales briefings (`services/salesBriefingService.js`) are **deterministic, no AI text** since 2026-09-08; roles admin/manager/sales_manager get one aggregate briefing, plain `sales` their own leads.
+  2026-11-14 (Phase 83): the MORNING one is the ranked day plan from `services/dayPlanService.js`
+  (5 sections, weights in `WEIGHTS`); the evening one still uses `getWorklist`. Daily AI prep before
+  the morning send: `services/openAsksService.js` → `lead_open_asks` (open customer asks / our
+  promises from the last 7 days, gpt-4o-mini) + `estimateCostsForOpenDeals` (cost model from the
+  knowledge base, now also from a price offer). Screen: /sales-worklist = "פתיחת יום".
   Tools: get_leads, get_lead_details, get_lead_documents, get_urgent_leads, get_my_tasks,
   get_today_schedule, get_schedule, get_sales_worklist, get_analytics_kpis, get_op_tasks,
   get_maintenance, get_event_brief, get_suppliers, get_rsvp_summary, get_finance_summary,

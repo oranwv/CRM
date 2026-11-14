@@ -174,6 +174,35 @@ router.get('/worklist', async (req, res) => {
   }
 });
 
+// GET /api/sales/day-plan — the ranked "פתיחת יום" plan (Phase 83): five sections + extras
+router.get('/day-plan', async (req, res) => {
+  try {
+    const { buildDayPlan } = require('../services/dayPlanService');
+    const plan = await buildDayPlan(req.user);
+    delete plan.leads;
+    res.json(plan);
+  } catch (err) {
+    console.error('[Sales] day-plan error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/sales/day-plan/refresh — run the AI open-asks extraction + cost estimates now
+// (what the morning cron does once a day). Managers only; the plan itself is always live.
+router.post('/day-plan/refresh', async (req, res) => {
+  const roles = req.user.roles?.length ? req.user.roles : [req.user.role];
+  if (!['admin', 'manager', 'sales_manager'].some(r => roles.includes(r))) return res.status(403).json({ error: 'אין הרשאה' });
+  try {
+    const { refreshOpenAsks, estimateCostsForOpenDeals } = require('../services/openAsksService');
+    const asks = await refreshOpenAsks();
+    const costs = await estimateCostsForOpenDeals();
+    res.json({ ok: true, asks, costs });
+  } catch (err) {
+    console.error('[Sales] day-plan refresh error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/sales/briefing-preview?kind=morning|evening — the WhatsApp briefing text
 // exactly as this user would receive it (scope by role). Preview only — nothing is sent.
 router.get('/briefing-preview', async (req, res) => {
@@ -181,10 +210,17 @@ router.get('/briefing-preview', async (req, res) => {
     const kind = req.query.kind === 'evening' ? 'evening' : 'morning';
     const roles = req.user.roles?.length ? req.user.roles : [req.user.role];
     const allScope = ['admin', 'manager', 'sales_manager'].some(r => roles.includes(r));
-    const items = await getWorklist(req.user);
     const baseUrl = process.env.SERVER_URL || 'https://www.proevent.co.il';
     const scopeLabel = allScope ? 'כל הנציגים' : (req.user.display_name ? `הלידים של ${req.user.display_name}` : '');
-    const text = items.length ? buildBriefingText(kind, items, baseUrl, scopeLabel) : '';
+    let text = '';
+    if (kind === 'morning') {
+      const { buildDayPlan, buildDayOpenerText } = require('../services/dayPlanService');
+      const plan = await buildDayPlan(req.user);
+      text = plan.counts.active ? buildDayOpenerText(plan, baseUrl, scopeLabel) : '';
+    } else {
+      const items = await getWorklist(req.user);
+      text = items.length ? buildBriefingText(kind, items, baseUrl, scopeLabel) : '';
+    }
     res.type('text/plain; charset=utf-8').send(text || 'אין לידים פעילים — לא היה נשלח סיכום היום.');
   } catch (err) {
     console.error('[Sales] briefing-preview error:', err.message);

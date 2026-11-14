@@ -160,11 +160,30 @@ function buildBriefingText(kind, items, baseUrl, scopeLabel = '') {
   return `${briefingHeader(kind, scopeLabel, counts(items))}\n\n${worklistDigest(items, baseUrl)}`;
 }
 
+// Morning = the ranked day plan (Phase 83, 2026-11-14); evening = the tier digest as before.
 async function buildAndSend(kind, recipient, scopeUser, baseUrl, scopeLabel = '') {
+  if (kind === 'morning') {
+    const { buildDayPlan, buildDayOpenerText } = require('./dayPlanService');
+    const plan = await buildDayPlan(scopeUser);
+    if (!plan.counts.active) return false;
+    await sendWhatsApp(recipient.phone, buildDayOpenerText(plan, baseUrl, scopeLabel));
+    return true;
+  }
   const items = await getWorklist(scopeUser);
   if (!items.length) return false;
   await sendWhatsApp(recipient.phone, buildBriefingText(kind, items, baseUrl, scopeLabel));
   return true;
+}
+
+// Once per day, right before the morning briefings: AI extraction of open asks from the
+// last week's text, and cost estimates for open deals that have none (expected profit).
+let prepDay = null;
+async function prepareMorningData(day) {
+  if (prepDay === day) return;
+  prepDay = day;
+  const { refreshOpenAsks, estimateCostsForOpenDeals } = require('./openAsksService');
+  try { await refreshOpenAsks(); } catch (e) { console.error('[SalesBriefing] open asks:', e.message); }
+  try { await estimateCostsForOpenDeals(); } catch (e) { console.error('[SalesBriefing] cost estimates:', e.message); }
 }
 
 async function alreadySent(kind, recipientId, day) {
@@ -198,6 +217,7 @@ async function runSalesBriefings() {
     const day = israelDateStr();
     const shabbat = isShabbatDay();
     const baseUrl = process.env.SERVER_URL || 'https://www.proevent.co.il';
+    if (kind === 'morning') await prepareMorningData(day);
 
     // Recipients: never a blocked user (NOT COALESCE(blocked, false) in both queries below),
     // and on Friday/Saturday never a user with shabbat_mode.

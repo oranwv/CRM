@@ -6,6 +6,17 @@ updated: 2026-11-14
 
 # Now
 
+## 2026-11-14 — Phase 83 (1.13.0): "פתיחת יום" ranked day plan (pushed, deploying)
+
+- Morning WhatsApp rebuilt as a 5-section priority list (contracts → near events → engaged
+  score → "הכדור אצלנו" → big deals by expected profit); evening unchanged. Screen
+  /sales-worklist reworked with reasons + extras. New: `lead_open_asks` (daily AI extraction),
+  cost estimates for open deals from the offer. Weights in `dayPlanService.WEIGHTS` — tune with Oran
+  after a few mornings.
+- Verify after deploy: `/api/sales/briefing-preview?kind=morning` on real data; the first morning run
+  does the AI prep (open asks + costs) — watch logs `[OpenAsks]`. Needs a cost-model doc in the
+  knowledge base for profit; otherwise big deals rank by amount.
+
 ## 2026-11-14 — Phase 82 (1.12.0): several assignees per task (deployed)
 
 - `extra_assignees INT[]` on tasks / op_tasks / op_maintenance / op_faults; first assignee stays in the old column. One shared task — any assignee closes it for all. `AssigneesSelect.jsx` ("+ אחראי נוסף"). Verified on scratch DB only.

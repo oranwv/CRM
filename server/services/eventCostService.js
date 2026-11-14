@@ -33,18 +33,26 @@ async function generateEventCosts(leadId, userId = null, { onlyIfEmpty = false }
     if (rows.length && Array.isArray(rows[0].lines) && rows[0].lines.length > 0) return null;
   }
 
-  const [{ rows: kbFiles }, { rows: [lead] }, { rows: contractRows }] = await Promise.all([
+  const [{ rows: kbFiles }, { rows: [lead] }, { rows: contractRows }, { rows: offerRows }] = await Promise.all([
     pool.query('SELECT filename, content_text FROM ai_knowledge_files ORDER BY created_at DESC'),
     pool.query('SELECT name, event_type, guest_count, event_date FROM leads WHERE id = $1', [leadId]),
     pool.query(`SELECT contract_data FROM contracts WHERE lead_id = $1
                 ORDER BY (status = 'signed') DESC, created_at DESC LIMIT 1`, [leadId]),
+    // Open deals (no contract yet) are costed from the latest price offer — same fields
+    // (guests, chefMenu, barMenu) and the offer's pre-VAT subtotal (Phase 83)
+    pool.query('SELECT fields, rows FROM price_offers WHERE lead_id = $1 ORDER BY created_at DESC LIMIT 1', [leadId]),
   ]);
   if (!lead) throw new Error('Lead not found');
   if (!kbFiles.length) {
     throw new Error('אין מסמכים במאגר הידע של העוזר — העלה את מסמך מודל העלויות בהגדרות');
   }
 
-  const cd     = contractRows[0]?.contract_data || null;
+  let cd = contractRows[0]?.contract_data || null;
+  if (!cd && offerRows[0]) {
+    const { offerTotal } = require('./salesAdvisor');
+    cd = { fields: offerRows[0].fields || {}, rows: offerRows[0].rows || [],
+           calculated: { subtotal: offerTotal(offerRows[0].rows, { ...(offerRows[0].fields || {}), withVat: false }) } };
+  }
   const f      = cd?.fields || {};
   const guests = f.guests || f.packageGuests || lead.guest_count || '';
   const eventInfo = [
@@ -52,7 +60,7 @@ async function generateEventCosts(leadId, userId = null, { onlyIfEmpty = false }
     `סוג אירוע: ${lead.event_type || ''}`,
     `מספר אורחים: ${guests}`,
     `תאריך אירוע: ${lead.event_date ? String(lead.event_date).slice(0, 10) : ''}`,
-    cd?.calculated?.subtotal != null ? `סכום החוזה לפני מע"מ: ${cd.calculated.subtotal} ש"ח` : '',
+    cd?.calculated?.subtotal != null ? `סכום ${contractRows[0] ? 'החוזה' : 'הצעת המחיר'} לפני מע"מ: ${cd.calculated.subtotal} ש"ח` : '',
     f.chefMenu ? `תפריט שף: ${f.chefMenu}` : '',
     f.barMenu  ? `תפריט בר: ${f.barMenu}`  : '',
   ].filter(Boolean).join('\n');

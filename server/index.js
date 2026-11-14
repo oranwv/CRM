@@ -696,6 +696,11 @@ migrate(`
     generated_at TIMESTAMPTZ DEFAULT NOW(),
     updated_by INT REFERENCES users(id) ON DELETE SET NULL
   );
+  CREATE TABLE IF NOT EXISTS lead_open_asks (
+    lead_id INT PRIMARY KEY REFERENCES leads(id) ON DELETE CASCADE,
+    items JSONB NOT NULL DEFAULT '[]',
+    generated_at TIMESTAMPTZ DEFAULT NOW()
+  );
   CREATE TABLE IF NOT EXISTS sales_briefing_log (
     id SERIAL PRIMARY KEY,
     kind TEXT NOT NULL,

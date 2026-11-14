@@ -1801,6 +1801,59 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 83 — "פתיחת יום": ranked day plan for sales ✅ Built 2026-11-14 (1.13.0)
+Oran: the morning WhatsApp did not reflect the most urgent things to do. Reworked around a
+ranked plan, defined with him (`services/dayPlanService.js`, one SQL over active leads +
+plain-JS scoring):
+
+1. **📝 חוזים שנשלחו וטרם נחתמו** — opened-but-unsigned first (`contract_views`), then oldest
+   contract. Cap 10.
+2. **📅 אירועים קרובים** — event within 60 days, soonest first. Cap 8.
+3. **🤝 הכי בתהליך** — engagement score (`WEIGHTS`): offer sent +30, meeting held +25 (or
+   booked +15), +5 per real contact in 14 days (max +25), customer wrote in 7 days +10,
+   contact ≤3 days +10, >14 days −15, negotiation +10, AI temperature hot +10 / warm +5 /
+   cold −10. Threshold 25, cap 20. A lead with an offer but no meeting ranks lower — never
+   excluded (Oran's rule).
+4. **⏳ הכדור אצלנו** — every "the ball is with us" signal, sources: last contact inbound and
+   unanswered (question mark flagged), task due today/overdue, contract opened ≥1 day ago with
+   no outbound since, meeting held but no offer / stage meeting-negotiation without offer,
+   "נקבעה פגישה" with no calendar meeting, no contact after a meeting (≤10 days), offer ≥7 days
+   with no progress, `calls.analysis.next_steps` of the last call (≤14 days), and AI-extracted
+   open asks (below). Ordered by `WAIT_RANK`. Cap 10. **Not deduped** against 1–3 (it is the
+   to-do list; marked "גם ב: <section>").
+5. **💰 העסקאות הגדולות** — top 5 by expected profit = pre-VAT subtotal (contract, else latest
+   offer) − `event_costs` estimate; deals without an estimate rank after, by amount. May repeat.
+
+Leads appear once across 1–3 (first qualifying section); `more[key]` counts real overflow only.
+**Extras** for the screen only: new leads with no outbound contact, meetings today/tomorrow,
+contract viewed-not-signed, overdue tasks, offers ≥10 days without a contract, no contact
+>14 days.
+
+**Open asks (AI).** `services/openAsksService.js` — once a day before the morning briefings
+(`prepareMorningData` in `salesBriefingService.js`, also `POST /api/sales/day-plan/refresh` for
+managers): for each active lead with activity in the last 7 days whose extraction is older than
+that activity, gpt-4o-mini reads WhatsApp both ways + interactions (notes marked "הערה פנימית
+של הנציג") + call summaries and returns up to 3 "we still owe this" items → `lead_open_asks`
+(`lead_id PK, items JSONB, generated_at`). Max 60 leads per run.
+
+**Expected profit.** `eventCostService.generateEventCosts` now falls back to the latest price
+offer when the lead has no contract (same fields: guests, chefMenu, barMenu, pre-VAT subtotal),
+so open deals can be costed from the knowledge-base cost model. `estimateCostsForOpenDeals`
+(same morning prep) fills up to 15 open deals that have no `event_costs` yet; stops quietly when
+no cost model document exists.
+
+**WhatsApp (morning only).** `buildDayOpenerText`: header with counts + link to
+`/sales-worklist`, then the five sections, one fact line per lead (type · event date (year
+when not this year, 🔴 within 14 days) · what was sent · meeting ✓ · last contact · ₪K) and the
+lead link; section 4 shows the top reason (+N במסך). The evening briefing is unchanged
+(`buildBriefingText` over `getWorklist`). `GET /api/sales/briefing-preview?kind=morning` renders
+the new text.
+
+**Screen.** `/sales-worklist` ("AI מכירות" in the nav) → "☀️ פתיחת יום": `GET /api/sales/day-plan`,
+the five sections as collapsible cards with the score breakdown, every waiting reason with its
+source tag, פתח ליד / וואטסאפ / שיחה buttons, then the extras collapsed. "תובנות AI" tab
+untouched; `/api/sales/worklist` kept. Preview approved from Playwright screenshots (phone +
+desktop, sample data); SQL verified on a scratch Postgres 16 with the project's migrations.
 ### Phase 82 — Several assignees on one task ✅ Built 2026-11-14 (1.12.0)
 Oran: "אני רוצה שעל משימה אחת יהיה ניתן לבחור כמה אחראים". His choices: **one shared task** — whoever
 marks done / postpones / cancels does it for everyone — and **every task type** (lead tasks, תפעול
