@@ -24,6 +24,9 @@ import CostsPage        from './pages/CostsPage';
 import FinancePage      from './pages/FinancePage';
 import JobsPage          from './pages/candidates/JobsPage';
 import CandidateListPage from './pages/candidates/CandidateListPage';
+import ClockPage        from './pages/attendance/ClockPage';
+import MyHoursPage      from './pages/attendance/MyHoursPage';
+import AttendancePage   from './pages/attendance/AttendancePage';
 import AIChat           from './components/AIChat';
 import useBackGuard, { afterBackGuardsSettle } from './hooks/useBackGuard';
 import { useLeadCardNav, openCalendarOverCard, closeCalendarOverCard, closeTopLeadCard, closeAllLeadCards } from './utils/leadCardNav';
@@ -344,6 +347,16 @@ function AppShellNav() {
   const userRolesNav = user.roles?.length ? user.roles : [user.role];
   const isAdmin   = userRolesNav.includes('admin');
   const [overdueCount, setOverdueCount] = useState(0);
+  // Phase 83 — נוכחות: does this user clock in ("שעות" tab), is he a manager ("נוכחות" tab in ניהול)
+  // and how many items wait for a decision. Cached so the tabs don't pop in after a reload.
+  const [att, setAtt] = useState(() => { try { return JSON.parse(localStorage.getItem('crm_att') || '{}'); } catch { return {}; } });
+  useEffect(() => {
+    if (!localStorage.getItem('crm_token')) return;
+    const load = () => api.get('/attendance/status').then(r => { setAtt(r.data); try { localStorage.setItem('crm_att', JSON.stringify(r.data)); } catch {} }).catch(() => {});
+    load();
+    const t = setInterval(load, 60_000);
+    return () => clearInterval(t);
+  }, [location.pathname === '/attendance']);
 
   // Phase 81 — the nav stays on screen while a lead card is open. Lead cards (and the
   // calendar overlay below) end at `bottom: var(--crm-nav-h)`, so publish the nav's height.
@@ -433,7 +446,14 @@ function AppShellNav() {
         { path: '/my-activity',    icon: '👤', label: 'הפעילות שלי' },
       ];
 
-  const NavBtn = ({ path, icon, label, prefix }) => {
+  // Phase 83: the attendance tabs are added after the mode's own tabs, which stay as they were.
+  const navTabs = [
+    ...tabs,
+    ...(isManagement && att.manager ? [{ path: '/attendance', icon: '🕒', label: 'נוכחות', badge: att.pending }] : []),
+    ...(att.enabled ? [{ path: '/my-hours', icon: '⏱️', label: 'שעות' }] : []),
+  ];
+
+  const NavBtn = ({ path, icon, label, prefix, badge }) => {
     const active = leadNav.calendarOpen ? path === '/calendar' : prefix
       ? location.pathname === path || location.pathname.startsWith(prefix + '/') || (prefix === '/candidates/jobs' && location.pathname === '/candidates/unassigned')
       : location.pathname === path;
@@ -452,6 +472,11 @@ function AppShellNav() {
           {isTasksTab && overdueCount > 0 && (
             <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[9px] font-black rounded-full min-w-[15px] h-[15px] flex items-center justify-center px-0.5 leading-none">
               {overdueCount > 99 ? '99+' : overdueCount}
+            </span>
+          )}
+          {badge > 0 && (
+            <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[9px] font-black rounded-full min-w-[15px] h-[15px] flex items-center justify-center px-0.5 leading-none">
+              {badge > 99 ? '99+' : badge}
             </span>
           )}
         </span>
@@ -475,7 +500,7 @@ function AppShellNav() {
     )}
     <nav ref={navRef} className="fixed bottom-0 left-0 right-0 z-30 shadow-2xl" style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', borderTop: '1px solid rgba(255,255,255,0.15)' }}>
       <div className="flex">
-        {tabs.map(t => <NavBtn key={t.path} {...t} />)}
+        {navTabs.map(t => <NavBtn key={t.path} {...t} />)}
       </div>
       {isAdmin && (
         <div className="flex" style={{ background: 'rgba(0,0,0,0.18)', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
@@ -513,15 +538,54 @@ function RootRedirect() {
   return <LeadsPage />;
 }
 
+// Phase 83 — clock-only users: logged in with the single permission "נוכחות בלבד".
+function isClockOnlyUser() {
+  if (!localStorage.getItem('crm_token')) return false;
+  try {
+    const u = JSON.parse(localStorage.getItem('crm_user') || '{}');
+    return Array.isArray(u.roles) && u.roles.length > 0 && u.roles.every(r => r === 'attendance');
+  } catch { return false; }
+}
+function ClockOnlyRoutes() {
+  const navigate = useNavigate();
+  function logout() {
+    localStorage.removeItem('crm_token'); localStorage.removeItem('crm_user'); localStorage.removeItem('crm_att');
+    navigate('/login', { replace: true });
+  }
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/clock" element={<PrivateRoute><ClockPage /></PrivateRoute>} />
+      <Route path="/my-hours" element={
+        <PrivateRoute>
+          <>
+            <div className="flex items-center justify-between px-5 py-2 text-white" dir="rtl" style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+              <span className="font-black">ProEvent CRM</span>
+              <button onClick={logout} className="min-h-11 px-2 text-sm font-bold text-white/90">יציאה מהמערכת</button>
+            </div>
+            <MyHoursPage />
+          </>
+        </PrivateRoute>
+      } />
+      <Route path="*" element={<Navigate to="/my-hours" replace />} />
+    </Routes>
+  );
+}
+
 function AppRoutes() {
   const [calendarOpenLead, setCalendarOpenLead] = useState(null);
   usePresencePing(); // track connected-hours heartbeat (no-op on public routes)
+  // Phase 83 — a clock-only user (roles = ['attendance']) gets the two attendance screens and
+  // nothing else; and the NFC page (/clock) is shown bare for everyone, without header / call bar / AI.
+  const location = useLocation();
+  if (isClockOnlyUser()) return <ClockOnlyRoutes />;
+  const bare = location.pathname.startsWith('/clock');
 
   return (
     <>
-      <GlobalHeader />
-      <CallBar />
-      <AIChat />
+      {!bare && <GlobalHeader />}
+      {!bare && <CallBar />}
+      {!bare && <AIChat />}
       <FileBoxHost />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
@@ -720,6 +784,27 @@ function AppRoutes() {
             <>
               <div className="crm-header-spacer pt-11" />
               <MyActivityPage />
+              <AppShellNav />
+              <div className="pb-28" />
+            </>
+          </PrivateRoute>
+        } />
+        <Route path="/clock" element={<PrivateRoute><ClockPage /></PrivateRoute>} />
+        <Route path="/my-hours" element={
+          <PrivateRoute>
+            <>
+              <div className="crm-header-spacer pt-11" />
+              <MyHoursPage />
+              <AppShellNav />
+              <div className="pb-28" />
+            </>
+          </PrivateRoute>
+        } />
+        <Route path="/attendance" element={
+          <PrivateRoute>
+            <>
+              <div className="crm-header-spacer pt-11" />
+              <AttendancePage />
               <AppShellNav />
               <div className="pb-28" />
             </>

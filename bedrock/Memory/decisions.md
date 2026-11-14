@@ -48,3 +48,9 @@ stable key across channels.
 **Why:** Formatted IDs (ח.פ/ת.ז with separators) cause GreenInvoice error 1111.
 
 **Impact:** Enforced server-side in `greeninvoice.js` (commit `77d184b`).
+
+## 2026-11-14 — Attendance (נוכחות) is real clock-in/out, separate from the presence estimate
+- Clocked hours come from NFC punches (`attendance_shifts`); the ניהול "hours" estimate from heartbeat sessions (Phase 78) stays as it is until Oran decides otherwise.
+- The punch happens on opening the tag URL (no confirm button); cheating is handled by GPS radius + registered phone, with exceptions going to a manager, not by blocking.
+- Vacation and sick days both need approval; any admin/manager approves. The system counts days only — no sick-pay or overtime-pay calculation.
+- Attendance rows are never hard-deleted: void status + `attendance_edits` audit.

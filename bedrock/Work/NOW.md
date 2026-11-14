@@ -6,12 +6,13 @@ updated: 2026-11-14
 
 # Now
 
-## 2026-11-14 — Phase 83 SPEC: נוכחות (NFC clock-in/out + vacation/sick) — awaiting Oran's approval
+## 2026-11-14 — Phase 83 (1.13.0): נוכחות — built on branch `attendance-module`, NOT merged
 
-- Spec only, nothing built. Branch `attendance-module` (not merged, no version bump yet; target 1.13.0). Full spec: PRD Phase 83. Mock-up: https://claude.ai/artifact/Wh99AD1SvqxDH9ccTJsAgn
-- NFC tag → `/clock?t=token` → punch on open; GPS radius + registered device against cheating; employee tab "שעות", manager tab "נוכחות" in ניהול; absences entered by employees (sick = registered at once, vacation = needs approval); days counted only, no pay calculation.
-- Scope: permanent employees only (per-user switch + new clock-only role `attendance`). Existing ניהול hours estimate (Phase 78) untouched.
-- Waiting on Oran: the 4 open questions in the PRD entry, and OK on the mock-up, before building.
+- NFC tag → `/clock?t=token` → punch at once; GPS radius (150 m) + registered phone; "שעות" tab for clocking users, "נוכחות" tab in ניהול (now / pending / month + Excel / setup). Vacation and sick both need approval by any admin/manager. Clock-only permission `attendance` (403 on every other API). Details: PRD Phase 83 "As built".
+- Oran's decisions 2026-11-14: punch on tap, both absence types need approval, every manager approves, defaults 150 m / 14 h.
+- Verified on scratch Postgres (47 API checks) + headless Chromium screenshots. NOT verified: real NFC tag + phone, iPhone GPS prompt, certificate upload to Supabase, WhatsApp notifications.
+- Waiting on Oran: OK on the screenshots → merge to main (deploys 1.13.0). Then go-live steps: write tags, save venue position on site, mark who clocks + balances.
+- Open: should clocked hours replace the ניהול hours estimate for clocking employees.
 
 ## 2026-11-14 — Phase 82 (1.12.0): several assignees per task (deployed)
 
