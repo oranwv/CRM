@@ -6,6 +6,12 @@ updated: 2026-11-14
 
 # Now
 
+## 2026-11-14 — 1.15.0 (Phase 85): blocked users locked out of calling; inbound rings in the dialer app with a lead link
+
+- Dialer build 8 shipped (iOS TestFlight, Android APK on Expo). OTA #1 committed in the app repo (24d0247) — **Oran pushes from his own terminal** (Cowork VM can no longer `git push`), then `npx eas-cli update --branch production` and `--branch preview`.
+- Open: Twilio routing to 054-555-2606 (carrier "לא ניתן להשלים"); US number +1 917… needs Geo Permissions check; Gili's iPhone call drop on cellular ring (CallKit).
+
+
 ## 2026-11-14 — Phase 84 (1.14.0): נוכחות — approved by Oran, merged to main (deploying)
 
 - NFC tag → `/clock?t=token` → punch at once; GPS radius (150 m) + registered phone; "שעות" tab for clocking users, "נוכחות" tab in ניהול (now / pending / month + Excel / setup). Vacation and sick both need approval by any admin/manager. Clock-only permission `attendance` (403 on every other API). Details: PRD Phase 84 "As built".

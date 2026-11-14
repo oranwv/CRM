@@ -27,8 +27,11 @@ const RECORDING_ATTRS = () => ({
 const say = (vr, text) => vr.say({ language: 'he-IL', voice: tw.HE_VOICE }, text);
 const xml = (res, vr) => res.type('text/xml').send(vr.toString());
 
+// Blocked CRM users are blocked from calling too (Oran, 2026-11-14): no softphone token, no
+// config, no place in the inbound ring plan — the dialer app logs itself out on this answer.
+const BLOCKED_MSG = 'החשבון שלך חסום, פנה למנהל המערכת';
 async function currentUser(id) {
-  const { rows } = await pool.query('SELECT id, display_name, phone, abroad_mode, roles, role, app_registered_at FROM users WHERE id = $1', [id]);
+  const { rows } = await pool.query('SELECT id, display_name, phone, abroad_mode, roles, role, app_registered_at, blocked FROM users WHERE id = $1', [id]);
   return rows[0] || null;
 }
 
@@ -49,6 +52,7 @@ api.get('/config', async (req, res) => {
   if (!tw.isEnabled()) return res.json({ enabled: false });
   try {
     const u = await currentUser(req.user.id);
+    if (!u || u.blocked) return res.status(403).json({ enabled: false, blocked: true, error: BLOCKED_MSG });
     // app_registered: this user has the ProEvent Dialer app → on Android the web dials through it
     // only (no browser fallback race). Users without the app keep the browser softphone.
     res.json({ enabled: true, number: process.env.TWILIO_PHONE_NUMBER, abroad_mode: !!u?.abroad_mode, has_phone: !!u?.phone, app_registered: !!u?.app_registered_at });
@@ -62,7 +66,11 @@ api.get('/config', async (req, res) => {
 api.get('/token', async (req, res) => {
   if (!tw.isEnabled()) return res.status(503).json({ error: 'שיחות אינן מופעלות' });
   const platform = ['android', 'ios'].includes(req.query.platform) ? req.query.platform : 'web';
-  try { res.json({ token: await tw.accessToken(req.user.id, platform), identity: tw.identityFor(req.user.id) }); }
+  try {
+    const u = await currentUser(req.user.id);
+    if (!u || u.blocked) return res.status(403).json({ blocked: true, error: BLOCKED_MSG });
+    res.json({ token: await tw.accessToken(req.user.id, platform), identity: tw.identityFor(req.user.id) });
+  }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -241,17 +249,22 @@ hooks.post('/twiml/bridge', async (req, res) => {
 async function buildRingPlan(lead) {
   const steps = [];
   const { rows: users } = await pool.query(
-    `SELECT id, display_name, phone, abroad_mode, call_queue_order FROM users
-     WHERE blocked = false AND (role IN ('admin','manager','sales') OR roles && ARRAY['admin','manager','sales','sales_manager']::text[])
+    `SELECT id, display_name, phone, abroad_mode, call_queue_order, app_registered_at FROM users
+     WHERE COALESCE(blocked, false) = false AND (role IN ('admin','manager','sales') OR roles && ARRAY['admin','manager','sales','sales_manager']::text[])
      ORDER BY call_queue_order NULLS LAST, id`);
+  // A user with the ProEvent Dialer app rings in the app (Oran, 2026-11-14): the call is then
+  // recognisably a business call and the app shows the lead; their mobile number is not dialed.
+  // Users without the app keep ringing on their mobile (and the browser softphone).
+  const inApp = (u) => !!u.app_registered_at;
   const owner = lead?.assigned_to ? users.find(u => u.id === lead.assigned_to) : null;
   if (owner) {
-    if (owner.phone && !owner.abroad_mode) steps.push({ kind: 'number', userId: owner.id, phone: tw.toE164(owner.phone), timeout: MOBILE_TIMEOUT, label: owner.display_name });
+    if (!inApp(owner) && owner.phone && !owner.abroad_mode) steps.push({ kind: 'number', userId: owner.id, phone: tw.toE164(owner.phone), timeout: MOBILE_TIMEOUT, label: owner.display_name });
     steps.push({ kind: 'client', userId: owner.id, timeout: CLIENT_TIMEOUT, label: owner.display_name });
   }
   for (const u of users) {
     if (owner && u.id === owner.id) continue;
-    steps.push({ kind: 'both', userId: u.id, phone: (u.phone && !u.abroad_mode) ? tw.toE164(u.phone) : null, timeout: QUEUE_TIMEOUT, label: u.display_name });
+    if (inApp(u)) steps.push({ kind: 'client', userId: u.id, timeout: QUEUE_TIMEOUT, label: u.display_name });
+    else steps.push({ kind: 'both', userId: u.id, phone: (u.phone && !u.abroad_mode) ? tw.toE164(u.phone) : null, timeout: QUEUE_TIMEOUT, label: u.display_name });
   }
   return steps;
 }
@@ -263,7 +276,7 @@ async function claimLead(leadId, userId) {
   await pool.query('UPDATE leads SET assigned_to = COALESCE(assigned_to, $2) WHERE id = $1', [leadId, userId]).catch(() => {});
 }
 
-function dialStep(vr, step, callId, index, callerNumber, leadName) {
+function dialStep(vr, step, callId, index, callerNumber, leadName, leadId) {
   const dial = vr.dial({
     timeout: step.timeout, answerOnBridge: true,
     callerId: callerNumber,                       // the rep sees the customer's real number
@@ -276,6 +289,7 @@ function dialStep(vr, step, callId, index, callerNumber, leadName) {
     const client = dial.client();
     client.identity(tw.identityFor(step.userId));
     client.parameter({ name: 'leadName', value: leadName || '' });
+    client.parameter({ name: 'leadId', value: leadId ? String(leadId) : '' });   // app: "פתח כרטיס ליד"
     client.parameter({ name: 'callId', value: String(callId) });
   }
 }
@@ -290,7 +304,7 @@ async function continueInbound(res, callId, fromIndex) {
   while (i < plan.length && plan[i].kind === 'number' && !plan[i].phone) i++;
   if (i < plan.length) {
     await pool.query('UPDATE calls SET ring_step = $2 WHERE id = $1', [callId, i]);
-    dialStep(vr, plan[i], callId, i, call.from_number, call.lead_name);
+    dialStep(vr, plan[i], callId, i, call.from_number, call.lead_name, call.lead_id);
     return xml(res, vr);
   }
   // Nobody answered → voicemail

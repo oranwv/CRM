@@ -1801,6 +1801,19 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 85 — Dialer app: blocked users locked out, inbound calls ring in the app with a lead link ✅ Built 2026-11-14 (1.15.0)
+Oran, 14/11. (1) **Blocked = blocked everywhere**: `/calls/token` and `/calls/config` answer 403
+for a blocked user (`BLOCKED_MSG`), blocking a user in the admin screen clears
+`app_registered_at`, and the ring plan already skipped blocked users. The dialer app (OTA #1 on
+build 8) unregisters its push and returns to the login screen on 401/403, and login itself is
+refused for blocked users. (2) **Inbound through the app**: `buildRingPlan` rings a user who has
+the app registered as a Voice client only (no PSTN leg to their mobile) — owner first, then the
+queue — so a business call is recognisable as such and never mixes with personal calls; users
+without the app keep mobile + browser. `<Client>` now carries `leadId`; the app shows
+"פתח כרטיס ליד ב-CRM" on the ringing screen and during the call (opens `/?lead=ID`).
+Build 8 of the app (v1.1.0, expo-updates 57.0.28) shipped the same day: iOS → TestFlight,
+Android APK via Expo; from here JS changes go out with `eas update`.
+
 ### Phase 84 — נוכחות: NFC clock-in/out + vacation & sick days ✅ Built 2026-11-14 (1.14.0) — approved by Oran and merged to main the same day
 (Was written as "Phase 83 / 1.13.0" on the branch; renumbered at merge because "פתיחת יום" took 83 / 1.13.0 meanwhile.)
 Oran: "מודול של כניסה ויציאה לעובדים על ידי זה שיצמידו את הטלפון ל-NFC בכניסה לעסק או על הבר…

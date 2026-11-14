@@ -117,6 +117,7 @@ router.put('/users/:id', adminOnly, async (req, res) => {
         [username, display_name || null, email || null, phone || null, primaryRole, rolesArr, blocked || false, shabbat_mode || false, req.params.id]
       );
     }
+    if (blocked) await pool.query('UPDATE users SET app_registered_at = NULL WHERE id = $1', [req.params.id]);
     const { rows } = await pool.query(
       'SELECT id, username, display_name, email, phone, role, roles, blocked, shabbat_mode, created_at FROM users WHERE id=$1',
       [req.params.id]
