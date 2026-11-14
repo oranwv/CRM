@@ -971,7 +971,7 @@ const { callsApiRouter, callsHooksRouter } = require('./routes/calls');
 app.use('/api/calls', callsHooksRouter);                              // Twilio webhooks (signature-validated)
 app.use('/api/calls', callsApiRouter);                                // browser API (JWT)
 app.use('/api/costs',              requireAuth, require('./routes/costs')); // costs panel (managers)
-// Phase 83: נוכחות — NFC clock-in/out, vacation and sick days (tables created here, on the migration chain)
+// Phase 84: נוכחות — NFC clock-in/out, vacation and sick days (tables created here, on the migration chain)
 const attendanceRoutes = require('./routes/attendance');
 migrate(attendanceRoutes.SCHEMA_SQL).catch(err => console.error('[Attendance] migration error:', err.message));
 app.use('/api/attendance',         requireAuth, attendanceRoutes);
@@ -1044,7 +1044,7 @@ process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
 function startCronJobs() {
-  // Phase 83: mark shifts left open past the limit as "חסרה יציאה" and tell the employee + managers
+  // Phase 84: mark shifts left open past the limit as "חסרה יציאה" and tell the employee + managers
   setInterval(() => attendanceRoutes.runOpenShiftCheck(), 30 * 60 * 1000);
   setTimeout(() => attendanceRoutes.runOpenShiftCheck(), 60 * 1000);
 

@@ -1801,7 +1801,8 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
-### Phase 83 — נוכחות: NFC clock-in/out + vacation & sick days 🔨 Built 2026-11-14 (1.13.0) on branch `attendance-module` — NOT merged, awaiting Oran's OK on the screens
+### Phase 84 — נוכחות: NFC clock-in/out + vacation & sick days ✅ Built 2026-11-14 (1.14.0) — approved by Oran and merged to main the same day
+(Was written as "Phase 83 / 1.13.0" on the branch; renumbered at merge because "פתיחת יום" took 83 / 1.13.0 meanwhile.)
 Oran: "מודול של כניסה ויציאה לעובדים על ידי זה שיצמידו את הטלפון ל-NFC בכניסה לעסק או על הבר…
 שיכלול גם חופשים וימי מחלה שהעובדים מזינים… לפי התוכנה הכי טובה שקיימת היום, ממשק ממש פשוט."
 Mock-up (4 screens): https://claude.ai/artifact/Wh99AD1SvqxDH9ccTJsAgn

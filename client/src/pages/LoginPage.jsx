@@ -25,7 +25,7 @@ export default function LoginPage() {
       // Tells the server this browser uses the app, so `/` serves the CRM and not the public landing page
       document.cookie = 'crm_app=1; path=/; max-age=31536000; SameSite=Lax';
       localStorage.setItem('crm_user', JSON.stringify(data.user));
-      localStorage.removeItem('crm_att'); // Phase 83: the attendance tabs are cached per user
+      localStorage.removeItem('crm_att'); // Phase 84: the attendance tabs are cached per user
       // Replace so /login does not stay in history (back button won't return here).
       navigate(returnTo, { replace: true });
     } catch (err) {

@@ -5,7 +5,7 @@ import {
   ABSENCE_LABEL, STATUS_LABEL, FLAG_LABEL, daysText,
 } from '../../utils/attendance';
 
-// Phase 83 — "נוכחות" (ניהול mode, admin / manager): who is in now, what waits for a decision,
+// Phase 84 — "נוכחות" (ניהול mode, admin / manager): who is in now, what waits for a decision,
 // the month per employee with Excel export, and the one-time setup (employees, NFC tags, venue).
 const inputCls = 'w-full min-h-11 rounded-xl border border-slate-400 bg-white px-3 text-base text-slate-900';
 const btnOk = 'min-h-11 rounded-xl bg-emerald-700 text-white font-black px-3';

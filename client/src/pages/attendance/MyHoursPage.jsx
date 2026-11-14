@@ -5,7 +5,7 @@ import {
   ABSENCE_LABEL, STATUS_LABEL, FLAG_LABEL, daysText,
 } from '../../utils/attendance';
 
-// Phase 83 — "שעות": the signed-in employee's own month — every shift, vacation and sick day,
+// Phase 84 — "שעות": the signed-in employee's own month — every shift, vacation and sick day,
 // the balances, and the two things he can ask for: an absence, or a correction of a shift.
 const inputCls = 'w-full min-h-12 rounded-xl border border-slate-400 bg-white px-3 text-base font-semibold text-slate-900';
 

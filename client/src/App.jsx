@@ -347,7 +347,7 @@ function AppShellNav() {
   const userRolesNav = user.roles?.length ? user.roles : [user.role];
   const isAdmin   = userRolesNav.includes('admin');
   const [overdueCount, setOverdueCount] = useState(0);
-  // Phase 83 — נוכחות: does this user clock in ("שעות" tab), is he a manager ("נוכחות" tab in ניהול)
+  // Phase 84 — נוכחות: does this user clock in ("שעות" tab), is he a manager ("נוכחות" tab in ניהול)
   // and how many items wait for a decision. Cached so the tabs don't pop in after a reload.
   const [att, setAtt] = useState(() => { try { return JSON.parse(localStorage.getItem('crm_att') || '{}'); } catch { return {}; } });
   useEffect(() => {
@@ -446,7 +446,7 @@ function AppShellNav() {
         { path: '/my-activity',    icon: '👤', label: 'הפעילות שלי' },
       ];
 
-  // Phase 83: the attendance tabs are added after the mode's own tabs, which stay as they were.
+  // Phase 84: the attendance tabs are added after the mode's own tabs, which stay as they were.
   const navTabs = [
     ...tabs,
     ...(isManagement && att.manager ? [{ path: '/attendance', icon: '🕒', label: 'נוכחות', badge: att.pending }] : []),
@@ -538,7 +538,7 @@ function RootRedirect() {
   return <LeadsPage />;
 }
 
-// Phase 83 — clock-only users: logged in with the single permission "נוכחות בלבד".
+// Phase 84 — clock-only users: logged in with the single permission "נוכחות בלבד".
 function isClockOnlyUser() {
   if (!localStorage.getItem('crm_token')) return false;
   try {
@@ -575,7 +575,7 @@ function ClockOnlyRoutes() {
 function AppRoutes() {
   const [calendarOpenLead, setCalendarOpenLead] = useState(null);
   usePresencePing(); // track connected-hours heartbeat (no-op on public routes)
-  // Phase 83 — a clock-only user (roles = ['attendance']) gets the two attendance screens and
+  // Phase 84 — a clock-only user (roles = ['attendance']) gets the two attendance screens and
   // nothing else; and the NFC page (/clock) is shown bare for everyone, without header / call bar / AI.
   const location = useLocation();
   if (isClockOnlyUser()) return <ClockOnlyRoutes />;

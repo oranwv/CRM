@@ -29,7 +29,7 @@ async function requireAuth(req, res, next) {
   } catch {
     return res.status(401).json({ error: 'Invalid token' });
   }
-  // Phase 83: a clock-only user (roles = ['attendance']) may use the attendance API and nothing else.
+  // Phase 84: a clock-only user (roles = ['attendance']) may use the attendance API and nothing else.
   const roles = req.user.roles?.length ? req.user.roles : [];
   if (roles.length && roles.every(r => r === 'attendance') && !req.originalUrl.startsWith('/api/attendance')) {
     return res.status(403).json({ error: 'אין הרשאה' });

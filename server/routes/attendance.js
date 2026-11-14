@@ -1,4 +1,4 @@
-// Phase 83 — נוכחות: NFC clock-in/out + vacation & sick days.
+// Phase 84 — נוכחות: NFC clock-in/out + vacation & sick days.
 //
 // A passive NFC tag at the entrance / on the bar holds `https://<site>/clock?t=<token>`. Tapping
 // the phone opens that page, which calls POST /punch right away: no open shift → clock-in, open

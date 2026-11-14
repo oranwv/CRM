@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../api';
 import { fmtTime, deviceId, getPosition, FLAG_LABEL } from '../../utils/attendance';
 
-// Phase 83 — the page an NFC tag opens: /clock?t=<token>. The punch happens as soon as the page
+// Phase 84 — the page an NFC tag opens: /clock?t=<token>. The punch happens as soon as the page
 // loads (Oran: "ההחתמה מיד בהצמדה"); the screen only confirms it and offers "ביטול" for 10 seconds.
 // The token is removed from the address right away, so a reload of this tab (Safari reloads
 // background tabs on its own) can never punch a second time.
