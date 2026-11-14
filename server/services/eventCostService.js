@@ -40,7 +40,7 @@ async function generateEventCosts(leadId, userId = null, { onlyIfEmpty = false }
                 ORDER BY (status = 'signed') DESC, created_at DESC LIMIT 1`, [leadId]),
     // Open deals (no contract yet) are costed from the latest price offer — same fields
     // (guests, chefMenu, barMenu) and the offer's pre-VAT subtotal (Phase 83)
-    pool.query('SELECT fields, rows FROM price_offers WHERE lead_id = $1 ORDER BY created_at DESC LIMIT 1', [leadId]),
+    pool.query('SELECT fields, rows, offer_type FROM price_offers WHERE lead_id = $1 ORDER BY created_at DESC LIMIT 1', [leadId]),
   ]);
   if (!lead) throw new Error('Lead not found');
   if (!kbFiles.length) {
@@ -49,9 +49,9 @@ async function generateEventCosts(leadId, userId = null, { onlyIfEmpty = false }
 
   let cd = contractRows[0]?.contract_data || null;
   if (!cd && offerRows[0]) {
-    const { offerTotal } = require('./salesAdvisor');
-    cd = { fields: offerRows[0].fields || {}, rows: offerRows[0].rows || [],
-           calculated: { subtotal: offerTotal(offerRows[0].rows, { ...(offerRows[0].fields || {}), withVat: false }) } };
+    const { offerAmounts } = require('./salesAdvisor');
+    cd = { fields: offerRows[0].fields || {}, rows: offerRows[0].rows || [], offerType: offerRows[0].offer_type,
+           calculated: { subtotal: offerAmounts(offerRows[0].rows, offerRows[0].fields, offerRows[0].offer_type).subtotal } };
   }
   const f      = cd?.fields || {};
   const guests = f.guests || f.packageGuests || lead.guest_count || '';

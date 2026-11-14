@@ -48,7 +48,7 @@ async function buildLeadContext(leadId) {
 
   return {
     lead, history, rep: rep?.display_name || null,
-    offer: offer ? { ...offer, total: offerTotal(offer.rows, offer.fields) } : null,
+    offer: offer ? { ...offer, total: offerTotal(offer.rows, offer.fields, offer.offer_type) } : null,
     contract: contract ? { ...contract, total: contractTotal(contract.contract_data) } : null,
     meetings, open_tasks: tasks, signals,
   };
@@ -61,7 +61,28 @@ function daysBetween(a, b) {
 // Money helpers — same arithmetic as the offer/contract PDF renderers
 // (routes/priceOffer.js, routes/contracts.js): fixed rows qty×price, % rows on the
 // fixed subtotal, VAT 18% unless fields.withVat === false.
-function offerTotal(rows, fields) {
+// Offer amounts. A "package" offer keeps its price in fields.packagePrice (typed incl. VAT
+// unless packagePriceIncl === false / withVat === false) and its rows are just the default
+// template — so for packages the rows must be ignored (until 1.13.1 every package showed
+// the template's ₪1,950). Returns { subtotal (pre-VAT), total }.
+function offerAmounts(rows, fields, offerType) {
+  const f = fields || {};
+  const withVat = f.withVat !== false;
+  const isPackage = offerType === 'package' || (!offerType && Number(f.packagePrice) > 0);
+  if (isPackage && Number(f.packagePrice) > 0) {
+    const typed = Number(f.packagePrice);
+    const incl = withVat && f.packagePriceIncl !== false;
+    const subtotal = incl ? Math.round(typed / 1.18) : Math.round(typed);
+    const total = withVat ? (incl ? Math.round(typed) : Math.round(typed * 1.18)) : Math.round(typed);
+    return { subtotal, total, isPackage: true };
+  }
+  const list = Array.isArray(rows) ? rows : [];
+  const fixed = list.filter(r => !r.isPct).reduce((s, r) => s + (Number(r.qty) || 0) * (Number(r.price) || 0), 0);
+  const subtotal = list.reduce((s, r) => s + (r.isPct ? Math.round(fixed * (Number(r.pct) || 0) / 100) : (Number(r.qty) || 0) * (Number(r.price) || 0)), 0);
+  return { subtotal: Math.round(subtotal), total: Math.round(subtotal + (withVat ? Math.round(subtotal * 0.18) : 0)), isPackage: false };
+}
+function offerTotal(rows, fields, offerType) {
+  if (offerType === 'package' || (fields && Number(fields.packagePrice) > 0)) return offerAmounts(rows, fields, offerType).total;
   const list = Array.isArray(rows) ? rows : [];
   const fixed = list.filter(r => !r.isPct).reduce((s, r) => s + (Number(r.qty) || 0) * (Number(r.price) || 0), 0);
   const subtotal = list.reduce((s, r) => s + (r.isPct ? Math.round(fixed * (Number(r.pct) || 0) / 100) : (Number(r.qty) || 0) * (Number(r.price) || 0)), 0);
@@ -71,7 +92,7 @@ function offerTotal(rows, fields) {
 function contractTotal(contractData) {
   const c = contractData?.calculated || {};
   if (c.total != null) return Math.round(Number(c.total)) || 0;
-  return offerTotal(contractData?.rows, contractData?.fields);
+  return offerTotal(contractData?.rows, contractData?.fields, contractData?.offerType);
 }
 const fmtMoney = n => (n == null ? '' : `₪${Math.round(Number(n)).toLocaleString('he-IL')}`);
 const fmtDate  = d => (d ? new Date(d).toLocaleDateString('he-IL') : '');
@@ -143,7 +164,8 @@ async function getWorklist(user) {
            (SELECT a.data->>'temperature' FROM lead_ai_advice a WHERE a.lead_id = l.id) AS temperature,
            (SELECT c3.contract_data FROM contracts c3 WHERE c3.lead_id = l.id ORDER BY (c3.status='signed') DESC, c3.created_at DESC LIMIT 1) AS contract_data,
            (SELECT p3.rows FROM price_offers p3 WHERE p3.lead_id = l.id ORDER BY p3.created_at DESC LIMIT 1) AS offer_rows,
-           (SELECT p3.fields FROM price_offers p3 WHERE p3.lead_id = l.id ORDER BY p3.created_at DESC LIMIT 1) AS offer_fields
+           (SELECT p3.fields FROM price_offers p3 WHERE p3.lead_id = l.id ORDER BY p3.created_at DESC LIMIT 1) AS offer_fields,
+           (SELECT p3.offer_type FROM price_offers p3 WHERE p3.lead_id = l.id ORDER BY p3.created_at DESC LIMIT 1) AS offer_type
     FROM leads l
     LEFT JOIN users u ON u.id = l.assigned_to
     LEFT JOIN LATERAL (
@@ -162,7 +184,7 @@ async function getWorklist(user) {
     lead_id: r.lead_id, name: r.name, phone: r.phone, event_date: r.event_date,
     event_type: r.event_type, stage: r.stage, rep: r.rep || null, has_advice: r.has_advice,
     temperature: r.temperature || null,
-    deal_value: r.contract_data ? contractTotal(r.contract_data) : (r.offer_rows ? offerTotal(r.offer_rows, r.offer_fields) : null),
+    deal_value: r.contract_data ? contractTotal(r.contract_data) : (r.offer_rows ? offerTotal(r.offer_rows, r.offer_fields, r.offer_type) : null),
     ...classify(r),
   }));
 
@@ -362,4 +384,4 @@ ${digest}
   return result;
 }
 
-module.exports = { buildLeadContext, getWorklist, analyzeLead, getCachedAdvice, lossInsights, classify, offerTotal, contractTotal };
+module.exports = { offerAmounts, buildLeadContext, getWorklist, analyzeLead, getCachedAdvice, lossInsights, classify, offerTotal, contractTotal };

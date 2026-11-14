@@ -1941,6 +1941,15 @@ employees (untouched for now).
 link → NFC Tools → lock), save the venue position while standing in the venue, mark who clocks and
 type each employee's balances.
 
+### Phase 83.1 — Package offers showed ₪1,950 everywhere ✅ Fixed 2026-11-15 (1.13.1)
+`offerTotal()` summed the offer's `rows`, but a "package" offer keeps its price in
+`fields.packagePrice` (incl. VAT unless `packagePriceIncl === false` / `withVat === false`) and
+its rows are only the untouched template — so every package deal showed the template's ₪1,950
+(day plan, morning WhatsApp, deal advisor, assistant). New `offerAmounts(rows, fields, offerType)`
+in `services/salesAdvisor.js` returns `{ subtotal, total }` for both kinds; `offerTotal` and
+`contractTotal` route through it, every caller passes `offer_type`, and `eventCostService` uses
+the package subtotal when costing from an offer.
+
 ### Phase 83 — "פתיחת יום": ranked day plan for sales ✅ Built 2026-11-14 (1.13.0)
 Oran: the morning WhatsApp did not reflect the most urgent things to do. Reworked around a
 ranked plan, defined with him (`services/dayPlanService.js`, one SQL over active leads +

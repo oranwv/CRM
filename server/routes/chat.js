@@ -730,7 +730,7 @@ async function executeTool(name, args, user) {
       const { offerTotal, contractTotal } = require('../services/salesAdvisor');
       return {
         lead,
-        offers: offers.map(o => ({ id: o.id, created_at: o.created_at, type: o.offer_type, total: offerTotal(o.rows, o.fields) })),
+        offers: offers.map(o => ({ id: o.id, created_at: o.created_at, type: o.offer_type, total: offerTotal(o.rows, o.fields, o.offer_type) })),
         contracts: contracts.map(c => ({
           id: c.id, status: c.status, sent_via: c.sent_via, created_at: c.created_at, signed_at: c.signed_at,
           signer_name: c.signer_name, total: contractTotal(c.contract_data), views: c.views, last_viewed_at: c.last_viewed_at,

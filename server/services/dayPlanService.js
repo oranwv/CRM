@@ -14,7 +14,7 @@
 //
 // Scoring weights live in WEIGHTS so they can be tuned in one place.
 const pool = require('../db/pool');
-const { offerTotal, contractTotal } = require('./salesAdvisor');
+const { offerAmounts, contractTotal } = require('./salesAdvisor');
 
 const ACTIVE_EXCLUDE   = ['deposit', 'production', 'completed', 'lost'];
 const NEAR_EVENT_DAYS  = 60;
@@ -46,14 +46,14 @@ function dealSubtotal(r) {
   if (r.contract_data) {
     const c = r.contract_data.calculated || {};
     if (c.subtotal != null) return Math.round(Number(c.subtotal)) || 0;
-    return offerTotal(r.contract_data.rows, { ...(r.contract_data.fields || {}), withVat: false });
+    return offerAmounts(r.contract_data.rows, r.contract_data.fields, r.contract_data.offerType).subtotal;
   }
-  if (r.offer_rows) return offerTotal(r.offer_rows, { ...(r.offer_fields || {}), withVat: false });
+  if (r.offer_rows || r.offer_fields) return offerAmounts(r.offer_rows, r.offer_fields, r.offer_type).subtotal;
   return null;
 }
 function dealTotal(r) {
   if (r.contract_data) return contractTotal(r.contract_data);
-  if (r.offer_rows) return offerTotal(r.offer_rows, r.offer_fields);
+  if (r.offer_rows || r.offer_fields) return offerAmounts(r.offer_rows, r.offer_fields, r.offer_type).total;
   return null;
 }
 const sumLines = lines => (Array.isArray(lines) ? lines : []).reduce((s, l) => s + (Number(l.amount) || 0), 0);
@@ -92,6 +92,7 @@ async function loadLeads(user) {
            (SELECT c3.contract_data FROM contracts c3 WHERE c3.lead_id = l.id ORDER BY (c3.status='signed') DESC, c3.created_at DESC LIMIT 1) AS contract_data,
            (SELECT p3.rows   FROM price_offers p3 WHERE p3.lead_id = l.id ORDER BY p3.created_at DESC LIMIT 1) AS offer_rows,
            (SELECT p3.fields FROM price_offers p3 WHERE p3.lead_id = l.id ORDER BY p3.created_at DESC LIMIT 1) AS offer_fields,
+           (SELECT p3.offer_type FROM price_offers p3 WHERE p3.lead_id = l.id ORDER BY p3.created_at DESC LIMIT 1) AS offer_type,
            (SELECT json_agg(json_build_object('id', t.id, 'title', t.title, 'due_at', t.due_at) ORDER BY t.due_at)
               FROM tasks t WHERE t.lead_id = l.id AND t.completed_at IS NULL
                AND t.due_at < (date_trunc('day', NOW() AT TIME ZONE 'Asia/Jerusalem') + INTERVAL '1 day') AT TIME ZONE 'Asia/Jerusalem') AS due_tasks,
