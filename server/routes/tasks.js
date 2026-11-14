@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const pool = require('../db/pool');
+const A = require('../utils/assignees');
 const requireAuth = require('../middleware/auth');
 
 // GET /api/tasks/users — dropdown list for filters
@@ -44,7 +45,7 @@ router.get('/', requireAuth, async (req, res) => {
 
   if (assigned_to) {
     params.push(Number(assigned_to));
-    conditions.push(`t.assigned_to = $${params.length}`);
+    conditions.push(A.has('t', 'assigned_to', `$${params.length}`));
   }
 
   if (status === 'pending') {
@@ -72,10 +73,10 @@ router.get('/', requireAuth, async (req, res) => {
     const { rows } = await pool.query(
       `SELECT
          t.id, t.lead_id, t.title, t.due_at, t.completed_at, t.result,
-         t.remind_via, t.created_at, t.assigned_to,
+         t.remind_via, t.created_at, t.assigned_to, ${A.ids('t', 'assigned_to')} AS assignee_ids,
          l.name  AS lead_name,
          l.stage AS lead_stage,
-         ua.display_name AS assigned_name,
+         ${A.names('t', 'assigned_to')} AS assigned_name,
          uc.display_name AS created_by_name,
          CASE
            WHEN t.completed_at IS NOT NULL                                    THEN 5
@@ -86,7 +87,6 @@ router.get('/', requireAuth, async (req, res) => {
          END AS sort_bucket
        FROM tasks t
        JOIN leads l  ON l.id  = t.lead_id
-       LEFT JOIN users ua ON ua.id = t.assigned_to
        LEFT JOIN users uc ON uc.id = t.created_by
        WHERE ${where}
        ORDER BY sort_bucket ASC, t.due_at ASC NULLS LAST, t.created_at ASC`,
@@ -100,17 +100,19 @@ router.get('/', requireAuth, async (req, res) => {
 
 // PATCH /api/tasks/:id — edit task title, due_at, assigned_to, remind_via
 router.patch('/:id', requireAuth, async (req, res) => {
-  const { title, due_at, assigned_to, remind_via } = req.body;
+  const { title, due_at, remind_via } = req.body;
+  const who = A.fromBody(req.body, 'assigned_to');
   try {
     const { rows } = await pool.query(
       `UPDATE tasks SET
          title       = COALESCE($1, title),
          due_at      = $2,
          assigned_to = $3,
+         extra_assignees = ${A.setExtras('$6', '$3')},
          remind_via  = COALESCE($4, remind_via)
        WHERE id = $5
        RETURNING *`,
-      [title || null, due_at || null, assigned_to || null, remind_via || null, req.params.id]
+      [title || null, due_at || null, who.primary, remind_via || null, req.params.id, who.extras]
     );
     if (!rows.length) return res.status(404).json({ error: 'Task not found' });
     res.json(rows[0]);

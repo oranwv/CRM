@@ -1,3 +1,4 @@
+import AssigneesSelect, { assigneeIdsOf } from '../components/AssigneesSelect';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import FileActions from '../components/FileActions';
 import { openFileViewer, opsFileRef } from '../files/fileBox';
@@ -272,9 +273,12 @@ function ActivityLogSection({ entityType, entityId, refreshTrigger }) {
   );
 }
 
+// Phase 82: a task may have several assignees — the person filter matches any of them
+const isAssignee = (item, key, uid) => assigneeIdsOf(item, key).includes(String(uid));
+
 // ── Task Detail (full-screen) ──────────────────────────────────────────
 function TaskDetailModal({ task, users, onClose, onSaved, onDeleted }) {
-  const [form, setForm]         = useState({ ...task });
+  const [form, setForm]         = useState({ ...task, assignee_ids: assigneeIdsOf(task, 'assigned_to') });
   const [saving, setSaving]     = useState(false);
   const [actRefresh, setActRefresh] = useState(0);
 
@@ -327,12 +331,9 @@ function TaskDetailModal({ task, users, onClose, onSaved, onDeleted }) {
             <option value="low">נמוך</option>
           </select>
 
-          <div className="flex gap-2">
-            <select className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
-              value={form.assigned_to || ''} onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))}>
-              <option value="">ללא אחראי</option>
-              {users.map(u => <option key={u.id} value={u.id}>{u.display_name}</option>)}
-            </select>
+          <div className="flex gap-2 items-start">
+            <AssigneesSelect className="flex-1 min-w-0" selectCls="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-400" emptyLabel="ללא אחראי" users={users}
+              ids={form.assignee_ids} onChange={ids => setForm(f => ({ ...f, assignee_ids: ids, assigned_to: ids[0] || null }))} />
             <input type="date" className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-400"
               style={{ direction: 'ltr' }} value={form.due_date ? String(form.due_date).slice(0,10) : ''}
               onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} />
@@ -364,7 +365,7 @@ function TaskDetailModal({ task, users, onClose, onSaved, onDeleted }) {
 
 // ── Maintenance Detail (full-screen) ──────────────────────────────────
 function MaintenanceDetailModal({ item, users, onClose, onSaved }) {
-  const [form, setForm]             = useState({ assignee_id: item.assignee_id || '' });
+  const [form, setForm]             = useState({ assignee_id: item.assignee_id || '', assignee_ids: assigneeIdsOf(item, 'assignee_id') });
   const [history, setHistory]       = useState([]);
   const [showComplete, setShowComplete] = useState(false);
   const [completeNotes, setCompleteNotes] = useState('');
@@ -425,11 +426,8 @@ function MaintenanceDetailModal({ item, users, onClose, onSaved }) {
             {item.last_done && <p>בוצע לאחרונה: {formatDate(item.last_done)}</p>}
           </div>
 
-          <select className={inputCls} value={form.assignee_id || ''}
-            onChange={e => setForm(f => ({ ...f, assignee_id: e.target.value }))}>
-            <option value="">ללא אחראי</option>
-            {users.map(u => <option key={u.id} value={u.id}>{u.display_name}</option>)}
-          </select>
+          <AssigneesSelect selectCls={inputCls} emptyLabel="ללא אחראי" users={users}
+            ids={form.assignee_ids} onChange={ids => setForm(f => ({ ...f, assignee_ids: ids, assignee_id: ids[0] || null }))} />
 
           {!showComplete ? (
             <button onClick={() => setShowComplete(true)}
@@ -493,7 +491,7 @@ function MaintenanceDetailModal({ item, users, onClose, onSaved }) {
 
 // ── Fault Detail (full-screen) ─────────────────────────────────────────
 function FaultDetailModal({ fault, users, onClose, onSaved, onDeleted }) {
-  const [form, setForm]         = useState({ ...fault });
+  const [form, setForm]         = useState({ ...fault, assignee_ids: assigneeIdsOf(fault, 'assignee_id') });
   const [saving, setSaving]     = useState(false);
   const [actRefresh, setActRefresh] = useState(0);
 
@@ -538,11 +536,8 @@ function FaultDetailModal({ fault, users, onClose, onSaved, onDeleted }) {
             ))}
           </div>
 
-          <select className={inputCls} value={form.assignee_id || ''}
-            onChange={e => setForm(f => ({ ...f, assignee_id: e.target.value }))}>
-            <option value="">ללא אחראי</option>
-            {users.map(u => <option key={u.id} value={u.id}>{u.display_name}</option>)}
-          </select>
+          <AssigneesSelect selectCls={inputCls} emptyLabel="ללא אחראי" users={users}
+            ids={form.assignee_ids} onChange={ids => setForm(f => ({ ...f, assignee_ids: ids, assignee_id: ids[0] || null }))} />
 
           <textarea className={`${inputCls} resize-none`} rows={3} placeholder="תיעוד / הערות לאחר טיפול..." value={form.notes || ''}
             onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
@@ -653,7 +648,7 @@ export default function OperationsPage() {
         if (!form.title?.trim()) return alert('כותרת חובה');
         await api.post('/operations/tasks', {
           title: form.title, description: form.description,
-          assigned_to: form.assigned_to || null, priority: form.priority || 'normal',
+          assignee_ids: form.assignee_ids || [], priority: form.priority || 'normal',
           due_date: form.due_date || null,
         });
       } else if (modal === 'checklist') {
@@ -664,13 +659,13 @@ export default function OperationsPage() {
         if (!form.title?.trim()) return alert('כותרת חובה');
         await api.post('/operations/faults', {
           title: form.title, description: form.description,
-          assignee_id: form.assignee_id || null,
+          assignee_ids: form.assignee_ids || [],
         });
       } else if (modal === 'maintenance') {
         if (!form.name?.trim() || !form.interval_days) return alert('שם ומרווח זמן חובה');
         await api.post('/operations/maintenance', {
           name: form.name, interval_days: parseInt(form.interval_days),
-          assignee_id: form.assignee_id || null,
+          assignee_ids: form.assignee_ids || [],
         });
       }
       setModal(null);
@@ -721,22 +716,22 @@ export default function OperationsPage() {
 
   const activeTasks = tasks.filter(t => {
     const matchSearch  = !taskSearch  || t.title.toLowerCase().includes(taskSearch.toLowerCase());
-    const matchPerson  = !filterPerson || String(t.assigned_to) === String(filterPerson);
+    const matchPerson  = !filterPerson || isAssignee(t, 'assigned_to', filterPerson);
     const matchStatus  = tasksTab === 'done' || t.status === tasksTab;
     return matchSearch && matchPerson && matchStatus;
   });
 
   const filteredMaint = maintenance
     .filter(m => (m.status || 'open') !== 'done')
-    .filter(m => !filterPerson || String(m.assignee_id) === String(filterPerson));
+    .filter(m => !filterPerson || isAssignee(m, 'assignee_id', filterPerson));
 
   const filteredFaults = faults
     .filter(f => f.status !== 'resolved')
-    .filter(f => !filterPerson || String(f.assignee_id) === String(filterPerson));
+    .filter(f => !filterPerson || isAssignee(f, 'assignee_id', filterPerson));
 
   const filteredDone = doneTasks.filter(t =>
     (!taskSearch || t.title.toLowerCase().includes(taskSearch.toLowerCase())) &&
-    (!filterPerson || String(t.assigned_to) === String(filterPerson))
+    (!filterPerson || isAssignee(t, 'assigned_to', filterPerson))
   );
 
   const statCards = [
@@ -1000,12 +995,9 @@ export default function OperationsPage() {
                   onChange={e => setForm(f => ({ ...f, title: e.target.value }))} className={inputCls} />
                 <input placeholder="תיאור (אופציונלי)" value={form.description || ''}
                   onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className={inputCls} />
-                <div className="flex gap-2">
-                  <select value={form.assigned_to || ''} onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))}
-                    className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-400">
-                    <option value="">הקצה לאחראי...</option>
-                    {users.map(u => <option key={u.id} value={u.id}>{u.display_name}</option>)}
-                  </select>
+                <div className="flex gap-2 items-start">
+                  <AssigneesSelect className="flex-1 min-w-0" selectCls="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-400" emptyLabel="הקצה לאחראי..." users={users}
+                    ids={form.assignee_ids || []} onChange={ids => setForm(f => ({ ...f, assignee_ids: ids }))} />
                   <select value={form.priority || 'normal'} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}
                     className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-400">
                     <option value="urgent">דחוף</option>
@@ -1048,10 +1040,8 @@ export default function OperationsPage() {
                 <textarea placeholder="פרטים נוספים (אופציונלי)" value={form.description || ''}
                   onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                   rows={3} className={`${inputCls} resize-none`} />
-                <select value={form.assignee_id || ''} onChange={e => setForm(f => ({ ...f, assignee_id: e.target.value }))} className={inputCls}>
-                  <option value="">הקצה לאחראי לטיפול...</option>
-                  {users.map(u => <option key={u.id} value={u.id}>{u.display_name}</option>)}
-                </select>
+                <AssigneesSelect selectCls={inputCls} emptyLabel="הקצה לאחראי לטיפול..." users={users}
+                  ids={form.assignee_ids || []} onChange={ids => setForm(f => ({ ...f, assignee_ids: ids }))} />
               </>
             )}
 
@@ -1066,10 +1056,8 @@ export default function OperationsPage() {
                     className="w-32 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-400" />
                   <span className="text-sm text-slate-500">ימים</span>
                 </div>
-                <select value={form.assignee_id || ''} onChange={e => setForm(f => ({ ...f, assignee_id: e.target.value }))} className={inputCls}>
-                  <option value="">הקצה לאחראי (אופציונלי)</option>
-                  {users.map(u => <option key={u.id} value={u.id}>{u.display_name}</option>)}
-                </select>
+                <AssigneesSelect selectCls={inputCls} emptyLabel="הקצה לאחראי (אופציונלי)" users={users}
+                  ids={form.assignee_ids || []} onChange={ids => setForm(f => ({ ...f, assignee_ids: ids }))} />
               </>
             )}
 

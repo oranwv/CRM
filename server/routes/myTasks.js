@@ -8,6 +8,7 @@
 // Managers may pass ?user=<id> to see another user's page.
 const router = require('express').Router();
 const pool = require('../db/pool');
+const A = require('../utils/assignees');
 
 const PRODUCTION_STAGES = `('deposit','production','completed')`;
 const isManager = u => (u.roles || [u.role]).some(r => ['admin', 'manager', 'sales_manager'].includes(r));
@@ -30,12 +31,11 @@ const LEAD_TASK_SQL = `
          (t.completed_at IS NULL AND t.due_at IS NOT NULL AND t.due_at < NOW()) AS overdue,
          (t.completed_at IS NOT NULL) AS done, t.completed_at AS done_at, t.result,
          t.cancelled_at IS NOT NULL AS cancelled,
-         t.assigned_to, ua.display_name AS assigned_name, t.created_by, uc.display_name AS created_by_name,
+         t.assigned_to, ${A.ids('t', 'assigned_to')} AS assignee_ids, ${A.names('t', 'assigned_to')} AS assigned_name, t.created_by, uc.display_name AS created_by_name,
          COALESCE(t.postpone_count, 0) AS postpone_count, t.created_at,
          CASE WHEN l.stage IN ${PRODUCTION_STAGES} THEN 'production' ELSE 'sales' END AS "group"
   FROM tasks t
   JOIN leads l ON l.id = t.lead_id
-  LEFT JOIN users ua ON ua.id = t.assigned_to
   LEFT JOIN users uc ON uc.id = t.created_by`;
 
 const OP_TASK_SQL = `
@@ -44,11 +44,10 @@ const OP_TASK_SQL = `
          (t.status <> 'done' AND t.due_date IS NOT NULL AND t.due_date < (NOW() AT TIME ZONE 'Asia/Jerusalem')::date) AS overdue,
          (t.status = 'done') AS done, t.completed_at AS done_at, t.notes AS result,
          t.cancelled_at IS NOT NULL AS cancelled,
-         t.assigned_to, ua.display_name AS assigned_name, t.created_by, uc.display_name AS created_by_name,
+         t.assigned_to, ${A.ids('t', 'assigned_to')} AS assignee_ids, ${A.names('t', 'assigned_to')} AS assigned_name, t.created_by, uc.display_name AS created_by_name,
          COALESCE(t.postpone_count, 0) AS postpone_count, t.created_at,
          'operations' AS "group"
   FROM op_tasks t
-  LEFT JOIN users ua ON ua.id = t.assigned_to
   LEFT JOIN users uc ON uc.id = t.created_by`;
 
 const MAINT_SQL = `
@@ -56,12 +55,11 @@ const MAINT_SQL = `
          m.next_due::timestamptz AS due, to_char(m.next_due, 'YYYY-MM-DD') AS due_date,
          (m.next_due IS NOT NULL AND m.next_due < (NOW() AT TIME ZONE 'Asia/Jerusalem')::date) AS overdue,
          false AS done, NULL::timestamptz AS done_at, NULL::text AS result, false AS cancelled,
-         m.assignee_id AS assigned_to, ua.display_name AS assigned_name, NULL::int AS created_by, NULL::text AS created_by_name,
+         m.assignee_id AS assigned_to, ${A.ids('m', 'assignee_id')} AS assignee_ids, ${A.names('m', 'assignee_id')} AS assigned_name, NULL::int AS created_by, NULL::text AS created_by_name,
          0 AS postpone_count, m.created_at,
          'maintenance' AS "group"
   FROM op_maintenance m
-  LEFT JOIN users ua ON ua.id = m.assignee_id
-  WHERE m.assignee_id = $1 AND m.next_due IS NOT NULL
+  WHERE ${A.has('m', 'assignee_id', '$1')} AND m.next_due IS NOT NULL
     AND m.next_due <= (NOW() AT TIME ZONE 'Asia/Jerusalem')::date + 7`;
 
 const FAULT_SQL = `
@@ -69,11 +67,10 @@ const FAULT_SQL = `
          NULL::timestamptz AS due, NULL::text AS due_date,
          false AS overdue,
          (f.status = 'resolved') AS done, f.resolved_at AS done_at, f.notes AS result, false AS cancelled,
-         f.assignee_id AS assigned_to, ua.display_name AS assigned_name, f.reported_by AS created_by, ur.display_name AS created_by_name,
+         f.assignee_id AS assigned_to, ${A.ids('f', 'assignee_id')} AS assignee_ids, ${A.names('f', 'assignee_id')} AS assigned_name, f.reported_by AS created_by, ur.display_name AS created_by_name,
          0 AS postpone_count, f.created_at,
          'maintenance' AS "group"
   FROM op_faults f
-  LEFT JOIN users ua ON ua.id = f.assignee_id
   LEFT JOIN users ur ON ur.id = f.reported_by`;
 
 const EMPTY = () => ({ sales: [], production: [], operations: [], maintenance: [] });
@@ -94,13 +91,13 @@ router.get('/', async (req, res) => {
   const inRange = col => `(${col} AT TIME ZONE 'Asia/Jerusalem')::date BETWEEN $2::date AND $3::date`;
   try {
     const [mineLead, mineOp, mineMaint, mineFault, delLead, delOp, delFault] = await Promise.all([
-      pool.query(`${LEAD_TASK_SQL} WHERE t.assigned_to = $1 AND (t.completed_at IS NULL OR ${inRange('t.completed_at')})`, [uid, from, to]),
-      pool.query(`${OP_TASK_SQL} WHERE t.assigned_to = $1 AND (t.status <> 'done' OR ${inRange('t.completed_at')})`, [uid, from, to]),
+      pool.query(`${LEAD_TASK_SQL} WHERE ${A.has('t', 'assigned_to', '$1')} AND (t.completed_at IS NULL OR ${inRange('t.completed_at')})`, [uid, from, to]),
+      pool.query(`${OP_TASK_SQL} WHERE ${A.has('t', 'assigned_to', '$1')} AND (t.status <> 'done' OR ${inRange('t.completed_at')})`, [uid, from, to]),
       pool.query(MAINT_SQL, [uid]),
-      pool.query(`${FAULT_SQL} WHERE f.assignee_id = $1 AND (f.status <> 'resolved' OR ${inRange('f.resolved_at')})`, [uid, from, to]),
-      pool.query(`${LEAD_TASK_SQL} WHERE t.created_by = $1 AND t.assigned_to IS DISTINCT FROM $1 AND (t.completed_at IS NULL OR ${inRange('t.completed_at')})`, [uid, from, to]),
-      pool.query(`${OP_TASK_SQL} WHERE t.created_by = $1 AND t.assigned_to IS DISTINCT FROM $1 AND (t.status <> 'done' OR ${inRange('t.completed_at')})`, [uid, from, to]),
-      pool.query(`${FAULT_SQL} WHERE f.reported_by = $1 AND f.assignee_id IS DISTINCT FROM $1 AND (f.status <> 'resolved' OR ${inRange('f.resolved_at')})`, [uid, from, to]),
+      pool.query(`${FAULT_SQL} WHERE ${A.has('f', 'assignee_id', '$1')} AND (f.status <> 'resolved' OR ${inRange('f.resolved_at')})`, [uid, from, to]),
+      pool.query(`${LEAD_TASK_SQL} WHERE t.created_by = $1 AND ${A.hasNot('t', 'assigned_to', '$1')} AND (t.completed_at IS NULL OR ${inRange('t.completed_at')})`, [uid, from, to]),
+      pool.query(`${OP_TASK_SQL} WHERE t.created_by = $1 AND ${A.hasNot('t', 'assigned_to', '$1')} AND (t.status <> 'done' OR ${inRange('t.completed_at')})`, [uid, from, to]),
+      pool.query(`${FAULT_SQL} WHERE f.reported_by = $1 AND ${A.hasNot('f', 'assignee_id', '$1')} AND (f.status <> 'resolved' OR ${inRange('f.resolved_at')})`, [uid, from, to]),
     ]);
     const mine = EMPTY(), delegated = EMPTY();
     [...mineLead.rows, ...mineOp.rows, ...mineMaint.rows, ...mineFault.rows].forEach(r => mine[r.group].push(r));
@@ -119,8 +116,8 @@ router.get('/overdue', async (req, res) => {
   const uid = req.user.id;
   try {
     const [a, b, c] = await Promise.all([
-      pool.query(`${LEAD_TASK_SQL} WHERE t.assigned_to = $1 AND t.completed_at IS NULL AND t.due_at IS NOT NULL AND t.due_at < NOW()`, [uid]),
-      pool.query(`${OP_TASK_SQL} WHERE t.assigned_to = $1 AND t.status <> 'done' AND t.due_date IS NOT NULL AND t.due_date < (NOW() AT TIME ZONE 'Asia/Jerusalem')::date`, [uid]),
+      pool.query(`${LEAD_TASK_SQL} WHERE ${A.has('t', 'assigned_to', '$1')} AND t.completed_at IS NULL AND t.due_at IS NOT NULL AND t.due_at < NOW()`, [uid]),
+      pool.query(`${OP_TASK_SQL} WHERE ${A.has('t', 'assigned_to', '$1')} AND t.status <> 'done' AND t.due_date IS NOT NULL AND t.due_date < (NOW() AT TIME ZONE 'Asia/Jerusalem')::date`, [uid]),
       pool.query(`${MAINT_SQL} AND m.next_due < (NOW() AT TIME ZONE 'Asia/Jerusalem')::date`, [uid]),
     ]);
     const items = sortRows([...a.rows, ...b.rows, ...c.rows]);
@@ -139,7 +136,7 @@ async function loadItem(kind, id) {
   return null;
 }
 function mayAct(user, item) {
-  return isManager(user) || item.assigned_to === user.id || item.created_by === user.id;
+  return isManager(user) || item.assigned_to === user.id || (item.extra_assignees || []).includes(user.id) || item.created_by === user.id;
 }
 
 // POST /api/my-tasks/:kind/:id/complete  { result }

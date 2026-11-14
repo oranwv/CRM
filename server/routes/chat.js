@@ -504,7 +504,7 @@ async function executeTool(name, args, user) {
         SELECT t.id, t.title, t.due_at, l.name AS lead_name, l.id AS lead_id, l.phone AS lead_phone
         FROM tasks t
         LEFT JOIN leads l ON l.id = t.lead_id
-        WHERE t.assigned_to = $1 AND t.completed_at IS NULL
+        WHERE (t.assigned_to = $1 OR $1 = ANY(t.extra_assignees)) AND t.completed_at IS NULL
       `;
       if (urgent_only) sql += ` AND t.due_at IS NOT NULL AND t.due_at < NOW()`;
       sql += ` ORDER BY t.due_at ASC NULLS LAST LIMIT 20`;
@@ -518,7 +518,7 @@ async function executeTool(name, args, user) {
                l.name AS lead_name, l.id AS lead_id, l.phone AS lead_phone
         FROM tasks t
         LEFT JOIN leads l ON l.id = t.lead_id
-        WHERE t.assigned_to = $1 AND t.completed_at IS NULL
+        WHERE (t.assigned_to = $1 OR $1 = ANY(t.extra_assignees)) AND t.completed_at IS NULL
           AND t.due_at IS NOT NULL AND t.due_at::date = CURRENT_DATE
       `, [uid]);
 
@@ -572,7 +572,7 @@ async function executeTool(name, args, user) {
                l.name AS lead_name, l.id AS lead_id, l.phone AS lead_phone
         FROM tasks t
         LEFT JOIN leads l ON l.id = t.lead_id
-        WHERE t.assigned_to = $1 AND t.completed_at IS NULL
+        WHERE (t.assigned_to = $1 OR $1 = ANY(t.extra_assignees)) AND t.completed_at IS NULL
           AND t.due_at::date >= $2::date AND t.due_at::date <= $3::date
         ORDER BY t.due_at ASC LIMIT 100
       `, [uid, from_date, to_date]);
@@ -656,7 +656,7 @@ async function executeTool(name, args, user) {
     case 'get_op_tasks': {
       const { status } = args;
       const params = [isAM, uid];
-      let cond = '($1 = true OR ot.assigned_to = $2)';
+      let cond = '($1 = true OR ot.assigned_to = $2 OR $2 = ANY(ot.extra_assignees))';
       if (status) cond += ` AND ot.status = $${params.push(status)}`;
       const { rows } = await pool.query(`
         SELECT ot.id, ot.title, ot.description, ot.priority, ot.status, ot.due_date,

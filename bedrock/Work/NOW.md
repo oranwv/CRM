@@ -6,6 +6,11 @@ updated: 2026-11-14
 
 # Now
 
+## 2026-11-14 — Phase 82 (1.12.0): several assignees per task (deployed)
+
+- `extra_assignees INT[]` on tasks / op_tasks / op_maintenance / op_faults; first assignee stays in the old column. One shared task — any assignee closes it for all. `AssigneesSelect.jsx` ("+ אחראי נוסף"). Verified on scratch DB only.
+- Open question for Oran: credit "משימות שהושלמו" in ניהול to whoever actually completed (today: main assignee).
+
 ## 2026-11-14 — Phase 81 (1.11.0): nav inside the lead card, calendar over the card, phone month view
 
 - Lead card ends above the bottom nav (`--crm-nav-h`); "לוח שנה" opens the calendar over the card with × back; other tabs close the card and navigate (`utils/leadCardNav.js`). Phone month grid: edge to edge, 11px clipped chips, 5/day, "פגישה עם" prefix dropped. Checked in headless Chromium with stub data only — Oran to confirm on his phone (esp. during a live call, and iPhone).

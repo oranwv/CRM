@@ -88,13 +88,13 @@ router.post('/:taskId/create-followup', async (req, res) => {
     verifyToken(token, req.params.taskId);
     if (!title?.trim()) return res.status(400).json({ error: 'כותרת נדרשת' });
     // Inherit lead_id, assigned_to, remind_via from the original task
-    const { rows } = await pool.query('SELECT lead_id, assigned_to, remind_via FROM tasks WHERE id = $1', [req.params.taskId]);
+    const { rows } = await pool.query('SELECT lead_id, assigned_to, extra_assignees, remind_via FROM tasks WHERE id = $1', [req.params.taskId]);
     if (!rows.length) return res.status(404).json({ error: 'משימה לא נמצאה' });
-    const { lead_id, assigned_to, remind_via } = rows[0];
+    const { lead_id, assigned_to, extra_assignees, remind_via } = rows[0];
     await pool.query(
-      `INSERT INTO tasks (lead_id, title, due_at, remind_via, assigned_to, created_by)
-       VALUES ($1, $2, $3, $4, $5, $5)`,
-      [lead_id, title.trim(), dueAt || null, remind_via || 'app', assigned_to]
+      `INSERT INTO tasks (lead_id, title, due_at, remind_via, assigned_to, created_by, extra_assignees)
+       VALUES ($1, $2, $3, $4, $5, $5, $6)`,
+      [lead_id, title.trim(), dueAt || null, remind_via || 'app', assigned_to, extra_assignees || []]
     );
     res.json({ success: true });
   } catch {
