@@ -72,3 +72,6 @@ each with its own bottom tabs: מכירות, הפקה, תפעול, ספקים, �
 
 ## Versioning (from 2026-10-22)
 - `CHANGELOG.md` + `package.json` version; every push to main bumps the version (fix x.y.Z / feature x.Y.0 / major X.0.0) and adds a Hebrew changelog entry. `/api/version` + footer in הגדרות + assistant context read from it.
+
+## Lead card + bottom nav (from 2026-11-14, Phase 81)
+- The lead card (`fixed`, z-50) stops at `bottom: var(--crm-nav-h)` so `AppShellNav` (z-30) stays usable; open cards register in `client/src/utils/leadCardNav.js`. Calendar tab → calendar layer (z-56) over the card; other tabs → close cards, wait for back-guards (`afterBackGuardsSettle`), navigate. New full-screen layers inside the card should keep using `fixed inset-0` (they cover the nav, as before).

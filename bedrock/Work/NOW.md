@@ -1,10 +1,14 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-11-11
+updated: 2026-11-14
 ---
 
 # Now
+
+## 2026-11-14 — Phase 81 (1.11.0): nav inside the lead card, calendar over the card, phone month view
+
+- Lead card ends above the bottom nav (`--crm-nav-h`); "לוח שנה" opens the calendar over the card with × back; other tabs close the card and navigate (`utils/leadCardNav.js`). Phone month grid: edge to edge, 11px clipped chips, 5/day, "פגישה עם" prefix dropped. Checked in headless Chromium with stub data only — Oran to confirm on his phone (esp. during a live call, and iPhone).
 
 ## 2026-11-14 — Phase 80 (1.10.1): "נעלם / לא עונה" was counted as "contract sent"
 

@@ -1801,6 +1801,35 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 81 — Bottom nav inside the lead card + calendar over the card; readable month view on phones ✅ Built 2026-11-14 (1.11.0)
+Oran (14.11), approved from text previews (he rejected a 🤝 icon on meeting chips — colour + name only).
+
+**Nav inside the lead card.** Goal: check the calendar during a call without leaving the card.
+- The card no longer covers the bottom nav: `LeadCard` root is `fixed inset-x-0 top-0` with
+  `bottom: var(--crm-nav-h)`; `AppShellNav` publishes its own height in that CSS variable
+  (ResizeObserver; removed on unmount, so routes without the nav keep a full-screen card).
+- `utils/leadCardNav.js` — tiny store: open cards register (name + close). `AppShellNav.go(path)`:
+  no card open → plain navigate; "לוח שנה" → `openCalendarOverCard()`; any other tab →
+  `closeAllLeadCards()` and navigate once the cards' back-guards have popped their history entries
+  (`afterBackGuardsSettle` in `hooks/useBackGuard.js`, ≥220ms so LeadsPage's own return-to-origin
+  navigation runs first and the tapped tab wins).
+- Calendar over the card: `AppShellNav` renders `<CalendarPage />` in a `fixed z-[56]` layer that also
+  ends above the nav, with a sticky bar "× חזרה ל<lead name> · 📅 לוח שנה". The card stays mounted
+  underneath (call in progress, half-typed text survive). The phone's back gesture closes the layer
+  (`useBackGuard`). A lead tapped inside that calendar opens its own card on top; its × (or tapping
+  "לוח שנה" again) returns to the calendar. A card opened from the /calendar page itself: tapping
+  "לוח שנה" just closes it.
+
+**Month view on phones** (`AppCalendar.jsx`, `< sm` only — desktop unchanged): grid runs edge to edge
+(`CalendarPage` `-mx-4`, no rounded card), cells `p-px` / `min-h-[104px]`, chips 11px, clipped at the
+edge instead of "…", up to 5 per day then "+N" (desktop still 3), and `shortTitle()` drops a leading
+"פגישה עם/אצל " (keeping a ❌/✅ mark) so the name is what fits. Day sheet and event details keep the
+full title.
+
+Verified in headless Chromium at 360px and 1280px against the built client with stubbed API data
+(calendar, card + nav, calendar over card, × back to the card, tab → page closes the card). Not
+verified on a real iPhone/Android or against production data.
+
 ### Phase 80 — Worklist/briefing: "נעלם / לא עונה" no longer counted as "contract sent" ✅ Built 2026-11-14 (1.10.1)
 Oran: the WhatsApp briefing listed leads under "חוזים שנשלחו וטרם נחתמו" that never got a
 contract. Cause: `classify()` in `services/salesAdvisor.js` put every lead in stage

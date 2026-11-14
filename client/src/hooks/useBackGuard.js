@@ -76,3 +76,14 @@ export default function useBackGuard(isOpen, onClose, { isDirty = false } = {}) 
     };
   }, [isOpen]);
 }
+
+// Closing an overlay programmatically makes its guard issue a history.back() a moment later.
+// Code that wants to navigate right after closing overlays (the bottom nav while a lead card
+// is open — Phase 81) must wait for those synthetic pops, or the back() eats the new page.
+// The 220ms floor also lets LeadsPage's own "return to where the card was opened from"
+// navigation (≤150ms) run first, so the tab the user tapped wins.
+export function afterBackGuardsSettle(cb) {
+  let tries = 0;
+  const tick = () => { if (suppress === 0 || ++tries > 40) cb(); else setTimeout(tick, 25); };
+  setTimeout(tick, 220);
+}

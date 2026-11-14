@@ -25,6 +25,8 @@ import FinancePage      from './pages/FinancePage';
 import JobsPage          from './pages/candidates/JobsPage';
 import CandidateListPage from './pages/candidates/CandidateListPage';
 import AIChat           from './components/AIChat';
+import useBackGuard, { afterBackGuardsSettle } from './hooks/useBackGuard';
+import { useLeadCardNav, openCalendarOverCard, closeCalendarOverCard, closeTopLeadCard, closeAllLeadCards } from './utils/leadCardNav';
 import PendingDocsModal  from './components/PendingDocsModal';
 import PaymentSignalsModal from './components/PaymentSignalsModal';
 import UnreadyEventsModal from './components/UnreadyEventsModal';
@@ -343,6 +345,35 @@ function AppShellNav() {
   const isAdmin   = userRolesNav.includes('admin');
   const [overdueCount, setOverdueCount] = useState(0);
 
+  // Phase 81 — the nav stays on screen while a lead card is open. Lead cards (and the
+  // calendar overlay below) end at `bottom: var(--crm-nav-h)`, so publish the nav's height.
+  const leadNav = useLeadCardNav();
+  const navRef  = useRef(null);
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    const root = document.documentElement;
+    const set = () => root.style.setProperty('--crm-nav-h', `${el.offsetHeight}px`);
+    set();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(set) : null;
+    ro?.observe(el);
+    return () => { ro?.disconnect(); root.style.removeProperty('--crm-nav-h'); };
+  }, []);
+  useBackGuard(leadNav.calendarOpen, closeCalendarOverCard);
+
+  // A tab tapped while a lead card is open: "לוח שנה" opens the calendar over the card (× returns
+  // to the card); every other tab closes the card and goes there. With no card open: plain navigate.
+  function go(path) {
+    if (!leadNav.count) { navigate(path); return; }
+    if (path === '/calendar') {
+      if (location.pathname === '/calendar' && !leadNav.calendarOpen) closeTopLeadCard(); // card opened from the calendar page itself
+      else openCalendarOverCard();
+      return;
+    }
+    closeAllLeadCards();
+    afterBackGuardsSettle(() => navigate(path));
+  }
+
   useEffect(() => {
     if (!localStorage.getItem('crm_token')) return;
     const load = () => api.get(`/tasks/overdue-count?mode=${encodeURIComponent(mode)}`).then(r => setOverdueCount(r.data.count)).catch(() => {});
@@ -403,13 +434,13 @@ function AppShellNav() {
       ];
 
   const NavBtn = ({ path, icon, label, prefix }) => {
-    const active = prefix
+    const active = leadNav.calendarOpen ? path === '/calendar' : prefix
       ? location.pathname === path || location.pathname.startsWith(prefix + '/') || (prefix === '/candidates/jobs' && location.pathname === '/candidates/unassigned')
       : location.pathname === path;
     const isTasksTab = path === '/tasks';
     return (
       <button
-        onClick={() => navigate(path)}
+        onClick={() => go(path)}
         className="flex-1 flex flex-col items-center py-2 text-xs font-bold transition relative"
         style={{ color: active ? '#ffffff' : 'rgba(255,255,255,0.6)' }}
       >
@@ -430,7 +461,19 @@ function AppShellNav() {
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30 shadow-2xl" style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', borderTop: '1px solid rgba(255,255,255,0.15)' }}>
+    <>
+    {leadNav.calendarOpen && (
+      // The calendar opened from inside a lead card: sits over the card, under nothing but the nav.
+      <div className="fixed inset-x-0 top-0 z-[56] overflow-y-auto" style={{ bottom: 'var(--crm-nav-h, 0px)', background: '#fdf8f0' }} dir="rtl">
+        <div className="sticky top-0 z-10 flex items-center gap-2 px-4 py-2.5 text-white shadow" style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+          <button onClick={closeCalendarOverCard} aria-label="חזרה לכרטיס הליד" className="text-white/90 hover:text-white text-2xl leading-none px-1">&times;</button>
+          <span className="font-bold text-sm truncate min-w-0">חזרה ל{leadNav.name || 'כרטיס הליד'}</span>
+          <span className="mr-auto shrink-0 font-black text-sm opacity-90">📅 לוח שנה</span>
+        </div>
+        <CalendarPage />
+      </div>
+    )}
+    <nav ref={navRef} className="fixed bottom-0 left-0 right-0 z-30 shadow-2xl" style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', borderTop: '1px solid rgba(255,255,255,0.15)' }}>
       <div className="flex">
         {tabs.map(t => <NavBtn key={t.path} {...t} />)}
       </div>
@@ -440,6 +483,7 @@ function AppShellNav() {
         </div>
       )}
     </nav>
+    </>
   );
 }
 

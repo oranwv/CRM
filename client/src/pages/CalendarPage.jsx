@@ -39,7 +39,8 @@ export default function CalendarPage() {
 
   return (
     <div className="min-h-screen p-4 space-y-4">
-      <AppCalendar onOpenLead={setOpenLeadId} />
+      {/* On a phone the month grid runs edge to edge so each day cell is as wide as possible. */}
+      <div className="-mx-4 sm:mx-0"><AppCalendar onOpenLead={setOpenLeadId} /></div>
 
       {/* CRM leads panel */}
       <div className="space-y-4">

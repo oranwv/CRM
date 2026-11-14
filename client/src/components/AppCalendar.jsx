@@ -25,6 +25,12 @@ function getColor(colorId, source) {
   return COLOR_CLASSES[colorId] ?? 'bg-blue-500';
 }
 
+// Month cells on a phone are ~50px wide: "פגישה עם זהבית" would show only "פגישה". Drop that
+// prefix there so the name is what fits — the chip colour already says it is a meeting.
+function shortTitle(title) {
+  return String(title || '').replace(/^(\s*(?:[❌✅✔️]\s*)?)פגישה\s+(?:עם|אצל)\s+/u, '$1');
+}
+
 function extractLeadId(description) {
   if (!description) return null;
   const m = description.match(/[?&]lead=(\d+)/);
@@ -391,7 +397,7 @@ export default function AppCalendar({ onOpenLead }) {
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-violet-100 overflow-hidden" dir="rtl">
+    <div className="bg-white sm:rounded-2xl shadow-sm border-y sm:border border-violet-100 overflow-hidden" dir="rtl">
 
       {/* Month header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
@@ -419,7 +425,7 @@ export default function AppCalendar({ onOpenLead }) {
       <div className="grid grid-cols-7">
         {cells.map((date, i) => {
           if (!date) {
-            return <div key={i} className="min-h-[80px] border-b border-l border-slate-50 bg-slate-50/40" />;
+            return <div key={i} className="min-h-[104px] sm:min-h-[80px] border-b border-l border-slate-50 bg-slate-50/40" />;
           }
           const isToday = isSameDay(date, today);
           const dayEvs  = eventsForDay(date);
@@ -428,7 +434,7 @@ export default function AppCalendar({ onOpenLead }) {
             <div
               key={i}
               onClick={() => { setSelectedDay(date); setSelectedEvent(null); }}
-              className="min-h-[80px] border-b border-l border-slate-100 p-1 cursor-pointer transition hover:bg-slate-50"
+              className="min-h-[104px] sm:min-h-[80px] min-w-0 border-b border-l border-slate-100 p-px sm:p-1 cursor-pointer transition hover:bg-slate-50"
             >
               <div className={`text-xs font-bold mb-1 w-6 h-6 flex items-center justify-center rounded-full mx-auto ${
                 isToday ? 'bg-violet-600 text-white' : 'text-slate-600'
@@ -436,16 +442,22 @@ export default function AppCalendar({ onOpenLead }) {
                 {date.getDate()}
               </div>
               <div className="space-y-0.5">
-                {dayEvs.slice(0, 3).map(ev => (
+                {/* Phone: up to 5 chips, small type, clipped at the edge (no "…") and without the
+                    "פגישה עם" prefix — like Google Calendar's month view. Desktop (sm+): as before. */}
+                {dayEvs.slice(0, 5).map((ev, n) => (
                   <div
                     key={ev.google_event_id}
-                    className={`truncate text-xs text-white px-1 rounded ${getColor(ev.color_id, ev.source)}`}
+                    className={`${n >= 3 ? 'sm:hidden ' : ''}overflow-hidden whitespace-nowrap text-clip sm:text-ellipsis text-[11px] leading-[15px] sm:text-xs text-white px-0.5 sm:px-1 rounded-[3px] sm:rounded ${getColor(ev.color_id, ev.source)}`}
                   >
-                    {ev.title || '(ללא שם)'}
+                    <span className="sm:hidden">{shortTitle(ev.title) || '(ללא שם)'}</span>
+                    <span className="hidden sm:inline">{ev.title || '(ללא שם)'}</span>
                   </div>
                 ))}
+                {dayEvs.length > 5 && (
+                  <div className="sm:hidden text-[11px] leading-[15px] text-slate-400 text-center">+{dayEvs.length - 5}</div>
+                )}
                 {dayEvs.length > 3 && (
-                  <div className="text-xs text-slate-400 px-1 text-center">+{dayEvs.length - 3}</div>
+                  <div className="hidden sm:block text-xs text-slate-400 px-1 text-center">+{dayEvs.length - 3}</div>
                 )}
               </div>
             </div>

@@ -16,6 +16,7 @@ import ContractTrackIcons from './ContractTrackIcons';
 import { docTypeLabel } from '../utils/docTypes';
 import { israelToISO, israelLocalToISO, isoToIsraelLocal } from '../utils/israelTime';
 import { useCalls } from '../context/CallContext';
+import { registerLeadCard, setLeadCardName } from '../utils/leadCardNav';
 
 const STAGES = [
   { key: 'new',               label: 'חדש',                 active: 'bg-sky-500 text-white border-sky-500',          past: 'bg-sky-100 text-sky-600 border-sky-200',            future: 'bg-white text-slate-400 border-slate-200 hover:border-sky-300 hover:text-sky-500' },
@@ -230,6 +231,17 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
   // Back gesture (Windows back / trackpad swipe) closes the topmost overlay
   // instead of navigating away; editors warn before discarding unsaved work.
   useBackGuard(true, onClose, { isDirty: editing || editingName });
+
+  // Phase 81: tell the bottom nav a card is open (see utils/leadCardNav.js).
+  const navEntryRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    const entry = { name: '', close: () => onCloseRef.current() };
+    navEntryRef.current = entry;
+    return registerLeadCard(entry);
+  }, []);
+  useEffect(() => { if (navEntryRef.current && lead?.name) setLeadCardName(navEntryRef.current, lead.name); }, [lead?.name]);
   useBackGuard(showContract,   () => setShowContract(false),   { isDirty: true });
   useBackGuard(showPriceOffer, () => setShowPriceOffer(false), { isDirty: true });
   useBackGuard(showInvoice,    () => setShowInvoice(false),    { isDirty: true });
@@ -404,7 +416,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
 
   if (loading) {
     return (
-      <div className="fixed inset-0 z-50 bg-white flex items-center justify-center">
+      <div className="fixed inset-x-0 top-0 z-50 bg-white flex items-center justify-center" style={{ bottom: 'var(--crm-nav-h, 0px)' }}>
         <p className="text-slate-400">טוען...</p>
       </div>
     );
@@ -440,7 +452,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
   const lastActivity = timeline.length > 0 ? timeline[0]._time : null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-white flex flex-col overflow-hidden">
+    <div className="fixed inset-x-0 top-0 z-50 bg-white flex flex-col overflow-hidden" style={{ bottom: 'var(--crm-nav-h, 0px)' }}>
       {/* Header */}
       <div className="px-4 py-3 flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
         <button onClick={onClose} className="text-white/80 hover:text-white text-2xl leading-none">&times;</button>
