@@ -108,9 +108,10 @@ function CallBtn({ onClick, label, icon, active, activeCls = '', className = '',
 }
 
 export default function CallBar() {
-  const { enabled, incoming, active, muted, error, clearError, acceptIncoming, rejectIncoming, hangup, toggleMute, outputs, setOutput, micLost, fixMic } = useCalls();
+  const { enabled, incoming, active, muted, error, clearError, acceptIncoming, rejectIncoming, hangup, toggleMute, outputs, setOutput, micLost, fixMic, appCall, appCommand } = useCalls();
   const navigate = useNavigate();
   const timer = useTimer(active?.startedAt);
+  const appTimer = useTimer(appCall?.connectedAt || null);
   const [pickOut, setPickOut] = useState(false);
   const drag = useDraggableBar();
 
@@ -133,7 +134,7 @@ export default function CallBar() {
     return () => clearTimeout(t);
   }, [error, clearError]);
 
-  if (!enabled && !error) return null;
+  if (!enabled && !error && !appCall) return null;
 
   return (
     <>
@@ -197,6 +198,32 @@ export default function CallBar() {
             )}
             <CallBtn onClick={toggleMute} label={muted ? 'מושתק' : 'השתק'} icon={muted ? '🔇' : '🎙️'} active={muted} activeCls="bg-amber-400 text-slate-900" title={muted ? 'בטל השתקה' : 'השתק'} />
             <CallBtn onClick={hangup} label="נתק" icon="📵" className="bg-red-500 hover:bg-red-400" title="נתק" />
+          </div>
+        </div>
+      )}
+
+      {/* Call running in the ProEvent Dialer app (phones): same bar, the buttons go to the app
+          through the server. "חייגן" brings the app itself to the front (keypad etc.). */}
+      {appCall && !active && (
+        <div ref={drag.ref} className="fixed left-1/2 -translate-x-1/2 z-[90] w-[92%] max-w-md" style={{ ...drag.style, touchAction: 'none' }} dir="rtl"
+          onPointerDown={drag.onDragStart} title="אפשר לגרור את החלון · לחיצה כפולה מחזירה למקום">
+          <div className="rounded-2xl shadow-2xl bg-slate-900 text-white px-3 py-2.5 border border-white/10 flex items-center gap-2 cursor-grab active:cursor-grabbing select-none" style={{ touchAction: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}>
+            <span className="text-slate-500 text-base leading-none shrink-0" aria-hidden="true">⋮⋮</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+            <div className="flex-1 min-w-0">
+              <button
+                onClick={() => appCall.leadId && navigate(`/?lead=${appCall.leadId}`)}
+                className={`block w-full text-right font-black truncate ${appCall.leadId ? 'hover:underline' : ''}`}>
+                {appCall.name || 'שיחה'}
+              </button>
+              <div className="text-[11px] text-slate-300 truncate">בחייגן · {appTimer || (appCall.direction === 'inbound' ? 'שיחה נכנסת' : 'מתקשר…')}</div>
+            </div>
+            <CallBtn onClick={() => appCommand(appCall.speaker ? 'speaker_off' : 'speaker_on')} label="רמקול" icon="🔊"
+              active={appCall.speaker} activeCls="bg-sky-400 text-slate-900" title="רמקול" />
+            <CallBtn onClick={() => appCommand(appCall.muted ? 'unmute' : 'mute')} label={appCall.muted ? 'מושתק' : 'השתק'} icon={appCall.muted ? '🔇' : '🎙️'}
+              active={appCall.muted} activeCls="bg-amber-400 text-slate-900" title={appCall.muted ? 'בטל השתקה' : 'השתק'} />
+            <CallBtn onClick={() => { window.location.href = 'proeventdialer://open'; }} label="חייגן" icon="📱" title="פתח את אפליקציית החייגן" />
+            <CallBtn onClick={() => appCommand('hangup')} label="נתק" icon="📵" className="bg-red-500 hover:bg-red-400" title="נתק" />
           </div>
         </div>
       )}

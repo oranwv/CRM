@@ -1801,6 +1801,31 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 86 — Dialer call mirrored in the CRM bar; no double ring on phones; recordings retried ✅ Built 2026-11-16 (1.16.0)
+Oran, 16/11 (preview of the bar approved the same day).
+**Call bar for app calls.** On a phone with the ProEvent Dialer app the call runs in the app and
+the lead stays open in the CRM: `CallBar` shows the same draggable dark bar — name, "בחייגן ·
+timer", רמקול / השתק / חייגן (fronts the app via `proeventdialer://open`) / נתק. Transport:
+the app posts its call state to `POST /calls/app/state` and long-polls `GET /calls/app/poll`
+(25 s); the CRM polls `GET /calls/app/state` (1.5 s during a call, 4 s idle, only when the tab is
+visible) and sends `POST /calls/app/command`. State lives in memory (`appCalls`, single web
+instance, 70 s TTL). "נתק" also ends the live call at Twilio so it works even if the app is
+unreachable. Android: the app re-opens `/?lead=ID` after dialing from a link; iPhone cannot
+switch apps by itself (one tap on "◀ ProEvent"). Remote speaker/mute are not device-tested yet.
+**Double ring.** A phone whose user has the app no longer registers the browser softphone
+(`viaApp` in CallContext) — the incoming call rang twice (Apple banner + CRM prompt).
+`<Client>` now also carries `displayName`; the app uses it as the CallKit caller name only when
+`CALLKIT_CALLER_NAME=1` (off by default: a Hebrew CallKit handle is untested and outgoing calls
+with a name handle were rejected by CallKit).
+**Recordings.** Gili's 13-minute call got "(שיחה קצרה — ללא סיכום)" and no recording: the
+pipeline failed before our copy was stored. `downloadRecording` now retries (3 tries, 180 s
+timeout); a failed pipeline is labelled "⚠️ ההקלטה עוד לא עובדה" and stored on the call
+(`recording_attempts`, `recording_error`); `retryFailedRecordings` runs every 10 min (and 90 s
+after boot) over the last 14 days while Twilio still holds the recording (we delete Twilio's
+copy only after ours is saved), up to 5 attempts — so the lost call is picked up after deploy.
+Dialer app the same day: build 9 on TestFlight (the SDK plays a bundled `ringtone.wav` as the
+outgoing ringback on iPhone), CallKit handle = number, OTA updates are fetch-only.
+
 ### Phase 85 — Dialer app: blocked users locked out, inbound calls ring in the app with a lead link ✅ Built 2026-11-14 (1.15.0)
 Oran, 14/11. (1) **Blocked = blocked everywhere**: `/calls/token` and `/calls/config` answer 403
 for a blocked user (`BLOCKED_MSG`), blocking a user in the admin screen clears

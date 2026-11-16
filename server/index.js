@@ -369,6 +369,8 @@ migrate(`
   ALTER TABLE users ADD COLUMN IF NOT EXISTS shabbat_mode BOOLEAN DEFAULT FALSE;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS call_queue_order INT;
   ALTER TABLE calls ADD COLUMN IF NOT EXISTS transcript TEXT;
+  ALTER TABLE calls ADD COLUMN IF NOT EXISTS recording_attempts INT DEFAULT 0;
+  ALTER TABLE calls ADD COLUMN IF NOT EXISTS recording_error TEXT;
   ALTER TABLE files ADD COLUMN IF NOT EXISTS is_recording BOOLEAN DEFAULT FALSE;
   -- Dialer app: which users have the mobile app registered (for the admin users screen)
   ALTER TABLE users ADD COLUMN IF NOT EXISTS app_platform VARCHAR(10);
@@ -919,6 +921,9 @@ const { pollGoogleCalendar, importHolidays } = require('./services/calendarPollS
 importHolidays();
 pollGoogleCalendar();
 setInterval(pollGoogleCalendar, 5 * 60 * 1000);
+// Call recordings whose download/upload failed are retried while Twilio still has them
+setTimeout(() => require('./services/callAnalysis').retryFailedRecordings(), 90 * 1000);
+setInterval(() => require('./services/callAnalysis').retryFailedRecordings(), 10 * 60 * 1000);
 
 const app = express();
 app.use(cors());

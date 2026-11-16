@@ -6,6 +6,13 @@ updated: 2026-11-14
 
 # Now
 
+## 2026-11-16 — 1.16.0 (Phase 86): app call bar in the CRM, no double ring on phones, recording retries
+
+- Needs device testing: remote speaker/mute from the CRM bar; Android auto-return to the lead. After deploy check that Gili's 13-min call of 16/11 11:55 gets its recording (retry sweep; `calls.recording_error` says why if not).
+- Dialer: iOS build 9 on TestFlight (ringback works). App repo commit 0f77829 must be pushed + `eas update` (production + preview) from Oran's terminal. Android APK build 8/9 still not installed on Oran's phone?
+- Open: ringback on speaker during ringing (iPhone, native); Twilio routing to 054-555-2606; US number Geo Permissions; call drop on cellular ring.
+
+
 ## 2026-11-14 — 1.15.0 (Phase 85): blocked users locked out of calling; inbound rings in the dialer app with a lead link
 
 - Dialer build 8 shipped (iOS TestFlight, Android APK on Expo). OTA #1 committed in the app repo (24d0247) — **Oran pushes from his own terminal** (Cowork VM can no longer `git push`), then `npx eas-cli update --branch production` and `--branch preview`.

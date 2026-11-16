@@ -5,6 +5,8 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { Device } from '@twilio/voice-sdk';
 import api from '../api';
 
+const IS_PHONE = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
 const CallContext = createContext(null);
 
 export function CallProvider({ children }) {
@@ -34,6 +36,38 @@ export function CallProvider({ children }) {
   }, []);
 
   useEffect(() => { loadConfig(); }, [loadConfig, loggedIn]);
+
+  // Phone + dialer app: calls run in the app; the CRM only mirrors the call (name, timer) and
+  // sends it commands (speaker / mute / hang up) through the server.
+  const viaApp = IS_PHONE && !!config.app_registered;
+  const [appCall, setAppCall] = useState(null);
+  const appCallRef = useRef(null);
+  useEffect(() => { appCallRef.current = appCall; }, [appCall]);
+  useEffect(() => {
+    if (!viaApp) { setAppCall(null); return; }
+    let stop = false, t = null;
+    const tick = async () => {
+      if (stop) return;
+      if (document.visibilityState === 'visible') {
+        try { const r = await api.get('/calls/app/state'); if (!stop) setAppCall(r.data?.call || null); } catch {}
+      }
+      t = setTimeout(tick, appCallRef.current ? 1500 : 4000);
+    };
+    tick();
+    const onVisible = () => { if (document.visibilityState === 'visible') { clearTimeout(t); tick(); } };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { stop = true; clearTimeout(t); document.removeEventListener('visibilitychange', onVisible); };
+  }, [viaApp]);
+  const appCommand = useCallback(async (action) => {
+    // reflect at once; the next poll brings the app's real state
+    setAppCall(c => {
+      if (!c) return c;
+      if (action === 'hangup') return null;
+      if (action === 'mute' || action === 'unmute') return { ...c, muted: action === 'mute' };
+      return { ...c, speaker: action === 'speaker_on' };
+    });
+    try { await api.post('/calls/app/command', { action }); } catch (err) { setError(err.response?.data?.error || 'הפקודה לא הגיעה לחייגן'); }
+  }, []);
   useEffect(() => {
     if (!config.failed) return;
     const t = setTimeout(loadConfig, 5000);
@@ -59,9 +93,11 @@ export function CallProvider({ children }) {
     return () => { clearInterval(t); document.removeEventListener('visibilitychange', onVisible); };
   }, [config.enabled]);
 
-  // Register the softphone once calling is enabled
+  // Register the softphone once calling is enabled — except on a phone whose user has the
+  // ProEvent Dialer app: there the app is the phone. Registering the browser as well made every
+  // incoming call ring twice (Apple's call banner + our prompt) — Oran, 2026-11-16.
   useEffect(() => {
-    if (!config.enabled || deviceRef.current) return;
+    if (!config.enabled || viaApp || deviceRef.current) return;
     let cancelled = false;
     (async () => {
       try {
@@ -135,7 +171,7 @@ export function CallProvider({ children }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [config.enabled]);
+  }, [config.enabled, viaApp]);
 
   // Phones (Android Chrome especially) suspend the mic track when the tab goes to the
   // background — the other side stops hearing us and nothing in the UI says so. Watch the
@@ -240,6 +276,7 @@ export function CallProvider({ children }) {
     enabled: !!config.enabled, ready, config, error, clearError: () => setError(null),
     incoming, active, muted, outputs, setOutput, micLost, fixMic: () => active && reacquireMic(active.call),
     startCall, bridgeCall, acceptIncoming, rejectIncoming, hangup, toggleMute, setAbroad, reloadConfig: loadConfig,
+    viaApp, appCall, appCommand,
   };
   return <CallContext.Provider value={value}>{children}</CallContext.Provider>;
 }

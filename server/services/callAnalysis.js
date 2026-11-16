@@ -21,11 +21,22 @@ function fmtDuration(sec) {
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 }
 
+// Twilio sometimes answers 404/5xx for a few seconds after the "completed" callback, and a long
+// call is a bigger download — one failed GET used to lose the whole recording (Gili's 13-minute
+// call, 2026-11-16). Retry with a pause, and give it more time.
 async function downloadRecording(recordingUrl) {
-  const res = await axios.get(`${recordingUrl}.mp3`, {
-    responseType: 'arraybuffer', timeout: 60000,
-    auth: { username: process.env.TWILIO_ACCOUNT_SID, password: process.env.TWILIO_AUTH_TOKEN },
-  });
+  let res, lastErr;
+  for (const waitMs of [0, 4000, 12000]) {
+    if (waitMs) await new Promise(r => setTimeout(r, waitMs));
+    try {
+      res = await axios.get(`${recordingUrl}.mp3`, {
+        responseType: 'arraybuffer', timeout: 180000, maxContentLength: Infinity, maxBodyLength: Infinity,
+        auth: { username: process.env.TWILIO_ACCOUNT_SID, password: process.env.TWILIO_AUTH_TOKEN },
+      });
+      break;
+    } catch (err) { lastErr = err; }
+  }
+  if (!res) throw new Error('download failed: ' + (lastErr?.response?.status || lastErr?.message || 'unknown'));
   const tmp = path.join(os.tmpdir(), `call-${Date.now()}-${Math.round(Math.random() * 1e6)}.mp3`);
   fs.writeFileSync(tmp, Buffer.from(res.data));
   return tmp;
@@ -85,7 +96,7 @@ async function analyze({ transcript, direction, lead, repName, durationSec }) {
   try { return JSON.parse(res.choices[0].message.content); } catch { return null; }
 }
 
-function renderBody({ direction, durationSec, repName, analysis, fileMarker, fromNumber, voicemail, transcript }) {
+function renderBody({ direction, durationSec, repName, analysis, fileMarker, fromNumber, voicemail, transcript, failed }) {
   const lines = [];
   if (voicemail) {
     lines.push(`🎙️ הודעה קולית מ-${fromNumber || 'לא ידוע'} · ${fmtDuration(durationSec)} (שיחה שלא נענתה)`);
@@ -112,6 +123,12 @@ function renderBody({ direction, durationSec, repName, analysis, fileMarker, fro
       lines.push('', `⭐ ציון שיחה: ${score}/10${analysis.sentiment ? ' · ' + analysis.sentiment : ''}`);
       if (Array.isArray(analysis.coaching_tips) && analysis.coaching_tips.length) lines.push(...analysis.coaching_tips.map(x => `💡 ${x}`));
     }
+  } else if (failed) {
+    // The recording exists at Twilio but our copy/summary failed — say so instead of the
+    // misleading "short call"; the retry sweep fills this entry in when it succeeds.
+    lines.push('⚠️ ההקלטה עוד לא עובדה — המערכת תנסה שוב אוטומטית');
+  } else if ((Number(durationSec) || 0) >= MIN_SECONDS_FOR_ANALYSIS) {
+    lines.push('(לא נוצר סיכום לשיחה)');
   } else {
     lines.push('(שיחה קצרה — ללא סיכום)');
   }
@@ -131,7 +148,7 @@ async function processRecording({ callId, recordingSid, recordingUrl, durationSe
   const repName = rep?.display_name || null;
 
   const voicemail = call.status === 'voicemail' || call.status === 'missed';
-  let tmp = null, fileMarker = null, fileId = null, analysis = null, vmTranscript = null, transcript = null;
+  let tmp = null, fileMarker = null, fileId = null, analysis = null, vmTranscript = null, transcript = null, pipelineError = null;
   try {
     tmp = await downloadRecording(recordingUrl);
     const fileName = `${voicemail ? 'הודעה קולית' : 'הקלטת שיחה'} ${new Date(call.started_at || Date.now()).toLocaleDateString('he-IL')}.mp3`;
@@ -159,6 +176,7 @@ async function processRecording({ callId, recordingSid, recordingUrl, durationSe
       }
     }
   } catch (err) {
+    pipelineError = String(err.message || err).slice(0, 300);
     console.error('[Calls] recording pipeline error:', err.message);
   } finally {
     if (tmp) { try { fs.unlinkSync(tmp); } catch {} }
@@ -173,6 +191,7 @@ async function processRecording({ callId, recordingSid, recordingUrl, durationSe
   const body = renderBody({
     direction: call.direction, durationSec, repName, analysis, fileMarker, voicemail, transcript: vmTranscript,
     fromNumber: call.direction === 'inbound' ? call.from_number : null,
+    failed: !fileId,
   }) + (!voicemail && transcript ? `\n\n[[TRANSCRIPT]]\n${transcript}` : '');
 
   let interactionId = call.interaction_id;
@@ -192,9 +211,39 @@ async function processRecording({ callId, recordingSid, recordingUrl, durationSe
 
   await pool.query(
     `UPDATE calls SET recording_sid = $2, recording_file_id = $3, summary = $4, analysis = $5,
-                      interaction_id = $6, duration_sec = COALESCE(duration_sec, $7), transcript = $8 WHERE id = $1`,
-    [callId, recordingSid, fileId, analysis?.summary || null, analysis ? JSON.stringify(analysis) : null, interactionId, durationSec, transcript]
+                      interaction_id = $6, duration_sec = COALESCE(duration_sec, $7), transcript = $8,
+                      recording_attempts = COALESCE(recording_attempts, 0) + 1, recording_error = $9 WHERE id = $1`,
+    [callId, recordingSid, fileId, analysis?.summary || null, analysis ? JSON.stringify(analysis) : null, interactionId, durationSec, transcript, fileId ? null : (pipelineError || 'unknown')]
   );
 }
 
-module.exports = { processRecording, fmtDuration };
+// Recordings whose pipeline failed keep their Twilio copy (we only delete it after our own copy
+// is stored). Every few minutes, retry the recent ones — up to 5 attempts each.
+let sweeping = false;
+async function retryFailedRecordings() {
+  if (sweeping || !process.env.TWILIO_ACCOUNT_SID) return;
+  sweeping = true;
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, recording_sid, duration_sec FROM calls
+       WHERE recording_sid IS NOT NULL AND recording_file_id IS NULL
+         AND COALESCE(recording_attempts, 0) < 5 AND started_at > NOW() - INTERVAL '14 days'
+       ORDER BY started_at DESC LIMIT 5`);
+    for (const c of rows) {
+      const url = `https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}/Recordings/${c.recording_sid}`;
+      let dur = Number(c.duration_sec) || 0;
+      try {
+        const rec = await require('./twilioService').getClient().recordings(c.recording_sid).fetch();
+        dur = Number(rec.duration) || dur;
+      } catch (err) {
+        // Gone from Twilio as well → nothing left to retry
+        if (err.status === 404) { await pool.query(`UPDATE calls SET recording_attempts = 5, recording_error = 'recording no longer at Twilio' WHERE id = $1`, [c.id]); continue; }
+      }
+      await processRecording({ callId: c.id, recordingSid: c.recording_sid, recordingUrl: url, durationSec: dur })
+        .catch(err => console.error('[Calls] recording retry error:', err.message));
+    }
+  } catch (err) { console.error('[Calls] recording sweep error:', err.message); }
+  finally { sweeping = false; }
+}
+
+module.exports = { processRecording, retryFailedRecordings, fmtDuration };

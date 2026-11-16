@@ -55,7 +55,10 @@ api.get('/config', async (req, res) => {
     if (!u || u.blocked) return res.status(403).json({ enabled: false, blocked: true, error: BLOCKED_MSG });
     // app_registered: this user has the ProEvent Dialer app → on Android the web dials through it
     // only (no browser fallback race). Users without the app keep the browser softphone.
-    res.json({ enabled: true, number: process.env.TWILIO_PHONE_NUMBER, abroad_mode: !!u?.abroad_mode, has_phone: !!u?.phone, app_registered: !!u?.app_registered_at });
+    res.json({ enabled: true, number: process.env.TWILIO_PHONE_NUMBER, abroad_mode: !!u?.abroad_mode, has_phone: !!u?.phone, app_registered: !!u?.app_registered_at,
+      // iPhone: show the lead name in Apple's incoming-call banner. Off by default — a Hebrew
+      // name as a CallKit handle is untested; switch on in Railway (CALLKIT_CALLER_NAME=1) to try.
+      callkit_name: process.env.CALLKIT_CALLER_NAME === '1' });
   } catch (err) {
     console.error('[Calls] config error:', err.message);
     res.status(500).json({ enabled: false, error: err.message });
@@ -184,6 +187,73 @@ api.get('/lead/:leadId', async (req, res) => {
   res.json(rows);
 });
 
+/* ── Dialer-app call, seen and controlled from the CRM (Oran, 2026-11-16) ──
+   On a phone the call runs in the ProEvent Dialer app while the rep keeps working in the CRM:
+   the CRM shows a small call bar (name, timer, speaker / mute / hang up). The app reports its
+   call state here and long-polls for commands; the CRM reads the state and posts commands.
+   Kept in memory — a single web instance, and the state is only meaningful for seconds. */
+const appCalls = new Map();   // userId → { state, at, queue: [], waiter: null }
+const appSlot = (uid) => { let x = appCalls.get(uid); if (!x) { x = { state: null, at: 0, queue: [], waiter: null }; appCalls.set(uid, x); } return x; };
+const APP_STATE_TTL = 70 * 1000;   // the app re-reports at least every long-poll round (~25s)
+
+// App → server: current call state ({ active:false } when the call ended)
+api.post('/app/state', (req, res) => {
+  const slot = appSlot(req.user.id);
+  const b = req.body || {};
+  slot.state = b.active ? {
+    active: true, name: String(b.name || '').slice(0, 120), number: String(b.number || '').slice(0, 30),
+    leadId: Number(b.leadId) || null, direction: b.direction === 'inbound' ? 'inbound' : 'outbound',
+    connectedAt: Number(b.connectedAt) || null, muted: !!b.muted, speaker: !!b.speaker,
+  } : null;
+  slot.at = Date.now();
+  if (!slot.state) slot.queue = [];
+  res.json({ ok: true });
+});
+
+// App → server: wait (up to 25s) for the next commands from the CRM bar
+api.get('/app/poll', (req, res) => {
+  const slot = appSlot(req.user.id);
+  if (slot.queue.length) { const commands = slot.queue; slot.queue = []; return res.json({ commands }); }
+  if (slot.waiter) slot.waiter([]);                       // only one waiter per user
+  const timer = setTimeout(() => { if (slot.waiter === done) { slot.waiter = null; res.json({ commands: [] }); } }, 25000);
+  const done = (commands) => { clearTimeout(timer); if (!res.headersSent) res.json({ commands }); };
+  slot.waiter = done;
+  req.on('close', () => { clearTimeout(timer); if (slot.waiter === done) slot.waiter = null; });
+});
+
+// CRM → server: the call the app is on right now (null when none / stale)
+api.get('/app/state', (req, res) => {
+  const slot = appCalls.get(req.user.id);
+  const fresh = slot && slot.state && Date.now() - slot.at < APP_STATE_TTL;
+  res.json({ call: fresh ? slot.state : null });
+});
+
+// CRM → server → app: mute / unmute / speaker_on / speaker_off / hangup
+api.post('/app/command', async (req, res) => {
+  const action = String(req.body?.action || '');
+  if (!['mute', 'unmute', 'speaker_on', 'speaker_off', 'hangup'].includes(action)) return res.status(400).json({ error: 'action' });
+  const slot = appSlot(req.user.id);
+  if (slot.waiter) { const w = slot.waiter; slot.waiter = null; w([action]); } else slot.queue.push(action);
+  // Optimistic echo so the bar reacts at once; the app's next report is the truth
+  if (slot.state) {
+    if (action === 'mute') slot.state.muted = true;
+    if (action === 'unmute') slot.state.muted = false;
+    if (action === 'speaker_on') slot.state.speaker = true;
+    if (action === 'speaker_off') slot.state.speaker = false;
+  }
+  if (action === 'hangup') {
+    // Do not depend on the app being reachable: end the live call at Twilio as well
+    try {
+      const { rows: [c] } = await pool.query(
+        `SELECT call_sid FROM calls WHERE (user_id = $1 OR answered_by = $1) AND status IN ('ringing','in-progress')
+           AND started_at > NOW() - INTERVAL '4 hours' ORDER BY started_at DESC LIMIT 1`, [req.user.id]);
+      if (c?.call_sid) await tw.getClient().calls(c.call_sid).update({ status: 'completed' });
+    } catch (err) { console.warn('[Calls] app hangup via Twilio failed:', err.message); }
+    if (slot.state) { slot.state = null; slot.at = Date.now(); }
+  }
+  res.json({ ok: true });
+});
+
 /* ═══════════════════════ Twilio webhooks ═══════════════════════ */
 const hooks = express.Router();
 const HOOK_PATH = /^\/(twiml(\/|$)|status$|recording$)/;
@@ -300,6 +370,9 @@ function dialStep(vr, step, callId, index, callerNumber, leadName, leadId) {
     const client = dial.client();
     client.identity(tw.identityFor(step.userId));
     client.parameter({ name: 'leadName', value: leadName || '' });
+    // displayName is always present (lead name or the local-format number) so the app may use it
+    // as the CallKit caller name when CALLKIT_CALLER_NAME=1 (see /config).
+    client.parameter({ name: 'displayName', value: leadName || String(callerNumber || '').replace(/^\+972/, '0') || 'שיחה נכנסת' });
     client.parameter({ name: 'leadId', value: leadId ? String(leadId) : '' });   // app: "פתח כרטיס ליד"
     client.parameter({ name: 'callId', value: String(callId) });
   }
