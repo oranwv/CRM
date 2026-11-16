@@ -6,6 +6,11 @@ updated: 2026-11-14
 
 # Now
 
+## 2026-11-16 — 1.17.0 (Phase 87): recording retention (lost +30d, completed +60d → audio deleted, text kept)
+
+- `services/recordingRetention.js`, daily. First run after deploy deletes every matching historic recording (permanent). Supabase plan upgrade is Oran's decision (storage quota exceeded 16/11).
+
+
 ## 2026-11-16 — ROOT CAUSE of the lost recordings: Supabase storage quota exceeded (project restricted)
 
 - The lead card shows "Service for this project is restricted… exceed_storage_size_quota" — every upload (recordings, files, WhatsApp media) fails until Oran upgrades the Supabase plan or frees space. Recordings stay at Twilio meanwhile; quota failures do not consume retry attempts.

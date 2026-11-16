@@ -232,7 +232,7 @@ async function retryFailedRecordings() {
   try {
     const { rows } = await pool.query(
       `SELECT id, recording_sid, duration_sec FROM calls
-       WHERE recording_sid IS NOT NULL AND recording_file_id IS NULL
+       WHERE recording_sid IS NOT NULL AND recording_file_id IS NULL AND recording_deleted_at IS NULL
          AND COALESCE(recording_attempts, 0) < 5 AND started_at > NOW() - INTERVAL '14 days'
        ORDER BY started_at DESC LIMIT 5`);
     for (const c of rows) {

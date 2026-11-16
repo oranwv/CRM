@@ -371,6 +371,7 @@ migrate(`
   ALTER TABLE calls ADD COLUMN IF NOT EXISTS transcript TEXT;
   ALTER TABLE calls ADD COLUMN IF NOT EXISTS recording_attempts INT DEFAULT 0;
   ALTER TABLE calls ADD COLUMN IF NOT EXISTS recording_error TEXT;
+  ALTER TABLE calls ADD COLUMN IF NOT EXISTS recording_deleted_at TIMESTAMPTZ;
   ALTER TABLE files ADD COLUMN IF NOT EXISTS is_recording BOOLEAN DEFAULT FALSE;
   -- Dialer app: which users have the mobile app registered (for the admin users screen)
   ALTER TABLE users ADD COLUMN IF NOT EXISTS app_platform VARCHAR(10);
@@ -924,6 +925,10 @@ setInterval(pollGoogleCalendar, 5 * 60 * 1000);
 // Call recordings whose download/upload failed are retried while Twilio still has them
 setTimeout(() => require('./services/callAnalysis').retryFailedRecordings(), 90 * 1000);
 setInterval(() => require('./services/callAnalysis').retryFailedRecordings(), 10 * 60 * 1000);
+// Recording retention: audio of lost leads after 1 month / completed events after 2 months is
+// deleted, transcripts stay (services/recordingRetention.js)
+setTimeout(() => require('./services/recordingRetention').runRecordingRetention(), 10 * 60 * 1000);
+setInterval(() => require('./services/recordingRetention').runRecordingRetention(), 24 * 60 * 60 * 1000);
 
 const app = express();
 app.use(cors());

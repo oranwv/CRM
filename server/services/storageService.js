@@ -45,6 +45,13 @@ async function deleteFile(url) {
   }
 }
 
+// Delete by stored name and fail loudly — the retention job must not drop its DB pointer to a
+// file that is still in the bucket.
+async function deleteStored(storedName) {
+  const { error } = await getClient().storage.from(BUCKET).remove([storedName]);
+  if (error) throw error;
+}
+
 // `downloadAs` (optional file name) makes the URL answer with Content-Disposition: attachment
 async function getSignedUrl(storedName, expiresIn = 60, downloadAs) {
   const supabase = getClient();
@@ -77,4 +84,4 @@ async function uploadBuffer(buffer, filename, mimetype) {
   return { url: data.publicUrl, storedName };
 }
 
-module.exports = { uploadFile, uploadBuffer, deleteFile, getSignedUrl, storedNameFromUrl };
+module.exports = { uploadFile, uploadBuffer, deleteFile, deleteStored, getSignedUrl, storedNameFromUrl };

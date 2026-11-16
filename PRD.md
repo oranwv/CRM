@@ -1801,6 +1801,27 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 87 — Recording retention: audio is deleted, the text stays ✅ Built 2026-11-16 (1.17.0)
+Oran's rule (16/11, after the Supabase storage quota filled up and blocked all uploads):
+- **Lead that did not close** (stage `lost`): the call recordings are deleted **one month** after
+  the lead was marked lost. Only the text remains — for improving sales with AI.
+- **Event that ended** (stage `completed`): the recordings may be deleted **two months** after the
+  event was completed; only the text remains.
+- Open leads and events in production keep their recordings. Private calls (no lead) are untouched.
+
+"The text" = the transcript (`calls.transcript` and the `[[TRANSCRIPT]]` part of the timeline
+entry), the AI summary and the analysis — all kept permanently.
+Implementation: `services/recordingRetention.js`, run 10 minutes after boot and every 24 h.
+The clock starts when the lead entered the stage (latest `lead_stage_history` row; fallback
+event date / `updated_at`) and the call itself must also be older than the period, so re-opening
+a lead protects its recordings. Safety: audio is deleted only when a transcript exists (or the
+call was under 15 s and has nothing to transcribe) — a longer call without a transcript is kept.
+Deleting = remove the file from the bucket (`deleteStored`, fails loudly), drop the `files` row,
+`calls.recording_file_id = NULL` + `recording_deleted_at`, and the `[[REC:id]]` marker in the
+timeline becomes "🗑️ ההקלטה נמחקה לפי מדיניות השמירה — המלל נשמר". Deletion is permanent.
+Also: Supabase storage ran out on 16/11 (`exceed_storage_size_quota`) — recordings that failed
+to save stay at Twilio and are retried; quota failures do not use up the retry budget.
+
 ### Phase 86 — Dialer call mirrored in the CRM bar; no double ring on phones; recordings retried ✅ Built 2026-11-16 (1.16.0)
 Oran, 16/11 (preview of the bar approved the same day).
 **Call bar for app calls.** On a phone with the ProEvent Dialer app the call runs in the app and
