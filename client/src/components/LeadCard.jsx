@@ -4750,7 +4750,7 @@ function DealAdvisor({ leadId, onUseDraft, onCreateTask, onScheduleMeeting }) {
 
 // WhatsApp chat bubble: plain text + [[FILE:id|name]] markers rendered as a voice-note player
 // or a file button (the raw marker used to show up as text).
-function WaBubbleBody({ body }) {
+export function WaBubbleBody({ body }) {
   if (!body) return null;
   const FILE_RE = /\[\[FILE:([^\|]+)\|([^\]]+)\]\]/g;
   const files = [...body.matchAll(FILE_RE)].map(m => ({ id: m[1], name: m[2] }));

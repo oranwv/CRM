@@ -656,6 +656,8 @@ Files embedded in interaction/message bodies use this format where `id` is the `
 | POST | `/webhook` | Receives Green API webhook. Handles text + media (imageMessage, documentMessage, audioMessage, videoMessage). Media downloaded and uploaded to Supabase. |
 | POST | `/send` | Send text message (auto-advances new→contacted). `phone` accepts one number, a comma-separated list, or an array — one send + one `messages` row per recipient |
 | POST | `/send-file` | Send file: upload to Green API → Supabase → insert into files table → embed [[FILE:id\|name]] in message. `phone` accepts several recipients (file uploaded once, sent to each) |
+| GET | `/unread-count` | ✅ auth. `{ count }` — unread inbound WhatsApp messages, for the nav badge (Phase 88) |
+| GET | `/inbox` | ✅ auth. Conversation list for the וואטסאפ tab: per lead — last message, `unread`, `waiting_since`, `awaiting` (customer wrote last, bot replies ignored, last 14 days) (Phase 88) |
 
 ### Files (`/api/leads/:leadId/files`) — require auth
 | Method | Path | Description |
@@ -1800,6 +1802,46 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 ---
 
 ## Build Phases — Status
+
+### Phase 88 — לשונית וואטסאפ: the business WhatsApp inside the CRM ✅ Built 2026-11-16 (1.18.0)
+
+Asked by Oran 2026-11-16; mock-up approved the same day
+(https://claude.ai/artifact/4xc86jdwZwUxgefAaJ9vNE).
+
+- **Nav tab** "💬 וואטסאפ" — **sales mode only**, second in the row (after לידים). Red badge =
+  **unread** inbound WhatsApp messages (`messages.is_read = false`), polled every 30 s
+  (`GET /api/whatsapp/unread-count`) and refreshed at once when a chat is opened
+  (`crm-wa-read` window event). With seven or more tabs the labels shrink to 10 px on a phone
+  (`compact` in `NavBtn`) and "הפעילות שלי" may wrap to two lines; other modes are unchanged.
+- **Page** `/whatsapp` (`client/src/pages/WhatsAppPage.jsx`) — one conversation per lead, newest
+  first (`GET /api/whatsapp/inbox`, up to 500). Phone: the list, and a tap opens the chat full
+  screen (`?chat=<leadId>`, the back gesture returns to the list). Desktop: list on the right,
+  chat beside it.
+- **List row**: name (phone when there is no name), last message, time, green count of unread
+  messages, event type · stage. Filters: הכל / לא נענו · N / שלי (leads assigned to me); search
+  by name or phone.
+- **"לא נענו" highlight** (orange row + "מחכה לתשובה <time>"): the customer wrote last and no one
+  answered — also when the message was already read ("נקראה, מחכה לתשובה"). Rules:
+  the chatbot's automatic greeting / follow-up (`wa_chatbot_greeting` / `wa_chatbot_followup`)
+  do **not** count as an answer; the highlight is shown only while the customer's last message
+  is at most **14 days** old (`WA_AWAIT_DAYS` in `routes/whatsapp.js`) so old threads that
+  ended on the customer's "תודה" do not light up the list.
+- **Open chat**: WhatsApp-style bubbles in chronological order (newest at the bottom — unlike
+  the lead card tab, which stays newest-first), day separators, files and voice notes through
+  the lead card's `WaBubbleBody` (now exported), sender's name on outbound messages.
+  Composer: text + file attachments, sent with the existing `POST /api/whatsapp/send` and
+  `/send-file` — so every message is saved in `messages` and appears on the lead card. The
+  reply goes to the contact who wrote last (`contact_value` of the last inbound message);
+  with no inbound message, to the lead's phone. No "are you sure" popup here — the send button
+  sends (Enter adds a line).
+- **Read state**: opening a chat calls the existing `POST /api/leads/:id/read` (same as opening
+  the lead card), again whenever a new customer message arrives while the chat is open.
+- "כרטיס ליד" opens the lead with `openLead` (closing the card returns to the chat).
+- Not included: groups (still filtered out on receipt), conversations with numbers that are
+  not leads (every inbound number already becomes a lead), a manual "handled" mark.
+- No DB changes. Verified: both queries on a scratch Postgres (bot reply ignored, read-but-
+  unanswered, 14-day cut-off), client build + headless Chromium screenshots (phone + desktop)
+  against mocked API. NOT verified against production data or a real send.
 
 ### Phase 87 — Recording retention: audio is deleted, the text stays ✅ Built 2026-11-16 (1.17.0)
 Oran's rule (16/11, after the Supabase storage quota filled up and blocked all uploads):

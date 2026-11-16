@@ -8,6 +8,7 @@ import EventsPage    from './pages/EventsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import SalesPerformancePage from './pages/SalesPerformancePage';
 import SalesWorklistPage from './pages/SalesWorklistPage';
+import WhatsAppPage from './pages/WhatsAppPage';
 import CalendarPage  from './pages/CalendarPage';
 import TasksPage     from './pages/TasksPage';
 import PostponePage    from './pages/PostponePage';
@@ -395,6 +396,17 @@ function AppShellNav() {
     return () => clearInterval(t);
   }, [mode]);
 
+  // Phase 88 — לשונית וואטסאפ (sales mode): unread inbound WhatsApp messages for the tab's badge.
+  const [waUnread, setWaUnread] = useState(0);
+  useEffect(() => {
+    if (!localStorage.getItem('crm_token') || mode !== 'מכירות') return;
+    const load = () => api.get('/whatsapp/unread-count').then(r => setWaUnread(r.data.count)).catch(() => {});
+    load();
+    const t = setInterval(() => { if (!document.hidden) load(); }, 30_000);
+    window.addEventListener('crm-wa-read', load);
+    return () => { clearInterval(t); window.removeEventListener('crm-wa-read', load); };
+  }, [mode]);
+
   const isProduction   = mode === 'הפקה';
   const isSuppliers    = mode === 'ספקים';
   const isRSVP         = mode === 'אישורי הגעה';
@@ -439,6 +451,7 @@ function AppShellNav() {
       ]
     : [
         { path: '/',               icon: '👥', label: 'לידים' },
+        { path: '/whatsapp',       icon: '💬', label: 'וואטסאפ', badge: waUnread },
         { path: '/sales-worklist', icon: '💡', label: 'AI מכירות' },
         { path: '/calendar',       icon: '📅', label: 'לוח שנה' },
         { path: '/analytics',      icon: '📊', label: 'אנליטיקס' },
@@ -453,7 +466,8 @@ function AppShellNav() {
     ...(att.enabled ? [{ path: '/my-hours', icon: '⏱️', label: 'שעות' }] : []),
   ];
 
-  const NavBtn = ({ path, icon, label, prefix, badge }) => {
+  // `compact` (Phase 88): seven or more tabs in the row — smaller labels on a phone, and a long one ("הפעילות שלי") may wrap to two lines.
+  const NavBtn = ({ path, icon, label, prefix, badge, compact }) => {
     const active = leadNav.calendarOpen ? path === '/calendar' : prefix
       ? location.pathname === path || location.pathname.startsWith(prefix + '/') || (prefix === '/candidates/jobs' && location.pathname === '/candidates/unassigned')
       : location.pathname === path;
@@ -461,7 +475,9 @@ function AppShellNav() {
     return (
       <button
         onClick={() => go(path)}
-        className="flex-1 flex flex-col items-center py-2 text-xs font-bold transition relative"
+        className={compact
+          ? 'flex-1 min-w-0 flex flex-col items-center py-2 text-[10px] sm:text-xs leading-tight text-center font-bold transition relative'
+          : 'flex-1 flex flex-col items-center py-2 text-xs font-bold transition relative'}
         style={{ color: active ? '#ffffff' : 'rgba(255,255,255,0.6)' }}
       >
         {active && (
@@ -500,7 +516,7 @@ function AppShellNav() {
     )}
     <nav ref={navRef} className="fixed bottom-0 left-0 right-0 z-30 shadow-2xl" style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', borderTop: '1px solid rgba(255,255,255,0.15)' }}>
       <div className="flex">
-        {navTabs.map(t => <NavBtn key={t.path} {...t} />)}
+        {navTabs.map(t => <NavBtn key={t.path} {...t} compact={navTabs.length >= 7} />)}
       </div>
       {isAdmin && (
         <div className="flex" style={{ background: 'rgba(0,0,0,0.18)', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
@@ -624,6 +640,16 @@ function AppRoutes() {
             <>
               <div className="crm-header-spacer pt-11" />
               <SalesPerformancePage />
+              <AppShellNav />
+              <div className="pb-28" />
+            </>
+          </PrivateRoute>
+        } />
+        <Route path="/whatsapp" element={
+          <PrivateRoute>
+            <>
+              <div className="crm-header-spacer pt-11" />
+              <WhatsAppPage />
               <AppShellNav />
               <div className="pb-28" />
             </>

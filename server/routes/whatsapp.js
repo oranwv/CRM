@@ -557,5 +557,79 @@ router.post('/send-file', requireAuth, upload.single('file'), async (req, res) =
   }
 });
 
+// ── Phase 88 — לשונית וואטסאפ (inbox) ─────────────────────────────────────────
+// One conversation per lead, built from the `messages` table (the same rows the lead card's
+// "וואטסאפ ואימייל" tab shows). Sending from the inbox goes through POST /send and /send-file
+// above, so nothing is stored twice.
+//   unread   = inbound WhatsApp messages with is_read = false (the red badge on the nav tab)
+//   awaiting = the customer wrote last and nobody answered. The chatbot's automatic greeting /
+//              follow-up do not count as an answer. Highlighted only while the customer's last
+//              message is at most WA_AWAIT_DAYS old, so years of old threads that simply ended
+//              on the customer's "תודה" do not light up the whole list.
+const WA_AWAIT_DAYS = 14;
+
+// GET /api/whatsapp/unread-count — number for the nav badge
+router.get('/unread-count', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM messages
+        WHERE channel = 'whatsapp' AND direction = 'inbound' AND is_read = false AND lead_id IS NOT NULL`
+    );
+    res.json({ count: rows[0].count });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/whatsapp/inbox — conversation list, newest first
+router.get('/inbox', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `WITH bot AS (
+         SELECT value FROM settings
+          WHERE key IN ('wa_chatbot_greeting','wa_chatbot_followup') AND COALESCE(value, '') <> ''
+       ),
+       agg AS (
+         SELECT m.lead_id,
+                MAX(m.timestamp) AS last_at,
+                MAX(m.timestamp) FILTER (WHERE m.direction = 'inbound') AS last_in,
+                MAX(m.timestamp) FILTER (WHERE m.direction = 'outbound'
+                                           AND COALESCE(m.body, '') NOT IN (SELECT value FROM bot)) AS last_out,
+                COUNT(*) FILTER (WHERE m.direction = 'inbound' AND m.is_read = false)::int AS unread
+           FROM messages m
+          WHERE m.channel = 'whatsapp' AND m.lead_id IS NOT NULL
+          GROUP BY m.lead_id
+       )
+       SELECT l.id AS lead_id, l.name, l.phone, l.stage, l.event_type, l.assigned_to,
+              u.display_name AS assigned_name,
+              a.last_at, a.unread,
+              lm.body AS last_body, lm.direction AS last_direction, su.display_name AS last_sent_by_name,
+              w.waiting_since,
+              (w.waiting_since IS NOT NULL AND a.last_in > NOW() - ($1 || ' days')::interval) AS awaiting
+         FROM agg a
+         JOIN leads l ON l.id = a.lead_id
+         LEFT JOIN users u ON u.id = l.assigned_to
+         LEFT JOIN LATERAL (
+           SELECT m.body, m.direction, m.sent_by FROM messages m
+            WHERE m.lead_id = a.lead_id AND m.channel = 'whatsapp'
+            ORDER BY m.timestamp DESC, m.id DESC LIMIT 1
+         ) lm ON TRUE
+         LEFT JOIN users su ON su.id = lm.sent_by
+         LEFT JOIN LATERAL (
+           SELECT MIN(m.timestamp) AS waiting_since FROM messages m
+            WHERE m.lead_id = a.lead_id AND m.channel = 'whatsapp' AND m.direction = 'inbound'
+              AND (a.last_out IS NULL OR m.timestamp > a.last_out)
+         ) w ON TRUE
+        ORDER BY a.last_at DESC
+        LIMIT 500`,
+      [String(WA_AWAIT_DAYS)]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('[WhatsApp] inbox error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 module.exports = router;

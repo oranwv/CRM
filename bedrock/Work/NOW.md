@@ -6,6 +6,14 @@ updated: 2026-11-14
 
 # Now
 
+## 2026-11-16 — 1.18.0 (Phase 88): לשונית וואטסאפ (sales mode) — inbox that looks like WhatsApp
+
+- Nav tab with unread badge; `/whatsapp` list + chat; unanswered chats highlighted (bot replies ignored, 14-day window); sending reuses `/whatsapp/send` + `/send-file`. Details: PRD Phase 88. Mock-up: https://claude.ai/artifact/4xc86jdwZwUxgefAaJ9vNE
+- Oran's decisions 2026-11-16: badge = unread messages; unanswered chats highlighted inside the list; sales mode only.
+- Verified on scratch Postgres + headless screenshots with mocked API. NOT verified on production data / a real send — check after deploy.
+- Open (ask Oran): a manual "handled / no reply needed" mark; the 14-day window; where groups stand.
+
+
 ## 2026-11-16 — 1.17.0 (Phase 87): recording retention (lost +30d, completed +60d → audio deleted, text kept)
 
 - `services/recordingRetention.js`, daily. First run after deploy deletes every matching historic recording (permanent). Supabase plan upgrade is Oran's decision (storage quota exceeded 16/11).
