@@ -6266,9 +6266,12 @@ function LostModal({ onClose, onConfirm }) {
   const [text, setText]     = useState('');
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl p-5 w-80 mx-4" onClick={e => e.stopPropagation()}>
-        <h3 className="font-black text-slate-800 text-lg text-right mb-3">סיבת אי-סגירה</h3>
-        <div className="space-y-2 mb-3">
+      {/* Nine reasons + a text box are ~620px tall: on a short window (a Windows laptop at 125–150%
+          scaling) the buttons fell below the screen with no way to reach them. The window is now
+          capped to the viewport and only the reasons list scrolls, so the buttons always show. */}
+      <div className="bg-white rounded-2xl shadow-2xl p-5 w-80 mx-4 flex flex-col max-h-[calc(100dvh-1.5rem)]" onClick={e => e.stopPropagation()}>
+        <h3 className="font-black text-slate-800 text-lg text-right mb-3 shrink-0">סיבת אי-סגירה</h3>
+        <div className="space-y-2 mb-3 min-h-0 overflow-y-auto">
           {LOST_REASONS.map(r => (
             <button key={r.value} onClick={() => setReason(r.value)}
               className={`w-full text-right px-3 py-2 rounded-xl text-base font-semibold transition border-2 ${reason === r.value ? 'bg-red-50 border-red-400 text-red-700' : 'border-slate-200 text-slate-600 hover:border-red-200'}`}>
@@ -6277,9 +6280,9 @@ function LostModal({ onClose, onConfirm }) {
           ))}
         </div>
         <textarea value={text} onChange={e => setText(e.target.value)}
-          className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-red-300 resize-none mb-3"
+          className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-red-300 resize-none mb-3 shrink-0"
           rows={2} placeholder="פירוט נוסף (אופציונלי)..." />
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
           <button onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl text-base">ביטול</button>
           <button onClick={() => reason && onConfirm(reason, text)} disabled={!reason}
             className="flex-1 bg-red-500 text-white font-bold py-2 rounded-xl text-base disabled:opacity-50">

@@ -384,6 +384,9 @@ function AppShellNav() {
       else openCalendarOverCard();
       return;
     }
+    // A lead opened in its own browser tab (desktop, /leads/:id): its "close" closes the whole tab,
+    // so do not close the card — load the tapped page in this tab instead.
+    if (location.pathname.startsWith('/leads/')) { window.location.assign(path); return; }
     closeAllLeadCards();
     afterBackGuardsSettle(() => navigate(path));
   }
@@ -838,7 +841,11 @@ function AppRoutes() {
         } />
         <Route path="/leads/:id" element={
           <PrivateRoute>
-            <LeadDetailPage />
+            <>
+              <LeadDetailPage />
+              {/* On desktop a lead opens in its own tab — it needs the bottom nav too (Phase 81b). */}
+              <AppShellNav />
+            </>
           </PrivateRoute>
         } />
         <Route path="/call/:leadId" element={

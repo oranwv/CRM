@@ -6,6 +6,10 @@ updated: 2026-11-14
 
 # Now
 
+## 2026-11-16 — Phase 81b (1.18.1): desktop lead tab nav + "לא סגרו" dialog height
+
+- `/leads/:id` renders AppShellNav; LostModal capped to viewport height with a scrolling list. Other tall centred dialogs in LeadCard may have the same short-window problem — fix when reported.
+
 ## 2026-11-16 — 1.18.0 (Phase 88): לשונית וואטסאפ (sales mode) — inbox that looks like WhatsApp
 
 - Nav tab with unread badge; `/whatsapp` list + chat; unanswered chats highlighted (bot replies ignored, 14-day window); sending reuses `/whatsapp/send` + `/send-file`. Details: PRD Phase 88. Mock-up: https://claude.ai/artifact/4xc86jdwZwUxgefAaJ9vNE

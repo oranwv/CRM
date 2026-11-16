@@ -1803,6 +1803,17 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 81b — Desktop: nav on the standalone lead tab; "לא סגרו" dialog fits short windows ✅ Built 2026-11-16 (1.18.1)
+Oran (16.11, Windows laptop, Edge/Chrome): (1) the "סיבת אי-סגירה" dialog could not be confirmed —
+nine reasons + textarea ≈ 620px, centred with no scroll, so on a short viewport (Windows display
+scaling) the buttons were below the screen. `LostModal`: `max-h-[calc(100dvh-1.5rem)]` flex column,
+only the reasons list scrolls, buttons pinned. Not a Mac/PC browser difference — only window height.
+(2) No bottom nav in the lead card on desktop: a lead clicked in the list opens in its own tab at
+`/leads/:id` (`LeadDetailPage`), a route that never rendered `AppShellNav` (Phase 81 was checked
+through `/?lead=`). The route now renders the nav; calendar opens over the card as elsewhere; any
+other tab does `window.location.assign(path)` in that tab (the card's own close would close the
+whole browser tab). Verified in headless Chromium at 1280×560 and 1280×900 with stub data.
+
 ### Phase 88 — לשונית וואטסאפ: the business WhatsApp inside the CRM ✅ Built 2026-11-16 (1.18.0)
 
 Asked by Oran 2026-11-16; mock-up approved the same day
