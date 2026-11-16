@@ -6,6 +6,11 @@ updated: 2026-11-14
 
 # Now
 
+## 2026-11-16 — ROOT CAUSE of the lost recordings: Supabase storage quota exceeded (project restricted)
+
+- The lead card shows "Service for this project is restricted… exceed_storage_size_quota" — every upload (recordings, files, WhatsApp media) fails until Oran upgrades the Supabase plan or frees space. Recordings stay at Twilio meanwhile; quota failures do not consume retry attempts.
+
+
 ## 2026-11-16 — 1.16.0 (Phase 86): app call bar in the CRM, no double ring on phones, recording retries
 
 - Needs device testing: remote speaker/mute from the CRM bar; Android auto-return to the lead. After deploy check that Gili's 13-min call of 16/11 11:55 gets its recording (retry sweep; `calls.recording_error` says why if not).

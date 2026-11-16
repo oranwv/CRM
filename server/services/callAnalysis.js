@@ -126,7 +126,9 @@ function renderBody({ direction, durationSec, repName, analysis, fileMarker, fro
   } else if (failed) {
     // The recording exists at Twilio but our copy/summary failed — say so instead of the
     // misleading "short call"; the retry sweep fills this entry in when it succeeds.
-    lines.push('⚠️ ההקלטה עוד לא עובדה — המערכת תנסה שוב אוטומטית');
+    lines.push(/quota|restricted|storage/i.test(failed === true ? '' : failed)
+      ? '⚠️ ההקלטה לא נשמרה — אחסון הקבצים של המערכת מלא. היא שמורה זמנית ותיכנס אוטומטית כשהאחסון יתפנה'
+      : '⚠️ ההקלטה עוד לא עובדה — המערכת תנסה שוב אוטומטית');
   } else if ((Number(durationSec) || 0) >= MIN_SECONDS_FOR_ANALYSIS) {
     lines.push('(לא נוצר סיכום לשיחה)');
   } else {
@@ -191,7 +193,7 @@ async function processRecording({ callId, recordingSid, recordingUrl, durationSe
   const body = renderBody({
     direction: call.direction, durationSec, repName, analysis, fileMarker, voicemail, transcript: vmTranscript,
     fromNumber: call.direction === 'inbound' ? call.from_number : null,
-    failed: !fileId,
+    failed: fileId ? false : (pipelineError || true),
   }) + (!voicemail && transcript ? `\n\n[[TRANSCRIPT]]\n${transcript}` : '');
 
   let interactionId = call.interaction_id;
@@ -212,8 +214,12 @@ async function processRecording({ callId, recordingSid, recordingUrl, durationSe
   await pool.query(
     `UPDATE calls SET recording_sid = $2, recording_file_id = $3, summary = $4, analysis = $5,
                       interaction_id = $6, duration_sec = COALESCE(duration_sec, $7), transcript = $8,
-                      recording_attempts = COALESCE(recording_attempts, 0) + 1, recording_error = $9 WHERE id = $1`,
-    [callId, recordingSid, fileId, analysis?.summary || null, analysis ? JSON.stringify(analysis) : null, interactionId, durationSec, transcript, fileId ? null : (pipelineError || 'unknown')]
+                      recording_attempts = COALESCE(recording_attempts, 0) + $10, recording_error = $9 WHERE id = $1`,
+    // A full/restricted file storage (Supabase quota, 2026-11-16) is not this call's fault and
+    // can last days: such failures do not use up the retry budget, so every recording waiting
+    // at Twilio is picked up once storage works again.
+    [callId, recordingSid, fileId, analysis?.summary || null, analysis ? JSON.stringify(analysis) : null, interactionId, durationSec, transcript,
+     fileId ? null : (pipelineError || 'unknown'), /quota|restricted|storage/i.test(pipelineError || '') ? 0 : 1]
   );
 }
 
