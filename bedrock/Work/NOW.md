@@ -6,6 +6,11 @@ updated: 2026-11-17
 
 # Now
 
+## 2026-11-17 — Phase 90b (1.20.1): contract assistant — collapse + drafting
+
+- Thread collapses after apply/undo (status line + הצג שיחה); drafting-quality prompt section, anti-repeat retry (`recentTexts`), temp 0.4, `CONTRACT_ASSISTANT_MODEL` env override.
+- Still unverified against the real model from here — Oran's next try tells whether gpt-4o drafts well enough; if not, try `CONTRACT_ASSISTANT_MODEL=gpt-4.1` on Railway.
+
 ## 2026-11-17 — Phase 90 (1.20.0): contract assistant
 
 - Chat under the contract preview: proposes targeted ops (add / replace / delete / set_field / set_row), server-validated, applied client-side only after approval; "חזור לפני השינוי" stack always available. gpt-4o via `openai('contract-assistant')`.

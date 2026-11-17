@@ -24,6 +24,8 @@ export default function ContractAssistant({ leadId, visible, getContract, onAppl
   const [busy, setBusy]         = useState(false);
   const [open, setOpen]         = useState(false);
   const [undo, setUndo]         = useState([]);   // snapshots { fields, rows, texts }
+  const [recent, setRecent]     = useState([]);   // clause texts already offered — the server uses them to avoid repeating itself
+  const [status, setStatus]     = useState('');   // one line shown while the thread is collapsed
   const scrollRef = useRef(null);
   const inputRef  = useRef(null);
 
@@ -44,6 +46,9 @@ export default function ContractAssistant({ leadId, visible, getContract, onAppl
     onApply(next);
     setPending(null);
     say('system', 'בוצע. השינוי מופיע בחוזה, ואפשר להמשיך לערוך אותו ביד.');
+    // Get out of the way so the contract can be read: collapse the thread, keep one status line.
+    setStatus('✓ בוצע. השינוי בחוזה.');
+    setOpen(false);
   }
 
   function goBack() {
@@ -52,8 +57,9 @@ export default function ContractAssistant({ leadId, visible, getContract, onAppl
     setUndo(u => u.slice(0, -1));
     onApply(prev);
     setPending(null);
-    setOpen(true);
     say('system', 'החזרתי את החוזה למצב שלפני השינוי האחרון.');
+    setStatus('↩ החוזה חזר למצב שלפני השינוי האחרון.');
+    setOpen(false);
   }
 
   async function send() {
@@ -62,6 +68,7 @@ export default function ContractAssistant({ leadId, visible, getContract, onAppl
     setInput('');
     if (inputRef.current) inputRef.current.style.height = 'auto';
     setOpen(true);
+    setStatus('');
     const history = [...messages, { role: 'user', content: text }];
     setMessages(history);
     setBusy(true);
@@ -70,10 +77,14 @@ export default function ContractAssistant({ leadId, visible, getContract, onAppl
         contract: getContract(),
         messages: history.filter(m => m.role !== 'system'),
         pending: pending?.ops || null,
+        recentTexts: recent,
       });
       say('assistant', data.reply);
       if (data.apply_pending && pending) applyPending(pending);
-      else if (data.proposal) setPending(data.proposal);
+      else if (data.proposal) {
+        setPending(data.proposal);
+        setRecent(r => [...r, ...data.proposal.ops.map(o => o.text).filter(Boolean)].slice(-6));
+      }
     } catch (e) {
       say('system', e.response?.data?.error || 'העוזר לא זמין כרגע, נסה שוב');
     }
@@ -92,7 +103,12 @@ export default function ContractAssistant({ leadId, visible, getContract, onAppl
   return (
     <div className="mb-3" dir="rtl">
       {hasThread && open && (
-        <div ref={scrollRef} className="max-h-[38vh] overflow-y-auto mb-2 space-y-2 rounded-xl bg-slate-50 border border-slate-100 p-2">
+        <div className="mb-2 rounded-xl bg-slate-50 border border-slate-100 overflow-hidden">
+        <button type="button" onClick={() => setOpen(false)}
+          className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-bold text-violet-700 bg-violet-50 border-b border-violet-100">
+          <span>שיחה עם העוזר</span><span>צמצם כדי לקרוא את החוזה ▾</span>
+        </button>
+        <div ref={scrollRef} className="max-h-[32vh] overflow-y-auto space-y-2 p-2">
           {messages.map((m, i) => (
             m.role === 'user' ? (
               <div key={i} className="flex justify-start">
@@ -139,6 +155,14 @@ export default function ContractAssistant({ leadId, visible, getContract, onAppl
           )}
           {busy && <p className="text-xs text-slate-400 text-center">העוזר כותב…</p>}
         </div>
+        </div>
+      )}
+      {hasThread && !open && (
+        <button type="button" onClick={() => setOpen(true)}
+          className={`w-full mb-2 flex items-center justify-between gap-2 rounded-xl px-3 py-1.5 text-xs font-bold border ${pending ? 'bg-violet-600 text-white border-violet-600' : 'bg-violet-50 text-violet-700 border-violet-100'}`}>
+          <span className="truncate">{pending ? 'יש הצעה שמחכה לאישור שלך' : (status || 'שיחה עם העוזר')}</span>
+          <span className="shrink-0">הצג שיחה ▴</span>
+        </button>
       )}
 
       <div className="flex items-end gap-2">
@@ -162,11 +186,6 @@ export default function ContractAssistant({ leadId, visible, getContract, onAppl
           title="מחזיר את החוזה למצב שלפני השינוי האחרון של העוזר">
           ↩ חזור לפני השינוי{undo.length > 1 ? ` (${undo.length})` : ''}
         </button>
-        {hasThread && (
-          <button type="button" onClick={() => setOpen(o => !o)} className="text-xs font-bold text-violet-600">
-            {open ? 'הסתר שיחה' : 'הצג שיחה'}
-          </button>
-        )}
       </div>
     </div>
   );

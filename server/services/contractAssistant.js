@@ -13,7 +13,7 @@
 //   { fields, rows, texts, calculated, offerType, language }
 const { openai } = require('./openaiClient');
 
-const MODEL = 'gpt-4o';
+const MODEL = process.env.CONTRACT_ASSISTANT_MODEL || 'gpt-4o';
 const MAX_TEXT = 3000;
 
 // Lists a line can be added to / removed from. `num` = the numbering the document prints.
@@ -157,6 +157,16 @@ Operations (JSON objects in proposal.ops):
 Numbers: amounts shown in {braces} are computed from the fields and rows — change them by changing the field/row, never by writing a number into a text. If a new clause needs an amount (e.g. a second payment), compute it from the COMPUTED values and write it in the clause text. Do not write clause numbers ("5.5") inside the text of list items in sections 3, 5 and 6 — the document numbers them itself.
 In a regular contract the minimum number of guests is the field "guests" and usually also the qty of the per-guest cost row; when the user changes the number of guests and both hold the same number, change both.
 
+Drafting quality — you write like an experienced Israeli commercial-contracts lawyer, not like a chat summary:
+- A clause is a complete, self-standing provision. State (a) the condition that triggers it, (b) who owes what to whom, (c) the amount and what it is (and whether it is in addition to, or instead of, sums already paid), (d) when and how it is paid, and (e) the consequence or a clarification that closes the obvious loophole. One or two full sentences; never a bare restatement of the user's request.
+- Use the register and terms of this contract: "המזמין", "הספק", "מועד האירוע", "המקדמה", "הסכם זה", and standard formulas where they fit: "מובהר ומוסכם כי", "למען הסר ספק", "מבלי לגרוע מהאמור", "וזאת בנוסף ל...", "לא יאוחר מ-", "כתנאי ל-". Amounts are written as "סך של 12,004 ש"ח" and tied to what they are ("בגובה המקדמה").
+- Example. Request: "אם האירוע נדחה צריך לשלם את המקדמה שוב". Weak (do NOT write like this): "במקרה של דחיית האירוע למועד אחר, המזמין יידרש לשלם את עלות המקדמה שוב בסך 12,004 ש"ח." Good: "מובהר ומוסכם כי בכל מקרה של דחיית מועד האירוע לבקשת המזמין, ישלם המזמין לספק מקדמה נוספת בסך של 12,004 ש"ח (בגובה המקדמה ששולמה במעמד חתימת הסכם זה), וזאת בנוסף למקדמה שכבר שולמה. תשלום המקדמה הנוספת יבוצע לא יאוחר מ-7 ימים ממועד אישור הספק לדחייה, ויהווה תנאי לשריון המועד החדש."
+- Do not add new substantive terms the user did not ask for (penalties, non-refundability, interest). Filling in mechanics (who, when, how) is fine.
+- When details you invented matter (who asked for the postponement, number of days, whether the sum is credited against the balance), say so in one short sentence in "reply" so the user can correct them — but still give a full draft rather than asking, unless the request is truly unclear.
+- When the user asks for another version ("יותר משפטי", "נסח אחרת", "תשפר"), the new text MUST be substantively different from the previous one — different structure and fuller legal wording. Returning the same or nearly the same sentence is a failure.
+- When the user dictates exact words ("תכתוב במקום זה ..."), use the user's words as they are and only complete them into a proper sentence.
+- If the clause the user is talking about was already added to the contract, a new version is a "replace" of that clause, not a second "add".
+
 Language: write clause text in the DOCUMENT LANGUAGE (formal contract register, consistent with the existing wording and terms — in Hebrew: "המזמין", "הספק"; in English: "the Orderer", "the Vendor"). Always write "reply" in Hebrew, short and plain. You draft wording; you are not a lawyer and you do not give legal advice.
 
 Answer with ONE JSON object and nothing else:
@@ -271,7 +281,17 @@ function overrideNote(ops, texts = {}) {
 }
 
 // messages: [{ role: 'user'|'assistant', content }], pending: ops[] | null
-async function runContractAssistant({ contract, messages, pending }) {
+const norm = (t) => String(t || '').replace(/[\s"'״׳.,:;\-–—()]/g, '');
+// Word-level similarity (0..1) — catches "another version" that is the same sentence again.
+function similar(a, b) {
+  const A = new Set(String(a).split(/\s+/).filter(Boolean)), B = new Set(String(b).split(/\s+/).filter(Boolean));
+  if (!A.size || !B.size) return 0;
+  let common = 0; A.forEach(w => { if (B.has(w)) common++; });
+  return common / Math.max(A.size, B.size);
+}
+
+// recentTexts: clause texts the assistant already offered in this conversation (client keeps the last few)
+async function runContractAssistant({ contract, messages, pending, recentTexts }) {
   const history = (Array.isArray(messages) ? messages : [])
     .filter(m => m && (m.role === 'user' || m.role === 'assistant') && isStr(m.content) && m.content.trim())
     .slice(-14)
@@ -280,14 +300,25 @@ async function runContractAssistant({ contract, messages, pending }) {
 
   const context = `CONTRACT OUTLINE (current state):\n${buildOutline(contract)}\n\nPENDING PROPOSAL: ${pending && pending.length ? JSON.stringify(pending.map(({ before, rowId, ...o }) => o)) : 'none'}`;
 
-  const res = await openai('contract-assistant').chat.completions.create({
-    model: MODEL,
-    temperature: 0.2,
-    response_format: { type: 'json_object' },
-    messages: [{ role: 'system', content: SYSTEM }, { role: 'system', content: context }, ...history],
-  });
-  let out = {};
-  try { out = JSON.parse(res.choices?.[0]?.message?.content || '{}'); } catch { out = {}; }
+  const ask = async (extra, temperature) => {
+    const res = await openai('contract-assistant').chat.completions.create({
+      model: MODEL,
+      temperature,
+      response_format: { type: 'json_object' },
+      messages: [{ role: 'system', content: SYSTEM }, { role: 'system', content: context }, ...history, ...(extra ? [{ role: 'system', content: extra }] : [])],
+    });
+    try { return JSON.parse(res.choices?.[0]?.message?.content || '{}'); } catch { return {}; }
+  };
+  let out = await ask(null, 0.4);
+
+  // The user asked for a change and got (almost) the same wording as before → one retry that says so.
+  const recent = (Array.isArray(recentTexts) ? recentTexts : []).filter(isStr).slice(-6);
+  const newTexts = (o) => (o.proposal && Array.isArray(o.proposal.ops) ? o.proposal.ops : []).map(x => x && x.text).filter(isStr);
+  const repeats = (o) => newTexts(o).some(t => recent.some(r => norm(r) === norm(t) || similar(r, t) > 0.8));
+  if (recent.length && out.apply_pending !== true && repeats(out)) {
+    const again = await ask('Your draft is the same (or nearly the same) as a version you already offered: ' + JSON.stringify(recent[recent.length - 1]) + '. The user asked for a change. Write a substantively different version now — fuller, formal legal wording as described under "Drafting quality" — unless the user dictated exact words, in which case use exactly those.', 0.7);
+    if (newTexts(again).length) out = again;
+  }
 
   let reply = isStr(out.reply) ? out.reply.trim() : '';
   const applyPending = out.apply_pending === true && !!(pending && pending.length);

@@ -278,10 +278,10 @@ contractLeadRouter.get('/latest', async (req, res) => {
 // the client applies an approved proposal to its own state.
 contractLeadRouter.post('/assistant', async (req, res) => {
   try {
-    const { contract, messages, pending } = req.body || {};
+    const { contract, messages, pending, recentTexts } = req.body || {};
     if (!contract || typeof contract !== 'object' || !contract.texts) return res.status(400).json({ error: 'contract required' });
     const { runContractAssistant } = require('../services/contractAssistant');
-    res.json(await runContractAssistant({ contract, messages, pending: Array.isArray(pending) ? pending : null }));
+    res.json(await runContractAssistant({ contract, messages, pending: Array.isArray(pending) ? pending : null, recentTexts }));
   } catch (err) {
     console.error('[Contracts] assistant error:', err.response?.data || err.message);
     res.status(500).json({ error: 'העוזר לא זמין כרגע, נסה שוב' });

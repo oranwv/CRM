@@ -1803,6 +1803,21 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 90b — Contract assistant: collapsible thread, better drafting ✅ Built 2026-11-17 (1.20.1)
+Oran's first live use (17.11): (1) after an add the chat covered the contract — he wants to
+collapse it to read; (2) the drafting was weak ("במקרה של דחיית האירוע… המזמין יידרש לשלם את
+עלות המקדמה שוב") and asking for "more legal" returned the same sentence.
+- UI: the thread collapses to one status line after an apply / undo; a "צמצם כדי לקרוא את
+  החוזה" bar on top of the thread and a "הצג שיחה" bar when collapsed (turns solid when a
+  proposal is waiting). Thread height 32vh.
+- Prompt: a "Drafting quality" section (trigger, who owes whom, amount and what it is, timing,
+  closing clarification; contract register and formulas; a weak-vs-good example; no new
+  substantive terms the user did not ask for; a redraft must differ; dictated words are used as
+  given; a new version of an already-added clause is a replace). Temperature 0.2 → 0.4.
+- Anti-repeat: the client sends the last clause texts it was offered (`recentTexts`); if the new
+  draft is identical or >80% the same words, the server asks once more at 0.7 saying so.
+- `CONTRACT_ASSISTANT_MODEL` env var overrides the model (default gpt-4o) without a deploy.
+
 ### Phase 90 — Contract assistant: draft / add / reword clauses by chat ✅ Built 2026-11-17 (1.20.0)
 Oran (17.11): wants to tell an AI "draft a clause that says X and add it under payment terms"
 or "reword clause Y" inside the contract. His requirements: it must work at every stage and
