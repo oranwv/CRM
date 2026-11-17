@@ -157,7 +157,7 @@ function customerReminderDue(start, now = new Date()) {
 // ---- Customer status (button / link / text) ---------------------------------------------
 async function setCustomerStatus(meetingId, status, source = 'button') {
   const { rows } = await pool.query(
-    `SELECT m.*, l.name, l.phone, l.event_type, u.phone AS host_phone, u.id AS host_id
+    `SELECT m.*, l.name, l.phone, l.event_type, CASE WHEN COALESCE(u.blocked, false) THEN NULL ELSE u.phone END AS host_phone, u.id AS host_id
      FROM meetings m JOIN leads l ON l.id = m.lead_id LEFT JOIN users u ON u.id = m.host_user_id
      WHERE m.id = $1`, [meetingId]);
   const m = rows[0];

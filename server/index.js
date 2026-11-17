@@ -898,6 +898,28 @@ migrate(`
   ALTER TABLE op_faults ADD COLUMN IF NOT EXISTS extra_assignees INT[] NOT NULL DEFAULT '{}';
 `).catch(err => console.error('[DB] extra_assignees migration error:', err.message));
 
+// Phase 92 (2026-11-18): handing a blocked user's leads / tasks to someone else, restorable.
+migrate(`
+  CREATE TABLE IF NOT EXISTS user_transfers (
+    id SERIAL PRIMARY KEY,
+    from_user INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    to_user   INT REFERENCES users(id) ON DELETE SET NULL,
+    created_by INT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    counts JSONB,
+    restored_at TIMESTAMPTZ,
+    restored_by INT REFERENCES users(id) ON DELETE SET NULL,
+    restored_counts JSONB
+  );
+  CREATE TABLE IF NOT EXISTS user_transfer_items (
+    transfer_id INT NOT NULL REFERENCES user_transfers(id) ON DELETE CASCADE,
+    entity TEXT NOT NULL,
+    op TEXT NOT NULL,
+    entity_id INT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS user_transfer_items_tid ON user_transfer_items(transfer_id);
+`).catch(err => console.error('[DB] user_transfers migration error:', err.message));
+
 // One-time cleanup (2026-08-06): nightly scans that ran with the old
 // Drive-readonly token errored at folder creation and wrongly stamped invoice
 // emails as is_invoice=false with no file records — permanently skipping them.

@@ -291,7 +291,7 @@ router.post('/webhook', async (req, res) => {
     pool.query(
       `SELECT DISTINCT ON (u.id) u.phone, l.name
          FROM leads l
-         JOIN users u ON u.phone IS NOT NULL
+         JOIN users u ON u.phone IS NOT NULL AND NOT COALESCE(u.blocked, false)
           AND (u.id = l.assigned_to
                OR u.id IN (SELECT m.sent_by FROM messages m
                             WHERE m.lead_id = l.id AND m.channel = 'whatsapp'

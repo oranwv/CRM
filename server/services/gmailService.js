@@ -250,7 +250,7 @@ async function upsertLead(parsed, emailId, emailTs) {
     const _src = parsed.source;
     const _preview = (parsed.notes || '').slice(0, 200);
     pool.query(
-      `SELECT u.phone, l.name FROM leads l JOIN users u ON u.id = l.assigned_to WHERE l.id = $1 AND u.phone IS NOT NULL`,
+      `SELECT u.phone, l.name FROM leads l JOIN users u ON u.id = l.assigned_to WHERE l.id = $1 AND u.phone IS NOT NULL AND NOT COALESCE(u.blocked, false)`,
       [_eid]
     ).then(async ({ rows }) => {
       if (!rows[0]) return;
