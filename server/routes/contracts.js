@@ -272,6 +272,22 @@ contractLeadRouter.get('/latest', async (req, res) => {
   }
 });
 
+// POST /api/leads/:id/contracts/assistant — chat in the contract preview (Phase 90).
+// { contract: {fields, rows, texts, calculated, offerType, language}, messages: [{role, content}], pending: ops[]|null }
+// → { reply, proposal: {ops, items, notes} | null, apply_pending }. Nothing is saved here:
+// the client applies an approved proposal to its own state.
+contractLeadRouter.post('/assistant', async (req, res) => {
+  try {
+    const { contract, messages, pending } = req.body || {};
+    if (!contract || typeof contract !== 'object' || !contract.texts) return res.status(400).json({ error: 'contract required' });
+    const { runContractAssistant } = require('../services/contractAssistant');
+    res.json(await runContractAssistant({ contract, messages, pending: Array.isArray(pending) ? pending : null }));
+  } catch (err) {
+    console.error('[Contracts] assistant error:', err.response?.data || err.message);
+    res.status(500).json({ error: 'העוזר לא זמין כרגע, נסה שוב' });
+  }
+});
+
 contractLeadRouter.post('/', async (req, res) => {
   try {
     const { contract_data, sent_via, whatsapp_phone } = req.body;

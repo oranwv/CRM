@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import api from '../api';
 
 const FEATURE_LABELS = {
-  'assistant-chat': 'עוזר AI (צ׳אט)', 'deal-advisor': 'יועץ עסקאות / בריפינג', 'call-analysis': 'סיכום שיחות טלפון',
+  'assistant-chat': 'עוזר AI (צ׳אט)', 'deal-advisor': 'יועץ עסקאות / בריפינג', 'contract-assistant': 'עוזר בחוזה', 'call-analysis': 'סיכום שיחות טלפון',
   'voice-note': 'תמלול הודעות קוליות', 'whatsapp-bot': 'בוט וואטסאפ', 'lead-summary': 'סיכומי ליד (תזכורות)',
   'event-cost': 'חישוב עלות אירוע', 'invoice-classifier': 'סיווג חשבוניות', 'ai-tools': 'כלי AI (שיפור/תרגום)',
 };

@@ -6,6 +6,11 @@ updated: 2026-11-17
 
 # Now
 
+## 2026-11-17 — Phase 90 (1.20.0): contract assistant
+
+- Chat under the contract preview: proposes targeted ops (add / replace / delete / set_field / set_row), server-validated, applied client-side only after approval; "חזור לפני השינוי" stack always available. gpt-4o via `openai('contract-assistant')`.
+- Contract only; price offer is the next step if Oran is happy. Voice input and inserting a line in the middle of the fixed payment paragraphs are not built.
+- Verified with a stubbed model + UI run at 400px; the prompt has not met the real model yet — watch Oran's first uses.
 ## 2026-11-17 — Phase 89 (1.19.0): guest range + extra-phone row
 
 - `leads.guest_count_max` (new column, boot migration); `guest_count` = lower number, used by all calculations. `fmtGuests()` for display. Extra-phone add row: narrow name, wide phone, button underneath. Oran to confirm a real save of "100-120" after deploy.

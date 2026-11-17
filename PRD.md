@@ -1803,6 +1803,36 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 90 — Contract assistant: draft / add / reword clauses by chat ✅ Built 2026-11-17 (1.20.0)
+Oran (17.11): wants to tell an AI "draft a clause that says X and add it under payment terms"
+or "reword clause Y" inside the contract. His requirements: it must work at every stage and
+especially in what the customer receives; all manual editing stays; the assistant must not
+touch anything he did not ask about; a conversation first (it writes the wording, says where
+it will go and asks before doing); a "חזור" button that is always available (not a few-second
+undo). Decisions: OpenAI as the rest of the system (gpt-4o, feature `contract-assistant` in the
+costs panel); contract only for now (price offer later); drafts in English on English contracts.
+- **How it stays safe**: the model never rewrites the contract. `services/contractAssistant.js`
+  gives it an outline where every editable piece has an id and it answers
+  `{reply, proposal: {ops}, apply_pending}`. Ops: `add` (to one of the 7 line lists, optional
+  position), `replace` / `delete` (one target), `set_field`, `set_row`. The server validates
+  every op against the contract it was sent (all-or-nothing) and builds the Hebrew description
+  (where / before / after) shown in the proposal card. Fixed single texts can be reworded but
+  not deleted (an empty value falls back to a default on the signing page); 5.1 cannot be
+  deleted or preceded (the date is attached to it).
+- **Apply** happens on the client (`utils/contractOps.js`, pure): only the named pieces change;
+  each op carries the text it expects, so if the contract was edited by hand since the proposal
+  nothing is applied and the user is told. Changing deposit % / package price / row qty or price
+  clears hand-edited amount labels so the document recalculates (the card says so).
+- **UI** (`components/ContractAssistant.jsx`, in the contract modal footer on the preview step):
+  input + collapsible thread, proposal card with אשר ובצע / לא (typing "כן" also approves),
+  "↩ חזור לפני השינוי" always visible — a stack of the state before each applied proposal, one
+  step back per press (it restores the whole contract state of that moment, so manual edits made
+  after that change go back too).
+- **Customer side**: nothing new to render — the assistant writes into the same `texts` /
+  `fields` / `rows` that the preview, `SignaturePage.jsx` and the PDF already read.
+- Tested with a stubbed model (20 checks: only the target changes, bad ops reject the proposal,
+  stale detection, ordering of delete+insert) and a phone-width UI run. Not yet run against the
+  real model — first live use is the test of the prompt.
 ### Phase 89 — Guest range ("100-120") + clearer extra-phone row ✅ Built 2026-11-17 (1.19.0)
 Oran (17.11), approved from text previews; he chose the LOWER number for calculations.
 - **Guest range.** New column `leads.guest_count_max INT` (boot migration in `server/index.js`).

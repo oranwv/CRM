@@ -12,6 +12,7 @@ import PendingDocDetail from './PendingDocDetail';
 import AddSupplierModal from './AddSupplierModal';
 import SupplierCard from './SupplierCard';
 import FileActions from './FileActions';
+import ContractAssistant from './ContractAssistant';
 import { openFileViewer, leadFileRef } from '../files/fileBox';
 import ContractTrackIcons from './ContractTrackIcons';
 import { docTypeLabel } from '../utils/docTypes';
@@ -2783,6 +2784,16 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
 
         {/* Footer */}
         {contractType !== null && !isImportStep && <div className="border-t border-slate-100 p-4 shrink-0">
+          {/* Phase 89: contract assistant — proposes a change in chat, applies it only after approval */}
+          <ContractAssistant
+            leadId={lead.id}
+            visible={isPreviewStep && !sent && !contractSendStep && !translating}
+            getContract={() => ({
+              fields, rows, texts: contractTexts, offerType: contractType, language,
+              calculated: { subtotal, vat, total, depositAmount, depositAmountVat, remainingBalance, cancellationDate },
+            })}
+            onApply={next => { setFields(next.fields); setRows(next.rows); setContractTexts(next.texts); }}
+          />
           {sent ? (
             <button onClick={() => { onSaved(); onClose(); }}
               className="w-full py-2.5 rounded-xl font-black text-sm text-white"
