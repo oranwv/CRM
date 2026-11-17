@@ -87,7 +87,9 @@ async function loadLeads(user) {
            EXISTS (SELECT 1 FROM lead_interactions i WHERE i.lead_id = l.id AND i.type = 'meeting') AS has_meeting_note,
            (SELECT MAX(created_at) FROM contracts c2 WHERE c2.lead_id = l.id AND c2.status <> 'signed') AS contract_sent_at,
            EXISTS (SELECT 1 FROM contracts c WHERE c.lead_id = l.id AND c.status = 'signed') AS has_signed_contract,
-           (SELECT MAX(v.viewed_at) FROM contract_views v JOIN contracts c ON c.id = v.contract_id WHERE c.lead_id = l.id AND c.status <> 'signed') AS contract_viewed_at,
+           -- views of the latest contract sent only: a newer, still unopened contract must not inherit the old one's "opened and did not sign"
+           (SELECT MAX(v.viewed_at) FROM contract_views v JOIN contracts c ON c.id = v.contract_id
+             WHERE c.status <> 'signed' AND c.id = (SELECT cc.id FROM contracts cc WHERE cc.lead_id = l.id ORDER BY (cc.sent_via IS NOT NULL) DESC, cc.created_at DESC, cc.id DESC LIMIT 1)) AS contract_viewed_at,
            (SELECT MAX(created_at) FROM price_offers p2 WHERE p2.lead_id = l.id) AS offer_sent_at,
            (SELECT c3.contract_data FROM contracts c3 WHERE c3.lead_id = l.id ORDER BY (c3.status='signed') DESC, c3.created_at DESC LIMIT 1) AS contract_data,
            (SELECT p3.rows   FROM price_offers p3 WHERE p3.lead_id = l.id ORDER BY p3.created_at DESC LIMIT 1) AS offer_rows,

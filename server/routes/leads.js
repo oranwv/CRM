@@ -175,10 +175,15 @@ router.get('/', async (req, res) => {
     FROM leads l
     LEFT JOIN users u ON u.id = l.assigned_to${extraJoins}
     LEFT JOIN LATERAL (
-      -- contract tracking for the "חוזה נשלח" badge: customer opened the signing page / signed
-      SELECT (SELECT COUNT(*)::int FROM contract_views v JOIN contracts cc ON cc.id = v.contract_id WHERE cc.lead_id = l.id) AS contract_views,
-             (SELECT MAX(v.viewed_at) FROM contract_views v JOIN contracts cc ON cc.id = v.contract_id WHERE cc.lead_id = l.id) AS contract_last_viewed_at,
-             (SELECT MAX(cc.signed_at) FROM contracts cc WHERE cc.lead_id = l.id AND cc.status = 'signed') AS contract_signed_at
+      -- contract tracking for the "חוזה נשלח" badge: customer opened the signing page / signed.
+      -- Follows the LATEST contract sent to the lead only (Phase 95): once a new contract goes out,
+      -- the eye / signature of the previous one no longer show. A contract that was only downloaded
+      -- (sent_via IS NULL) never replaces a sent one.
+      SELECT (SELECT COUNT(*)::int FROM contract_views v WHERE v.contract_id = lc.id) AS contract_views,
+             (SELECT MAX(v.viewed_at) FROM contract_views v WHERE v.contract_id = lc.id) AS contract_last_viewed_at,
+             CASE WHEN lc.status = 'signed' THEN lc.signed_at END AS contract_signed_at
+      FROM (SELECT cc.id, cc.status, cc.signed_at FROM contracts cc WHERE cc.lead_id = l.id
+            ORDER BY (cc.sent_via IS NOT NULL) DESC, cc.created_at DESC, cc.id DESC LIMIT 1) lc
     ) ctrk ON TRUE
   `;
 
@@ -224,10 +229,12 @@ router.get('/:id', async (req, res) => {
          ORDER BY signed_at DESC LIMIT 1
        ) sc ON true
        LEFT JOIN LATERAL (
-         -- contract tracking for the "חוזה נשלח" badge: customer opened the signing page / signed
-         SELECT (SELECT COUNT(*)::int FROM contract_views v JOIN contracts cc ON cc.id = v.contract_id WHERE cc.lead_id = l.id) AS contract_views,
-                (SELECT MAX(v.viewed_at) FROM contract_views v JOIN contracts cc ON cc.id = v.contract_id WHERE cc.lead_id = l.id) AS contract_last_viewed_at,
-                (SELECT MAX(cc.signed_at) FROM contracts cc WHERE cc.lead_id = l.id AND cc.status = 'signed') AS contract_signed_at
+         -- contract tracking for the "חוזה נשלח" badge — latest sent contract only (see the list query)
+         SELECT (SELECT COUNT(*)::int FROM contract_views v WHERE v.contract_id = lc.id) AS contract_views,
+                (SELECT MAX(v.viewed_at) FROM contract_views v WHERE v.contract_id = lc.id) AS contract_last_viewed_at,
+                CASE WHEN lc.status = 'signed' THEN lc.signed_at END AS contract_signed_at
+         FROM (SELECT cc.id, cc.status, cc.signed_at FROM contracts cc WHERE cc.lead_id = l.id
+               ORDER BY (cc.sent_via IS NOT NULL) DESC, cc.created_at DESC, cc.id DESC LIMIT 1) lc
        ) ctrk ON TRUE
        WHERE l.id = $1`,
       [req.params.id]

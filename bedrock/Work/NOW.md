@@ -1,10 +1,14 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-11-17
+updated: 2026-11-18
 ---
 
 # Now
+
+## 2026-11-18 — Phase 95 (1.22.1): contract tracking follows the latest sent contract
+
+- `ctrk` lateral, worklist and advisor read only the newest SENT contract. `files.contract_id` + files API fields are in place; the eye in the lead's files list is NOT built yet — preview sent to Oran, waiting for his OK (viewed = indigo eye + count, not yet viewed = grey eye).
 
 ## 2026-11-17 — Phase 94 (1.22.0): outbound call progress + busy tone (NOT device-tested)
 

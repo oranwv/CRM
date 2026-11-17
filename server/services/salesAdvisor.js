@@ -20,7 +20,7 @@ async function buildLeadContext(leadId) {
                 ORDER BY (status='signed') DESC, created_at DESC LIMIT 1`, [leadId]),
     pool.query('SELECT title, start_time, confirmed_at FROM meetings WHERE lead_id = $1 ORDER BY start_time DESC LIMIT 5', [leadId]),
     pool.query('SELECT title, due_at, completed_at FROM tasks WHERE lead_id = $1 AND completed_at IS NULL ORDER BY due_at ASC NULLS LAST LIMIT 5', [leadId]),
-    pool.query(`SELECT v.viewed_at FROM contract_views v JOIN contracts c ON c.id = v.contract_id WHERE c.lead_id = $1 ORDER BY v.viewed_at DESC`, [leadId]).catch(() => ({ rows: [] })),
+    pool.query(`SELECT v.viewed_at FROM contract_views v WHERE v.contract_id = (SELECT cc.id FROM contracts cc WHERE cc.lead_id = $1 ORDER BY (cc.sent_via IS NOT NULL) DESC, cc.created_at DESC, cc.id DESC LIMIT 1) ORDER BY v.viewed_at DESC`, [leadId]).catch(() => ({ rows: [] })),
     pool.query('SELECT u.display_name FROM leads l JOIN users u ON u.id = l.assigned_to WHERE l.id = $1', [leadId]),
   ]);
   if (!lead) return null;

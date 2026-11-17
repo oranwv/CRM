@@ -1803,6 +1803,26 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 95 — Contract eye/signature follow the latest contract sent ✅ Built 2026-11-18 (1.22.1); eye in the files list ⏳ awaiting Oran's OK on the preview
+Oran (17.11): after sending a NEW contract the eye beside "נשלח חוזה" stayed on from the previous
+contract. He also wants an eye beside the sent contract in the lead's files (no signature mark
+there — the signed PDF itself appears in the files).
+- **Tracking = latest sent contract only.** The `ctrk` lateral in both lead queries
+  (`routes/leads.js`, list + single lead) used to count views and take `signed_at` across ALL of the
+  lead's contracts. It now reads one contract: `ORDER BY (sent_via IS NOT NULL) DESC, created_at
+  DESC, id DESC LIMIT 1` — the newest contract that was actually sent; a download-only contract
+  (`sent_via IS NULL`) never replaces a sent one. Views / last view / signed come from that row
+  only. Same rule in AI מכירות (`dayPlanService` `contract_viewed_at`) and in יועץ עסקה
+  (`salesAdvisor` view count). `ContractTrackIcons` is unchanged.
+- **Groundwork for the files eye (no UI yet).** `files.contract_id` (own `migrate()` call, with a
+  backfill that links each unsigned contract PDF to the lead's contract created ≤15 min before it;
+  signed PDFs "חוזה חתום…" and unrelated uploads stay unlinked). The unsigned PDF saved on send now
+  stores its contract id. `GET /leads/:id/files` returns `contract_sent`, `contract_views`,
+  `contract_last_viewed_at` per file.
+Verified on a local Postgres 16 with scenario data (new unviewed contract after a viewed one → 0
+views; signed then new contract → signature gone, new views counted; download-only after sent →
+sent one still tracked; migration runs twice cleanly; files list query). Not run against production.
+
 ### Phase 94 — Outbound call progress: real far-side status + busy tone ✅ Built 2026-11-17 (1.22.0) — not device-tested
 
 Owner request (17/11): the rep could not tell whether a call was dialing, ringing or busy; the app

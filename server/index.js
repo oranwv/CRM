@@ -410,6 +410,20 @@ migrate(`
   );
 `).catch(err => console.error('[DB] calls migration error:', err.message));
 
+// Own migrate() call: a multi-statement block is all-or-nothing, and this one must not be able to hold back the block above.
+migrate(`
+  -- Phase 95: the unsigned contract PDF saved in a lead's files points at its contract, so the
+  -- files list can show whether the customer opened that contract's signing page.
+  ALTER TABLE files ADD COLUMN IF NOT EXISTS contract_id INT REFERENCES contracts(id) ON DELETE SET NULL;
+  -- Backfill PDFs saved before the column existed: the unsigned PDF is written seconds after its
+  -- contract row, so link each one to the lead's contract created at most 15 minutes before it.
+  UPDATE files f SET contract_id = (
+    SELECT c.id FROM contracts c
+     WHERE c.lead_id = f.lead_id AND c.created_at <= f.created_at AND c.created_at > f.created_at - INTERVAL '15 minutes'
+     ORDER BY c.created_at DESC LIMIT 1)
+   WHERE f.file_type = 'contract' AND f.contract_id IS NULL AND f.filename NOT LIKE 'חוזה חתום%';
+`).catch(err => console.error('[DB] files.contract_id migration error:', err.message));
+
 migrate(`
   CREATE TABLE IF NOT EXISTS google_calendar_cache (
     google_event_id TEXT PRIMARY KEY,

@@ -12,8 +12,13 @@ const upload = multer({ dest: os.tmpdir(), limits: { fileSize: 20 * 1024 * 1024 
 router.get('/', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT f.*, u.display_name AS uploaded_by_name
+      `SELECT f.*, u.display_name AS uploaded_by_name,
+              -- a contract PDF that was sent for signing: has the customer opened the signing page? (Phase 95)
+              (c.sent_via IS NOT NULL) AS contract_sent,
+              (SELECT COUNT(*)::int FROM contract_views v WHERE v.contract_id = f.contract_id) AS contract_views,
+              (SELECT MAX(v.viewed_at) FROM contract_views v WHERE v.contract_id = f.contract_id) AS contract_last_viewed_at
        FROM files f LEFT JOIN users u ON u.id = f.uploaded_by
+       LEFT JOIN contracts c ON c.id = f.contract_id
        WHERE f.lead_id = $1 ORDER BY f.created_at DESC`,
       [req.params.leadId]
     );

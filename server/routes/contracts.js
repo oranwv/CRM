@@ -336,8 +336,8 @@ contractLeadRouter.post('/', async (req, res) => {
         const filename = `חוזה ${lr[0].name}.pdf`;
         const { url, storedName } = await uploadBuffer(pdfBuffer, filename, 'application/pdf');
         await pool.query(
-          'INSERT INTO files (lead_id, filename, url, stored_name, file_type, uploaded_by) VALUES ($1,$2,$3,$4,$5,$6)',
-          [leadId, filename, url, storedName, 'contract', userId]
+          'INSERT INTO files (lead_id, filename, url, stored_name, file_type, uploaded_by, contract_id) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+          [leadId, filename, url, storedName, 'contract', userId, rows[0].id]
         );
         console.log('[Contracts] unsigned PDF saved for lead', leadId);
         return { pdfBuffer, filename };
