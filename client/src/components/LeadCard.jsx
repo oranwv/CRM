@@ -18,6 +18,7 @@ import { docTypeLabel } from '../utils/docTypes';
 import { israelToISO, israelLocalToISO, isoToIsraelLocal } from '../utils/israelTime';
 import { useCalls } from '../context/CallContext';
 import { registerLeadCard, setLeadCardName } from '../utils/leadCardNav';
+import { fmtGuests } from '../utils/guests';
 
 const STAGES = [
   { key: 'new',               label: 'חדש',                 active: 'bg-sky-500 text-white border-sky-500',          past: 'bg-sky-100 text-sky-600 border-sky-200',            future: 'bg-white text-slate-400 border-slate-200 hover:border-sky-300 hover:text-sky-500' },
@@ -264,7 +265,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
       setLead(leadRes.data);
       const _d = leadRes.data;
       const _displayDate = _d.event_date_text || (_d.event_date ? _d.event_date.split('T')[0].split('-').reverse().join('/') : '');
-      setEditForm({ ..._d, event_date_text: _displayDate });
+      setEditForm({ ..._d, event_date_text: _displayDate, guest_count: fmtGuests(_d) }); // a range is edited as "100-120"
       setCalStatus(calRes.data);
       setInteractions(intRes.data);
       setMessages(msgRes.data);
@@ -747,7 +748,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
                     <InfoRow label="אימייל">{lead.email || '—'}</InfoRow>
                     <InfoRow label="תאריך אירוע">{lead.event_date_text || formatDate(lead.event_date)}{lead.event_time ? ` · ${lead.event_time}${lead.event_end_time ? `–${lead.event_end_time}` : ''}` : ''}</InfoRow>
                     <InfoRow label="סוג אירוע">{lead.event_type || '—'}</InfoRow>
-                    <InfoRow label="מוזמנים">{lead.guest_count || '—'}</InfoRow>
+                    <InfoRow label="מוזמנים"><span dir="ltr">{fmtGuests(lead) || '—'}</span></InfoRow>
                     <InfoRow label="תקציב">{lead.budget || '—'}</InfoRow>
                     <InfoRow label="אחראי">{lead.assigned_name || '—'}</InfoRow>
                     <InfoRow label="עדיפות">{lead.priority === 'hot' ? '🔥 חם' : lead.priority === 'urgent' ? '⚡ דחוף' : lead.priority === 'cold' ? '❄️ קר' : 'רגיל'}</InfoRow>
@@ -5090,13 +5091,15 @@ function ExtraPhonesEdit({ leadId, contacts, onChanged, cls }) {
             <button type="button" onClick={() => remove(c.id)} className="text-slate-300 hover:text-red-400 text-sm px-1 shrink-0">🗑️</button>
           </div>
         ))}
+        {/* Narrow name, wide phone, and the button on its own row: with all three on one line the
+            phone box shrank to a dot on a phone screen (`cls` carries w-full, so widths are set here). */}
         <div className="flex gap-2">
-          <input value={label} onChange={e => setLabel(e.target.value)} className={cls + ' w-1/3'} placeholder="שם (אופציונלי)" />
+          <input value={label} onChange={e => setLabel(e.target.value)} className={cls} style={{ width: '32%' }} placeholder="שם" />
           <input value={value} onChange={e => setValue(e.target.value)} onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), add())}
-            className={cls + ' flex-1'} placeholder="מספר נוסף…" dir="ltr" />
-          <button type="button" onClick={add} disabled={saving || !value.trim()}
-            className="bg-violet-600 text-white text-sm font-bold px-3 rounded-xl disabled:opacity-50 shrink-0">{saving ? '…' : '+ הוסף'}</button>
+            type="tel" className={cls + ' text-right'} style={{ width: 'auto', flex: '1 1 0%', minWidth: 0 }} placeholder="מספר טלפון נוסף" dir="ltr" />
         </div>
+        <button type="button" onClick={add} disabled={saving || !value.trim()}
+          className="w-full bg-violet-600 text-white text-sm font-bold py-2 rounded-xl disabled:opacity-50">{saving ? '…' : '+ הוסף טלפון'}</button>
       </div>
     </div>
   );
@@ -5145,7 +5148,7 @@ function EditForm({ form, setForm, users, onSave, onCancel, leadId, contacts = [
               className={`${cls} mt-1`}
               placeholder="פרט סוג אירוע..." />
           )}</div>
-        <div><label className="text-sm text-slate-500">מוזמנים</label><input type="text" value={form.guest_count || ''} onChange={e => set('guest_count', e.target.value)} className={cls} /></div>
+        <div><label className="text-sm text-slate-500">מוזמנים</label><input type="text" inputMode="numeric" dir="ltr" value={form.guest_count || ''} onChange={e => set('guest_count', e.target.value)} className={cls + ' text-right'} placeholder="100 או 100-120" /></div>
         <div><label className="text-sm text-slate-500">תקציב</label><input type="text" value={form.budget || ''} onChange={e => set('budget', e.target.value)} className={cls} /></div>
         <div><label className="text-sm text-slate-500">עדיפות</label>
           <select value={form.priority || 'normal'} onChange={e => set('priority', e.target.value)} className={cls}>

@@ -1,10 +1,14 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-11-14
+updated: 2026-11-17
 ---
 
 # Now
+
+## 2026-11-17 — Phase 89 (1.19.0): guest range + extra-phone row
+
+- `leads.guest_count_max` (new column, boot migration); `guest_count` = lower number, used by all calculations. `fmtGuests()` for display. Extra-phone add row: narrow name, wide phone, button underneath. Oran to confirm a real save of "100-120" after deploy.
 
 ## 2026-11-16 — Phase 81b (1.18.1): desktop lead tab nav + "לא סגרו" dialog height
 

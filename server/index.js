@@ -285,6 +285,8 @@ migrate(`
   ALTER TABLE leads ADD COLUMN IF NOT EXISTS full_payment_date DATE;
   ALTER TABLE leads ADD COLUMN IF NOT EXISTS full_payment_confirmed BOOLEAN DEFAULT FALSE;
   ALTER TABLE leads ADD COLUMN IF NOT EXISTS production_manager_id INT REFERENCES users(id) ON DELETE SET NULL;
+  -- Guest range ("100-120"): guest_count stays the lower number, this is the upper one (Phase 89)
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS guest_count_max INT;
 `).catch(err => console.error('[DB] production tables migration error:', err.message));
 
 migrate(`

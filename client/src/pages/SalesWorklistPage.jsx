@@ -1,3 +1,4 @@
+import { fmtGuests } from '../utils/guests';
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
@@ -80,7 +81,7 @@ function LeadRow({ it, section, onOpen }) {
             {it.also_in && <Pill cls="bg-slate-100 text-slate-500">גם ב: {SECTION_TITLE[it.also_in]}</Pill>}
           </p>
           <p className="text-xs text-slate-500 mt-0.5">
-            {it.event_type || 'אירוע'} · אירוע {fmtDate(it.event_date)}{it.guest_count ? ` · ${it.guest_count} מוזמנים` : ''}
+            {it.event_type || 'אירוע'} · אירוע {fmtDate(it.event_date)}{it.guest_count ? ` · ${fmtGuests(it)} מוזמנים` : ''}
             {it.rep && <> · <b>{it.rep}</b></>} · {STAGE_LABELS[it.stage] || it.stage}
           </p>
         </button>

@@ -172,8 +172,8 @@ export default function AddLeadModal({ onClose, onSaved }) {
           {/* Guests + Budget */}
           <div className="grid grid-cols-2 gap-3">
             <Field label="מוזמנים">
-              <input type="number" min="0" value={form.guest_count} onChange={e => set('guest_count', e.target.value)}
-                className={inputCls} placeholder="כמות" />
+              <input type="text" inputMode="numeric" dir="ltr" value={form.guest_count} onChange={e => set('guest_count', e.target.value)}
+                className={inputCls + ' text-right'} placeholder="100 או 100-120" />
             </Field>
             <Field label="תקציב">
               <input type="number" min="0" value={form.budget} onChange={e => set('budget', e.target.value)}

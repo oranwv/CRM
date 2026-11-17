@@ -66,7 +66,7 @@ async function loadLeads(user) {
   if (!isAM) { params.push(user.id); scope = 'AND l.assigned_to = $2'; }
   const { rows } = await pool.query(`
     SELECT l.id AS lead_id, l.name, l.phone, l.event_date, l.event_type, l.stage, l.priority,
-           l.guest_count, l.created_at, l.assigned_to,
+           l.guest_count, l.guest_count_max, l.created_at, l.assigned_to,
            u.display_name AS rep,
            lc.ts AS last_ts, lc.kind AS last_kind, lc.direction AS last_direction, lc.body AS last_body,
            (SELECT COUNT(*) FROM (
@@ -203,7 +203,7 @@ function derive(r) {
   return {
     lead_id: r.lead_id, name: r.name, phone: r.phone, rep: r.rep || null, assigned_to: r.assigned_to,
     event_type: r.event_type, event_date: r.event_date, event_days, near_event: event_days != null && event_days >= 0 && event_days <= NEAR_EVENT_DAYS,
-    stage: r.stage, priority: r.priority, guest_count: r.guest_count, created_at: r.created_at,
+    stage: r.stage, priority: r.priority, guest_count: r.guest_count, guest_count_max: r.guest_count_max, created_at: r.created_at,
     temperature: r.temperature || null,
     contract_sent_at: r.contract_sent_at, contract_viewed_at: r.contract_viewed_at, has_signed_contract: r.has_signed_contract,
     offer_sent_at: r.offer_sent_at,

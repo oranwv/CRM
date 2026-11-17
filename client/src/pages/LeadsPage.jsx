@@ -1,3 +1,4 @@
+import { fmtGuests } from '../utils/guests';
 import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../api';
@@ -543,7 +544,7 @@ export default function LeadsPage() {
                     </td>
                     <td className="px-2 py-3 text-slate-600">{lead.event_date_text || formatDate(lead.event_date)}</td>
                     <td className="px-2 py-3 text-slate-600">{lead.event_type || '—'}</td>
-                    <td className="px-2 py-3 text-slate-600">{lead.guest_count || '—'}</td>
+                    <td className="px-2 py-3 text-slate-600" dir="ltr">{fmtGuests(lead) || '—'}</td>
                     <td className="px-2 py-3">
                       <span className={`font-semibold px-2 py-0.5 rounded-full ${SOURCE_COLORS[lead.source] || 'bg-stone-100 text-stone-600'}`}>
                         {SOURCE_LABELS[lead.source] || lead.source}

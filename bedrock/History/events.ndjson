@@ -81,3 +81,4 @@
 {"ts": "2026-11-14T16:50:00Z", "type": "deploy", "tool": "cowork", "slug": "CRM", "summary": "1.14.0 approved by Oran and merged to main: attendance module (Phase 84), rebased over 1.13.0 day-opener"}
 {"ts": "2026-11-16T12:05:00Z", "type": "feature", "tool": "cowork", "slug": "CRM", "summary": "1.18.0 (Phase 88): WhatsApp tab in sales mode — inbox page that looks like WhatsApp, unread badge on the nav, unanswered chats highlighted, sending through the existing send endpoints; mock-up approved by Oran"}
 {"ts": "2026-11-16T13:50:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.18.1: LostModal fits short desktop windows (buttons always visible); bottom nav rendered on the standalone /leads/:id tab"}
+{"ts": "2026-11-17T12:05:00Z", "type": "feature", "tool": "cowork", "slug": "CRM", "summary": "1.19.0: guest count accepts a range (guest_count = lower, new guest_count_max); extra-phone add row restyled (narrow name, wide phone, button below)"}

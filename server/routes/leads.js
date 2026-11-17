@@ -244,9 +244,9 @@ router.post('/', async (req, res) => {
   const { name, phone, email, event_name, event_date, event_date_text, event_time, event_end_time, event_type, guest_count, budget, source = 'manual', notes, assigned_to, priority = 'normal' } = req.body;
   try {
     const { rows } = await pool.query(
-      `INSERT INTO leads (name, phone, email, event_name, event_date, event_date_text, event_time, event_end_time, event_type, guest_count, budget, source, notes, assigned_to, priority, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
-      [name, phone, email, event_name || name, event_date || null, event_date_text || null, event_time || null, event_end_time || null, event_type, guest_count, budget, source, notes, assigned_to || null, priority, req.user.id]
+      `INSERT INTO leads (name, phone, email, event_name, event_date, event_date_text, event_time, event_end_time, event_type, guest_count, budget, source, notes, assigned_to, priority, created_by, guest_count_max)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
+      [name, phone, email, event_name || name, event_date || null, event_date_text || null, event_time || null, event_end_time || null, event_type, parseGuestRange(guest_count).min, budget, source, notes, assigned_to || null, priority, req.user.id, parseGuestRange(guest_count).max]
     );
     const lead = rows[0];
     // Auto-create Google Calendar event as "option" if event_date set
@@ -257,9 +257,22 @@ router.post('/', async (req, res) => {
   }
 });
 
+// "100-120" / "100 – 120" / "100" → { min, max }. guest_count keeps the lower number (costs,
+// contract prefill, brief all read it); guest_count_max is set only for a real range (Phase 89).
+function parseGuestRange(v) {
+  const nums = (String(v ?? '').match(/\d+/g) || []).slice(0, 2).map(Number).filter(n => n > 0 && n < 100000);
+  if (!nums.length) return { min: null, max: null };
+  const min = Math.min(...nums), max = Math.max(...nums);
+  return { min, max: max > min ? max : null };
+}
+
 // PATCH /api/leads/:id
 router.patch('/:id', async (req, res) => {
-  const allowed = ['name','phone','email','event_name','event_date','event_time','event_end_time','event_date_text','event_type','guest_count','budget','stage','lost_reason','lost_reason_text','priority','assigned_to','notes','deposit_amount','deposit_date','deposit_confirmed','production_notes','full_payment_amount','full_payment_date','full_payment_confirmed','production_manager_id'];
+  if ('guest_count' in req.body) {
+    const g = parseGuestRange(req.body.guest_count);
+    req.body.guest_count = g.min; req.body.guest_count_max = g.max;
+  } else delete req.body.guest_count_max;
+  const allowed = ['name','phone','email','event_name','event_date','event_time','event_end_time','event_date_text','event_type','guest_count','guest_count_max','budget','stage','lost_reason','lost_reason_text','priority','assigned_to','notes','deposit_amount','deposit_date','deposit_confirmed','production_notes','full_payment_amount','full_payment_date','full_payment_confirmed','production_manager_id'];
   const fields = Object.keys(req.body).filter(k => allowed.includes(k));
   if (!fields.length) return res.status(400).json({ error: 'No valid fields' });
   const sets = fields.map((f, i) => `${f} = $${i + 2}`).join(', ');

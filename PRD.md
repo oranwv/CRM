@@ -1803,6 +1803,26 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 89 — Guest range ("100-120") + clearer extra-phone row ✅ Built 2026-11-17 (1.19.0)
+Oran (17.11), approved from text previews; he chose the LOWER number for calculations.
+- **Guest range.** New column `leads.guest_count_max INT` (boot migration in `server/index.js`).
+  `guest_count` stays an INT holding the lower number, so everything that already reads it — cost
+  estimate (`eventCostService`), contract/price-offer prefill (`LeadCard` `guests`), event brief,
+  readiness, RSVP, the assistant — keeps working unchanged. `routes/leads.js` `parseGuestRange()`
+  turns "100-120" / "100 – 120" / "120-100" / "100" into {min, max} on POST and PATCH (a PATCH with
+  `guest_count` always rewrites `guest_count_max`; one without it never touches it).
+  Client: `utils/guests.js` `fmtGuests(lead)` → "100-120"; used in the card's מוזמנים row, the leads
+  table, AI מכירות (`dayPlanService` now selects the max) and to pre-fill the edit form. The edit
+  form and the new-lead form take free text with the hint "100 או 100-120".
+  Not range-aware (lower number only): assistant-created leads and its lead form, WhatsApp/Gmail
+  lead parsers.
+- **Extra phones in the edit form** (`ExtraPhonesEdit`): the three controls shared one row and the
+  phone box collapsed to a dot on a phone screen. Now name 32% / phone the rest (`type=tel`,
+  placeholder "מספר טלפון נוסף") and a full-width "+ הוסף טלפון" button on its own row.
+Verified: parser unit cases; headless Chromium at 360px and 1280px with stub data (range shown in
+card, edit form pre-filled "100-120", PATCH carries the typed range, box widths 95/193px on phone).
+The migration and a real save were not run against the production DB from this session.
+
 ### Phase 81b — Desktop: nav on the standalone lead tab; "לא סגרו" dialog fits short windows ✅ Built 2026-11-16 (1.18.1)
 Oran (16.11, Windows laptop, Edge/Chrome): (1) the "סיבת אי-סגירה" dialog could not be confirmed —
 nine reasons + textarea ≈ 620px, centred with no scroll, so on a short viewport (Windows display

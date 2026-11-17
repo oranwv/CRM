@@ -47,3 +47,6 @@ Info / activity / files tabs).
 - "Not ready" (badge + briefing) = brief empty, checklist incomplete, deposit unconfirmed, or no
   אחראי הפקה — computed in `services/eventReadiness.js`; keep any new criterion there so the
   badge, the briefing and the reminder stay in sync.
+
+## Guest range (from 2026-11-17, Phase 89)
+- `leads.guest_count` (INT) is the lower number and the one every calculation reads; `leads.guest_count_max` (INT, nullable) is the upper number of a range like "100-120". Parse on the server (`parseGuestRange` in `routes/leads.js`), display with `fmtGuests()` (`client/src/utils/guests.js`). Never write a string into `guest_count`.
