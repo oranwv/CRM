@@ -6,6 +6,13 @@ updated: 2026-11-17
 
 # Now
 
+## 2026-11-17 — Phase 93 (1.21.2): accountant-send counts follow the review trash + 90b merged
+
+- Accountant card reloads month counts on `finance-invoices-changed` (fired by the review card on trash / restore) and before the send confirm. Display-only bug; the server always sent what is in Drive.
+- Merged the Mac's unpushed 90b commit onto 1.21.0 as 1.21.1 (conflicts only in version / changelog / PRD / bedrock). **90b (contract assistant collapse + drafting) goes live only with this push** — it was never deployed before.
+- Still open for Oran: 35 duplicate files in Drive 09-2026 named `2026-09-17 07-2026 - …` / `2026-09-17 08-2026 - …` (the accountant email of 17.9 scanned back in) — offered to trash them in bulk, waiting for his OK.
+- Untracked `server/services/leadHistorySearch.js` (14.11) in the Mac folder belongs to another session — left untouched.
+
 ## 2026-11-18 — Phase 92 (1.21.0): blocked-user hand-over + restore (deployed)
 
 - Settings → users: "העברת לידים ומשימות" for a blocked user (`userTransfer.js`, `UserTransferModal.jsx`, tables `user_transfers` / `user_transfer_items`), restorable. requireAuth now cuts a blocked user's live session (60 s cache). Scratch-DB verified only.

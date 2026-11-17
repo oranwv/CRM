@@ -87,3 +87,4 @@
 {"ts": "2026-11-17T15:15:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.20.1: blocked users no longer receive WhatsApp notifications (lead/task reminders, inbound WhatsApp/email notices, meeting declined, finance docs)"}
 {"ts": "2026-11-17T23:10:00Z", "type": "feature", "tool": "cowork", "slug": "CRM", "summary": "1.21.0 (branch user-transfer, pending approval): hand a blocked user's leads/tasks/meetings to another user from Settings, restorable; blocked user's live session cut at once"}
 {"ts": "2026-11-17T17:05:00Z", "type": "deploy", "tool": "cowork", "slug": "CRM", "summary": "1.21.0 approved by Oran and merged to main (blocked-user hand-over + restore, blocked sessions cut)"}
+{"ts": "2026-11-17T17:45:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.21.2 Phase 93: accountant-send month counts refresh after review trash/restore and before the send confirm; merged the Mac's stranded 90b commit as 1.21.1"}

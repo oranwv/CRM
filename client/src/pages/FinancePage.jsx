@@ -440,6 +440,24 @@ function AccountantSendSection() {
     }
   }
 
+  // The month counts come from Drive. Files trashed / restored in the review
+  // card (a separate component) change them, so reload when it says so —
+  // otherwise this card keeps showing (and confirming) the old numbers.
+  const refreshMonths = async () => {
+    try {
+      const { data } = await api.get('/finance/accountant/months');
+      setMonths(data.months);
+      setPrimaryEmail(data.primaryEmail || '');
+      return data.months;
+    } catch { return null; }
+  };
+  useEffect(() => {
+    if (!open) return undefined;
+    const onChanged = () => { refreshMonths(); };
+    window.addEventListener('finance-invoices-changed', onChanged);
+    return () => window.removeEventListener('finance-invoices-changed', onChanged);
+  }, [open]);
+
   const toggle = (key) => setSelected(s => (s.includes(key) ? s.filter(k => k !== key) : [...s, key]));
   const chosen = months.filter(m => selected.includes(m.key));
   const totalFiles = chosen.reduce((n, m) => n + m.files, 0);
@@ -461,21 +479,26 @@ function AccountantSendSection() {
   async function send() {
     if (!chosen.length) { setError('יש לבחור לפחות חודש אחד'); return; }
     if (!email.trim()) { setError('יש להזין כתובת מייל של רואה החשבון'); return; }
+    // Count from Drive as it is right now, not from when the panel was opened
+    const fresh = await refreshMonths();
+    const chosenNow = (fresh || months).filter(m => selected.includes(m.key));
+    const totalNow = chosenNow.reduce((n, m) => n + m.files, 0);
+    if (!totalNow) { setError('אין קבצים בחודשים שנבחרו'); return; }
     // Files are filed per mailbox inside each month folder. When the chosen
     // months hold more than one mailbox, ask whether to send all of them or
     // only the business mailbox.
-    const boxes = [...new Set(chosen.flatMap(m => m.mailboxes.map(b => b.email)))];
+    const boxes = [...new Set(chosenNow.flatMap(m => m.mailboxes.map(b => b.email)))];
     let mailboxes = 'all';
-    let sendFiles = totalFiles;
+    let sendFiles = totalNow;
     if (boxes.length > 1) {
       const all = confirm(`נמצאו חשבוניות מ-${boxes.length} תיבות מייל:\n${boxes.join('\n')}\n\nלשלוח מכל תיבות המייל?\n(ביטול = לשלוח רק מתיבת העסק${primaryEmail ? ` ${primaryEmail}` : ''})`);
       if (!all) {
         mailboxes = [primaryEmail || boxes[0]];
-        sendFiles = chosen.reduce((n, m) => n + m.mailboxes.filter(b => mailboxes.includes(b.email)).reduce((k, b) => k + b.files, 0), 0);
+        sendFiles = chosenNow.reduce((n, m) => n + m.mailboxes.filter(b => mailboxes.includes(b.email)).reduce((k, b) => k + b.files, 0), 0);
         if (!sendFiles) { setError('אין קבצים מתיבת העסק בחודשים שנבחרו'); return; }
       }
     }
-    if (!confirm(`לשלוח ${sendFiles} קבצים (${chosen.map(m => m.label).join(', ')}) אל ${email.trim()}?`)) return;
+    if (!confirm(`לשלוח ${sendFiles} קבצים (${chosenNow.map(m => m.label).join(', ')}) אל ${email.trim()}?`)) return;
     setSending(true); setError(null); setResult(null); setProgress({ downloaded: 0, total: sendFiles, emailsSent: 0 });
     try {
       await api.post('/finance/accountant/send', { months: selected, email: email.trim(), note, mailboxes });
@@ -655,6 +678,7 @@ function InvoiceReviewSection() {
       setIdx(i => Math.min(i, Math.max(0, next.length - 1)));
       setMonths(ms => ms.map(m => (m.key === month ? { ...m, files: Math.max(0, m.files - 1) } : m)));
       if (trash) loadTrash();
+      window.dispatchEvent(new Event('finance-invoices-changed'));
     } catch (err) { setError(err.response?.data?.error || 'המחיקה נכשלה'); }
     finally { setBusy(false); }
   }
@@ -670,6 +694,7 @@ function InvoiceReviewSection() {
     try {
       await api.post(`/finance/review/restore/${item.id}`);
       await loadTrash();
+      window.dispatchEvent(new Event('finance-invoices-changed'));
       if (item.month === month) pickMonth(month);
       setMonths(ms => ms.map(m => (m.key === item.month ? { ...m, files: m.files + 1 } : m)));
     } catch (err) { setError(err.response?.data?.error || 'השחזור נכשל'); }

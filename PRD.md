@@ -1803,6 +1803,18 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 93 — Accountant send: file counts follow the review trash ✅ Built 2026-11-17 (1.21.2)
+Oran trashed files in "סקירת חשבוניות" and the accountant card still showed ספטמבר (60) and asked
+"לשלוח 84 קבצים". The two cards are separate components; the accountant card loaded the month
+counts once, when its panel was opened. The server always listed Drive at send time, so only the
+display and the confirm text were stale.
+- The review card dispatches a window event `finance-invoices-changed` after every trash / restore;
+  the accountant card (while open) reloads `/finance/accountant/months` on it.
+- `send()` reloads the months first and builds the mailbox question and the confirm count from
+  that fresh list; an empty selection now says "אין קבצים בחודשים שנבחרו".
+- Same push merged the Mac's stranded 90b commit (see Phase 90b) — the Mac folder and `main` had
+  diverged (local ahead 1, behind 3).
+
 ### Phase 92 — Hand a blocked user's leads / tasks to someone else (restorable) + blocked audit ✅ Built 2026-11-18 (1.21.0)
 Oran: move a blocked user's tasks and leads to someone else from Settings, with a way to give them
 back if someone was blocked by mistake; and check again what else still reaches a blocked user.
