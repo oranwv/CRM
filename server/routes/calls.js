@@ -206,8 +206,43 @@ api.post('/app/state', (req, res) => {
     connectedAt: Number(b.connectedAt) || null, muted: !!b.muted, speaker: !!b.speaker,
   } : null;
   slot.at = Date.now();
-  if (!slot.state) slot.queue = [];
+  if (slot.state) slot.ended = null;
+  else {
+    slot.queue = [];
+    // The call is over. If it never reached the customer, the CRM bar shows why for a moment.
+    const p = slot.progress;
+    if (p && FAILED_PROGRESS.includes(p.status) && Date.now() - p.at < 20000) {
+      slot.ended = { status: p.status, name: slot.lastName || '', leadId: slot.lastLeadId || null, until: Date.now() + 6000 };
+    }
+    slot.progress = null;
+  }
+  if (slot.state) { slot.lastName = slot.state.name; slot.lastLeadId = slot.state.leadId; }
   res.json({ ok: true });
+});
+
+// Where an outbound call stands, as Twilio reports it for the customer's leg (Oran, 2026-11-17:
+// "it is not clear whether it is dialing"): dialing → ringing → answered, or why it failed.
+//   dialing    the call left us, the customer's phone is not ringing yet   → "מתחבר לקו…"
+//   ringing    the customer's phone is ringing                             → "מצלצל…"
+//   answered                                                               → timer
+//   busy / no-answer / failed / canceled                                   → "תפוס" / "אין מענה" / "לא זמין"
+// Pushed to the dialer app through its long-poll (as "progress:<status>") and shown in the CRM bar.
+const FAILED_PROGRESS = ['busy', 'no-answer', 'failed'];
+function pushProgress(userId, status) {
+  if (!userId || !status) return;
+  const slot = appSlot(userId);
+  if (slot.progress?.status === status) return;
+  slot.progress = { status, at: Date.now() };
+  if (FAILED_PROGRESS.includes(status)) slot.outcome = { status, at: Date.now() };
+  const cmd = `progress:${status}`;
+  if (slot.waiter) { const w = slot.waiter; slot.waiter = null; w([cmd]); } else slot.queue.push(cmd);
+}
+
+// App → server, right after an outbound call ended without connecting: why? (the app may have
+// been disconnected before the last progress message reached it)
+api.get('/app/outcome', (req, res) => {
+  const o = appCalls.get(req.user.id)?.outcome;
+  res.json({ status: o && Date.now() - o.at < 30000 ? o.status : null });
 });
 
 // App → server: wait (up to 25s) for the next commands from the CRM bar
@@ -225,7 +260,8 @@ api.get('/app/poll', (req, res) => {
 api.get('/app/state', (req, res) => {
   const slot = appCalls.get(req.user.id);
   const fresh = slot && slot.state && Date.now() - slot.at < APP_STATE_TTL;
-  res.json({ call: fresh ? slot.state : null });
+  const ended = slot?.ended && Date.now() < slot.ended.until ? { status: slot.ended.status, name: slot.ended.name, leadId: slot.ended.leadId } : null;
+  res.json({ call: fresh ? { ...slot.state, progress: slot.progress?.status || null } : null, ended: fresh ? null : ended });
 });
 
 // CRM → server → app: mute / unmute / speaker_on / speaker_off / hangup
@@ -256,7 +292,7 @@ api.post('/app/command', async (req, res) => {
 
 /* ═══════════════════════ Twilio webhooks ═══════════════════════ */
 const hooks = express.Router();
-const HOOK_PATH = /^\/(twiml(\/|$)|status$|recording$)/;
+const HOOK_PATH = /^\/(twiml(\/|$)|status$|recording$|progress$)/;
 hooks.use((req, res, next) => (HOOK_PATH.test(req.path) ? express.urlencoded({ extended: false })(req, res, next) : next()));
 hooks.use((req, res, next) => (HOOK_PATH.test(req.path) ? tw.validateWebhook(req, res, next) : next()));
 
@@ -284,15 +320,63 @@ hooks.post('/twiml/outbound', async (req, res) => {
     ...RECORDING_ATTRS(),
     ringTone: 'il',                               // Israeli ringback instead of Twilio's default US tone (Oran, 2026-10-13)
   });
-  dial.number(to);
+  // Progress of the customer's leg → /progress (dialing, ringing, answered, or how it failed)
+  dial.number({
+    statusCallback: `${tw.serverUrl()}/api/calls/progress?callId=${call.id}`, statusCallbackMethod: 'POST',
+    statusCallbackEvent: 'initiated ringing answered completed',
+  }, to);
   xml(res, vr);
+});
+
+hooks.post('/progress', async (req, res) => {
+  res.sendStatus(204);
+  try {
+    const map = { initiated: 'dialing', queued: 'dialing', ringing: 'ringing', 'in-progress': 'answered', busy: 'busy', 'no-answer': 'no-answer', failed: 'failed', canceled: 'canceled' };
+    const status = map[req.body.CallStatus];
+    if (!status) return;                                   // 'completed' = a normal end, nothing to say
+    const { rows: [call] } = await pool.query('SELECT user_id FROM calls WHERE id = $1', [req.query.callId]);
+    if (call?.user_id) pushProgress(call.user_id, status);
+  } catch (err) { console.error('[Calls] progress webhook error:', err.message); }
 });
 
 hooks.post('/twiml/outbound/done', async (req, res) => {
   const vr = new tw.VoiceResponse();
   await finishFromDial(req.query.callId, req.body);
+  const s = req.body.DialCallStatus;
+  if (s && s !== 'completed') {
+    try {
+      const { rows: [call] } = await pool.query('SELECT user_id FROM calls WHERE id = $1', [req.query.callId]);
+      if (call?.user_id) pushProgress(call.user_id, ['busy', 'no-answer', 'canceled'].includes(s) ? s : 'failed');
+    } catch {}
+  }
+  // Busy line → the caller hears a busy tone (through the call itself, so it works the same in
+  // the app and in the browser). No answer / unavailable → no tone, the call just ends.
+  if (s === 'busy') vr.play(`${tw.serverUrl()}/api/calls/tone/busy.wav`);
   vr.hangup();
   xml(res, vr);
+});
+
+// Israeli busy tone: 400 Hz, half a second on / half a second off, three times (8 kHz mono PCM)
+let BUSY_WAV = null;
+function busyWav() {
+  if (BUSY_WAV) return BUSY_WAV;
+  const sr = 8000, total = sr * 3, pcm = Buffer.alloc(total * 2);
+  for (let i = 0; i < total; i++) {
+    const inBeep = (i % sr) < sr / 2;
+    const k = i % sr, edge = Math.min(1, k / 80, (sr / 2 - k) / 80);     // soften the edges
+    const v = inBeep ? Math.round(0.35 * 32767 * Math.sin(2 * Math.PI * 400 * i / sr) * Math.max(0, edge)) : 0;
+    pcm.writeInt16LE(v, i * 2);
+  }
+  const h = Buffer.alloc(44);
+  h.write('RIFF', 0); h.writeUInt32LE(36 + pcm.length, 4); h.write('WAVE', 8); h.write('fmt ', 12);
+  h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(1, 22); h.writeUInt32LE(sr, 24);
+  h.writeUInt32LE(sr * 2, 28); h.writeUInt16LE(2, 32); h.writeUInt16LE(16, 34); h.write('data', 36); h.writeUInt32LE(pcm.length, 40);
+  BUSY_WAV = Buffer.concat([h, pcm]);
+  return BUSY_WAV;
+}
+hooks.get('/tone/busy.wav', (req, res) => {
+  res.set({ 'Content-Type': 'audio/wav', 'Cache-Control': 'public, max-age=86400' });
+  res.send(busyWav());
 });
 
 // Rep's mobile answered → now connect the lead

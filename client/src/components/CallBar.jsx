@@ -108,7 +108,7 @@ function CallBtn({ onClick, label, icon, active, activeCls = '', className = '',
 }
 
 export default function CallBar() {
-  const { enabled, incoming, active, muted, error, clearError, acceptIncoming, rejectIncoming, hangup, toggleMute, outputs, setOutput, micLost, fixMic, appCall, appCommand } = useCalls();
+  const { enabled, incoming, active, muted, error, clearError, acceptIncoming, rejectIncoming, hangup, toggleMute, outputs, setOutput, micLost, fixMic, appCall, appEnded, appCommand } = useCalls();
   const navigate = useNavigate();
   const timer = useTimer(active?.startedAt);
   const appTimer = useTimer(appCall?.connectedAt || null);
@@ -134,7 +134,15 @@ export default function CallBar() {
     return () => clearTimeout(t);
   }, [error, clearError]);
 
-  if (!enabled && !error && !appCall) return null;
+  // What an app call is doing right now, in words (Oran, 2026-11-17)
+  const APP_PROGRESS = { busy: 'תפוס', 'no-answer': 'אין מענה', failed: 'לא זמין', ringing: 'מצלצל…', dialing: 'מתחבר לקו…' };
+  const appStatusText = !appCall ? '' :
+    appCall.progress === 'busy' ? 'תפוס' :
+    appTimer ? appTimer :
+    appCall.direction === 'inbound' ? 'שיחה נכנסת' :
+    (APP_PROGRESS[appCall.progress] || 'מתחבר לקו…');
+
+  if (!enabled && !error && !appCall && !appEnded) return null;
 
   return (
     <>
@@ -216,7 +224,7 @@ export default function CallBar() {
                 className={`block w-full text-right font-black truncate ${appCall.leadId ? 'hover:underline' : ''}`}>
                 {appCall.name || 'שיחה'}
               </button>
-              <div className="text-[11px] text-slate-300 truncate">בחייגן · {appTimer || (appCall.direction === 'inbound' ? 'שיחה נכנסת' : 'מתקשר…')}</div>
+              <div className="text-[11px] text-slate-300 truncate">בחייגן · {appStatusText}</div>
             </div>
             <CallBtn onClick={() => appCommand(appCall.speaker ? 'speaker_off' : 'speaker_on')} label="רמקול" icon="🔊"
               active={appCall.speaker} activeCls="bg-sky-400 text-slate-900" title="רמקול" />
@@ -224,6 +232,19 @@ export default function CallBar() {
               active={appCall.muted} activeCls="bg-amber-400 text-slate-900" title={appCall.muted ? 'בטל השתקה' : 'השתק'} />
             <CallBtn onClick={() => { window.location.href = 'proeventdialer://open'; }} label="חייגן" icon="📱" title="פתח את אפליקציית החייגן" />
             <CallBtn onClick={() => appCommand('hangup')} label="נתק" icon="📵" className="bg-red-500 hover:bg-red-400" title="נתק" />
+          </div>
+        </div>
+      )}
+
+      {/* The app call ended without reaching the customer: say why for a few seconds */}
+      {appEnded && !appCall && !active && (
+        <div className="fixed left-1/2 -translate-x-1/2 z-[90] w-[92%] max-w-md" style={{ top: 60 }} dir="rtl">
+          <div className="rounded-2xl shadow-2xl bg-slate-900 text-white px-4 py-2.5 border border-white/10 flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="font-black truncate">{appEnded.name || 'שיחה'}</div>
+              <div className="text-[11px] text-amber-300">{APP_PROGRESS[appEnded.status] || 'השיחה לא התחברה'}</div>
+            </div>
           </div>
         </div>
       )}

@@ -1803,6 +1803,41 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 94 — Outbound call progress: real far-side status + busy tone ✅ Built 2026-11-17 (1.22.0) — not device-tested
+
+Owner request (17/11): the rep could not tell whether a call was dialing, ringing or busy; the app
+showed Twilio's "Decline (31603)". Decisions (asked, answered): text before the far phone rings =
+**"מתחבר לקו…"**; texts must be accurate, ringback tone stays as it is; busy = busy tone + "תפוס";
+no answer / unavailable = text only, no tone.
+
+- **Source of truth = Twilio's status of the dialed leg.** `/twiml/outbound` now dials with
+  `<Number statusCallback=/api/calls/progress?callId=… statusCallbackEvent="initiated ringing answered completed">`.
+  New signed webhook `POST /api/calls/progress` maps `CallStatus` → `dialing | ringing | answered |
+  busy | no-answer | failed | canceled`; `/twiml/outbound/done` pushes the final `DialCallStatus` too.
+- `pushProgress(userId, status)` stores it on the user's in-memory app-call slot and delivers it to
+  the app as a `progress:<status>` command over the existing long-poll (`/calls/app/poll`).
+  `GET /calls/app/state` returns `call.progress` and, for ~6 s after a call that ended busy /
+  no-answer / failed, `ended: { status, name, leadId }`. `GET /calls/app/outcome` (30 s validity)
+  lets the app ask why a call ended if the last progress message never reached it.
+- **Busy tone:** when the dial ends `busy`, the TwiML plays `GET /api/calls/tone/busy.wav` (generated
+  in code: 400 Hz, 0.5 s on / 0.5 s off × 3, 8 kHz mono) and hangs up — played inside the call, so
+  it is the same in the app and in the browser softphone. Other failures: plain hangup, no tone.
+  Side effect: the busy tone "answers" the client leg for ~3 s, so the app treats the call as
+  connected during the tone — the busy text overrides the timer in both UIs.
+- **CRM bar (`CallBar.jsx`, `CallContext.jsx`):** sub-line shows "מתחבר לקו… / מצלצל… / תפוס / אין מענה /
+  לא זמין"; a small non-interactive bar keeps the outcome on screen ~6 s after the call ended.
+  Polling is faster while a call is being set up (800 ms; 1.5 s connected; 4 s idle).
+- **Dialer app (repo `proevent-dialer`, commit `db47000`, OTA):** `progress:*` handled in
+  `applyCommand`; CallScreen text follows it; on disconnect the home-screen line says
+  "תפוס · <name>" etc. instead of "Decline (31603)"; an existing native call adopted at JS start is
+  recognised as outbound (no caller number / `client:` identity; last outbound call kept in
+  SecureStore) instead of "שיחה נכנסת · שיחה פרטית"; adoption is skipped while a dial is in flight;
+  the app re-registers for incoming calls after a call ends unregistered.
+- Not done / open: no change to native audio (ringback still starts when Twilio's SDK starts it,
+  which can be before the far phone really rings — text is accurate, tone is as before). Why one
+  dial stayed in the app instead of returning to the CRM (Android) was not determined.
+- Verification: `node --check`, `vite build`, `tsc --noEmit` only. No real call was placed.
+
 ### Phase 93 — Accountant send: file counts follow the review trash ✅ Built 2026-11-17 (1.21.2)
 Oran trashed files in "סקירת חשבוניות" and the accountant card still showed ספטמבר (60) and asked
 "לשלוח 84 קבצים". The two cards are separate components; the accountant card loaded the month

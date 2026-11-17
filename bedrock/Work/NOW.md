@@ -6,6 +6,12 @@ updated: 2026-11-17
 
 # Now
 
+## 2026-11-17 — Phase 94 (1.22.0): outbound call progress + busy tone (NOT device-tested)
+
+- Twilio `<Number statusCallback>` → `/api/calls/progress` → `pushProgress` → app (`progress:*` over the long-poll) and CRM bar (`call.progress`, `ended`). Texts: מתחבר לקו… / מצלצל… / תפוס / אין מענה / לא זמין. Busy = `<Play>` of generated `/api/calls/tone/busy.wav`, others silent.
+- App commit `db47000` (proevent-dialer) needs `git push` + `eas update` on both branches by Oran; users open the app twice.
+- To verify with Oran on real calls: busy tone audible; "מצלצל…" appears when the far phone rings; no "Decline (31603)"; outbound never shown as incoming; Android returns to the lead. Cause of the one dial that stayed in the app: unknown.
+
 ## 2026-11-17 — Phase 93 (1.21.2): accountant-send counts follow the review trash + 90b merged
 
 - Accountant card reloads month counts on `finance-invoices-changed` (fired by the review card on trash / restore) and before the send confirm. Display-only bug; the server always sent what is in Drive.

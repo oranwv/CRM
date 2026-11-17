@@ -41,6 +41,7 @@ export function CallProvider({ children }) {
   // sends it commands (speaker / mute / hang up) through the server.
   const viaApp = IS_PHONE && !!config.app_registered;
   const [appCall, setAppCall] = useState(null);
+  const [appEnded, setAppEnded] = useState(null);     // a call that just ended without connecting: { status, name, leadId }
   const appCallRef = useRef(null);
   useEffect(() => { appCallRef.current = appCall; }, [appCall]);
   useEffect(() => {
@@ -49,9 +50,9 @@ export function CallProvider({ children }) {
     const tick = async () => {
       if (stop) return;
       if (document.visibilityState === 'visible') {
-        try { const r = await api.get('/calls/app/state'); if (!stop) setAppCall(r.data?.call || null); } catch {}
+        try { const r = await api.get('/calls/app/state'); if (!stop) { setAppCall(r.data?.call || null); setAppEnded(r.data?.ended || null); } } catch {}
       }
-      t = setTimeout(tick, appCallRef.current ? 1500 : 4000);
+      t = setTimeout(tick, appCallRef.current ? (appCallRef.current.connectedAt ? 1500 : 800) : 4000);   // fastest while it is still dialing
     };
     tick();
     const onVisible = () => { if (document.visibilityState === 'visible') { clearTimeout(t); tick(); } };
@@ -276,7 +277,7 @@ export function CallProvider({ children }) {
     enabled: !!config.enabled, ready, config, error, clearError: () => setError(null),
     incoming, active, muted, outputs, setOutput, micLost, fixMic: () => active && reacquireMic(active.call),
     startCall, bridgeCall, acceptIncoming, rejectIncoming, hangup, toggleMute, setAbroad, reloadConfig: loadConfig,
-    viaApp, appCall, appCommand,
+    viaApp, appCall, appEnded, appCommand,
   };
   return <CallContext.Provider value={value}>{children}</CallContext.Provider>;
 }
