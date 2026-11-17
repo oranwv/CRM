@@ -1803,6 +1803,33 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 92 — Hand a blocked user's leads / tasks to someone else (restorable) + blocked audit ✅ Built 2026-11-18 (1.21.0)
+Oran: move a blocked user's tasks and leads to someone else from Settings, with a way to give them
+back if someone was blocked by mistake; and check again what else still reaches a blocked user.
+- **Settings → משתמשים**: a blocked user's row gets "🔁 העברת לידים ומשימות" (`UserTransferModal.jsx`).
+  Rows with counts and checkboxes: לידים פעילים, לידים שנסגרו (deposit/production/completed),
+  לידים שלא סגרו (off by default), ניהול הפקה של אירועים (`production_manager_id`), משימות פתוחות
+  (lead tasks, תפעול, תחזוקה, תקלות — as main or extra assignee), פגישות עתידיות (`host_user_id`).
+  Pick a non-blocked user → confirm → moved in one transaction.
+- **Restore**: every transfer is stored item by item (`user_transfers`, `user_transfer_items`). "השב ל…"
+  returns only items that still belong to the person they were moved to; anything reassigned by hand
+  since is left alone and reported ("N לא הושבו"). A user with an un-restored transfer keeps the
+  button after being unblocked ("השבת לידים ומשימות"). Known limit: when the receiver was already an
+  extra assignee on a task, restore does not re-add him as extra.
+- API (admin only): `GET/POST /api/admin/users/:id/transfer`, `POST /api/admin/transfers/:id/restore`;
+  logic in `server/services/userTransfer.js`. Source must be blocked, target must not be.
+- No timeline notes are written on the moved leads (the record lives in the transfer tables).
+- **Audit of what still reaches a blocked user** (after 1.20.1): every WhatsApp send to staff was
+  re-read — reminders, briefings, task digest, attendance notices, meeting/host notices, missed-call
+  notices, finance notices, AI-chat manager alerts — all now filter blocked users; the remaining
+  sends go to customers / suppliers. Calls and the dialer app were already cut (Phase 84-ish).
+  One real gap found and closed: **a blocked user who was already logged in kept working for up to
+  24h** (blocked was checked only at the daily token refresh). `requireAuth` now checks on every
+  request (cached 60 s per user) and answers 401; a deleted user's token is rejected the same way.
+- Verified on a scratch Postgres (19 checks: counts, guards, transfer, restore with manual changes
+  in between, double restore, auth for blocked / active / deleted user) and rendered from the real
+  AdminPage — not on production data.
+
 ### Phase 91 — Blocked users no longer get WhatsApp from the system ✅ Built 2026-11-17 (1.20.1)
 Oran: "שיר שעשיתי אותה חסומה עדיין מקבלת הודעות וואצאפ מהמערכת". Blocking stopped login, the
 briefings and the task digest, but several per-lead notifications looked only at "has a phone":

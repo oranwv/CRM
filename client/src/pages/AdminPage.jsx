@@ -1,3 +1,4 @@
+import UserTransferModal from '../components/UserTransferModal';
 import { useState, useEffect, useRef } from 'react';
 import api from '../api';
 
@@ -324,6 +325,7 @@ export default function AdminPage() {
   const [waStatus, setWaStatus] = useState(null);
   const [waChecking, setWaChecking] = useState(false);
   const [users, setUsers] = useState([]);
+  const [transferUser, setTransferUser] = useState(null); // Phase 92: blocked user's leads/tasks hand-over
   const [editingUser, setEditingUser] = useState(null); // null=closed, emptyUser=new, {id,...}=edit
   const [userSaving, setUserSaving] = useState(false);
   const [userError, setUserError] = useState('');
@@ -750,11 +752,18 @@ export default function AdminPage() {
                     </span>
                   ))}
                   <button onClick={() => { setEditingUser({ ...u, roles: u.roles?.length ? u.roles : [u.role], blocked: u.blocked || false, shabbat_mode: u.shabbat_mode || false, password: '' }); setUserError(''); }} className="text-slate-400 hover:text-violet-600 text-sm">✏️</button>
+                  {(u.blocked || u.has_open_transfer) && (
+                    <button onClick={() => setTransferUser(u)} title="העברת לידים ומשימות למשתמש אחר / השבה"
+                      className="text-xs font-bold px-2 py-0.5 rounded-full border border-violet-200 text-violet-700 bg-white hover:bg-violet-50">
+                      🔁 {u.blocked ? 'העברת לידים ומשימות' : 'השבת לידים ומשימות'}
+                    </button>
+                  )}
                   <button onClick={() => handleUserDelete(u.id)} className="text-slate-400 hover:text-red-500 text-sm">🗑</button>
                 </div>
               </div>
             ))}
             {users.length === 0 && <p className="text-xs text-slate-400 text-center py-2">אין משתמשים</p>}
+            {transferUser && <UserTransferModal user={transferUser} users={users} onClose={() => setTransferUser(null)} onChanged={loadUsers} />}
           </div>
         </div>
 

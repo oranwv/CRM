@@ -6,6 +6,11 @@ updated: 2026-11-17
 
 # Now
 
+## 2026-11-18 — Phase 92 (1.21.0): blocked-user hand-over + restore (branch `user-transfer`, waiting for Oran's OK)
+
+- Settings → users: "העברת לידים ומשימות" for a blocked user (`userTransfer.js`, `UserTransferModal.jsx`, tables `user_transfers` / `user_transfer_items`), restorable. requireAuth now cuts a blocked user's live session (60 s cache). Scratch-DB verified only.
+- Mac folder has an unpushed local commit from another session (contract assistant 90b, also numbered 1.20.1) — needs merge + renumber when it is pushed.
+
 ## 2026-11-17 — Phase 91 (1.20.1): blocked users got WhatsApp notifications (deployed)
 
 - Per-lead/task notifications (reminderService, whatsapp inbound notice, gmail notice, meeting declined, greeninvoice) now skip blocked users. Leads still assigned to a blocked user notify nobody — Oran to decide: reassign / notify managers.

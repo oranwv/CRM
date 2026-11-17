@@ -71,7 +71,9 @@ router.get('/whatsapp-status', adminOnly, async (req, res) => {
 router.get('/users', adminOnly, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT id, username, display_name, email, phone, role, roles, blocked, shabbat_mode, created_at, app_platform, app_version, app_registered_at FROM users ORDER BY display_name'
+      `SELECT id, username, display_name, email, phone, role, roles, blocked, shabbat_mode, created_at, app_platform, app_version, app_registered_at,
+              EXISTS (SELECT 1 FROM user_transfers x WHERE x.from_user = users.id AND x.restored_at IS NULL) AS has_open_transfer
+       FROM users ORDER BY display_name`
     );
     res.json(rows);
   } catch (err) {
@@ -127,6 +129,25 @@ router.put('/users/:id', adminOnly, async (req, res) => {
     if (err.code === '23505') return res.status(400).json({ error: 'שם משתמש כבר קיים' });
     res.status(500).json({ error: err.message });
   }
+});
+
+// Phase 92 — hand a blocked user's leads / tasks / meetings to someone else, and take them back
+const userTransfer = require('../services/userTransfer');
+router.get('/users/:id/transfer', adminOnly, async (req, res) => {
+  try {
+    const [counts, history] = await Promise.all([userTransfer.counts(req.params.id), userTransfer.history(req.params.id)]);
+    res.json({ counts, history });
+  } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
+});
+router.post('/users/:id/transfer', adminOnly, async (req, res) => {
+  try {
+    res.json(await userTransfer.transfer({ fromUser: req.params.id, toUser: req.body.to_user, parts: req.body.parts, actorId: req.user.id }));
+  } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
+});
+router.post('/transfers/:id/restore', adminOnly, async (req, res) => {
+  try {
+    res.json(await userTransfer.restore({ transferId: req.params.id, actorId: req.user.id }));
+  } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
 });
 
 // DELETE /api/admin/users/:id

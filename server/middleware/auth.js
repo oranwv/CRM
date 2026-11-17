@@ -21,6 +21,21 @@ function appCookie(req) {
   return secure ? `${APP_COOKIE}; Secure` : APP_COOKIE;
 }
 
+// A blocked user is cut off on his next request, not only at the daily token refresh
+// (2026-11-18). One small query per user per minute; a DB error never blocks a request.
+const blockedCache = new Map(); // user id → { at, blocked }
+async function isBlocked(userId) {
+  const hit = blockedCache.get(userId);
+  if (hit && Date.now() - hit.at < 60_000) return hit.blocked;
+  try {
+    const pool = require('../db/pool');
+    const { rows } = await pool.query('SELECT blocked FROM users WHERE id = $1', [userId]);
+    const blocked = !rows.length || !!rows[0].blocked;
+    blockedCache.set(userId, { at: Date.now(), blocked });
+    return blocked;
+  } catch { return false; }
+}
+
 async function requireAuth(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'Unauthorized' });
@@ -29,6 +44,7 @@ async function requireAuth(req, res, next) {
   } catch {
     return res.status(401).json({ error: 'Invalid token' });
   }
+  if (req.user?.id && await isBlocked(req.user.id)) return res.status(401).json({ error: 'החשבון שלך חסום, פנה למנהל המערכת' });
   // Phase 84: a clock-only user (roles = ['attendance']) may use the attendance API and nothing else.
   const roles = req.user.roles?.length ? req.user.roles : [];
   if (roles.length && roles.every(r => r === 'attendance') && !req.originalUrl.startsWith('/api/attendance')) {
