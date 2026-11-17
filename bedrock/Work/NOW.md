@@ -6,6 +6,10 @@ updated: 2026-11-17
 
 # Now
 
+## 2026-11-17 — Phase 91 (1.20.1): blocked users got WhatsApp notifications (deployed)
+
+- Per-lead/task notifications (reminderService, whatsapp inbound notice, gmail notice, meeting declined, greeninvoice) now skip blocked users. Leads still assigned to a blocked user notify nobody — Oran to decide: reassign / notify managers.
+
 ## 2026-11-17 — Phase 90 (1.20.0): contract assistant
 
 - Chat under the contract preview: proposes targeted ops (add / replace / delete / set_field / set_row), server-validated, applied client-side only after approval; "חזור לפני השינוי" stack always available. gpt-4o via `openai('contract-assistant')`.

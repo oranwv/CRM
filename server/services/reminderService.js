@@ -71,7 +71,7 @@ async function runReminders() {
         AND NOT EXISTS (
           SELECT 1 FROM lead_interactions li WHERE li.lead_id = l.id
         )
-        AND u.phone IS NOT NULL
+        AND u.phone IS NOT NULL AND NOT COALESCE(u.blocked, false)
     `);
 
     for (const lead of noContact.rows) {
@@ -97,7 +97,7 @@ async function runReminders() {
           SELECT 1 FROM lead_interactions li
           WHERE li.lead_id = l.id AND li.created_at > NOW() - INTERVAL '3 days'
         )
-        AND u.phone IS NOT NULL
+        AND u.phone IS NOT NULL AND NOT COALESCE(u.blocked, false)
         AND NOT EXISTS (
           SELECT 1 FROM lead_interactions li
           WHERE li.lead_id = l.id
@@ -124,7 +124,7 @@ async function runReminders() {
       LEFT JOIN users u ON u.id = l.assigned_to
       WHERE l.stage = 'contract_sent'
         AND l.updated_at < NOW() - INTERVAL '5 days'
-        AND u.phone IS NOT NULL
+        AND u.phone IS NOT NULL AND NOT COALESCE(u.blocked, false)
         AND NOT EXISTS (
           SELECT 1 FROM lead_interactions li
           WHERE li.lead_id = l.id
@@ -151,14 +151,14 @@ async function runReminders() {
     const dueTasks = await pool.query(`
       SELECT t.id, t.title, t.lead_id, l.name AS lead_name, l.phone AS lead_phone, l.stage AS lead_stage,
              (SELECT array_agg(u.phone) FROM users u
-               WHERE (u.id = t.assigned_to OR u.id = ANY(t.extra_assignees)) AND u.phone IS NOT NULL) AS user_phones
+               WHERE (u.id = t.assigned_to OR u.id = ANY(t.extra_assignees)) AND u.phone IS NOT NULL AND NOT COALESCE(u.blocked, false)) AS user_phones
       FROM tasks t
       JOIN leads l ON l.id = t.lead_id
       WHERE t.completed_at IS NULL
         AND t.due_at BETWEEN NOW() - INTERVAL '1 hour' AND NOW() + INTERVAL '2 minutes'
         AND t.remind_via = 'whatsapp'
         AND t.remind_sent_at IS NULL
-        AND EXISTS (SELECT 1 FROM users u WHERE (u.id = t.assigned_to OR u.id = ANY(t.extra_assignees)) AND u.phone IS NOT NULL)
+        AND EXISTS (SELECT 1 FROM users u WHERE (u.id = t.assigned_to OR u.id = ANY(t.extra_assignees)) AND u.phone IS NOT NULL AND NOT COALESCE(u.blocked, false))
     `);
 
     for (const task of dueTasks.rows) {
@@ -211,8 +211,8 @@ async function runReminders() {
              COALESCE(ua.phone, uc.phone)               AS user_phone,
              COALESCE(ua.display_name, uc.display_name) AS display_name
       FROM op_reminders r
-      LEFT JOIN users ua ON ua.id = r.assigned_to
-      LEFT JOIN users uc ON uc.id = r.created_by
+      LEFT JOIN users ua ON ua.id = r.assigned_to AND NOT COALESCE(ua.blocked, false)
+      LEFT JOIN users uc ON uc.id = r.created_by AND NOT COALESCE(uc.blocked, false)
       WHERE r.done = false
         AND r.remind_sent_at IS NULL
         AND COALESCE(ua.phone, uc.phone) IS NOT NULL

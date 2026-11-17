@@ -190,7 +190,7 @@ async function createAndSaveDoc(docPayload, leadId, userId) {
 async function notifyManagers(lead, docType, creatorName) {
   try {
     const { rows: mgrs } = await pool.query(
-      `SELECT phone FROM users WHERE role IN ('manager','admin') AND phone IS NOT NULL`
+      `SELECT phone FROM users WHERE role IN ('manager','admin') AND phone IS NOT NULL AND NOT COALESCE(blocked, false)`
     );
     const label   = DOC_LABELS[docType] || 'מסמך';
     const baseUrl = process.env.SERVER_URL || 'https://crm-production-c3df.up.railway.app';
@@ -209,7 +209,7 @@ async function notifyManagers(lead, docType, creatorName) {
 // Notify the document creator (via WhatsApp) that their pending document was approved/rejected.
 async function notifyCreator(createdBy, docType, leadName, status, comment) {
   try {
-    const { rows } = await pool.query(`SELECT phone FROM users WHERE id = $1 AND phone IS NOT NULL`, [createdBy]);
+    const { rows } = await pool.query(`SELECT phone FROM users WHERE id = $1 AND phone IS NOT NULL AND NOT COALESCE(blocked, false)`, [createdBy]);
     if (!rows.length) return;
     const label  = DOC_LABELS[Number(docType)] || 'מסמך';
     const verb   = status === 'approved' ? 'אושר' : 'נדחה';

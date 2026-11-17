@@ -1803,6 +1803,19 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 91 — Blocked users no longer get WhatsApp from the system ✅ Built 2026-11-17 (1.20.1)
+Oran: "שיר שעשיתי אותה חסומה עדיין מקבלת הודעות וואצאפ מהמערכת". Blocking stopped login, the
+briefings and the task digest, but several per-lead notifications looked only at "has a phone":
+- `reminderService`: untreated new lead (24h), stale offer (3d), stale contract (5d), task due
+  reminder, תפעול reminders (`op_reminders`).
+- `routes/whatsapp.js`: "the customer replied on WhatsApp" notice to the lead owner / recent senders.
+- `gmailService`: inbound-email notice to the lead owner.
+- `meetingRsvpService.setCustomerStatus`: "customer declined the meeting" notice to the host.
+- `greeninvoice`: pending-document notice to managers, approved/rejected notice to the creator.
+All now require `NOT COALESCE(blocked, false)`. Nothing is re-routed: a lead that is still assigned
+to a blocked user simply notifies nobody — such leads should be reassigned (open question for Oran:
+auto-notify managers instead?).
+
 ### Phase 90 — Contract assistant: draft / add / reword clauses by chat ✅ Built 2026-11-17 (1.20.0)
 Oran (17.11): wants to tell an AI "draft a clause that says X and add it under payment terms"
 or "reword clause Y" inside the contract. His requirements: it must work at every stage and
