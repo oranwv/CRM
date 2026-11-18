@@ -6,6 +6,13 @@ updated: 2026-11-18
 
 # Now
 
+## 2026-11-18 — Phase 102 (1.26.0): price offer by conversation
+
+- Offer modal opens on `OfferBuilder` (record/type → assistant asks only what is missing → spec → `applyOfferSpec` fills the template → normal preview with a "בדוק לפני שליחה" line). Server decides readiness; no invented prices; lead notes are background only.
+- Preview assistant now also on the price offer (`kind: 'offer'`), `add_row` / `delete_row` ops, mic in all three inputs, gpt-4.1.
+- Lead guest count now pre-fills the offer and the contract's per-guest row.
+- Unverified against the real model and inside the real modal (built in the cloud with stubs + a harness run) — watch Oran's first offers. Next: the same builder for contracts.
+
 ## 2026-11-18 — Phase 101 (1.25.0): "שיחה חוזרת" callback tasks (deployed)
 
 - `tasks.kind='callback'`, `routes/callbacks.js`, `CallbackTime.jsx` (button + time picker), `CallbackPopup.jsx` (global pop-up: assignee from −5 min, other sales users from +10 min). Scratch-DB verified; sound + auto-close after a real call need a live check.

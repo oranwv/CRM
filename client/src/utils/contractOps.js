@@ -63,6 +63,18 @@ export function applyContractOps({ fields, rows, texts }, ops) {
       if ('qty' in o.patch || 'price' in o.patch) moneyChanged = true;
     }
   }
+  // Row deletes from the end, then new rows at the end (ids continue from the highest).
+  let nextRowId = Math.max(0, ...r.map(x => Number(x.id) || 0)) + 1; // taken before deletes: an id is never reused
+  for (const o of ops.filter(x => x.op === 'delete_row').sort((a, b) => b.row - a.row)) {
+    const row = r[o.row];
+    if (!row || (o.rowId != null && row.id !== o.rowId) || row.label !== o.before.label) return { error: STALE };
+    r.splice(o.row, 1);
+    moneyChanged = true;
+  }
+  for (const o of ops.filter(x => x.op === 'add_row')) {
+    r.push({ id: nextRowId++, label: o.label, desc: o.desc || '', qty: o.qty, price: o.price });
+    moneyChanged = true;
+  }
   // Hand-edited amounts override the calculation — clear them so the new numbers show.
   if (moneyChanged) MONEY_LABELS.forEach(k => { if (t[k] != null) t[k] = null; });
   if (dateChanged && t.cancellationDateLabel != null) t.cancellationDateLabel = null;

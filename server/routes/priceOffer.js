@@ -204,6 +204,33 @@ ${!withVat ? `<p style="font-size:9pt;font-weight:bold;">${esc(L.noVat)}</p>` : 
 </html>`;
 }
 
+// POST /api/leads/:id/price-offer/build — build an offer by conversation (Phase 102).
+// { messages, spec (last one returned), template: { rows, includes } } → { reply, spec, missing, ready }
+router.post('/build', async (req, res) => {
+  try {
+    const { runOfferBuilder } = require('../services/offerBuilder');
+    const { messages, spec, template } = req.body || {};
+    res.json(await runOfferBuilder({ leadId: req.params.id, messages, prevSpec: spec || null, template }));
+  } catch (err) {
+    console.error('[PriceOffer] build error:', err.response?.data || err.message);
+    res.status(500).json({ error: 'העוזר לא זמין כרגע, נסה שוב' });
+  }
+});
+
+// POST /api/leads/:id/price-offer/assistant — the preview assistant (same engine as the
+// contract one): proposes targeted changes, the client applies them after approval.
+router.post('/assistant', async (req, res) => {
+  try {
+    const { contract, messages, pending, recentTexts } = req.body || {};
+    if (!contract || typeof contract !== 'object' || !contract.texts) return res.status(400).json({ error: 'offer required' });
+    const { runContractAssistant } = require('../services/contractAssistant');
+    res.json(await runContractAssistant({ contract: { ...contract, kind: 'offer' }, messages, pending: Array.isArray(pending) ? pending : null, recentTexts }));
+  } catch (err) {
+    console.error('[PriceOffer] assistant error:', err.response?.data || err.message);
+    res.status(500).json({ error: 'העוזר לא זמין כרגע, נסה שוב' });
+  }
+});
+
 router.get('/latest', async (req, res) => {
   try {
     const { rows } = await pool.query(

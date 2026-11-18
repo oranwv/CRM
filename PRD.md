@@ -1803,6 +1803,44 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 102 — Price offer by conversation + assistant on the offer preview ✅ Built 2026-11-18 (1.26.0)
+Oran (18.11): (1) lead-card details do not always reach the offer / contract; (2) he wants to
+build a whole offer with the AI: the user first records or types freely what the offer is
+("חבילה ל-40 איש עם תפריט צהריים ובר, ומתחם ליוגה"), only then the assistant asks about what is
+missing or unclear, fills the template and shows the usual preview, where the chat below and
+manual editing still work. His rules: always ask package vs. regular-with-breakdown and
+before/after VAT; for things outside the template ask where to put them; no price list — always
+ask for prices; the assistant may read the lead's notes/history as context; move to gpt-4.1.
+- **Builder** — `services/offerBuilder.js`, `POST /leads/:id/price-offer/build`
+  `{messages, spec, template:{rows, includes}}` → `{reply, spec, missing, ready}`. The model only
+  returns a structured spec (offerType, pricesInclVat, guests, perGuestPrice / packagePrice,
+  extraGuestPrice, menus, notes, includesAdd/Remove, rowEdits, extraRows, extraCostLines); the
+  server normalizes it and decides `ready` itself (type, VAT basis, guests, price must be known).
+  Context: lead card fields + up to 8 recent notes/call/meeting entries (≤2,500 chars,
+  transcripts and file markers stripped); history is background — the prompt tells the model to
+  ask before using anything from it. Never invents a price.
+- **Client** — `components/OfferBuilder.jsx` is the modal's first screen (known lead facts, big
+  record button, text box, "מעדיף למלא לבד" → the wizard as before; then the chat with mic).
+  `utils/offerSpec.js` (pure) fills the template: rows are stored before VAT (incl. prices →
+  /1.18), package prices keep the typed number + incl flag and the same generated lines as the
+  wizard, new row ids never reuse a template id. The modal jumps to the preview step and shows a
+  "בדוק לפני שליחה" line with what the assistant filled. Builder offers are Hebrew only.
+- **Preview assistant for offers** — same engine as the contract (`contractAssistant.js` with
+  `kind: 'offer'`: offer lists venueDescItems / includes / extras / packageCostLines, offer
+  scalars and fields, commercial register instead of legal). New ops for cost rows in both
+  documents: `add_row`, `delete_row`. `ContractAssistant.jsx` takes `endpoint` / `noun`; route
+  `POST /leads/:id/price-offer/assistant`.
+- **Voice** — `hooks/useVoiceToText.js` (MediaRecorder → `/api/ai/transcribe`); mic in the
+  builder and in both preview assistants; the transcript lands in the input for correction.
+- **Lead → documents**: offer `guests` starts from `lead.guest_count` (was empty); contract
+  per-guest row qty starts from it (was 0).
+- **Model**: `gpt-4.1` default for both assistants and the builder (`CONTRACT_ASSISTANT_MODEL`
+  overrides). Usage features: `offer-builder`, `offer-assistant`.
+- Tested with a stubbed model (builder normalize/ready, spec → template for package and regular
+  incl./excl. VAT, offer ops, contract regression) and a phone-width run of the builder screens.
+  Not run against the real model or inside the real modal — first live use is the test.
+- Next: the same builder for contracts (including building from an existing offer).
+
 ### Phase 101 — "שיחה חוזרת": the customer asked to be called back at a set time ✅ Built 2026-11-18 (1.25.0)
 Oran: a "call him back in two hours / tomorrow at 10:00" task matters more than a normal follow-up —
 the customer is only free then — so it must jump up on screen, not just blink, and be created by its

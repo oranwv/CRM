@@ -13,7 +13,7 @@
 //   { fields, rows, texts, calculated, offerType, language }
 const { openai } = require('./openaiClient');
 
-const MODEL = process.env.CONTRACT_ASSISTANT_MODEL || 'gpt-4o';
+const MODEL = process.env.CONTRACT_ASSISTANT_MODEL || 'gpt-4.1';
 const MAX_TEXT = 3000;
 
 // Lists a line can be added to / removed from. `num` = the numbering the document prints.
@@ -69,6 +69,89 @@ const FIELDS = {
   packageExtraGuestPrice: { he: 'מחיר אורח נוסף בחבילה',         type: 'money', only: 'package' },
 };
 
+// ── Price offer (Phase 102): the same assistant on the price-offer preview. Sent with kind: 'offer'. ──
+const OFFER_LISTS = {
+  venueDescItems:   { he: 'מפרט המקום',            num: null },
+  packageCostLines: { he: 'עלויות (שורות החבילה)',  num: null },
+  includes:         { he: 'המחיר כולל',             num: null },
+  extras:           { he: 'תוספות (אופציונלי)',     num: null },
+};
+const OFFER_SCALARS = [
+  ['title',           'כותרת ההצעה'],
+  ['arrival',         'שורת ההגעה'],
+  ['venueDescHeader', 'כותרת מפרט המקום'],
+  ['venueDescIntro',  'פתיח מפרט המקום'],
+  ['costsHeader',     'כותרת העלויות'],
+  ['minGuestsPrefix', 'שורת מינימום האורחים — הטקסט שלפני המספר'],
+  ['minGuestsSuffix', 'שורת מינימום האורחים — הטקסט שאחרי המספר'],
+  ['includesHeader',  'כותרת "המחיר כולל"'],
+  ['extrasHeader',    'כותרת התוספות'],
+  ['payment',         'תנאי תשלום'],
+  ['validity',        'תוקף ההצעה'],
+  ['closing',         'שורת הסיום'],
+];
+const OFFER_FIELDS = {
+  name:            { he: 'לכבוד',                         type: 'text' },
+  eventDate:       { he: 'תאריך האירוע (טקסט חופשי)',     type: 'text' },
+  doorTime:        { he: 'שעת פתיחת דלתות',               type: 'time' },
+  endTime:         { he: 'שעת סיום',                      type: 'time' },
+  guests:          { he: 'מספר אורחים (מינימום)',         type: 'int',   only: 'regular' },
+  extraGuestPrice: { he: 'מחיר לאורח נוסף (לפני מע"מ)',   type: 'money', only: 'regular' },
+  chefMenu:        { he: 'תפריט שף',                      type: 'text' },
+  barMenu:         { he: 'תפריט בר',                      type: 'text' },
+  notes:           { he: 'הערות',                         type: 'longtext' },
+};
+const CONTRACT_DOC = { LISTS, SCALAR_LABEL, FIELDS, noun: 'חוזה' };
+const OFFER_DOC    = { LISTS: OFFER_LISTS, SCALAR_LABEL: Object.fromEntries(OFFER_SCALARS), FIELDS: OFFER_FIELDS, noun: 'הצעת מחיר' };
+const docOf = (contract) => (contract && contract.kind === 'offer' ? OFFER_DOC : CONTRACT_DOC);
+
+function buildOfferOutline(offer) {
+  const { fields = {}, rows = [], texts = {}, calculated = {}, offerType = 'regular', language = 'he', withVat = true } = offer;
+  const isPackage = offerType === 'package';
+  const L = [];
+  const scalar = (key) => { if (isStr(texts[key]) && texts[key].trim()) L.push(`[texts.${key}] ${texts[key]}`); };
+  const list = (key) => {
+    const arr = Array.isArray(texts[key]) ? texts[key] : [];
+    if (!arr.length) L.push(`(list ${key} is empty)`);
+    arr.forEach((t, i) => L.push(`[texts.${key}[${i}]] ${t}`));
+  };
+  const money = (n) => `${Number(n || 0).toLocaleString('en-US')} ₪`;
+  L.push(`PRICE OFFER TYPE: ${isPackage ? 'package' : 'regular'} · DOCUMENT LANGUAGE: ${language === 'en' ? 'English' : 'Hebrew'} · ${withVat ? 'the offer shows VAT (18%)' : 'the offer is shown without VAT'}`);
+  L.push('');
+  L.push('== FIELDS (change with set_field) ==');
+  for (const [k, def] of Object.entries(OFFER_FIELDS)) {
+    if (def.only && def.only !== (isPackage ? 'package' : 'regular')) continue;
+    L.push(`${k} = ${JSON.stringify(fields[k] ?? '')}   (${def.he})`);
+  }
+  if (!isPackage) {
+    L.push('');
+    L.push('== COST ROWS (set_row / add_row / delete_row; prices are before VAT) ==');
+    rows.forEach((r, i) => L.push(r.isPct
+      ? `row ${i}: "${r.label}" — ${r.pct || 0}% of the fixed rows (percent row: only label/desc can change)`
+      : `row ${i}: "${r.label}"${r.desc ? ` (${r.desc})` : ''} — qty ${r.qty}, price ${r.price}`));
+    L.push(`== COMPUTED (read only) == subtotal before VAT ${money(calculated.subtotal)}, VAT ${money(calculated.vat)}, total ${money(calculated.total)}`);
+  }
+  L.push('');
+  L.push('== DOCUMENT (in order) ==');
+  scalar('title'); scalar('arrival');
+  L.push('-- venue description --'); scalar('venueDescHeader'); scalar('venueDescIntro'); list('venueDescItems');
+  L.push('-- costs --'); scalar('costsHeader');
+  if (isPackage) { L.push('(in a package offer the prices are these plain text lines — change a price by replacing the line text)'); list('packageCostLines'); }
+  else { L.push('(cost rows table and totals, built from the rows)'); scalar('minGuestsPrefix'); L.push(`   {guests: ${fields.guests || ''}}`); scalar('minGuestsSuffix'); }
+  L.push('-- the price includes --'); scalar('includesHeader'); list('includes');
+  L.push('-- optional extras --'); scalar('extrasHeader'); list('extras');
+  L.push('-- closing --'); scalar('payment'); scalar('validity'); scalar('closing');
+  return L.join('\n');
+}
+
+const OFFER_MODE = `OFFER MODE — the document in front of the user is a PRICE OFFER (הצעת מחיר), not a contract. Everything above applies with these differences:
+- Lists for "add"/"delete": venueDescItems (venue description), includes ("המחיר כולל" — things included in the price), extras (optional extras, each line usually "<item>: <price> ש"ח לא כולל מע"מ"), packageCostLines (package offers only: the price lines).
+- There are no sections 1-6, no deposit computation and no cancellation list; ignore the rules about them.
+- Cost rows (regular offers): besides set_row you may use {"op":"add_row","label":"...","desc":"...","qty":<number>,"price":<number>} (price before VAT) and {"op":"delete_row","row":<n>}.
+- Register: a price offer is a commercial, inviting document — clear, warm, professional Hebrew; not legal language. The "Drafting quality" rules about legal formulas do not apply; the rules about not repeating a draft and using dictated words do.
+- When the user asks to add something and it is not clear whether it is included in the price ("includes") or costs extra (a cost row / an "extras" line), ask.
+- Never invent a price. If a price is needed and the user did not say it, ask.`;
+
 const isStr = (v) => typeof v === 'string';
 const clean = (v) => String(v ?? '').replace(/\s+\n/g, '\n').trim();
 
@@ -80,6 +163,7 @@ function parseTarget(target) {
 
 // Plain-text outline of the contract in document order, every editable piece tagged with its id.
 function buildOutline(contract) {
+  if (contract && contract.kind === 'offer') return buildOfferOutline(contract);
   const { fields = {}, rows = [], texts = {}, calculated = {}, offerType = 'regular', language = 'he' } = contract;
   const isPackage = offerType === 'package';
   const L = [];
@@ -175,8 +259,31 @@ Answer with ONE JSON object and nothing else:
 // Validate one op against the contract; returns { op, display } or { error }.
 function checkOp(raw, contract) {
   const { fields = {}, rows = [], texts = {}, offerType = 'regular' } = contract;
+  const { LISTS, SCALAR_LABEL, FIELDS, noun } = docOf(contract); // contract or price-offer vocabulary
   const isPackage = offerType === 'package';
   const op = raw && raw.op;
+  if (contract.kind === 'offer' && (raw?.list === 'packageCostLines' || /^texts\.packageCostLines/.test(String(raw?.target || ''))) && !isPackage)
+    return { error: 'אין שורות חבילה בהצעה רגילה' };
+
+  if (op === 'add_row' || op === 'delete_row') {
+    if (isPackage) return { error: `ב${noun} חבילה אין טבלת עלויות` };
+    if (op === 'delete_row') {
+      const row = Number.isInteger(raw.row) ? rows[raw.row] : null;
+      if (!row) return { error: `שורת עלות לא נמצאה: ${raw.row}` };
+      return {
+        op: { op: 'delete_row', row: raw.row, rowId: row.id ?? null, before: { label: row.label } },
+        display: { kind: 'delete', where: `טבלת העלויות — שורה ${raw.row + 1}`, before: `${row.label}${row.isPct ? '' : ` · כמות ${row.qty} · מחיר ${row.price}`}`, after: null },
+      };
+    }
+    const label = clean(raw.label), desc = clean(raw.desc);
+    const qty = raw.qty == null ? 1 : Number(raw.qty), price = Number(raw.price);
+    if (!label || label.length > 300 || desc.length > 300) return { error: 'שם פריט לא תקין' };
+    if (![qty, price].every(n => Number.isFinite(n) && n >= 0 && n <= 10_000_000)) return { error: 'מספר לא תקין (חסר מחיר?)' };
+    return {
+      op: { op: 'add_row', label, desc, qty, price },
+      display: { kind: 'add', where: 'טבלת העלויות — שורה חדשה בסוף', before: null, after: `${label}${desc ? ` (${desc})` : ''} · כמות ${qty} · מחיר ${price} לפני מע"מ` },
+    };
+  }
 
   if (op === 'add') {
     const def = LISTS[raw.list];
@@ -231,14 +338,14 @@ function checkOp(raw, contract) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(value))) return { error: 'תאריך לא תקין' };
     } else if (def.type === 'time') {
       if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) return { error: 'שעה לא תקינה' };
-    } else if (value.length > 300) return { error: 'הטקסט ארוך מדי' };
+    } else if (value.length > (def.type === 'longtext' ? MAX_TEXT : 300)) return { error: 'הטקסט ארוך מדי' };
     const before = String(fields[raw.field] ?? '');
     if (before === value) return { error: 'אין שינוי' };
     return { op: { op: 'set_field', field: raw.field, before, value }, display: { kind: 'field', where: def.he, before: before || '—', after: value } };
   }
 
   if (op === 'set_row') {
-    if (isPackage) return { error: 'בחוזה חבילה אין טבלת עלויות' };
+    if (isPackage) return { error: `ב${noun} חבילה אין טבלת עלויות` };
     const i = raw.row;
     const row = Number.isInteger(i) ? rows[i] : null;
     if (!row) return { error: `שורת עלות לא נמצאה: ${raw.row}` };
@@ -271,7 +378,7 @@ function checkOp(raw, contract) {
 // Numbers that were edited by hand in the preview override the calculation; when the
 // assistant changes a number those overrides are cleared so the document recalculates.
 function overrideNote(ops, texts = {}) {
-  const touchesMoney = ops.some(o => (o.op === 'set_field' && ['depositPercent', 'packageTotal'].includes(o.field)) || (o.op === 'set_row' && ('qty' in o.patch || 'price' in o.patch)));
+  const touchesMoney = ops.some(o => (o.op === 'set_field' && ['depositPercent', 'packageTotal'].includes(o.field)) || (o.op === 'set_row' && ('qty' in o.patch || 'price' in o.patch)) || o.op === 'add_row' || o.op === 'delete_row');
   const touchesDate = ops.some(o => o.op === 'set_field' && o.field === 'eventDate');
   const notes = [];
   if (touchesMoney && ['depositAmtLabel', 'depositPctLabel', 'depositAmtVatLabel', 'remainderAmtLabel', 'reserveAmtLabel'].some(k => texts[k] != null && texts[k] !== ''))
@@ -298,10 +405,11 @@ async function runContractAssistant({ contract, messages, pending, recentTexts }
     .map(m => ({ role: m.role, content: m.content.slice(0, 4000) }));
   if (!history.length || history[history.length - 1].role !== 'user') throw new Error('no user message');
 
-  const context = `CONTRACT OUTLINE (current state):\n${buildOutline(contract)}\n\nPENDING PROPOSAL: ${pending && pending.length ? JSON.stringify(pending.map(({ before, rowId, ...o }) => o)) : 'none'}`;
+  const isOffer = contract.kind === 'offer';
+  const context = `${isOffer ? OFFER_MODE + '\n\nPRICE OFFER' : 'CONTRACT'} OUTLINE (current state):\n${buildOutline(contract)}\n\nPENDING PROPOSAL: ${pending && pending.length ? JSON.stringify(pending.map(({ before, rowId, ...o }) => o)) : 'none'}`;
 
   const ask = async (extra, temperature) => {
-    const res = await openai('contract-assistant').chat.completions.create({
+    const res = await openai(isOffer ? 'offer-assistant' : 'contract-assistant').chat.completions.create({
       model: MODEL,
       temperature,
       response_format: { type: 'json_object' },
@@ -336,11 +444,11 @@ async function runContractAssistant({ contract, messages, pending, recentTexts }
       reply = `לא הצלחתי להכין את השינוי (${errors[0]}). נסה לנסח את הבקשה שוב, או לציין את מספר הסעיף.`;
     } else {
       const ops = ok.map(r => r.op);
-      proposal = { ops, items: ok.map(r => r.display), notes: overrideNote(ops, contract.texts) };
+      proposal = { ops, items: ok.map(r => r.display), notes: isOffer ? [] : overrideNote(ops, contract.texts) };
     }
   }
   if (!reply) reply = proposal ? 'הכנתי את השינוי. לאשר?' : applyPending ? 'מבצע.' : 'לא הבנתי את הבקשה, אפשר לנסח שוב?';
   return { reply, proposal, apply_pending: applyPending };
 }
 
-module.exports = { runContractAssistant, buildOutline, checkOp, LISTS, FIELDS };
+module.exports = { runContractAssistant, buildOutline, checkOp, LISTS, FIELDS, MODEL };

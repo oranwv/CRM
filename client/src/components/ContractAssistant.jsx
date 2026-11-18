@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../api';
 import { applyContractOps } from '../utils/contractOps';
+import useVoiceToText from '../hooks/useVoiceToText';
 
 const KIND = {
   add:     { label: 'הוספה',  cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
@@ -17,7 +18,8 @@ const KIND = {
   field:   { label: 'שינוי ערך', cls: 'bg-sky-50 text-sky-700 border-sky-200' },
 };
 
-export default function ContractAssistant({ leadId, visible, getContract, onApply }) {
+// `endpoint` / `noun` let the price-offer preview use the same assistant (Phase 102).
+export default function ContractAssistant({ leadId, visible, getContract, onApply, endpoint = 'contracts/assistant', noun = 'החוזה', initialStatus = '' }) {
   const [messages, setMessages] = useState([]);   // { role: 'user'|'assistant'|'system', content }
   const [pending, setPending]   = useState(null); // { ops, items, notes }
   const [input, setInput]       = useState('');
@@ -25,7 +27,7 @@ export default function ContractAssistant({ leadId, visible, getContract, onAppl
   const [open, setOpen]         = useState(false);
   const [undo, setUndo]         = useState([]);   // snapshots { fields, rows, texts }
   const [recent, setRecent]     = useState([]);   // clause texts already offered — the server uses them to avoid repeating itself
-  const [status, setStatus]     = useState('');   // one line shown while the thread is collapsed
+  const [status, setStatus]     = useState(initialStatus);   // one line shown while the thread is collapsed
   const scrollRef = useRef(null);
   const inputRef  = useRef(null);
 
@@ -34,6 +36,8 @@ export default function ContractAssistant({ leadId, visible, getContract, onAppl
   }, [messages, pending, busy, open]);
 
   const say = (role, content) => setMessages(m => [...m, { role, content }]);
+  // Voice: the transcript lands in the input so it can be corrected before sending
+  const voice = useVoiceToText(text => { setInput(v => (v ? v + ' ' : '') + text); setOpen(true); inputRef.current?.focus(); });
 
   function applyPending(proposal) {
     const p = proposal || pending;
@@ -45,9 +49,9 @@ export default function ContractAssistant({ leadId, visible, getContract, onAppl
     setUndo(u => [...u, before]);
     onApply(next);
     setPending(null);
-    say('system', 'בוצע. השינוי מופיע בחוזה, ואפשר להמשיך לערוך אותו ביד.');
+    say('system', 'בוצע. השינוי מופיע במסמך, ואפשר להמשיך לערוך אותו ביד.');
     // Get out of the way so the contract can be read: collapse the thread, keep one status line.
-    setStatus('✓ בוצע. השינוי בחוזה.');
+    setStatus('✓ בוצע. השינוי במסמך.');
     setOpen(false);
   }
 
@@ -57,8 +61,8 @@ export default function ContractAssistant({ leadId, visible, getContract, onAppl
     setUndo(u => u.slice(0, -1));
     onApply(prev);
     setPending(null);
-    say('system', 'החזרתי את החוזה למצב שלפני השינוי האחרון.');
-    setStatus('↩ החוזה חזר למצב שלפני השינוי האחרון.');
+    say('system', 'החזרתי את המסמך למצב שלפני השינוי האחרון.');
+    setStatus('↩ המסמך חזר למצב שלפני השינוי האחרון.');
     setOpen(false);
   }
 
@@ -73,7 +77,7 @@ export default function ContractAssistant({ leadId, visible, getContract, onAppl
     setMessages(history);
     setBusy(true);
     try {
-      const { data } = await api.post(`/leads/${leadId}/contracts/assistant`, {
+      const { data } = await api.post(`/leads/${leadId}/${endpoint}`, {
         contract: getContract(),
         messages: history.filter(m => m.role !== 'system'),
         pending: pending?.ops || null,
@@ -106,7 +110,7 @@ export default function ContractAssistant({ leadId, visible, getContract, onAppl
         <div className="mb-2 rounded-xl bg-slate-50 border border-slate-100 overflow-hidden">
         <button type="button" onClick={() => setOpen(false)}
           className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-bold text-violet-700 bg-violet-50 border-b border-violet-100">
-          <span>שיחה עם העוזר</span><span>צמצם כדי לקרוא את החוזה ▾</span>
+          <span>שיחה עם העוזר</span><span>צמצם כדי לקרוא את {noun} ▾</span>
         </button>
         <div ref={scrollRef} className="max-h-[32vh] overflow-y-auto space-y-2 p-2">
           {messages.map((m, i) => (
@@ -144,7 +148,7 @@ export default function ContractAssistant({ leadId, visible, getContract, onAppl
                 );
               })}
               {(pending.notes || []).map((n, i) => <p key={i} className="text-xs text-amber-700 font-bold">{n}</p>)}
-              <p className="text-[11px] text-slate-400">שום דבר אחר בחוזה לא משתנה.</p>
+              <p className="text-[11px] text-slate-400">שום דבר אחר במסמך לא משתנה.</p>
               <div className="flex gap-2">
                 <button type="button" onClick={() => applyPending()} disabled={busy}
                   className="flex-1 py-2 rounded-xl font-black text-sm text-white bg-violet-600 disabled:opacity-50">אשר ובצע</button>
@@ -171,8 +175,14 @@ export default function ContractAssistant({ leadId, visible, getContract, onAppl
           <textarea id="contract-assistant-input" ref={inputRef} rows={1} value={input} onChange={onInput}
             onFocus={() => setOpen(true)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder="בקש מהעוזר לשנות את החוזה…"
+            placeholder={voice.state === 'recording' ? `מקליט… ${voice.mmss}` : voice.state === 'transcribing' ? 'מתמלל…' : `בקש מהעוזר לשנות את ${noun}…`}
             className="flex-1 min-w-0 resize-none bg-transparent text-sm py-1.5 focus:outline-none placeholder:text-slate-400" />
+          <button type="button" onClick={voice.toggle} disabled={busy || voice.state === 'transcribing'} aria-label="הקלטה" title="הקלט בקשה"
+            className={`w-8 h-8 mb-0.5 shrink-0 rounded-full grid place-items-center disabled:opacity-40 ${voice.state === 'recording' ? 'bg-red-600 text-white animate-pulse' : 'bg-rose-50 text-rose-600'}`}>
+            {voice.state === 'recording'
+              ? <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
+              : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>}
+          </button>
           <button type="button" onClick={send} disabled={busy || !input.trim()} aria-label="שלח לעוזר"
             className="w-8 h-8 mb-0.5 shrink-0 rounded-full bg-violet-600 text-white grid place-items-center disabled:opacity-40">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
@@ -180,6 +190,7 @@ export default function ContractAssistant({ leadId, visible, getContract, onAppl
         </div>
       </div>
 
+      {voice.error && <p className="text-xs font-bold text-red-500 mt-1">{voice.error}</p>}
       <div className="flex items-center justify-between mt-1.5">
         <button type="button" onClick={goBack} disabled={!undo.length || busy}
           className="text-xs font-bold px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"

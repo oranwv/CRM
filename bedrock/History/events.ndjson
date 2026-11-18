@@ -96,3 +96,4 @@
 {"ts": "2026-11-18T07:10:00Z", "type": "feature", "tool": "cowork", "slug": "CRM", "summary": "1.24.3 Phase 100: missing credit charges carry the card's last 4 digits (parsed from column / title / file name, stored as card_last4, shown in the source badge)"}
 {"ts": "2026-11-18T12:20:00Z", "type": "feature", "tool": "cowork", "slug": "CRM", "summary": "1.25.0 (branch callback-tasks, pending approval): callback tasks — button on lead, on-screen pop-up 5 min before, escalation to other sales users after 10 min"}
 {"ts": "2026-11-18T12:26:00Z", "type": "deploy", "tool": "cowork", "slug": "CRM", "summary": "1.25.0 approved by Oran and merged to main (callback tasks)"}
+{"ts": "2026-11-18T06:00:00Z", "type": "feature", "tool": "cowork", "slug": "CRM", "summary": "1.26.0 Phase 102: price offer built by conversation (record/type, assistant asks only what is missing, fills the template), preview assistant on offers, voice input, guest count from the lead, gpt-4.1"}

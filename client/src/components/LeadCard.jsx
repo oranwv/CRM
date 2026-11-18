@@ -14,6 +14,8 @@ import AddSupplierModal from './AddSupplierModal';
 import SupplierCard from './SupplierCard';
 import FileActions from './FileActions';
 import ContractAssistant from './ContractAssistant';
+import OfferBuilder from './OfferBuilder';
+import { applyOfferSpec } from '../utils/offerSpec';
 import { openFileViewer, leadFileRef } from '../files/fileBox';
 import ContractTrackIcons from './ContractTrackIcons';
 import { docTypeLabel } from '../utils/docTypes';
@@ -1782,7 +1784,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
   const [newPaymentExtra, setNewPaymentExtra] = useState('');
   const [newEventLine, setNewEventLine]       = useState('');
   const [newCostLine, setNewCostLine]         = useState('');
-  const [rows, setRows]               = useState(DEFAULT_ROWS);
+  const [rows, setRows]               = useState(() => DEFAULT_ROWS.map(r => (r.id === 1 ? { ...r, qty: parseInt(lead.guest_count) || 0 } : r))); // per-guest row starts with the lead's guest count
   const [loadingImport, setLoadingImport] = useState(true);
   const [importDone, setImportDone]       = useState(false); // import is the first screen, before language/type
   const [latestContract,   setLatestContract]   = useState(undefined);
@@ -2996,7 +2998,8 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
   const [fields, setFields]   = useState({
     name: lead.name || '', email: allEmails[0] || '', phone: lead.phone || '',
     eventDate: lead.event_date_text || '', doorTime: lead.event_time || '',
-    endTime: lead.event_end_time || '', guests: '', chefMenu: '', barMenu: '', notes: '', extraGuestPrice: '',
+    endTime: lead.event_end_time || '', guests: lead.guest_count ? String(parseInt(lead.guest_count) || '') : '', // lower number of a range
+    chefMenu: '', barMenu: '', notes: '', extraGuestPrice: '',
     packagePrice: '', packageGuests: '', packageExtraGuestPrice: '',
     packagePriceIncl: true, packageExtraIncl: true, // VAT basis of the typed package prices (only meaningful when withVat)
   });
@@ -3219,7 +3222,24 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
     beginImported({ type: srcPackage ? 'package' : 'regular', lang: srcEn ? 'en' : 'he', vat: (data.calculated?.vat || 0) > 0 });
   }
 
-  const isImportStep = !importDone; // the first screen, before language/VAT/type
+  // Phase 102: the modal opens on the conversational builder; "מעדיף למלא לבד" drops to the wizard.
+  const [builderOn, setBuilderOn]           = useState(true);
+  const [builderSummary, setBuilderSummary] = useState(''); // "check before sending" line in the preview
+  function applyBuilderSpec(spec) {
+    const next = applyOfferSpec({ fields, rows, texts }, spec);
+    setFields(next.fields); setRows(next.rows); setTexts(next.texts);
+    setOfferType(next.offerType);
+    setLanguage('he'); setLanguageSelected(true);
+    setWithVat(true); setVatAnswered(true);
+    setImportDone(true);
+    setEditMode(false);
+    // jump straight to the preview step of that type (same numbering as the wizard)
+    setStep(next.offerType === 'package' ? PACKAGE_FIELD_STEPS + 6 : FIELD_STEPS + 2 + next.rows.length + 1);
+    setBuilderSummary(next.summary);
+    setBuilderOn(false);
+  }
+
+  const isImportStep = !importDone && !builderOn; // the wizard's first screen, before language/VAT/type
 
   // On reaching the English preview: swap boilerplate to the English defaults (keeping
   // row qty/price), and translate free-text inputs. Entry stays Hebrew throughout.
@@ -3408,7 +3428,13 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-5">
 
-          {/* ── Import pre-step (the FIRST screen) ── */}
+          {/* ── Phase 102: build the offer in a conversation (the first screen) ── */}
+          {builderOn && (
+            <OfferBuilder lead={lead} template={{ rows, includes: texts.includes }}
+              onDone={applyBuilderSpec} onManual={() => setBuilderOn(false)} />
+          )}
+
+          {/* ── Import pre-step (the wizard's first screen) ── */}
           {isImportStep && (
             <div className="flex flex-col items-center gap-4 py-6">
               {loadingImport ? (
@@ -3827,6 +3853,12 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
           {/* ── Preview step ── */}
           {isPreviewStep && (
             <div>
+              {builderSummary && (
+                <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-slate-700 flex items-start gap-2">
+                  <div className="flex-1 min-w-0"><p className="font-black text-amber-700 text-xs">בדוק לפני שליחה — כך מילא העוזר</p><p className="wrap-anywhere">{builderSummary}</p></div>
+                  <button type="button" onClick={() => setBuilderSummary('')} className="text-amber-600 font-bold text-sm shrink-0" aria-label="סגור">✕</button>
+                </div>
+              )}
               <p className="text-xs text-slate-400 text-center mb-3">לחץ על כל טקסט לעריכה</p>
               {translating && <p className="text-xs text-amber-600 text-center mb-2 font-bold">ממיר לאנגלית…</p>}
               <div ref={previewRef} dir={docDir} style={{ fontFamily: 'Arial, sans-serif', fontSize: '10pt', color: '#222', background: '#fff', padding: '12px', lineHeight: 1.7, maxWidth: '100%', overflowWrap: 'anywhere' }}>
@@ -4085,6 +4117,14 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
         {/* Footer — only on preview step */}
         {isPreviewStep && (
           <div className="border-t border-slate-100 p-4 space-y-2 shrink-0">
+            {/* Phase 102: the same assistant as in the contract — proposes a change, applies it after approval */}
+            <ContractAssistant
+              leadId={lead.id} endpoint="price-offer/assistant" noun="ההצעה"
+              visible={!showWaExtraFiles && !showEmailForm && !translating}
+              initialStatus={builderSummary ? '✓ ההצעה מוכנה. אפשר לבקש שינויים או לערוך ביד.' : ''}
+              getContract={() => ({ fields, rows, texts, offerType, language, withVat, calculated: { subtotal, vat, total } })}
+              onApply={next => { setFields(next.fields); setRows(next.rows); setTexts(next.texts); }}
+            />
             {showWaExtraFiles ? (
               <div className="space-y-2">
                 {allPhones?.length > 1 && (
