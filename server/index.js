@@ -811,6 +811,9 @@ migrate(`
   ALTER TABLE finance_missing_expenses DROP CONSTRAINT IF EXISTS finance_missing_expenses_fingerprint_key;
   CREATE UNIQUE INDEX IF NOT EXISTS finance_missing_period_fp ON finance_missing_expenses (period_id, fingerprint);
   ALTER TABLE finance_missing_expenses ADD COLUMN IF NOT EXISTS match_hint TEXT; -- 2026-10-04: where the same-amount karteset rows were assigned
+  -- 2026-11-18: last 4 digits of the credit card a charge came from (shown beside the כאל / מקס badge)
+  ALTER TABLE finance_missing_expenses ADD COLUMN IF NOT EXISTS card_last4 VARCHAR(4);
+  ALTER TABLE finance_period_entries   ADD COLUMN IF NOT EXISTS card_last4 VARCHAR(4);
   DO $$
   DECLARE pid INT;
   BEGIN

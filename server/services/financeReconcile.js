@@ -216,7 +216,47 @@ async function parseBankPdf(buffer) {
 //  - Visa-via-bank ("פירוט חיובים לכרטיס ויזה"): title rows, then a header row
 //    with "תאריך עסקה / שם בית עסק / סכום עסקה / סכום חיוב / ... / הערות"
 //    (multi-line header cells) and installments noted as "תשלום X מתוך Y".
-function parseCreditCal(buffer) {
+// ── credit-card last 4 digits ────────────────────────────────────────────────
+// Shown beside the כאל / מקס badge of a missing expense. Taken, in this order,
+// from a per-row column ("4 ספרות אחרונות של כרטיס האשראי" — MAX exports), a
+// title line above the table ("…לכרטיס ויזה 0353" — CAL exports), or the file
+// name ("פירוט חיובים לכרטיס ויזה 0353 - 02.10.26.xlsx").
+const CARD_WORDS = '(?:כרטיס|ויזה|visa|מאסטרקארד|מסטרקארד|mastercard|ישראכרט|אמריקן|דיינרס|card)';
+const CARD_AFTER_WORD = new RegExp(`(?:המסתיים(?:ת)? ב[-־–]?\\s*|${CARD_WORDS}[^\\d]{0,25})(\\d{4})(?![\\d./])`, 'i');
+
+function cardColumn(headers) {
+  return (headers || []).findIndex(h => {
+    const c = clean(h);
+    return c.includes('4 ספרות') || c.includes('ספרות אחרונות') || c.includes('מספר כרטיס');
+  });
+}
+function last4(v) {
+  if (v == null || v === '') return null;
+  if (typeof v === 'number') return String(Math.trunc(v)).padStart(4, '0').slice(-4); // Excel drops the leading zero
+  const m = String(v).match(/(\d{4})\s*$/);
+  return m ? m[1] : null;
+}
+function cardFromText(text) {
+  const m = String(text || '').match(CARD_AFTER_WORD);
+  return m ? m[1] : null;
+}
+function cardFromTitleRows(rows, headerRow) {
+  const upTo = headerRow > 0 ? headerRow : 0;
+  for (let r = 0; r < upTo && r < rows.length; r++) {
+    const c = cardFromText((rows[r] || []).filter(x => x != null).join(' '));
+    if (c) return c;
+  }
+  return null;
+}
+function cardFromFilename(name) {
+  if (!name) return null;
+  let n = String(name);
+  // multer hands non-ASCII file names over as latin1 bytes
+  try { const u = Buffer.from(n, 'latin1').toString('utf8'); if (/[\u0590-\u05FF]/.test(u)) n = u; } catch { /* keep */ }
+  return cardFromText(n);
+}
+
+function parseCreditCal(buffer, filename = '') {
   const { rows } = sheetRows(buffer);
   const norm = (h) => clean(h).replace(/\s+/g, ' ');
 
@@ -237,6 +277,8 @@ function parseCreditCal(buffer) {
     return i === -1 ? 2 : i; // column C fallback
   })();
   const notesCol = headers.findIndex(h => h.includes('הערות'));
+  const cardCol = cardColumn(headers);
+  const fileCard = cardFromTitleRows(rows, headerRow) || cardFromFilename(filename);
 
   const entries = [];
   for (const row of rows.slice(headerRow === -1 ? 1 : headerRow + 1)) {
@@ -257,12 +299,13 @@ function parseCreditCal(buffer) {
       amount,
       amount_rounded: Math.round(amount),
       source: 'cal',
+      card: (cardCol !== -1 ? last4(row[cardCol]) : null) || fileCard,
     });
   }
   return entries;
 }
 
-function parseCreditMax(buffer) {
+function parseCreditMax(buffer, filename = '') {
   const { sheetNames, wb } = sheetRows(buffer);
   // Domestic sheet: skip foreign-currency sheets
   const target = sheetNames.find(sn => !sn.includes('חו"ל') && !sn.includes('חול') && !sn.includes('מט')) || sheetNames[0];
@@ -278,6 +321,8 @@ function parseCreditMax(buffer) {
   if (amountCol == null) amountCol = 7; // column H fallback
   const chargeCol = detectAmountColumn(headers, 'סכום חיוב');
   const notesCol = headers.findIndex(h => clean(h).includes('הערות'));
+  const cardCol = cardColumn(headers);
+  const fileCard = cardFromTitleRows(rows, headerRow) || cardFromFilename(filename);
 
   const entries = [];
   for (const row of rows.slice(headerRow + 1)) {
@@ -301,6 +346,7 @@ function parseCreditMax(buffer) {
       amount,
       amount_rounded: Math.round(amount),
       source: 'max',
+      card: (cardCol !== -1 ? last4(row[cardCol]) : null) || fileCard,
     });
   }
   return entries;
@@ -501,8 +547,8 @@ async function reconcile(files, { exclusions = DEFAULT_EXCLUSIONS, windowDays = 
     let count = 0;
     const tag = (arr) => arr.map(e => ({ ...e, _file: fileIdx }));
     if (type === 'bank') { const e = await parseBankPdf(f.buffer); count = e.length; entries.push(...tag(e)); }
-    else if (type === 'credit_cal') { const e = parseCreditCal(f.buffer); count = e.length; entries.push(...tag(e)); }
-    else if (type === 'credit_max') { const e = parseCreditMax(f.buffer); count = e.length; entries.push(...tag(e)); }
+    else if (type === 'credit_cal') { const e = parseCreditCal(f.buffer, f.originalname || ''); count = e.length; entries.push(...tag(e)); }
+    else if (type === 'credit_max') { const e = parseCreditMax(f.buffer, f.originalname || ''); count = e.length; entries.push(...tag(e)); }
     else if (type === 'karteset') { const k = await parseKartesetAny(f.buffer); count = k.length; kartesetItems.push(...k); }
     sources.push({ filename: f.originalname, type, count });
     if (type === 'bank' && count === 0) {

@@ -88,7 +88,7 @@ function ExpenseRow({ item, onChanged, periods = [], periodId }) {
           <div className="flex items-center gap-2">
             <span className="font-black text-slate-800 text-base">{fmtAmount(item.amount)} ₪</span>
             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${SOURCE_COLORS[item.source] || 'bg-slate-100 text-slate-600'}`}>
-              {SOURCE_LABELS[item.source] || item.source}
+              {SOURCE_LABELS[item.source] || item.source}{item.card_last4 ? <span dir="ltr"> · {item.card_last4}</span> : null}
             </span>
             {item.deferred_from_name && (
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">

@@ -6,6 +6,11 @@ updated: 2026-11-18
 
 # Now
 
+## 2026-11-18 — Phase 100 (1.24.3): card last-4 beside the כאל / מקס badge
+
+- Parsers set `entry.card` (row column → title line → file name); stored as `card_last4`; badge shows "כאל · 0353". Unverified against real CAL / MAX exports — first real re-run by Oran is the test.
+- Two commits wait on the Mac for Oran's `git push` (1.24.2, 1.24.3).
+
 ## 2026-11-18 — Phase 99 (1.24.2): Bezeq bill missed by the invoice scan
 
 - Cause inferred, not observed (no access to `finance_scanned_emails` / Railway logs): bare `תעודת` hint matched "תעודת זהות" → AI decided → sometimes rejected → email skipped forever. Fixed with `STRONG_INVOICE`, narrower hints, prompt lines, and `classifier_version` so old rejections are re-scanned once.

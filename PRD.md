@@ -1803,6 +1803,22 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 100 — Missing credit charges show the card's last 4 digits ✅ Built 2026-11-18 (1.24.3)
+Oran: a missing credit charge should show not only "מקס" / "כאל" but which card.
+- `financeReconcile`: `parseCreditCal` / `parseCreditMax` set `card` on every entry — from a per-row
+  column whose header contains "4 ספרות" / "ספרות אחרונות" / "מספר כרטיס" (numeric cells are
+  zero-padded), else a title line above the table, else the file name; the last two look for 4
+  digits right after a card word (כרטיס / ויזה / מאסטרקארד / "המסתיים ב-" …), so dates and export
+  ids are not picked up. multer's latin1 file names are decoded first.
+- Stored in `finance_missing_expenses.card_last4` and `finance_period_entries.card_last4`
+  (kept through "העלה כרטסת מעודכנת"); a re-run never blanks an existing value (`COALESCE`).
+  The fingerprint is unchanged, so statuses and notes stay attached.
+- UI: the source badge reads "כאל · 0353". Rows created before this change get the digits on the
+  next comparison that includes the credit files.
+- **Not verified on Oran's real exports** (none on the Mac): the column / title / file-name rules
+  were written from the file names in his screenshots and the usual CAL / MAX layouts. If a card
+  shows no digits after a re-run, get one export file and adjust `cardColumn` / `CARD_AFTER_WORD`.
+
 ### Phase 99 — Invoice scan: utility bills always count; old rejections re-examined ✅ Built 2026-11-18 (1.24.2)
 Oran: the Bezeq bill of 14.10 (PDF attached, "החשבונית החודשית שלך בבזק כאן") was never filed, while
 the 15.11 one was. Checked on the live API: no file in Drive 10-2026, none in the trash. The scan

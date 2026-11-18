@@ -30,8 +30,8 @@ async function applyReconcileResults(periodId, entries, karteset, missing) {
       'SELECT resolved FROM finance_missing_expenses WHERE period_id = $1 AND fingerprint = $2', [periodId, m.fingerprint]);
     if (existing) {
       if (existing.resolved) resolvedCount++; else knownCount++;
-      await pool.query('UPDATE finance_missing_expenses SET match_hint = $3 WHERE period_id = $1 AND fingerprint = $2',
-        [periodId, m.fingerprint, m.match_hint || null]);
+      await pool.query('UPDATE finance_missing_expenses SET match_hint = $3, card_last4 = COALESCE($4, card_last4) WHERE period_id = $1 AND fingerprint = $2',
+        [periodId, m.fingerprint, m.match_hint || null, m.card || null]);
       continue;
     }
     // An item's fingerprint can change between runs when its NAME changes —
@@ -46,7 +46,8 @@ async function applyReconcileResults(periodId, entries, karteset, missing) {
        SET fingerprint = $1,
            name = CASE WHEN $2 <> $3 OR name = '' OR name = description THEN $2 ELSE name END,
            description = CASE WHEN $2 <> $3 THEN $3 ELSE description END,
-           match_hint = $9
+           match_hint = $9,
+           card_last4 = COALESCE($10, card_last4)
        WHERE id = (
          SELECT id FROM finance_missing_expenses
          WHERE period_id = $4 AND resolved = FALSE AND source = $5
@@ -55,14 +56,14 @@ async function applyReconcileResults(periodId, entries, karteset, missing) {
          LIMIT 1
        ) RETURNING id`,
       [m.fingerprint, m.name || '', m.description || '', periodId, m.source,
-       toEntryDate(m.date), Math.round(m.amount), missingFpsAll, m.match_hint || null]
+       toEntryDate(m.date), Math.round(m.amount), missingFpsAll, m.match_hint || null, m.card || null]
     );
     if (adopted) { knownCount++; continue; }
     await pool.query(
-      `INSERT INTO finance_missing_expenses (period_id, fingerprint, entry_date, name, description, amount, source, match_hint)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO finance_missing_expenses (period_id, fingerprint, entry_date, name, description, amount, source, match_hint, card_last4)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        ON CONFLICT (period_id, fingerprint) DO NOTHING`,
-      [periodId, m.fingerprint, toEntryDate(m.date), m.name || '', m.description || '', m.amount, m.source, m.match_hint || null]
+      [periodId, m.fingerprint, toEntryDate(m.date), m.name || '', m.description || '', m.amount, m.source, m.match_hint || null, m.card || null]
     );
     newCount++;
   }
@@ -105,9 +106,9 @@ async function snapshotEntries(periodId, entries) {
   await pool.query('DELETE FROM finance_period_entries WHERE period_id = $1 AND source = ANY($2)', [periodId, sources]);
   for (const e of entries) {
     await pool.query(
-      `INSERT INTO finance_period_entries (period_id, source, entry_date, name, description, amount, fingerprint)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [periodId, e.source, toEntryDate(e.date), e.name || '', e.description || '', e.amount, e.fingerprint || fingerprint(e)]
+      `INSERT INTO finance_period_entries (period_id, source, entry_date, name, description, amount, fingerprint, card_last4)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [periodId, e.source, toEntryDate(e.date), e.name || '', e.description || '', e.amount, e.fingerprint || fingerprint(e), e.card || null]
     );
   }
 }
@@ -223,7 +224,7 @@ router.post('/rekarteset', upload.fields([{ name: 'kartesetFiles', maxCount: 8 }
     if (!kartesetItems.length) return res.status(400).json({ error: 'לא זוהו שורות בקובץ הכרטסת' });
 
     const { rows: stored } = await pool.query(
-      'SELECT source, entry_date, name, description, amount, fingerprint FROM finance_period_entries WHERE period_id = $1',
+      'SELECT source, entry_date, name, description, amount, fingerprint, card_last4 FROM finance_period_entries WHERE period_id = $1',
       [periodId]);
     if (!stored.length) {
       return res.status(400).json({ error: 'אין נתוני הוצאות שמורים לתקופה — בצע קודם השוואה מלאה אחת (עם קבצי ההוצאות)' });
@@ -239,6 +240,7 @@ router.post('/rekarteset', upload.fields([{ name: 'kartesetFiles', maxCount: 8 }
       amount: Number(r.amount),
       amount_rounded: Math.round(Number(r.amount)),
       fingerprint: r.fingerprint,
+      card: r.card_last4 || null,
     }));
 
     const { rows: exRows } = await pool.query("SELECT value FROM settings WHERE key = 'finance_exclusions'");
