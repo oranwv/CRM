@@ -532,9 +532,19 @@ export default function AdminPage() {
     catch (err) { alert(err.response?.data?.error || err.message); }
   }
 
+  // Accepts a full Google Drive folder link (…/folders/<id>?usp=…, …?id=<id>) or a bare ID
+  function extractDriveFolderId(input) {
+    const s = String(input || '').trim();
+    const m = s.match(/\/folders\/([A-Za-z0-9_-]{10,})/) || s.match(/[?&]id=([A-Za-z0-9_-]{10,})/);
+    if (m) return m[1];
+    return /^[A-Za-z0-9_-]{10,}$/.test(s) ? s : null;
+  }
+
   async function handleDriveFolderAdd() {
     if (!driveNewFolder.id.trim() || !driveNewFolder.name.trim()) return;
-    const updated = [...driveFolders, { id: driveNewFolder.id.trim(), name: driveNewFolder.name.trim() }];
+    const folderId = extractDriveFolderId(driveNewFolder.id);
+    if (!folderId) { alert('הקישור לא נראה כמו קישור לתיקייה ב-Google Drive. פתחו את התיקייה ב-Drive והעתיקו את הקישור שלה.'); return; }
+    const updated = [...driveFolders, { id: folderId, name: driveNewFolder.name.trim() }];
     setDriveFolders(updated);
     setDriveNewFolder({ id: '', name: '' });
     await saveDriveFolders(updated);
@@ -1187,7 +1197,7 @@ export default function AdminPage() {
             <span className="text-lg">📂</span>
             <h2 className="font-black text-base text-slate-800">Google Drive — תיקיות</h2>
           </div>
-          <p className="text-xs mb-3 text-slate-400">הגדר תיקיות Google Drive שמהן ניתן לצרף קבצים בשליחת הודעות ומסמכים. העתק את ה-ID של התיקיה מה-URL של Google Drive.</p>
+          <p className="text-xs mb-3 text-slate-400">הגדר תיקיות Google Drive שמהן ניתן לצרף קבצים בשליחת הודעות ומסמכים. הדביקו את הקישור לתיקייה מ-Google Drive.</p>
 
           <div className="space-y-2 mb-3">
             {driveFolders.map((f, i) => (
@@ -1212,7 +1222,8 @@ export default function AdminPage() {
             />
             <input
               className="flex-1 min-w-0 rounded-xl px-3 py-2 text-sm border border-violet-200 focus:border-violet-400 focus:outline-none text-slate-700 font-mono"
-              placeholder="Folder ID"
+              placeholder="קישור לתיקייה ב-Drive"
+              dir="ltr"
               value={driveNewFolder.id}
               onChange={e => setDriveNewFolder(f => ({ ...f, id: e.target.value }))}
               onKeyDown={e => e.key === 'Enter' && handleDriveFolderAdd()}

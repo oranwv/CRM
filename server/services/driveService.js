@@ -1,6 +1,13 @@
 const { google } = require('googleapis');
 const { getAuth } = require('./gmailService');
 
+// A saved folder may be a bare ID or (older entries) a full Drive link — normalize to the ID
+function normalizeFolderId(input) {
+  const s = String(input || '').trim();
+  const m = s.match(/\/folders\/([A-Za-z0-9_-]{10,})/) || s.match(/[?&]id=([A-Za-z0-9_-]{10,})/);
+  return m ? m[1] : s;
+}
+
 async function listFilesInFolder(folderId) {
   const auth = getAuth();
   const drive = google.drive({ version: 'v3', auth });
@@ -79,7 +86,8 @@ async function syncDriveFolders() {
   `);
 
   const { rows } = await pool.query(`SELECT value FROM settings WHERE key = 'drive_folders'`);
-  const folders = rows[0]?.value ? JSON.parse(rows[0].value) : [];
+  const folders = (rows[0]?.value ? JSON.parse(rows[0].value) : [])
+    .map(f => ({ ...f, id: normalizeFolderId(f.id) }));
   if (!folders.length) return;
 
   for (const folder of folders) {
@@ -131,4 +139,5 @@ async function syncDriveFolders() {
   }
 }
 
-module.exports = { listFilesInFolder, getFileMeta, downloadFile, syncDriveFolders };
+module.exports = {
+  normalizeFolderId, listFilesInFolder, getFileMeta, downloadFile, syncDriveFolders };

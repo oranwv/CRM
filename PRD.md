@@ -1803,6 +1803,16 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 102e — Drive folders added by link, not by ID ✅ Built 2026-11-18 (1.26.4)
+Oran (phone, הגדרות → תיקיות Google Drive) didn't know what "Folder ID" is and asked for the field
+to be just the folder link. The second input is now "קישור לתיקייה ב-Drive" (LTR); on add,
+`extractDriveFolderId` in `AdminPage.jsx` takes the ID from `/folders/<id>` or `?id=<id>`, or
+accepts a bare ID (≥10 chars of `[A-Za-z0-9_-]`); anything else gets an alert and is not saved.
+Server side, `normalizeFolderId` (`services/driveService.js`) normalizes every saved entry in the
+Drive sync and in `GET /api/drive/folders`, so an entry saved earlier as a full link also works.
+Stored format unchanged (`settings.drive_folders` = `[{id, name}]`). Reminder: the folder must be
+owned by / shared with the Google account the CRM's Gmail auth uses, or it lists empty.
+
 ### Phase 102d — Dictation to the assistants: better and complete transcripts ✅ Built 2026-11-18 (1.26.3)
 Oran (18.11): the builder's transcript is worse than call transcripts and it is short — not
 everything that was said appears. Findings: the builder used `/api/ai/transcribe` as is —

@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const pool = require('../db/pool');
-const { listFilesInFolder, getFileMeta, downloadFile } = require('../services/driveService');
+const { listFilesInFolder, getFileMeta, downloadFile, normalizeFolderId } = require('../services/driveService');
 const fs = require('fs');
 const path = require('path');
 
@@ -8,7 +8,8 @@ const path = require('path');
 router.get('/folders', async (req, res) => {
   try {
     const { rows } = await pool.query(`SELECT value FROM settings WHERE key = 'drive_folders'`);
-    const folders = rows[0]?.value ? JSON.parse(rows[0].value) : [];
+    const folders = (rows[0]?.value ? JSON.parse(rows[0].value) : [])
+      .map(f => ({ ...f, id: normalizeFolderId(f.id) }));
     res.json(folders);
   } catch (err) {
     res.status(500).json({ error: err.message });

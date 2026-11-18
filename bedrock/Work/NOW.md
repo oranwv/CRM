@@ -6,6 +6,10 @@ updated: 2026-11-18
 
 # Now
 
+## 2026-11-18 — Phase 102e (1.26.4): Drive folder by link
+
+- הגדרות → תיקיות Google Drive takes the folder link; ID extracted client-side, and saved full links are normalized server-side (sync + GET /folders). Pushed from a phone (cloud) session.
+
 ## 2026-11-18 — Phase 102d (1.26.3): dictation quality
 
 - `/api/ai/transcribe?context=dictation` → gpt-4o-transcribe + vocabulary prompt, whisper-1 fallback; recorder collects 1s slices; builder text box is fixed-height and scrolls inside (like the notes box). Lead-card voice notes still use plain whisper-1 (offered Oran to switch them too).
