@@ -34,3 +34,16 @@ body {
 }
 .crm-blink { animation: crm-blink 1s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .crm-blink { animation: none; } }
+
+/* Cost table in the contract / price-offer preview (Phase 102c). The preview wraps text
+   "anywhere", which on a phone let the browser squeeze the number columns to one character
+   per line ("50 / 0 / ש / ח"). Numbers never wrap; names and descriptions wrap between words. */
+.crm-doc-table td:nth-child(n+3), .crm-doc-table td:nth-child(n+3) *,
+.crm-doc-table td[colspan="2"], .crm-doc-table td[colspan="2"] * { white-space: nowrap !important; overflow-wrap: normal !important; }
+.crm-doc-table th, .crm-doc-table th *,
+.crm-doc-table td:nth-child(-n+2):not([colspan="2"]), .crm-doc-table td:nth-child(-n+2):not([colspan="2"]) * { overflow-wrap: break-word !important; word-break: normal; }
+.crm-doc-table td input, .crm-doc-table td textarea { min-width: 3.5em; }
+@media (max-width: 640px) {
+  .crm-doc-table { font-size: 8pt !important; }
+  .crm-doc-table th, .crm-doc-table td { padding: 3px 3px !important; }
+}

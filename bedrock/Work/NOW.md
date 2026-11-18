@@ -9,7 +9,7 @@ updated: 2026-11-18
 ## 2026-11-18 — Phase 102b (1.26.1): builder asks about the service rows
 
 - First live offer worked; template service rows were added unasked. Now `serviceRows` decisions are required for a regular offer (server-enforced), undecided/declined rows are dropped.
-- Oran's screenshot also shows the cost table very cramped on a phone in the preview (pre-existing layout) — offered to fix, waiting for his answer.
+- 1.26.2: cost table in both previews fixed for phones (`crm-doc-table` CSS).
 
 ## 2026-11-18 — Phase 102 (1.26.0): price offer by conversation
 

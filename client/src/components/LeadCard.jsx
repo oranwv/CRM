@@ -2544,7 +2544,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                   </div>
                 ) : (
                   <>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt' }}>
+                <table className="crm-doc-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt' }}>
                   <thead>
                     <tr style={{ background: '#f5f5f5' }}>
                       {[CL.thItem, CL.thDesc, CL.thQty, CL.thPrice, CL.thTotal].map(h => (
@@ -3952,7 +3952,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
                 <h3 style={{ marginTop: '12pt', marginBottom: '4pt' }}>
                   <EditableCell value={texts.costsHeader} onChange={v => setTxt('costsHeader', v)} />
                 </h3>
-                {offerType === 'regular' && <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt' }}>
+                {offerType === 'regular' && <table className="crm-doc-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt' }}>
                   <thead>
                     <tr style={{ background: '#f5f5f5' }}>
                       {texts.tableHeaders.map((h, i) => (

@@ -1803,6 +1803,15 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 102c — Cost table readable on a phone in the previews ✅ Built 2026-11-18 (1.26.2)
+Oran's screenshot: in the offer preview on a phone the price columns broke one character per
+line ("50 / 0 / ש / ח"). Cause: the preview container and `EditableCell` use
+`overflow-wrap: anywhere`, which lets the browser shrink a column to a single character.
+Fix (CSS only, `index.css`, class `crm-doc-table` on the cost table of both the price-offer and
+the contract preview): qty / price / total cells never wrap, name and description wrap between
+words, slightly smaller font and padding under 640px. Reproduced before/after at 360px with the
+same markup; the server-rendered PDF is untouched.
+
 ### Phase 102b — Offer builder: service rows only when the user says so ✅ Built 2026-11-18 (1.26.1)
 Oran's first live offer (18.11): it worked, but waiters / bartenders / event manager / lighting &
 sound rows were in the offer without being asked for. He wants the assistant to ask about them,
