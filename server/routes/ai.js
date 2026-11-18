@@ -8,13 +8,34 @@ const audioUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize
 const { openai: meteredOpenAI } = require('../services/openaiClient');
 const getClient = (feature = 'ai-tools') => meteredOpenAI(feature);
 
+// Vocabulary hint for dictating a price offer / contract change (names and terms the model would otherwise mishear)
+const DICTATION_PROMPT = 'איש צוות של שרביה, מקום אירועים ביפו, מכתיב הצעת מחיר או חוזה לאירוע: חבילה, מחיר לאורח, אורחים, לפני מע"מ, כולל מע"מ, מקדמה, תפריט שף, תפריט בר, ארוחת בוקר, ארוחת צהריים, מאפים, גבינות, סלטים, קינוחים, מלצרים, ברמנים, מנהל אירוע, תאורה והגברה, די ג׳יי, מתחם, שעת התחלה, שעת סיום.';
+
 // POST /api/ai/transcribe — voice recording → text (OpenAI Whisper, Hebrew)
 router.post('/transcribe', audioUpload.single('audio'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'לא התקבלה הקלטה' });
   if (!process.env.OPENAI_API_KEY) return res.status(503).json({ error: 'תמלול אינו זמין (OPENAI_API_KEY חסר)' });
   try {
-    const file = await toFile(req.file.buffer, req.file.originalname || 'audio.webm', { type: req.file.mimetype || 'audio/webm' });
-    const transcription = await getClient('voice-note').audio.transcriptions.create({ model: 'whisper-1', file, language: 'he', audioSeconds: Math.round((req.file.size || 0) / 16000) });
+    const mkFile = () => toFile(req.file.buffer, req.file.originalname || 'audio.webm', { type: req.file.mimetype || 'audio/webm' });
+    const audioSeconds = Number(req.body?.seconds) > 0 ? Math.round(Number(req.body.seconds)) : Math.round((req.file.size || 0) / 16000);
+    // context=dictation (Phase 102d): the user dictates an offer / a change to a document.
+    // Uses the stronger transcription model with a vocabulary prompt; long recordings and
+    // any failure fall back to whisper-1 with the same prompt. Other callers are unchanged.
+    if (req.body?.context === 'dictation') {
+      const prompt = DICTATION_PROMPT;
+      // gpt-4o-transcribe caps its output length, so very long dictations go to whisper-1
+      if (audioSeconds <= 300) {
+        try {
+          const t = await getClient('voice-dictation').audio.transcriptions.create({ model: 'gpt-4o-transcribe', file: await mkFile(), language: 'he', prompt, audioSeconds });
+          if ((t.text || '').trim()) return res.json({ text: t.text });
+        } catch (e) {
+          console.error('[AI] gpt-4o-transcribe failed, falling back to whisper-1:', e.message);
+        }
+      }
+      const t = await getClient('voice-dictation').audio.transcriptions.create({ model: 'whisper-1', file: await mkFile(), language: 'he', prompt, audioSeconds });
+      return res.json({ text: t.text || '' });
+    }
+    const transcription = await getClient('voice-note').audio.transcriptions.create({ model: 'whisper-1', file: await mkFile(), language: 'he', audioSeconds });
     res.json({ text: transcription.text || '' });
   } catch (err) {
     console.error('[AI] transcribe error:', err.message);

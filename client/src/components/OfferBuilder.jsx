@@ -23,7 +23,13 @@ export default function OfferBuilder({ lead, template, language = 'he', onDone, 
   const inputRef  = useRef(null);
   const started = messages.length > 0;
 
-  const voice = useVoiceToText(text => { setInput(v => (v ? v + ' ' : '') + text); setViaVoice(true); });
+  // The first box keeps a fixed size and scrolls inside, like the notes / call-summary box in the
+  // lead card (Oran, 18.11). After a transcript lands it is shown from its beginning.
+  const firstRef = useRef(null);
+  const voice = useVoiceToText(text => {
+    setInput(v => (v ? v + ' ' : '') + text); setViaVoice(true);
+    setTimeout(() => { if (firstRef.current) firstRef.current.scrollTop = 0; }, 0);
+  });
 
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages, busy]);
 
@@ -77,10 +83,11 @@ export default function OfferBuilder({ lead, template, language = 'he', onDone, 
         </p>
         {voice.error && <p className="text-sm text-center font-bold text-red-500">{voice.error}</p>}
         <div className="flex items-center gap-2 text-xs text-slate-400"><span className="flex-1 h-px bg-slate-200" />או<span className="flex-1 h-px bg-slate-200" /></div>
-        <textarea id="offer-builder-first" value={input} onChange={e => { setInput(e.target.value); }} rows={4}
+        <textarea id="offer-builder-first" ref={firstRef} value={input} onChange={e => { setInput(e.target.value); }} rows={4}
           placeholder="כתוב כאן… למשל: חבילה ל-40 איש עם תפריט צהריים ובר, והם מקבלים גם את המתחם ליד ליוגה"
-          className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-violet-400 resize-none" />
-        {viaVoice && input && <p className="text-xs text-slate-400 -mt-2">זה התמלול של ההקלטה. אפשר לתקן לפני ששולחים.</p>}
+          style={{ overscrollBehavior: 'contain', touchAction: 'pan-y' }}
+          className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-violet-400 resize-none overflow-y-auto" />
+        {viaVoice && input && <p className="text-xs text-slate-400 -mt-2">זה התמלול של ההקלטה. אפשר לגלול בתוך התיבה, לתקן, או להקליט שוב כדי להוסיף.</p>}
         <button type="button" onClick={send} disabled={!input.trim() || busy || recording || transcribing}
           className="w-full py-2.5 rounded-xl font-black text-white disabled:opacity-40"
           style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>

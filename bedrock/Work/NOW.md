@@ -6,6 +6,10 @@ updated: 2026-11-18
 
 # Now
 
+## 2026-11-18 — Phase 102d (1.26.3): dictation quality
+
+- `/api/ai/transcribe?context=dictation` → gpt-4o-transcribe + vocabulary prompt, whisper-1 fallback; recorder collects 1s slices; builder text box is fixed-height and scrolls inside (like the notes box). Lead-card voice notes still use plain whisper-1 (offered Oran to switch them too).
+
 ## 2026-11-18 — Phase 102b (1.26.1): builder asks about the service rows
 
 - First live offer worked; template service rows were added unasked. Now `serviceRows` decisions are required for a regular offer (server-enforced), undecided/declined rows are dropped.

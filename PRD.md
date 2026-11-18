@@ -1803,6 +1803,24 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 102d — Dictation to the assistants: better and complete transcripts ✅ Built 2026-11-18 (1.26.3)
+Oran (18.11): the builder's transcript is worse than call transcripts and it is short — not
+everything that was said appears. Findings: the builder used `/api/ai/transcribe` as is —
+whisper-1 with no vocabulary prompt (calls pass `WHISPER_PROMPT`; the lead card's voice note
+uses the same endpoint as the builder); the recorder asked for one big chunk at stop; the first
+text box showed 4 lines and scrolled.
+- `/api/ai/transcribe` accepts `context=dictation` (+ `seconds`): `gpt-4o-transcribe` with an
+  offer/contract vocabulary prompt; recordings over 5 minutes, an empty result or any error fall
+  back to whisper-1 with the same prompt. Usage feature `voice-dictation`. Calls without the
+  parameter (lead-card voice notes) behave exactly as before.
+- `useVoiceToText`: mono + echo cancellation / noise suppression / auto gain, 64 kbps,
+  `MediaRecorder.start(1000)` so audio is collected every second, real duration sent.
+- Builder's first box stays a fixed 4-line box that scrolls inside, like the notes / call-summary
+  box in the lead card (Oran did not want it to grow over the screen); a new transcript is shown
+  from its beginning, and inner scrolling does not drag the modal (`overscroll-behavior`).
+- Not verified against real audio from here; if `gpt-4o-transcribe` is not enabled on the OpenAI
+  account the fallback keeps it working (server log says so).
+
 ### Phase 102c — Cost table readable on a phone in the previews ✅ Built 2026-11-18 (1.26.2)
 Oran's screenshot: in the offer preview on a phone the price columns broke one character per
 line ("50 / 0 / ש / ח"). Cause: the preview container and `EditableCell` use

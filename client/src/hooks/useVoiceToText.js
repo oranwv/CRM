@@ -11,6 +11,7 @@ export default function useVoiceToText(onText) {
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState('');
   const recRef = useRef(null), chunksRef = useRef([]), streamRef = useRef(null), timerRef = useRef(null);
+  const secondsRef = useRef(0), startedAtRef = useRef(0);
   const onTextRef = useRef(onText);
   onTextRef.current = onText;
 
@@ -24,6 +25,8 @@ export default function useVoiceToText(onText) {
       const ext = mimeType.includes('mp4') ? 'mp4' : mimeType.includes('ogg') ? 'ogg' : 'webm';
       const fd = new FormData();
       fd.append('audio', blob, `rec.${ext}`);
+      fd.append('context', 'dictation'); // stronger model + offer/contract vocabulary on the server
+      fd.append('seconds', String(secondsRef.current));
       const { data } = await api.post('/ai/transcribe', fd);
       if (data.text?.trim()) onTextRef.current?.(data.text.trim());
       else setError('לא זוהה טקסט בהקלטה');
@@ -38,15 +41,19 @@ export default function useVoiceToText(onText) {
     setError('');
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { setError('הדפדפן לא תומך בהקלטה'); return; }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // mono speech, cleaned up by the browser — noticeably better transcripts on phones
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
       streamRef.current = stream;
       const mimeType = pickMime();
-      const rec = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      const rec = new MediaRecorder(stream, { ...(mimeType ? { mimeType } : {}), audioBitsPerSecond: 64000 });
+      startedAtRef.current = Date.now();
       chunksRef.current = [];
       rec.ondataavailable = e => { if (e.data.size) chunksRef.current.push(e.data); };
       rec.onstop = () => transcribe(rec.mimeType || mimeType || 'audio/webm');
       recRef.current = rec;
-      rec.start();
+      // 1-second slices: the audio is collected as it is recorded, so nothing is lost if the
+      // browser is slow to hand over one big final chunk (long recordings came back cut short).
+      rec.start(1000);
       setState('recording');
       setElapsed(0);
       timerRef.current = setInterval(() => setElapsed(s => s + 1), 1000);
@@ -56,6 +63,7 @@ export default function useVoiceToText(onText) {
   }
 
   function stop() {
+    secondsRef.current = Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000));
     clearInterval(timerRef.current);
     try { recRef.current?.stop(); } catch {}
     streamRef.current?.getTracks().forEach(t => t.stop());
