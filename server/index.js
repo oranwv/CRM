@@ -942,6 +942,12 @@ migrate(`
   CREATE INDEX IF NOT EXISTS user_transfer_items_tid ON user_transfer_items(transfer_id);
 `).catch(err => console.error('[DB] user_transfers migration error:', err.message));
 
+// Phase 101 (2026-11-18): "שיחה חוזרת" — a lead task of kind 'callback' (customer asked to be called at a set time)
+migrate(`
+  ALTER TABLE tasks ADD COLUMN IF NOT EXISTS kind TEXT;
+  CREATE INDEX IF NOT EXISTS tasks_callback_open ON tasks(due_at) WHERE kind = 'callback' AND completed_at IS NULL;
+`).catch(err => console.error('[DB] tasks.kind migration error:', err.message));
+
 // One-time cleanup (2026-08-06): nightly scans that ran with the old
 // Drive-readonly token errored at folder creation and wrongly stamped invoice
 // emails as is_invoice=false with no file records — permanently skipping them.
@@ -1031,6 +1037,7 @@ app.use('/api/costs',              requireAuth, require('./routes/costs')); // c
 const attendanceRoutes = require('./routes/attendance');
 migrate(attendanceRoutes.SCHEMA_SQL).catch(err => console.error('[Attendance] migration error:', err.message));
 app.use('/api/attendance',         requireAuth, attendanceRoutes);
+app.use('/api/callbacks',          requireAuth, require('./routes/callbacks')); // Phase 101: שיחה חוזרת
 app.use('/api/calendar', (req, res, next) => {
   // ICS download and lead confirmation are public — no auth required
   if (/^\/meetings\/[^/]+\/(ics|confirm)$/.test(req.path)) return next();

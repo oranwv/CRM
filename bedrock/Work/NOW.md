@@ -6,6 +6,10 @@ updated: 2026-11-18
 
 # Now
 
+## 2026-11-18 — Phase 101 (1.25.0): "שיחה חוזרת" callback tasks (branch `callback-tasks`, waiting for Oran's OK)
+
+- `tasks.kind='callback'`, `routes/callbacks.js`, `CallbackTime.jsx` (button + time picker), `CallbackPopup.jsx` (global pop-up: assignee from −5 min, other sales users from +10 min). Scratch-DB verified; sound + auto-close after a real call need a live check.
+
 ## 2026-11-18 — Phase 100 (1.24.3): card last-4 beside the כאל / מקס badge
 
 - Parsers set `entry.card` (row column → title line → file name); stored as `card_last4`; badge shows "כאל · 0353". Unverified against real CAL / MAX exports — first real re-run by Oran is the test.

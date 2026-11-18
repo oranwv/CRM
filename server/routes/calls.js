@@ -546,6 +546,11 @@ async function finishFromDial(callId, body) {
     [callId, status, s === 'completed' ? Number(body.DialCallDuration) || 0 : null]
   );
   if (status !== 'completed') await logUnansweredOutbound(callId);
+  else if (Number(body.DialCallDuration) > 0) {
+    // Phase 101: we reached the customer → his "שיחה חוזרת" (if one is waiting) is done
+    const { rows: [c] } = await pool.query(`SELECT lead_id, user_id, direction FROM calls WHERE id = $1`, [callId]);
+    if (c?.direction === 'outbound') await require('./callbacks').closeAfterCall(c.lead_id, c.user_id);
+  }
 }
 
 // Outbound that never connected → a call_attempt on the lead (like the old tel: link did)

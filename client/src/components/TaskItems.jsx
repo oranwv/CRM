@@ -1,3 +1,4 @@
+import { fmtCallbackTime } from './CallbackTime';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
@@ -7,8 +8,8 @@ import { openLead } from '../utils/openLead';
 // בוצע (with a result line), דחייה (new date + optional reason), לא רלוונטי (reason).
 // Used by הפעילות שלי and by the overdue-tasks window.
 
-export const GROUP_LABELS = { sales: 'מכירות', production: 'הפקה', operations: 'תפעול', maintenance: 'תחזוקה' };
-export const GROUP_ORDER  = ['sales', 'production', 'operations', 'maintenance'];
+export const GROUP_LABELS = { callbacks: '📞 שיחות חוזרות', sales: 'מכירות', production: 'הפקה', operations: 'תפעול', maintenance: 'תחזוקה' };
+export const GROUP_ORDER  = ['callbacks', 'sales', 'production', 'operations', 'maintenance'];
 const KIND_LABEL = { lead: 'ליד', op: 'תפעול', maintenance: 'תחזוקה', fault: 'תקלה' };
 
 export function fmtDue(ds) {
@@ -88,6 +89,9 @@ export function TaskRow({ t, showAssignee, onChanged }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-bold text-slate-800 text-sm">{t.title}</span>
+            {t.is_callback && t.due && !t.done && (
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-black bg-teal-600 text-white whitespace-nowrap">📞 לחזור ב-{fmtCallbackTime(t.due)}</span>
+            )}
             <TaskStatus t={t} />
             <span className="text-[10px] text-slate-400 border border-slate-200 rounded px-1">{KIND_LABEL[t.kind]}</span>
           </div>

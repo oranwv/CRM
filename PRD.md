@@ -1803,6 +1803,32 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 101 — "שיחה חוזרת": the customer asked to be called back at a set time ✅ Built 2026-11-18 (1.25.0)
+Oran: a "call him back in two hours / tomorrow at 10:00" task matters more than a normal follow-up —
+the customer is only free then — so it must jump up on screen, not just blink, and be created by its
+own button, apart from the "משימה נפוצה" list. Agreed design: pop up 5 minutes early, with a sound,
+and "if the rep did not deal with it, pop it up for the other reps too".
+- **Data**: a lead task with `tasks.kind = 'callback'` (title "לחזור ללקוח — <note>", `remind_via =
+  'whatsapp'`, assignee = whoever created it). So it is in every task list and gets the normal WhatsApp
+  reminder at its time. Routes in `server/routes/callbacks.js` (`/api/callbacks`).
+- **Create** (`CallbackTime.jsx`): button "📞 ביקש שאחזור אליו" beside the call buttons on the lead
+  card, and at the top of "+ משימה חדשה". Quick choices: עוד שעה · עוד שעתיים · מחר ב-10:00 · שעה אחרת,
+  plus an optional note.
+- **Pop-up** (`CallbackPopup.jsx`, mounted in `App.jsx`, polls `GET /api/callbacks/due` every 30 s):
+  - the assignee gets it from **5 minutes before** the time, with a short two-tone sound;
+  - **10 minutes after** the time, if it is still open, every other sales user (admin / manager /
+    sales_manager / sales) gets it too, in red ("שיר עוד לא חזר/ה ל…"), for up to 24 h;
+  - actions: התקשר (the normal `CallButtons`) · ✓ דיברנו · פתח ליד · דחה ב-10 דק׳ · שעה אחרת · לא
+    רלוונטי (reason required). × only hides it for 5 minutes.
+  - an answered outbound system call to the lead closes a callback that is due within 30 minutes
+    or late (`closeAfterCall`, called from `calls.js` `finishFromDial`).
+- **Lists**: `TaskRow` shows a teal "📞 לחזור ב-HH:MM" tag; הפעילות שלי → tasks gets a first group
+  "📞 שיחות חוזרות" (`my-tasks` returns `is_callback` and group `callbacks`).
+- Every step writes a note on the lead (📞 ביקש/ה שנחזור · ⏭ נדחתה · ✅ חזרנו ללקוח · 🚫 בוטלה).
+- Verified on a scratch Postgres (19 checks: timing windows, escalation, roles, snooze, done by another
+  rep, cancel, auto-close) and rendered from the real code — not on production data. The sound and
+  the auto-close after a real call can only be confirmed live.
+
 ### Phase 100 — Missing credit charges show the card's last 4 digits ✅ Built 2026-11-18 (1.24.3)
 Oran: a missing credit charge should show not only "מקס" / "כאל" but which card.
 - `financeReconcile`: `parseCreditCal` / `parseCreditMax` set `card` on every entry — from a per-row

@@ -1,3 +1,4 @@
+import CallbackPopup from './components/CallbackPopup';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import LoginPage     from './pages/LoginPage';
@@ -241,6 +242,7 @@ function GlobalHeader() {
       )}
 
       {showOverdue && !isPublic && <OverdueTasksModal onClose={closeOverdue} />}
+      {!isPublic && <CallbackPopup />}
 
       {showPending && (
         <PendingDocsModal

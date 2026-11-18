@@ -1,3 +1,4 @@
+import { CallbackButton } from './CallbackTime';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import AssigneesSelect, { assigneeIdsOf } from './AssigneesSelect';
 import api from '../api';
@@ -731,7 +732,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
                           {[
                             ...(lead.phone ? [{ id: 'main', value: lead.phone, label: null }] : []),
                             ...contacts.filter(c => c.type === 'phone'),
-                          ].map(p => (
+                          ].map((p, pi) => (
                             <div key={p.id} className="flex items-center gap-2 flex-wrap">
                               {p.label && <span className="text-sm font-semibold text-slate-500 shrink-0">{p.label}</span>}
                               <a
@@ -741,6 +742,7 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
                                 onClick={() => api.post(`/leads/${lead.id}/interactions`, { type: 'call_attempt', direction: 'outbound', body: '', source: 'dial' }).then(load)}
                               >{p.value}</a>
                               <CallButtons lead={lead} phone={p.value} />
+                              {pi === 0 && <CallbackButton lead={lead} onSaved={load} />}
                             </div>
                           ))}
                         </div>
@@ -5588,6 +5590,7 @@ function AddTaskModal({ leadId, users, onClose, onSaved, defaultAssignedTo, init
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl p-5 w-96 mx-4 space-y-3" onClick={e => e.stopPropagation()}>
         <h3 className="font-black text-slate-800 text-lg text-right">+ משימה חדשה</h3>
+        <CallbackButton lead={{ id: leadId }} wide onSaved={onSaved} />
         <TaskPresetSelect value={form.title} onPick={t => setForm(f => ({ ...f, title: t }))} className={cls} />
         <input autoFocus value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
           className={cls} placeholder="או כתוב כותרת משימה..." />

@@ -33,7 +33,8 @@ const LEAD_TASK_SQL = `
          t.cancelled_at IS NOT NULL AS cancelled,
          t.assigned_to, ${A.ids('t', 'assigned_to')} AS assignee_ids, ${A.names('t', 'assigned_to')} AS assigned_name, t.created_by, uc.display_name AS created_by_name,
          COALESCE(t.postpone_count, 0) AS postpone_count, t.created_at,
-         CASE WHEN l.stage IN ${PRODUCTION_STAGES} THEN 'production' ELSE 'sales' END AS "group"
+         (t.kind = 'callback') IS TRUE AS is_callback,
+         CASE WHEN t.kind = 'callback' THEN 'callbacks' WHEN l.stage IN ${PRODUCTION_STAGES} THEN 'production' ELSE 'sales' END AS "group"
   FROM tasks t
   JOIN leads l ON l.id = t.lead_id
   LEFT JOIN users uc ON uc.id = t.created_by`;
@@ -73,7 +74,7 @@ const FAULT_SQL = `
   FROM op_faults f
   LEFT JOIN users ur ON ur.id = f.reported_by`;
 
-const EMPTY = () => ({ sales: [], production: [], operations: [], maintenance: [] });
+const EMPTY = () => ({ callbacks: [], sales: [], production: [], operations: [], maintenance: [] });
 const sortRows = rows => rows.sort((a, b) => {
   if (a.done !== b.done) return a.done ? 1 : -1;           // open first
   if (!a.done && a.overdue !== b.overdue) return a.overdue ? -1 : 1; // overdue first among open
