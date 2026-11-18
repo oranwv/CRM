@@ -191,7 +191,7 @@ async function classifyEmail({ subject, from, snippet, attachments, links }) {
   const openai = require('./openaiClient').openai('invoice-classifier');
   const prompt = `אתה מסווג מיילים עבור עסק אירועים בשם "שרביה". קבע האם המייל הבא הוא חשבונית/קבלה שספק שלח לעסק (הוצאה של העסק).
 
-חשוב: חשבוניות שהעסק עצמו הוציא ללקוחות שלו (למשל דרך GreenInvoice של שרביה, או מיילים שנשלחו על ידי שרביה) הן לא חשבוניות ספק — סווג אותן כ-false. מיילים שיווקיים שמזכירים "חשבונית" הם false.
+חשוב: חשבוניות שהעסק עצמו הוציא ללקוחות שלו (למשל דרך GreenInvoice של שרביה, או מיילים שנשלחו על ידי שרביה) הן לא חשבוניות ספק — סווג אותן כ-false. מיילים שיווקיים שמזכירים "חשבונית" הם false. חשבון חודשי/תקופתי של ספק שירות (בזק, חברת חשמל, מים, סלולר, אינטרנט, ארנונה, ביטוח) עם קובץ מצורף או קישור לצפייה הוא true — גם כשהוא פונה לבעל העסק בשמו הפרטי.
 
 מאת: ${from}
 נושא: ${subject}
@@ -238,14 +238,25 @@ async function pdfText(buffer, maxChars = 2500) {
   finally { try { await parser?.destroy(); } catch { /* ignore */ } }
 }
 
-const DOC_KEYWORDS = ['חשבונית', 'קבלה', 'invoice', 'receipt', 'חשבון עסקה', 'tax invoice', 'זיכוי'];
-const NON_INVOICE_HINTS = ['דו"ח בדיקה', 'דוח בדיקה', 'אישור יועץ', 'אישור בטיחות', 'תעודת', 'נספח', 'הסכם', 'חוזה', 'פוליסה', 'פרוטוקול', 'הצעת מחיר'];
+// Bump when the classification rules change: emails that an OLDER version
+// marked "not an invoice" are looked at again on the next scan of their dates
+// (a rejected invoice was otherwise skipped forever).
+const CLASSIFIER_VERSION = 2;
+
+const DOC_KEYWORDS = ['חשבונית', 'קבלה', 'invoice', 'receipt', 'חשבון עסקה', 'חשבון תקופתי', 'tax invoice', 'זיכוי'];
+// 'תעודת' alone matched "מספר תעודת זהות" on every Bezeq bill and pushed it to
+// the AI, which sometimes read "מסמך זה אינו מהווה חשבונית מס" as "not an invoice".
+const NON_INVOICE_HINTS = ['דו"ח בדיקה', 'דוח בדיקה', 'אישור יועץ', 'אישור בטיחות', 'תעודת משלוח', 'תעודת אחריות', 'תעודת ביטוח', 'תעודת כשרות', 'נספח', 'הסכם', 'חוזה', 'פוליסה', 'פרוטוקול', 'הצעת מחיר'];
+// A document carrying one of these is a bill / invoice whatever else it says —
+// including periodic utility bills ("חשבון תקופתי … מסמך זה יהווה קבלה עם תשלומו").
+const STRONG_INVOICE = /חשבונית מס|חשבונית עסקה|חשבון עסקה|חשבון תקופתי|חשבונית זיכוי|קבלה מספר|סה"כ לתשלום|סה״כ לתשלום|tax invoice|invoice (?:no|number|#)|amount due|total due/i;
 
 async function classifyAttachment({ filename, text, subject, from }) {
   const t = (text || '').toLowerCase();
   if (!t) return true; // scanned / image-only PDF — can't tell, keep it (the review screen exists for that)
   const kw = DOC_KEYWORDS.some(k => t.includes(k.toLowerCase()));
   const nonInv = NON_INVOICE_HINTS.some(k => t.includes(k.toLowerCase()));
+  if (STRONG_INVOICE.test(text) && !nonInv) return true; // bill / invoice wording
   if (kw && !nonInv) return true;   // clearly an invoice
   if (!kw && nonInv) return false;  // clearly something else
   if (!process.env.OPENAI_API_KEY) return kw;
@@ -253,7 +264,7 @@ async function classifyAttachment({ filename, text, subject, from }) {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const resp = await openai.chat.completions.create({
       model: 'gpt-4o-mini', max_tokens: 120, response_format: { type: 'json_object' },
-      messages: [{ role: 'user', content: `המסמך הבא הגיע כקובץ מצורף במייל (מאת: ${from}, נושא: ${subject}, שם קובץ: ${filename}). קבע האם המסמך עצמו הוא חשבונית / קבלה / חשבון עסקה / חשבונית זיכוי (מסמך כספי שספק הוציא). דו"ח בדיקה, אישור, תעודה, נספח, הסכם, פוליסה או הצעת מחיר אינם חשבונית.
+      messages: [{ role: 'user', content: `המסמך הבא הגיע כקובץ מצורף במייל (מאת: ${from}, נושא: ${subject}, שם קובץ: ${filename}). קבע האם המסמך עצמו הוא חשבונית / קבלה / חשבון עסקה / חשבונית זיכוי (מסמך כספי שספק הוציא). דו"ח בדיקה, אישור, תעודה, נספח, הסכם, פוליסה או הצעת מחיר אינם חשבונית. חשבון תקופתי של ספק שירות (בזק, חשמל, מים, סלולר, ארנונה) הוא כן חשבונית לצורך זה — גם אם כתוב בו "מסמך זה אינו מהווה חשבונית מס" או "יהווה קבלה עם תשלומו".
 
 תחילת המסמך:
 ${text}
@@ -385,16 +396,18 @@ async function scanRange(from, to) {
         // files never saved (or partially failed — e.g. scans run with the old
         // Drive-readonly token) is reprocessed.
         const { rows: seen } = await pool.query(
-          `SELECT s.is_invoice,
+          `SELECT s.is_invoice, COALESCE(s.classifier_version, 1) AS classifier_version,
                   COUNT(f.*) FILTER (WHERE f.status IN ('saved', 'trashed'))::int  AS saved_count,
                   COUNT(f.*) FILTER (WHERE f.status = 'failed')::int AS failed_count
            FROM finance_scanned_emails s
            LEFT JOIN finance_invoice_files f ON f.gmail_message_id = s.gmail_id
            WHERE s.gmail_id = $1
-           GROUP BY s.gmail_id, s.is_invoice`, [m.id]);
+           GROUP BY s.gmail_id, s.is_invoice, s.classifier_version`, [m.id]);
         if (seen.length) {
           const s = seen[0];
-          const fullyHandled = !s.is_invoice || (s.saved_count > 0 && s.failed_count === 0);
+          // "Not an invoice" stands only if the current rules said so
+          const rejectedByCurrentRules = !s.is_invoice && s.classifier_version >= CLASSIFIER_VERSION;
+          const fullyHandled = rejectedByCurrentRules || (s.is_invoice && s.saved_count > 0 && s.failed_count === 0);
           if (fullyHandled) continue;
         }
         summary.scanned++;
@@ -514,8 +527,9 @@ const sanitize = (s) => String(s || '').replace(/[\\/:*?"<>|]/g, ' ').trim().sli
 
 async function markScanned(gmailId, account, isInvoice) {
   await pool.query(
-    `INSERT INTO finance_scanned_emails (gmail_id, account_email, is_invoice) VALUES ($1, $2, $3)
-     ON CONFLICT (gmail_id) DO UPDATE SET is_invoice = EXCLUDED.is_invoice, scanned_at = NOW()`, [gmailId, account, isInvoice]);
+    `INSERT INTO finance_scanned_emails (gmail_id, account_email, is_invoice, classifier_version) VALUES ($1, $2, $3, $4)
+     ON CONFLICT (gmail_id) DO UPDATE SET is_invoice = EXCLUDED.is_invoice, classifier_version = EXCLUDED.classifier_version, scanned_at = NOW()`,
+    [gmailId, account, isInvoice, CLASSIFIER_VERSION]);
 }
 
 async function recordFile(gmailId, account, f) {

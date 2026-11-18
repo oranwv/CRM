@@ -891,6 +891,7 @@ migrate(`
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (gmail_message_id, filename)
   );
+  ALTER TABLE finance_scanned_emails ADD COLUMN IF NOT EXISTS classifier_version INT DEFAULT 1; -- 2026-11-18: re-examine old rejections when rules change
   -- 2026-09-22: drive_folder now holds "MM-YYYY/<mailbox address>" — VARCHAR(20) truncation
   -- made every recordFile() fail ("value too long") right after the upload succeeded.
   ALTER TABLE finance_invoice_files ALTER COLUMN drive_folder TYPE TEXT;

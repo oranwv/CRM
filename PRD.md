@@ -1803,6 +1803,26 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 99 — Invoice scan: utility bills always count; old rejections re-examined ✅ Built 2026-11-18 (1.24.2)
+Oran: the Bezeq bill of 14.10 (PDF attached, "החשבונית החודשית שלך בבזק כאן") was never filed, while
+the 15.11 one was. Checked on the live API: no file in Drive 10-2026, none in the trash. The scan
+record itself (`finance_scanned_emails`) is not exposed, so the exact stage is **inferred**: the
+per-attachment check sent every Bezeq PDF to the AI because `NON_INVOICE_HINTS` contained the bare
+word `תעודת`, which matches "מספר תעודת זהות" in the bill's small print; the bill also says "מסמך זה
+אינו מהווה חשבונית מס", so the AI's answer varied month to month. An email whose PDFs are all
+rejected is marked *not an invoice* and was then skipped forever.
+- `classifyAttachment`: `STRONG_INVOICE` regex (חשבונית מס / חשבון תקופתי / חשבון עסקה / קבלה מספר /
+  סה"כ לתשלום / tax invoice / amount due …) accepts without the AI unless a non-invoice hint is also
+  present; `תעודת` narrowed to תעודת משלוח / אחריות / ביטוח / כשרות; "חשבון תקופתי" added to the
+  keywords. Both AI prompts now say a periodic utility bill is an invoice, also when addressed to
+  the owner by name and when it carries the "אינו מהווה חשבונית מס" notice.
+- `finance_scanned_emails.classifier_version` (default 1) + `CLASSIFIER_VERSION = 2` in the scanner:
+  a *not an invoice* verdict only stands if it was given by the current version, so older
+  rejections are re-examined on the next scan that covers their dates. Bump the constant whenever
+  the rules change. Saved / trashed files are still never duplicated.
+- Tested with simulated document text only (Bezeq bill → accepted; inspection report and safety
+  certificate → still rejected). To recover October: run "טווח מותאם" 1.10–31.10.
+
 ### Phase 98 — Missing-expense status: visible save ✅ Built 2026-11-18 (1.24.1)
 Oran typed a status on a missing expense and looked for a button — the only "הוסף" on the row
 belongs to the notes field. The status always saved on Enter / blur, with no feedback.

@@ -6,6 +6,12 @@ updated: 2026-11-18
 
 # Now
 
+## 2026-11-18 — Phase 99 (1.24.2): Bezeq bill missed by the invoice scan
+
+- Cause inferred, not observed (no access to `finance_scanned_emails` / Railway logs): bare `תעודת` hint matched "תעודת זהות" → AI decided → sometimes rejected → email skipped forever. Fixed with `STRONG_INVOICE`, narrower hints, prompt lines, and `classifier_version` so old rejections are re-scanned once.
+- Committed on the Mac only. This chat cannot push (Mac push blocked by Cowork, no cloud repo access; the one-off push tasks ran but did not push) — Oran pushes with `cd ~/Projects/CRM && git push`.
+- After deploy Oran should rescan 1.10–31.10 and confirm the Bezeq bill of 14.10 lands in 10-2026. If it does not, the rejection was at the email-level AI stage — look there next.
+
 ## 2026-11-18 — Phase 98 (1.24.1): status field on a missing expense gets a שמור button + "נשמר ✓"
 
 - UI-only (`ExpenseRow` in FinancePage). Not rendered or run here — eslint only; Oran to confirm on the live page after deploy.
