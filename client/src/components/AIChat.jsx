@@ -8,6 +8,7 @@ const TOOL_LABELS = {
   get_today_schedule: 'מושך לוז היום...',
   get_leads:          'מחפש לידים...',
   get_lead_details:   'טוען פרטי ליד...',
+  search_lead_history: 'מחפש בשיחות ובהערות של הליד...',
   get_urgent_leads:   'מחפש לידים דחופים...',
   get_op_tasks:       'מחפש משימות תפעול...',
   get_maintenance:    'טוען לוח תחזוקה...',

@@ -97,6 +97,21 @@ const TOOL_DEFS = {
       }
     }
   },
+  search_lead_history: {
+    type: 'function',
+    function: {
+      name: 'search_lead_history',
+      description: 'מחפש בכל ההיסטוריה של ליד אחד: תמלולי שיחות טלפון, סיכומי שיחות, הערות, פגישות, אימיילים והודעות וואטסאפ. להשתמש בכל שאלה על מה נאמר / סוכם / הובטח / דובר עם הלקוח (תאריך, מחיר, כמות מוזמנים, כשרות, התנגדויות וכו\'), ובכל בקשה למצוא איפה משהו הוזכר. מחזיר את המקורות עם כותרת לכל מקור (סוג, תאריך ושעה, מי) וזמן משוער בתוך התמלול.',
+      parameters: {
+        type: 'object',
+        properties: {
+          lead_id:  { type: 'number', description: 'מזהה הליד' },
+          question: { type: 'string', description: 'מה מחפשים, בניסוח מלא (למשל: "כל אזכור של תאריך האירוע")' }
+        },
+        required: ['lead_id', 'question']
+      }
+    }
+  },
   get_urgent_leads: {
     type: 'function',
     function: {
@@ -482,7 +497,7 @@ function israelToISO(date, time) {
 function getToolsForUser(userRoles) {
   const tools = [TOOL_DEFS.get_my_tasks, TOOL_DEFS.propose_task];
   if (hasRole(userRoles, LEAD_SET))   tools.push(TOOL_DEFS.get_today_schedule, TOOL_DEFS.get_schedule);
-  if (hasRole(userRoles, LEAD_SET))   tools.push(TOOL_DEFS.get_leads, TOOL_DEFS.get_lead_details, TOOL_DEFS.get_lead_documents, TOOL_DEFS.propose_note, TOOL_DEFS.propose_lead, TOOL_DEFS.propose_meeting);
+  if (hasRole(userRoles, LEAD_SET))   tools.push(TOOL_DEFS.get_leads, TOOL_DEFS.get_lead_details, TOOL_DEFS.search_lead_history, TOOL_DEFS.get_lead_documents, TOOL_DEFS.propose_note, TOOL_DEFS.propose_lead, TOOL_DEFS.propose_meeting);
   if (hasRole(userRoles, SALES_SET))  tools.push(TOOL_DEFS.get_urgent_leads, TOOL_DEFS.get_sales_worklist, TOOL_DEFS.get_analytics_kpis);
   if (hasRole(userRoles, OPS_SET))    tools.push(TOOL_DEFS.get_op_tasks, TOOL_DEFS.get_maintenance, TOOL_DEFS.get_event_brief, TOOL_DEFS.propose_fault);
   if (hasRole(userRoles, SUPPLY_SET)) tools.push(TOOL_DEFS.get_suppliers);
@@ -633,6 +648,20 @@ async function executeTool(name, args, user) {
       `, [lead_id]);
 
       return { ...lead, recent_interactions: interactions, open_tasks: openTasks };
+    }
+
+    case 'search_lead_history': {
+      const leadId = Number(args.lead_id);
+      const { rows: [lead] } = await pool.query(
+        'SELECT id, name, notes, event_date FROM leads WHERE id = $1 AND ($2 = true OR assigned_to = $3)', [leadId, isAM, uid]
+      );
+      if (!lead) return { error: 'ליד לא נמצא' };
+      const { searchLeadHistory } = require('../services/leadHistorySearch');
+      const found = await searchLeadHistory({
+        leadId, question: String(args.question || ''), leadName: lead.name,
+        openai: meteredOpenAI('assistant-lead-search'),
+      });
+      return { ...found, lead_id: lead.id, lead_notes: lead.notes || '', event_date: lead.event_date };
     }
 
     case 'get_urgent_leads': {
@@ -1002,6 +1031,19 @@ function formatToolResult(name, result) {
     case 'get_urgent_leads':
       return formatLeads(result);
 
+    case 'search_lead_history': {
+      const head = [
+        `היסטוריית הליד [${result.lead_name || ''}](/?lead=${result.lead_id}) — ${result.source_count} מקורות` +
+          (result.mode === 'extract' ? ' (להלן רק הקטעים הרלוונטיים לשאלה, מצוטטים מילה במילה)' : ' (ההיסטוריה המלאה, מהישן לחדש)'),
+        result.event_date ? `תאריך האירוע שרשום בכרטיס הליד: ${new Date(result.event_date).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}` : 'בכרטיס הליד לא רשום תאריך אירוע',
+        result.lead_notes ? `שדה "הערות" בכרטיס הליד: ${result.lead_notes}` : '',
+        result.truncated ? 'שים לב: ההיסטוריה ארוכה מאוד — נסרקו רק המקורות האחרונים.' : '',
+      ].filter(Boolean).join('\n');
+      if (!result.source_count) return head + '\nאין לליד הזה שיחות, הערות או הודעות מתועדות.';
+      if (!result.text) return head + '\nלא נמצא שום אזכור רלוונטי לשאלה בהיסטוריה של הליד.';
+      return head + '\n\n' + result.text;
+    }
+
     case 'get_lead_details': {
       if (!result || result.error) return result?.error || 'לא נמצא';
       const lines = [
@@ -1179,6 +1221,7 @@ router.post('/', requireAuth, async (req, res) => {
 - כשהמשתמש מדווח על תקלה באולם (תאורה, חשמל, מיזוג, ציוד): קודם ענה מתוך מדריכי התפעול אם יש, ואז הצע לפתוח תקלה לתפעול (propose_fault) אם זה לא נפתר.
 - כששואלים "מה הלו"ז שלי ומה הכי דחוף" — שלב לו"ז היום עם רשימת AI מכירות ומשימות שעבר מועדן, ותן תשובה מסודרת לפי סדר עדיפות.
 - ליד חדש מהודעה חופשית: כשהמשתמש מדביק סיכום שיחה עם לקוח (שמות, טלפון, אירוע, תאריך, כמות, מחיר) ומבקש להכניס ליד — הכלי הוא propose_lead. לפני הקריאה, אל תניח הנחות: שאל בהודעה אחת וקצרה על כל מה שלא ברור, למשל (1) של מי מספר הטלפון אם ההודעה לא ברורה; (2) מי מהצוות מקיים את הפגישה, אם נקבעה פגישה; (3) האם להוסיף משימה (ואיזו). רק אחרי שהמשתמש ענה — קרא לכלי פעם אחת עם כל הפרטים (כולל פרטי הפגישה והמשימה — הם יופיעו ככרטיסים נפרדים אחרי יצירת הליד, ושם המשתמש בוחר מקיים/אחראי ולוחץ שלח). לקביעת פגישה לליד קיים — propose_meeting. תאריך בלי שנה: העבר יום+חודש+יום בשבוע והשרת מחשב; אם הכלי מחזיר שאלה (יום בשבוע לא מתאים, משתמש לא נמצא) — שאל את המשתמש וקרא שוב. שם הליד = שמות הלקוחות; שם האירוע = התיאור המלא מהשורה הראשונה. סוג אירוע שלא ברשימה (שבת חתן, ברית) = "אחר" + event_type_detail. כמות מוזמנים ותקציב נכנסים לשדות שלהם; כל שאר המידע (מאיפה הלקוחות, מי אחראי מצדם, מה נאמר על מחיר/תפריט/כשרות/שף, התרשמות, המלצה) נכנס במלואו ל-log_text, ואם ההודעה מתארת שיחת טלפון — log_type=call.
+- חיפוש בהיסטוריה של ליד: כששואלים מה נאמר / סוכם / דובר עם לקוח, או מבקשים למצוא איפה משהו הוזכר (תאריך, מחיר, כמות, התחייבות, התנגדות) — קרא ל-search_lead_history עם ה-lead_id של הליד הפתוח (או של הליד שהמשתמש ציין) ועם השאלה בניסוח מלא. אל תענה על שאלות כאלה מהזיכרון או רק מפרטי הליד שלמעלה. בתשובה: פרט את כל האזכורים שנמצאו, מהישן לחדש, ולכל אחד ציין איפה הוא מופיע — סוג המקור (שיחה נכנסת/יוצאת, הערה, וואטסאפ, אימייל, פגישה), תאריך ושעה, מי מהצוות, ובשיחה מתומללת גם "בערך בדקה X" לפי הסימון [~דד:שש] ומי אמר (נציג/לקוח) — עם ציטוט קצר מילה במילה במירכאות. הזמן בתוך שיחה הוא הערכה — כתוב תמיד "בערך". אם יש סתירה בין מקורות או מול מה שרשום בכרטיס הליד — ציין אותה. אם לא נמצא דבר — אמור זאת במפורש ואל תמציא.
 - כשמציין ליד, צרף: [שם](/?lead=ID) וטלפון: [מספר](tel:מספר)
 - כשמציין ספק, צרף: [שם](/suppliers?id=ID) וטלפון: [מספר](tel:מספר)
 - אל תמציא קישורים לקבצים/מדיה ואל תכתוב כתובות אחסון (למשל supabase.co). מדיה אפשר להציג רק דרך תגית [[media:ID]] מתוך הרשימה למטה. אם אין קובץ/מדיה מתאימים — אמור זאת במפורש ואל תמציא קישור.
@@ -1198,7 +1241,7 @@ router.post('/', requireAuth, async (req, res) => {
 
       const stream = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
-        max_tokens: 1024,
+        max_tokens: 1500, // room for an answer that cites several sources (search_lead_history)
         messages: currentMessages,
         tools: tools.length ? tools : undefined,
         tool_choice: tools.length ? 'auto' : undefined,

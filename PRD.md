@@ -1803,6 +1803,36 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 97 — AI assistant: search a lead's full history with citations ✅ Built 2026-11-18 (1.24.0)
+Oran: with a lead card open, the assistant should find information in the calls and notes —
+e.g. "what date was discussed for the event" — list every mention and say where it appears
+(which call, where in the call). Before this the assistant only got `get_lead_details`:
+the last 5 `lead_interactions`, each cut to 80 chars; no transcripts, no `messages`.
+
+- New tool `search_lead_history { lead_id, question }` (`routes/chat.js`, roles = `LEAD_SET`,
+  same lead scope as `get_lead_details`), backed by `services/leadHistorySearch.js`.
+- Sources, oldest first, each with a citable header `[מקור N] <type> · <date time IL> · <who>`:
+  `lead_interactions` (notes, calls, call attempts, meetings, emails; stage-change 🔄 and
+  auto-reminder markers skipped), `calls` (summary + `transcript`, joined through
+  `calls.interaction_id`; the `[[TRANSCRIPT]]` tail of the interaction body is not
+  duplicated), `messages` (WhatsApp/Facebook/Instagram, both directions), `meetings`,
+  plus the lead's `notes` field and `event_date` for cross-checking.
+- **Position inside a call is an estimate.** Whisper segment timestamps are not stored
+  (`calls.transcript` is plain "נציג: … / לקוח: …" lines), so each line gets `[~mm:ss]` =
+  its character offset in the transcript × `duration_sec`. The prompt forces "בערך".
+  Exact times would need storing the `lines[].start` that `callTranscript.js` already has.
+- Size handling: ≤ 60k chars → the whole history goes to the chat model. Larger → map
+  step: 45k-char chunks (max 8, most recent kept) scanned in parallel by gpt-4o-mini
+  (`assistant-lead-search` in `ai_usage`) which copies relevant lines verbatim with their
+  source headers; only those reach the chat model.
+- System-prompt rule: for any "what was said / agreed / where was X mentioned" question call
+  the tool, list all mentions with source type, date+time, staff member, approximate minute
+  and speaker for calls, a short verbatim quote, flag contradictions, never invent.
+- Chat `max_tokens` 1024 → 1500 so multi-citation answers are not cut. Loading label
+  "מחפש בשיחות ובהערות של הליד..." in `AIChat.jsx`; no other UI change.
+- Verified offline with a mocked pool (rendering, transcript split, time estimate, large
+  path with a fake model). Not verified: the live answer quality on a real lead.
+
 ### Phase 96 — לשונית וואטסאפ: profile pictures, full attach menu, אחראי filter, no "לא סגרו" leads ✅ Built 2026-11-18 (1.23.0)
 
 Asked by Oran 2026-11-18, preview approved the same day (same canvas as Phase 88:

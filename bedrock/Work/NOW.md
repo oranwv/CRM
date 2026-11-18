@@ -6,6 +6,15 @@ updated: 2026-11-18
 
 # Now
 
+## 2026-11-18 — Phase 97 (1.24.0): assistant searches a lead's full history
+
+- New `search_lead_history` tool + `services/leadHistorySearch.js`: transcripts, call
+  summaries, notes, meetings, emails, WhatsApp — every source has a citable header; the
+  assistant lists all mentions with source/date/who/quote. Before: last 5 interactions × 80 chars.
+- Minute-in-call is an ESTIMATE (char offset × duration); transcripts are stored without
+  timestamps. Follow-up if Oran wants exact times: persist `lines[].start` from callTranscript.js.
+- Open: check answer quality on a real lead after deploy.
+
 ## 2026-11-18 — Phase 96 (1.23.0): וואטסאפ tab — profile pictures, full attach menu, אחראי filter, lost leads hidden
 
 - Built in the cloud clone on top of origin 1.22.1 and pushed. Details: PRD Phase 96.
