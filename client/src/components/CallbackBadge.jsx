@@ -26,12 +26,17 @@ export function useMyCallbacks() {
 }
 
 export function CallbackBadge({ items, onClick }) {
+  // re-check the clock every 20 s so the badge starts blinking on time, between server refreshes
+  const [, setTick] = useState(0);
+  useEffect(() => { const t = setInterval(() => setTick(n => n + 1), 20_000); return () => clearInterval(t); }, []);
   if (!items.length) return null;
-  const late = items.some(i => i.late);
+  // Oran: no time on the badge — it just starts blinking 5 minutes before a callback (and stays so until handled)
+  const now = Date.now() + 5 * 60_000;
+  const late = items.some(i => new Date(i.due_at).getTime() <= now);
   return (
     <button onClick={onClick}
       className={`${late ? 'crm-blink bg-red-600 hover:bg-red-700' : 'bg-teal-500 hover:bg-teal-600'} shrink-0 text-white text-xs font-black rounded-full px-3 py-1 leading-none transition cursor-pointer`}>
-      📞 {items.length === 1 ? 'שיחה חוזרת' : `${items.length} שיחות חוזרות`} · {fmtCallbackTime(items[0].due_at)}
+      📞 {items.length === 1 ? 'שיחה חוזרת' : `${items.length} שיחות חוזרות`}
     </button>
   );
 }

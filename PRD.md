@@ -1815,7 +1815,7 @@ Oran, right after 1.25.0: "אני רוצה שזה גם ישלח לוואצאפ �
   A new time (snooze / שעה אחרת) re-arms both. Callbacks are now created with `remind_via = 'app'`
   and the generic task reminder skips `kind = 'callback'`, so there is no second, generic message.
 - **Header badge** (`CallbackBadge.jsx`, in `App.jsx` before the overdue-tasks badge, i.e. to its
-  right): teal "📞 2 שיחות חוזרות · 16:12" with the next time; red and blinking when one is late.
+  right): teal "📞 2 שיחות חוזרות" (no time — Oran); turns red and blinks from 5 minutes before a callback until it is handled.
   Click → list of my open callbacks by time (lead name opens the card, התקשר, ✓ דיברנו).
   Fed by `GET /api/callbacks/mine`, refreshed every minute and on every create / move / close.
 - Verified on a scratch Postgres (28 checks incl. the WhatsApp timing, once-only, escalation
