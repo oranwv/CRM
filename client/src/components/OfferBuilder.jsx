@@ -13,7 +13,7 @@ const Mic = ({ size = 16 }) => (
 );
 const Stop = ({ size = 14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>;
 
-export default function OfferBuilder({ lead, template, onDone, onManual }) {
+export default function OfferBuilder({ lead, template, language = 'he', onDone, onManual }) {
   const [messages, setMessages] = useState([]); // { role: 'user'|'assistant'|'system', content, voice? }
   const [spec, setSpec]         = useState(null);
   const [input, setInput]       = useState('');
@@ -35,7 +35,7 @@ export default function OfferBuilder({ lead, template, onDone, onManual }) {
     try {
       const { data } = await api.post(`/leads/${lead.id}/price-offer/build`, {
         messages: history.filter(m => m.role !== 'system').map(({ role, content }) => ({ role, content })),
-        spec, template,
+        spec, template, language,
       });
       setSpec(data.spec);
       setMessages(m => [...m, { role: 'assistant', content: data.reply }]);
@@ -65,7 +65,7 @@ export default function OfferBuilder({ lead, template, onDone, onManual }) {
         )}
         <div className="text-center">
           <p className="font-black text-slate-800 text-lg">ספר לי על ההצעה</p>
-          <p className="text-sm text-slate-500">הקלט או כתוב בחופשיות. אני אשאל רק על מה שחסר.</p>
+          <p className="text-sm text-slate-500">הקלט או כתוב בחופשיות{language === 'en' ? ' (בעברית, ההצעה תצא באנגלית)' : ''}. אני אשאל רק על מה שחסר.</p>
         </div>
         <button type="button" onClick={voice.toggle} disabled={transcribing}
           className={`mx-auto w-24 h-24 rounded-full grid place-items-center text-white transition disabled:opacity-60 ${recording ? 'bg-red-600 animate-pulse' : 'bg-rose-500 hover:bg-rose-600'}`}

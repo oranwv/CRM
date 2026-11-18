@@ -144,7 +144,7 @@ function missingOf(spec) {
 }
 
 // messages: [{ role: 'user'|'assistant', content }], prevSpec: last normalized spec, template: { rows, includes }
-async function runOfferBuilder({ leadId, messages, prevSpec, template }) {
+async function runOfferBuilder({ leadId, messages, prevSpec, template, language }) {
   const history = (Array.isArray(messages) ? messages : [])
     .filter(m => m && (m.role === 'user' || m.role === 'assistant') && isStr(m.content) && m.content.trim())
     .slice(-20)
@@ -162,6 +162,9 @@ async function runOfferBuilder({ leadId, messages, prevSpec, template }) {
     `TEMPLATE rows (regular offer; row id 1 is the per-guest row; these default prices are placeholders, not agreed prices): ${JSON.stringify(tpl.rows)}`,
     `TEMPLATE includes ("המחיר כולל"): ${JSON.stringify(tpl.includes)}`,
     `SPEC SO FAR: ${JSON.stringify(prevSpec || null)}`,
+    language === 'en'
+      ? 'DOCUMENT LANGUAGE: English. The conversation with the user stays in Hebrew, but every customer-facing text you put in the spec (includesAdd, extraRows label/desc, chefMenu, barMenu, notes, extraCostLines, name if you change it) must be written in English. includesRemove still quotes the Hebrew TEMPLATE lines exactly.'
+      : 'DOCUMENT LANGUAGE: Hebrew.',
   ].join('\n\n');
 
   const res = await openai('offer-builder').chat.completions.create({

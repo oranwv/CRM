@@ -1819,12 +1819,16 @@ ask for prices; the assistant may read the lead's notes/history as context; move
   Context: lead card fields + up to 8 recent notes/call/meeting entries (≤2,500 chars,
   transcripts and file markers stripped); history is background — the prompt tells the model to
   ask before using anything from it. Never invents a price.
-- **Client** — `components/OfferBuilder.jsx` is the modal's first screen (known lead facts, big
-  record button, text box, "מעדיף למלא לבד" → the wizard as before; then the chat with mic).
+- **Client** — flow: import screen → language → **"עם העוזר" / "ידנית"** (Oran, 18.11: the
+  choice comes after the language and before the VAT question) → builder, or the wizard as
+  before. `components/OfferBuilder.jsx`: known lead facts, big record button, text box, then the
+  chat with mic; "מעדיף למלא לבד" drops to the wizard. English offers: the conversation stays
+  Hebrew, the model writes the spec's customer-facing texts in English, the English template is
+  filled directly and the preview's Hebrew→English swap is skipped.
   `utils/offerSpec.js` (pure) fills the template: rows are stored before VAT (incl. prices →
   /1.18), package prices keep the typed number + incl flag and the same generated lines as the
   wizard, new row ids never reuse a template id. The modal jumps to the preview step and shows a
-  "בדוק לפני שליחה" line with what the assistant filled. Builder offers are Hebrew only.
+  "בדוק לפני שליחה" line with what the assistant filled.
 - **Preview assistant for offers** — same engine as the contract (`contractAssistant.js` with
   `kind: 'offer'`: offer lists venueDescItems / includes / extras / packageCostLines, offer
   scalars and fields, commercial register instead of legal). New ops for cost rows in both

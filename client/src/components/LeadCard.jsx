@@ -3167,6 +3167,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
   // Import is the first screen (before language/VAT/type) — each import ADOPTS
   // the source's type, language and VAT, then enters the wizard at the first field.
   function beginImported({ type, lang, vat }) {
+    setModeChosen(true); // an import continues in the wizard
     setOfferType(type);
     setLanguage(lang); setLanguageSelected(true);
     setWithVat(vat); setVatAnswered(true);
@@ -3222,14 +3223,25 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
     beginImported({ type: srcPackage ? 'package' : 'regular', lang: srcEn ? 'en' : 'he', vat: (data.calculated?.vat || 0) > 0 });
   }
 
-  // Phase 102: the modal opens on the conversational builder; "מעדיף למלא לבד" drops to the wizard.
-  const [builderOn, setBuilderOn]           = useState(true);
+  // Phase 102: after the language question the user chooses "with the assistant" (the
+  // conversational builder) or "manually" (the wizard: VAT → type → fields, as before).
+  const [modeChosen, setModeChosen]         = useState(false);
+  const [builderOn, setBuilderOn]           = useState(false);
   const [builderSummary, setBuilderSummary] = useState(''); // "check before sending" line in the preview
   function applyBuilderSpec(spec) {
-    const next = applyOfferSpec({ fields, rows, texts }, spec);
+    // English: fill the English template directly (the model already wrote its texts in English)
+    // and skip the preview's Hebrew→English swap, which would replace the texts we just filled.
+    const next = applyOfferSpec({ fields, rows, texts }, spec,
+      en ? { texts: JSON.parse(JSON.stringify(OFFER_TEXTS_EN)), rows: OFFER_ROWS_EN } : null);
+    if (en) {
+      translatedRef.current = true;
+      const d = next.fields.eventDate || '';
+      if (d.trim() && !/^[\x00-\x7F]*$/.test(d)) {
+        api.post('/ai/translate', { text: d, to: 'en' }).then(({ data }) => { if (data?.result) setFields(f => ({ ...f, eventDate: data.result })); }).catch(() => {});
+      }
+    }
     setFields(next.fields); setRows(next.rows); setTexts(next.texts);
     setOfferType(next.offerType);
-    setLanguage('he'); setLanguageSelected(true);
     setWithVat(true); setVatAnswered(true);
     setImportDone(true);
     setEditMode(false);
@@ -3239,7 +3251,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
     setBuilderOn(false);
   }
 
-  const isImportStep = !importDone && !builderOn; // the wizard's first screen, before language/VAT/type
+  const isImportStep = !importDone; // the first screen, before language / mode / VAT / type
 
   // On reaching the English preview: swap boilerplate to the English defaults (keeping
   // row qty/price), and translate free-text inputs. Entry stays Hebrew throughout.
@@ -3428,13 +3440,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-5">
 
-          {/* ── Phase 102: build the offer in a conversation (the first screen) ── */}
-          {builderOn && (
-            <OfferBuilder lead={lead} template={{ rows, includes: texts.includes }}
-              onDone={applyBuilderSpec} onManual={() => setBuilderOn(false)} />
-          )}
-
-          {/* ── Import pre-step (the wizard's first screen) ── */}
+          {/* ── Import pre-step (the FIRST screen) ── */}
           {isImportStep && (
             <div className="flex flex-col items-center gap-4 py-6">
               {loadingImport ? (
@@ -3482,8 +3488,31 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
             </div>
           )}
 
+          {/* ── Phase 102: with the assistant or manually (after the language, before VAT) ── */}
+          {importDone && offerType === '' && languageSelected && !modeChosen && (
+            <div className="space-y-4 text-center">
+              <p className="font-black text-slate-700 text-lg">איך להכין את ההצעה?</p>
+              <button onClick={() => { setModeChosen(true); setBuilderOn(true); }}
+                className="w-full border-2 border-violet-300 text-violet-700 font-bold py-4 rounded-xl hover:bg-violet-50 text-lg">
+                ✦ עם העוזר
+                <span className="block text-sm font-semibold text-slate-500 mt-0.5">מקליטים או כותבים מה רוצים, והעוזר שואל על החסר</span>
+              </button>
+              <button onClick={() => setModeChosen(true)}
+                className="w-full border-2 border-amber-300 text-amber-700 font-bold py-4 rounded-xl hover:bg-amber-50 text-lg">
+                ידנית
+                <span className="block text-sm font-semibold text-slate-500 mt-0.5">שלב אחרי שלב, כמו עד עכשיו</span>
+              </button>
+            </div>
+          )}
+
+          {/* ── Phase 102: build the offer in a conversation ── */}
+          {builderOn && (
+            <OfferBuilder lead={lead} language={language} template={{ rows, includes: texts.includes }}
+              onDone={applyBuilderSpec} onManual={() => setBuilderOn(false)} />
+          )}
+
           {/* ── VAT pre-step ── */}
-          {importDone && offerType === '' && languageSelected && !vatAnswered && (
+          {importDone && offerType === '' && languageSelected && modeChosen && !builderOn && !vatAnswered && (
             <div className="space-y-4 text-center">
               <p className="font-black text-slate-700 text-lg">האם ההצעה כוללת מע"מ?</p>
               <button onClick={() => { setWithVat(true); setVatAnswered(true); }}
@@ -3498,7 +3527,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
           )}
 
           {/* ── Type selection ── */}
-          {importDone && offerType === '' && vatAnswered && (
+          {importDone && offerType === '' && vatAnswered && !builderOn && (
             <div className="space-y-4">
               <p className="text-slate-500 text-sm font-semibold text-center">בחר סוג הצעת מחיר</p>
               <button onClick={() => setOfferType('regular')}
