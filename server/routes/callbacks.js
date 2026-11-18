@@ -37,10 +37,23 @@ router.post('/', async (req, res) => {
     const title = `לחזור ללקוח${text ? ` — ${text}` : ''}`;
     const { rows: [t] } = await pool.query(
       `INSERT INTO tasks (lead_id, title, due_at, remind_via, assigned_to, created_by, kind)
-       VALUES ($1, $2, $3, 'whatsapp', $4, $4, 'callback') RETURNING *`,
+       VALUES ($1, $2, $3, 'app', $4, $4, 'callback') RETURNING *`,
       [lead.id, title, due, req.user.id]);
     await note(lead.id, `📞 ביקש/ה שנחזור ב-${dayTime(due)}${text ? `\n${text}` : ''}`, req.user.id);
     res.status(201).json(t);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/callbacks/mine — the caller's open callbacks, soonest first (header badge + its list)
+router.get('/mine', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT t.id, t.title, t.due_at, t.lead_id, l.name AS lead_name, l.phone,
+              (t.due_at < NOW()) AS late
+       FROM tasks t JOIN leads l ON l.id = t.lead_id
+       WHERE t.kind = 'callback' AND t.completed_at IS NULL AND t.due_at IS NOT NULL AND ${A.has('t', 'assigned_to', '$1')}
+       ORDER BY t.due_at`, [req.user.id]);
+    res.json({ items: rows });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -80,7 +93,7 @@ router.post('/:id/snooze', async (req, res) => {
     const due = mins > 0 ? new Date(Date.now() + mins * 60_000) : parseDue(req.body.due_at);
     if (!due || due.getTime() < Date.now() - 60_000) return res.status(400).json({ error: 'שעה לא תקינה' });
     await pool.query(
-      `UPDATE tasks SET due_at = $2, remind_sent_at = NULL, nudge_level = 0, nudge_sent_at = NULL,
+      `UPDATE tasks SET due_at = $2, remind_sent_at = NULL, callback_escalated_at = NULL, nudge_level = 0, nudge_sent_at = NULL,
               postpone_count = COALESCE(postpone_count, 0) + 1 WHERE id = $1`, [t.id, due]);
     await note(t.lead_id, `⏭ שיחה חוזרת נדחתה ל-${dayTime(due)}${req.body.reason ? `\n${String(req.body.reason).slice(0, 200)}` : ''}`, req.user.id);
     res.json({ ok: true, due_at: due });
@@ -117,5 +130,49 @@ async function closeAfterCall(leadId, userId) {
   } catch (err) { console.error('[Callbacks] closeAfterCall:', err.message); }
 }
 
+// ---- WhatsApp (Oran, 2026-11-18: "שזה גם ישלח לוואצאפ") ------------------------------------------
+// Runs every minute. Two messages per callback, each sent once (a new time re-arms both):
+//   1. to the assignee(s), LEAD_MIN minutes before the time;
+//   2. to every other sales user, ESCALATE_MIN minutes after it, if it is still open.
+// Everything goes through the task-nudge queue: one message every few seconds, never a burst,
+// and never to a blocked user.
+const baseUrl = () => process.env.SERVER_URL || 'https://crm-production-c3df.up.railway.app';
+async function runCallbackReminders() {
+  try {
+    const { queueNudge } = require('../services/taskNudgeService');
+    const tail = t => `${t.phone ? `\n📞 ${t.phone}` : ''}\nלפתיחת הליד: ${baseUrl()}/?lead=${t.lead_id}`;
+    const noteOf = t => { const n = (t.title || '').replace(/^לחזור ללקוח\s*(—\s*)?/, ''); return n ? `\n${n}` : ''; };
+
+    const first = await pool.query(
+      `UPDATE tasks t SET remind_sent_at = NOW()
+       FROM leads l
+       WHERE l.id = t.lead_id AND t.kind = 'callback' AND t.completed_at IS NULL AND t.remind_sent_at IS NULL
+         AND t.due_at <= NOW() + INTERVAL '${LEAD_MIN} minutes' AND t.due_at > NOW() - INTERVAL '2 hours'
+       RETURNING t.id, t.title, t.due_at, t.lead_id, t.assigned_to, t.extra_assignees, l.name AS lead_name, l.phone`);
+    for (const t of first.rows) {
+      const early = new Date(t.due_at).getTime() - Date.now() > 60_000;
+      const text = `📞 שיחה חוזרת${early ? ` בעוד ${Math.ceil((new Date(t.due_at).getTime() - Date.now()) / 60_000)} דק׳` : ' — עכשיו'}: לחזור ל${t.lead_name} ב-${hhmm(t.due_at)}${noteOf(t)}${tail(t)}`;
+      for (const uid of new Set([t.assigned_to, ...(t.extra_assignees || [])].filter(Boolean))) queueNudge(uid, text);
+    }
+
+    const late = await pool.query(
+      `UPDATE tasks t SET callback_escalated_at = NOW()
+       FROM leads l
+       WHERE l.id = t.lead_id AND t.kind = 'callback' AND t.completed_at IS NULL AND t.callback_escalated_at IS NULL
+         AND t.due_at <= NOW() - INTERVAL '${ESCALATE_MIN} minutes' AND t.due_at > NOW() - INTERVAL '2 hours'
+       RETURNING t.id, t.title, t.due_at, t.lead_id, t.assigned_to, t.extra_assignees, l.name AS lead_name, l.phone,
+                 ${A.names('t', 'assigned_to')} AS assigned_name`);
+    if (late.rows.length) {
+      const { rows: users } = await pool.query(`SELECT id, role, roles FROM users WHERE NOT COALESCE(blocked, false) AND phone IS NOT NULL`);
+      for (const t of late.rows) {
+        const own = new Set([t.assigned_to, ...(t.extra_assignees || [])]);
+        const text = `📞 ${t.assigned_name || 'הנציג'} עוד לא חזר/ה ל${t.lead_name} (נקבע ל-${hhmm(t.due_at)}). מי שפנוי — לחזור ללקוח:${noteOf(t)}${tail(t)}`;
+        users.filter(u => !own.has(u.id) && isSales(u)).forEach(u => queueNudge(u.id, text));
+      }
+    }
+  } catch (err) { console.error('[Callbacks] reminders:', err.message); }
+}
+
 module.exports = router;
 module.exports.closeAfterCall = closeAfterCall;
+module.exports.runCallbackReminders = runCallbackReminders;

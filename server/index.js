@@ -945,6 +945,7 @@ migrate(`
 // Phase 101 (2026-11-18): "שיחה חוזרת" — a lead task of kind 'callback' (customer asked to be called at a set time)
 migrate(`
   ALTER TABLE tasks ADD COLUMN IF NOT EXISTS kind TEXT;
+  ALTER TABLE tasks ADD COLUMN IF NOT EXISTS callback_escalated_at TIMESTAMPTZ;
   CREATE INDEX IF NOT EXISTS tasks_callback_open ON tasks(due_at) WHERE kind = 'callback' AND completed_at IS NULL;
 `).catch(err => console.error('[DB] tasks.kind migration error:', err.message));
 
@@ -1159,6 +1160,9 @@ function startCronJobs() {
   console.log('[Cron] Reminder service started');
 
   // Phase 55: daily task nudges (09:30 Israel, one digest per person, sent one by one)
+  // Phase 102: WhatsApp for "שיחה חוזרת" — 5 min before to the assignee, 10 min after to the other sales users
+  const { runCallbackReminders } = require('./routes/callbacks');
+  setTimeout(() => { runCallbackReminders(); setInterval(runCallbackReminders, 60 * 1000); }, 45 * 1000);
   const { runTaskNudges } = require('./services/taskNudgeService');
   setTimeout(() => { runTaskNudges(); setInterval(runTaskNudges, 10 * 60 * 1000); }, 60 * 1000);
 

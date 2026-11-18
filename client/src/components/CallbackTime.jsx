@@ -70,6 +70,7 @@ export function CallbackButton({ lead, wide, onSaved }) {
       await api.post('/callbacks', { lead_id: lead.id, due_at: due, note });
       setOpen(false); setDone(`📞 נקבע לחזור ב-${fmtCallbackTime(due)}`); setTimeout(() => setDone(''), 5000);
       setDue(''); setNote(''); onSaved?.();
+      try { window.dispatchEvent(new Event('crm-callbacks')); } catch {}
     } catch (e) { setErr(e.response?.data?.error || 'שגיאה בשמירה'); }
     finally { setBusy(false); }
   }

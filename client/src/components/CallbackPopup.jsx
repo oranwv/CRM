@@ -1,3 +1,4 @@
+import { callbacksChanged } from './CallbackBadge';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api';
@@ -66,7 +67,7 @@ export default function CallbackPopup() {
   if (!cur || location.pathname.startsWith('/login')) return null;
 
   const hide = () => { const h = { ...hidden, [cur.id]: Date.now() + HIDE_MS }; setHidden(h); writeHidden(h); };
-  const gone = () => { setItems(list => list.filter(i => i.id !== cur.id)); load(); };
+  const gone = () => { setItems(list => list.filter(i => i.id !== cur.id)); load(); callbacksChanged(); };
   async function act(fn) {
     setBusy(true); setErr('');
     try { await fn(); gone(); }

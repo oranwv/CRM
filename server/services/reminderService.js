@@ -157,6 +157,7 @@ async function runReminders() {
       WHERE t.completed_at IS NULL
         AND t.due_at BETWEEN NOW() - INTERVAL '1 hour' AND NOW() + INTERVAL '2 minutes'
         AND t.remind_via = 'whatsapp'
+        AND t.kind IS DISTINCT FROM 'callback'
         AND t.remind_sent_at IS NULL
         AND EXISTS (SELECT 1 FROM users u WHERE (u.id = t.assigned_to OR u.id = ANY(t.extra_assignees)) AND u.phone IS NOT NULL AND NOT COALESCE(u.blocked, false))
     `);

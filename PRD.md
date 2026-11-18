@@ -1803,6 +1803,24 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 102 — "שיחה חוזרת": WhatsApp + header badge ✅ Built 2026-11-18 (1.26.0)
+Oran, right after 1.25.0: "אני רוצה שזה גם ישלח לוואצאפ וגם שזה יופיע למעלה לפני החלון של המשימות —
+כלומר מימין לחלון של המשימות".
+- **WhatsApp** (`runCallbackReminders` in `routes/callbacks.js`, every minute, through the task-nudge
+  queue — one message every few seconds, never to a blocked user):
+  1. to the assignee **5 minutes before** the time: "📞 שיחה חוזרת בעוד 5 דק׳: לחזור ל… ב-HH:MM" +
+     note, customer phone, link to the lead (`tasks.remind_sent_at`);
+  2. **10 minutes after** the time, if still open, to every other sales user: "📞 X עוד לא חזר/ה ל…
+     מי שפנוי — לחזור ללקוח" (`tasks.callback_escalated_at`, new column).
+  A new time (snooze / שעה אחרת) re-arms both. Callbacks are now created with `remind_via = 'app'`
+  and the generic task reminder skips `kind = 'callback'`, so there is no second, generic message.
+- **Header badge** (`CallbackBadge.jsx`, in `App.jsx` before the overdue-tasks badge, i.e. to its
+  right): teal "📞 2 שיחות חוזרות · 16:12" with the next time; red and blinking when one is late.
+  Click → list of my open callbacks by time (lead name opens the card, התקשר, ✓ דיברנו).
+  Fed by `GET /api/callbacks/mine`, refreshed every minute and on every create / move / close.
+- Verified on a scratch Postgres (28 checks incl. the WhatsApp timing, once-only, escalation
+  recipients, re-arm after snooze) and rendered from the real App header — not on production data.
+
 ### Phase 101 — "שיחה חוזרת": the customer asked to be called back at a set time ✅ Built 2026-11-18 (1.25.0)
 Oran: a "call him back in two hours / tomorrow at 10:00" task matters more than a normal follow-up —
 the customer is only free then — so it must jump up on screen, not just blink, and be created by its

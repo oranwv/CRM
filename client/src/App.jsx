@@ -1,3 +1,4 @@
+import { useMyCallbacks, CallbackBadge, CallbacksListModal } from './components/CallbackBadge';
 import CallbackPopup from './components/CallbackPopup';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -69,6 +70,9 @@ function GlobalHeader() {
   const [paymentCount, setPaymentCount] = useState(0);
   // Phase 55: the signed-in user's own overdue tasks — red badge + a window that opens by itself
   const [overdueTasks, setOverdueTasks] = useState(0);
+  // Phase 102: my open "שיחות חוזרות" — header badge to the right of the overdue-tasks badge
+  const myCallbacks = useMyCallbacks();
+  const [showCallbacks, setShowCallbacks] = useState(false);
   const [showOverdue, setShowOverdue]   = useState(false);
   const loadOverdueTasks = useCallback(() => {
     if (!localStorage.getItem('crm_token')) return;
@@ -164,7 +168,7 @@ function GlobalHeader() {
     }
   }, [location.search, isManager, navigate, location.pathname]);
 
-  const hasBadges = overdueTasks > 0 || (isManager && pendingCount > 0) || (isProduction && unreadyCount > 0) || (isFinanceUser && paymentCount > 0);
+  const hasBadges = myCallbacks.length > 0 || overdueTasks > 0 || (isManager && pendingCount > 0) || (isProduction && unreadyCount > 0) || (isFinanceUser && paymentCount > 0);
 
   // Phones (< sm): when there are badges the bar is two rows (brand + mode on top, badges below)
   // and the page spacers (.crm-header-spacer) grow to match — see index.css. Desktop stays one row.
@@ -202,6 +206,7 @@ function GlobalHeader() {
 
       {hasBadges && (
       <div className="order-3 basis-full h-8 sm:order-2 sm:basis-auto sm:flex-1 sm:min-w-0 sm:h-11 sm:mr-2 flex items-center gap-2 overflow-x-auto whitespace-nowrap" style={{ scrollbarWidth: 'none' }}>
+        <CallbackBadge items={myCallbacks} onClick={() => setShowCallbacks(true)} />
         {overdueTasks > 0 && (
           <button
             onClick={() => setShowOverdue(true)}
@@ -243,6 +248,7 @@ function GlobalHeader() {
 
       {showOverdue && !isPublic && <OverdueTasksModal onClose={closeOverdue} />}
       {!isPublic && <CallbackPopup />}
+      {showCallbacks && !isPublic && <CallbacksListModal items={myCallbacks} onClose={() => setShowCallbacks(false)} />}
 
       {showPending && (
         <PendingDocsModal
