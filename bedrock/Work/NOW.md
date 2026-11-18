@@ -6,7 +6,7 @@ updated: 2026-11-18
 
 # Now
 
-## 2026-11-18 — Phase 101 (1.25.0): "שיחה חוזרת" callback tasks (branch `callback-tasks`, waiting for Oran's OK)
+## 2026-11-18 — Phase 101 (1.25.0): "שיחה חוזרת" callback tasks (deployed)
 
 - `tasks.kind='callback'`, `routes/callbacks.js`, `CallbackTime.jsx` (button + time picker), `CallbackPopup.jsx` (global pop-up: assignee from −5 min, other sales users from +10 min). Scratch-DB verified; sound + auto-close after a real call need a live check.
 
