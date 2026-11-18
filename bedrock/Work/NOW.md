@@ -6,6 +6,11 @@ updated: 2026-11-18
 
 # Now
 
+## 2026-11-18 — Phase 103 (1.26.5): reconcile timeout + karteset-only from the main button
+
+- "שגיאה בהשוואה" was a gateway timeout: ~2 min of per-row Supabase round trips; the server finished anyway. Batched with unnest (tested on scratch Postgres). Karteset-only compare now from the main button (`entries_count` on periods).
+- Not measured on production — after deploy a full ספטמבר אוקטובר run should take seconds. Committed on the Mac; Oran pushes (`cd ~/Projects/CRM && git push`).
+
 ## 2026-11-18 — Phase 102e (1.26.4): Drive folder by link
 
 - הגדרות → תיקיות Google Drive takes the folder link; ID extracted client-side, and saved full links are normalized server-side (sync + GET /folders). Pushed from a phone (cloud) session.

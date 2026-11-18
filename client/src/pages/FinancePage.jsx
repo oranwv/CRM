@@ -1017,7 +1017,12 @@ export default function FinancePage() {
   // files can be compared without re-uploading the accountant's file.
   const currentPeriod = periods.find(p => p.id === periodId);
   const storedKartesetCount = currentPeriod?.karteset_count || 0;
-  const canReconcile = !!periodId && expenseFiles.length > 0 && (kartesetFiles.length > 0 || storedKartesetCount > 0);
+  // …and the expense rows of its last full run, so an updated karteset alone
+  // can be compared against them (same as "העלה כרטסת מעודכנת").
+  const storedEntriesCount = currentPeriod?.entries_count || 0;
+  const kartesetOnly = kartesetFiles.length > 0 && expenseFiles.length === 0 && storedEntriesCount > 0;
+  const canReconcile = !!periodId && (
+    (expenseFiles.length > 0 && (kartesetFiles.length > 0 || storedKartesetCount > 0)) || kartesetOnly);
 
   async function runReconcile() {
     if (!canReconcile) return;
@@ -1027,14 +1032,16 @@ export default function FinancePage() {
       fd.append('periodId', String(periodId));
       kartesetFiles.forEach(f => fd.append('kartesetFiles', f));
       expenseFiles.forEach(f => fd.append('expenseFiles', f));
-      const { data } = await api.post('/finance/reconcile', fd);
+      const { data } = await api.post(kartesetOnly ? '/finance/rekarteset' : '/finance/reconcile', fd);
       setSummary(data);
       setKartesetFiles([]); setExpenseFiles([]);
       if (kartesetRef.current) kartesetRef.current.value = '';
       if (expenseRef.current)  expenseRef.current.value = '';
       load(); loadPeriods();
     } catch (err) {
-      setError(err.response?.data?.error || 'שגיאה בהשוואה');
+      setError(err.response?.data?.error
+        || `השרת לא החזיר תשובה${err.response?.status ? ` (${err.response.status})` : ''}. ייתכן שההשוואה הסתיימה ברקע — הרשימה רועננה; אם היא לא התעדכנה, נסה שוב.`);
+      load(); loadPeriods();
     } finally { setRunning(false); }
   }
 
@@ -1122,6 +1129,11 @@ export default function FinancePage() {
             <p className="text-[11px] text-slate-400 mb-1">טיפ: העלה מהבנק גם את "יתרה ותנועות בעו"ש" וגם את "רשימת ההעברות" — כך כל העברה תציג את שם המוטב</p>
             <label className="block w-full py-3 rounded-xl font-bold text-sm text-center cursor-pointer border-2 border-dashed border-violet-300 text-violet-600 hover:bg-violet-50 transition">
               {expenseFiles.length ? `${expenseFiles.length} קבצי הוצאות נבחרו` : '+ בחר קבצי הוצאות'}
+              {!expenseFiles.length && storedEntriesCount > 0 && (
+                <span className="block text-xs font-normal text-violet-700 mt-1">
+                  ✓ לתקופה הזו שמורות {storedEntriesCount} הוצאות מההשוואה האחרונה — כדי לבדוק כרטסת מעודכנת אפשר להעלות רק אותה
+                </span>
+              )}
               <input ref={expenseRef} type="file" multiple accept=".pdf,.xlsx,.xls" className="hidden"
                 onChange={e => setExpenseFiles(Array.from(e.target.files || []))} />
             </label>
@@ -1161,11 +1173,13 @@ export default function FinancePage() {
             style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
             {running ? 'משווה...' : !periodId
               ? 'בחר תקופה כדי להשוות'
-              : !expenseFiles.length
-                ? 'בחר קבצי הוצאות כדי להשוות'
-                : (!kartesetFiles.length && !storedKartesetCount)
-                  ? 'בחר קובץ כרטסת כדי להשוות'
-                  : `השווה מול הכרטסת${!kartesetFiles.length ? ' השמורה' : ''} (${currentPeriod?.name || ''})`}
+              : kartesetOnly
+                ? `השווה כרטסת מעודכנת מול ההוצאות השמורות (${currentPeriod?.name || ''})`
+                : !expenseFiles.length
+                  ? (kartesetFiles.length ? 'אין הוצאות שמורות לתקופה — בחר גם קבצי הוצאות' : 'בחר קבצי הוצאות או כרטסת כדי להשוות')
+                  : (!kartesetFiles.length && !storedKartesetCount)
+                    ? 'בחר קובץ כרטסת כדי להשוות'
+                    : `השווה מול הכרטסת${!kartesetFiles.length ? ' השמורה' : ''} (${currentPeriod?.name || ''})`}
           </button>
 
           {error && <p className="text-sm text-red-600 font-bold">{error}</p>}

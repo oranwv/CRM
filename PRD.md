@@ -1803,6 +1803,26 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 103 — Reconcile: fast enough not to time out; karteset-only compare from the main button ✅ Built 2026-11-18 (1.26.5)
+Oran (18.11): "שגיאה בהשוואה" on ספטמבר אוקטובר with 2 karteset + 3 expense files; and he does not
+want to re-upload the expense files each time the accountant's karteset grows.
+- Diagnosis (live API): the run had **completed** on the server (karteset snapshot 16:16:05 UTC,
+  first new item 16:13:58, 15 rows already carried card digits) — the browser had given up. The DB is
+  Supabase (remote), ~0.1–0.2 s per round trip, and a run made several hundred: one INSERT per
+  expense row and per karteset row, two queries per missing item. ≈2 min → gateway timeout, an HTML
+  error page, and the client's generic fallback text.
+- `applyReconcileResults`: one SELECT for all missing fingerprints + one `UPDATE … FROM unnest(...)`
+  for the known ones (hint + card); only genuinely new items still go one by one (adopt / insert).
+  Duplicate fingerprints within one run count once as new, then as known (same as before).
+- `snapshotEntries` / `snapshotKarteset`: a single `INSERT … SELECT … FROM unnest(...)` each.
+  Verified on a scratch Postgres 16 (dates, nulls, numeric, Hebrew text, empty arrays, the UPDATE).
+- Client: the fallback error names the HTTP status / no answer, says the run may have finished, and
+  reloads the list and periods.
+- `GET /periods` adds `entries_count`. With karteset files selected and **no** expense files, the main
+  button posts to `/rekarteset` against the stored expense rows ("השווה כרטסת מעודכנת מול ההוצאות
+  השמורות"); the expense dropzone shows "✓ לתקופה הזו שמורות N הוצאות…". The separate "העלה כרטסת
+  מעודכנת" button is unchanged.
+
 ### Phase 102e — Drive folders added by link, not by ID ✅ Built 2026-11-18 (1.26.4)
 Oran (phone, הגדרות → תיקיות Google Drive) didn't know what "Folder ID" is and asked for the field
 to be just the folder link. The second input is now "קישור לתיקייה ב-Drive" (LTR); on add,

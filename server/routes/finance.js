@@ -25,15 +25,32 @@ const toEntryDate = (dateStr) => {
 async function applyReconcileResults(periodId, entries, karteset, missing) {
   let newCount = 0, knownCount = 0, resolvedCount = 0;
   const missingFpsAll = missing.map(m => m.fingerprint);
+  // The DB is remote (Supabase): every round trip costs ~0.1–0.2 s, and a
+  // run used to make several hundred of them — over two minutes, so the
+  // browser got a gateway timeout ("שגיאה בהשוואה") while the server went on
+  // and finished. Known items are now read and updated in one query each.
+  const { rows: existingRows } = await pool.query(
+    'SELECT fingerprint, resolved FROM finance_missing_expenses WHERE period_id = $1 AND fingerprint = ANY($2)',
+    [periodId, missingFpsAll]);
+  const existingMap = new Map(existingRows.map(r => [r.fingerprint, r.resolved]));
+  const known = new Map();
+  for (const m of missing) if (existingMap.has(m.fingerprint) && !known.has(m.fingerprint)) known.set(m.fingerprint, m);
+  if (known.size) {
+    const ks = [...known.values()];
+    await pool.query(
+      `UPDATE finance_missing_expenses e
+       SET match_hint = u.hint, card_last4 = COALESCE(u.card, e.card_last4)
+       FROM unnest($2::text[], $3::text[], $4::text[]) AS u(fp, hint, card)
+       WHERE e.period_id = $1 AND e.fingerprint = u.fp`,
+      [periodId, ks.map(m => m.fingerprint), ks.map(m => m.match_hint || null), ks.map(m => m.card || null)]);
+  }
+  const seenThisRun = new Set();
   for (const m of missing) {
-    const { rows: [existing] } = await pool.query(
-      'SELECT resolved FROM finance_missing_expenses WHERE period_id = $1 AND fingerprint = $2', [periodId, m.fingerprint]);
-    if (existing) {
-      if (existing.resolved) resolvedCount++; else knownCount++;
-      await pool.query('UPDATE finance_missing_expenses SET match_hint = $3, card_last4 = COALESCE($4, card_last4) WHERE period_id = $1 AND fingerprint = $2',
-        [periodId, m.fingerprint, m.match_hint || null, m.card || null]);
+    if (existingMap.has(m.fingerprint) || seenThisRun.has(m.fingerprint)) {
+      if (existingMap.get(m.fingerprint)) resolvedCount++; else knownCount++;
       continue;
     }
+    seenThisRun.add(m.fingerprint);
     // An item's fingerprint can change between runs when its NAME changes —
     // e.g. a bank transfer gains a payee via the transfers-list enrichment.
     // Adopt the matching open item (same source/date/amount, old fingerprint
@@ -104,13 +121,13 @@ async function snapshotEntries(periodId, entries) {
   const sources = [...new Set(entries.map(e => e.source))];
   if (!sources.length) return;
   await pool.query('DELETE FROM finance_period_entries WHERE period_id = $1 AND source = ANY($2)', [periodId, sources]);
-  for (const e of entries) {
-    await pool.query(
-      `INSERT INTO finance_period_entries (period_id, source, entry_date, name, description, amount, fingerprint, card_last4)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [periodId, e.source, toEntryDate(e.date), e.name || '', e.description || '', e.amount, e.fingerprint || fingerprint(e), e.card || null]
-    );
-  }
+  await pool.query(
+    `INSERT INTO finance_period_entries (period_id, source, entry_date, name, description, amount, fingerprint, card_last4)
+     SELECT $1::int, u.* FROM unnest($2::text[], $3::date[], $4::text[], $5::text[], $6::numeric[], $7::text[], $8::text[]) AS u`,
+    [periodId,
+     entries.map(e => e.source), entries.map(e => toEntryDate(e.date)), entries.map(e => e.name || ''),
+     entries.map(e => e.description || ''), entries.map(e => e.amount), entries.map(e => e.fingerprint || fingerprint(e)),
+     entries.map(e => e.card || null)]);
 }
 
 // The karteset of a period is kept so later runs (new credit/bank files) can
@@ -118,11 +135,12 @@ async function snapshotEntries(periodId, entries) {
 async function snapshotKarteset(periodId, items) {
   if (!items.length) return;
   await pool.query('DELETE FROM finance_period_karteset WHERE period_id = $1', [periodId]);
-  for (const k of items) {
-    await pool.query(
-      'INSERT INTO finance_period_karteset (period_id, amount_rounded, entry_date) VALUES ($1, $2, $3)',
-      [periodId, Math.round(Number(k.amount_rounded)), k.date instanceof Date && !isNaN(k.date) ? k.date : null]);
-  }
+  const ymd = (d) => (d instanceof Date && !isNaN(d)
+    ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : null);
+  await pool.query(
+    `INSERT INTO finance_period_karteset (period_id, amount_rounded, entry_date)
+     SELECT $1::int, u.* FROM unnest($2::int[], $3::date[]) AS u`,
+    [periodId, items.map(k => Math.round(Number(k.amount_rounded))), items.map(k => ymd(k.date))]);
 }
 async function loadStoredKarteset(periodId) {
   const { rows } = await pool.query(
@@ -373,6 +391,7 @@ router.get('/periods', async (req, res) => {
               COUNT(e.id) FILTER (WHERE e.resolved = FALSE)::int AS open_count,
               COUNT(e.id) FILTER (WHERE e.resolved = TRUE)::int  AS resolved_count,
               (SELECT COUNT(*)::int FROM finance_period_karteset k WHERE k.period_id = p.id) AS karteset_count,
+              (SELECT COUNT(*)::int FROM finance_period_entries pe WHERE pe.period_id = p.id) AS entries_count,
               (SELECT MAX(created_at) FROM finance_period_karteset k WHERE k.period_id = p.id) AS karteset_saved_at
        FROM finance_periods p
        LEFT JOIN finance_missing_expenses e ON e.period_id = p.id
