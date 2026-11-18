@@ -67,6 +67,7 @@ You must know these before the offer can be prepared (ask if not said):
 2. Whether the prices the user gave are before VAT (לפני מע"מ) or include VAT (כולל מע"מ). Always confirm this unless the user said it.
 3. Number of guests.
 4. The price: package → the package price; regular → the price per guest. NEVER invent, estimate or suggest a price. There is no price list. If a price was not said, ask for it. The template's default numbers are not a price the user gave.
+5. Regular offers only — the service rows. The TEMPLATE has optional service rows (every TEMPLATE row except id 1: waiters, bartenders, event manager, lighting & sound...). NONE of them is in the offer unless the user says so. You must get a decision for EVERY one of them: ask in one question, listing each row with its template price ("להוסיף להצעה גם: שירות מלצרים (500 ש"ח), שירות ברמנים (550 ש"ח), מנהל אירוע (900 ש"ח), תאורה והגברה? אפשר לבחור חלק, ולשנות מחיר או כמות"). Record the answer in serviceRows — one entry per template row id with include true/false; "כן לכולם" → all true, "בלי" / "רק מלצרים" → the rest false. If the user gives a different price or quantity for a row, record it; otherwise leave qty/price out (the template values are used). The price the user gives for a service row is on the same VAT basis as the other prices. Do not ask this for package offers.
 Ask once, as optional: the price for each additional guest above the number (the user may answer "אין" / "בלי" → extraGuestPrice 0).
 
 Things that are not part of the template (e.g. "they also get the next-door space for yoga", a DJ, special equipment): ask WHERE to put each one unless the user already said — inside "המחיר כולל" (included in the price → includesAdd), or as a separate item with its own price (regular → extraRows with a price the user gives; package → extraCostLines, a text line with the price). Ask for the price if it is a separate item.
@@ -84,7 +85,7 @@ The spec (always return the FULL current spec, including what was understood in 
  "name": string | null, "eventDate": string | null, "doorTime": "HH:MM" | null, "endTime": "HH:MM" | null,   // only when the user changes what the card says
  "chefMenu": string, "barMenu": string, "notes": string,
  "includesAdd": [string], "includesRemove": [string — exact lines from TEMPLATE includes],
- "rowEdits": [{"id": number, "qty": number, "price": number, "remove": true}],   // regular: changes to TEMPLATE rows the user asked for (only the properties that change)
+ "serviceRows": [{"id": number, "include": true | false, "qty": number, "price": number}],   // regular: the user's decision for each TEMPLATE row other than id 1; leave a row out while it is undecided; qty/price only if the user changed them
  "extraRows": [{"label": string, "desc": string, "qty": number, "price": number}],   // regular: new priced rows
  "extraCostLines": [string]                                                      // package: extra priced lines as text
 }
@@ -112,16 +113,17 @@ function normalizeSpec(raw, template) {
     chefMenu: txt(s.chefMenu, 300), barMenu: txt(s.barMenu, 300), notes: txt(s.notes, 1500),
     includesAdd: strList(s.includesAdd),
     includesRemove: strList(s.includesRemove, 20).filter(x => tplIncludes.includes(x)),
-    rowEdits: [], extraRows: [], extraCostLines: [],
+    serviceRows: [], extraRows: [], extraCostLines: [],
   };
   if (offerType !== 'package') {
-    for (const e of Array.isArray(s.rowEdits) ? s.rowEdits.slice(0, 20) : []) {
-      if (!e || !tplRows.some(r => r.id === e.id) || e.id === 1) continue; // row 1 (per guest) comes from guests / perGuestPrice
-      const out = { id: e.id };
-      if (e.remove === true) out.remove = true;
-      if (num(e.qty) != null) out.qty = num(e.qty);
-      if (num(e.price) != null) out.price = num(e.price);
-      if (Object.keys(out).length > 1) spec.rowEdits.push(out);
+    // One decision per template service row (row 1, the per-guest row, comes from guests / perGuestPrice).
+    for (const e of Array.isArray(s.serviceRows) ? s.serviceRows.slice(0, 30) : []) {
+      if (!e || e.id === 1 || !tplRows.some(r => r.id === e.id) || typeof e.include !== 'boolean') continue;
+      if (spec.serviceRows.some(x => x.id === e.id)) continue;
+      const out = { id: e.id, include: e.include };
+      if (e.include && num(e.qty) != null) out.qty = num(e.qty);
+      if (e.include && num(e.price) != null) out.price = num(e.price);
+      spec.serviceRows.push(out);
     }
     for (const r of Array.isArray(s.extraRows) ? s.extraRows.slice(0, 10) : []) {
       const label = txt(r?.label, 200);
@@ -133,13 +135,17 @@ function normalizeSpec(raw, template) {
   return spec;
 }
 
-function missingOf(spec) {
+function missingOf(spec, tplRows = []) {
   const m = [];
   if (!spec.offerType) m.push('חבילה או הצעה רגילה עם פירוט');
   if (spec.pricesInclVat == null) m.push('המחירים לפני מע"מ או כולל מע"מ');
   if (!spec.guests) m.push('מספר אורחים');
   if (spec.offerType === 'package' && !spec.packagePrice) m.push('מחיר החבילה');
   if (spec.offerType === 'regular' && !spec.perGuestPrice) m.push('מחיר לאורח');
+  if (spec.offerType === 'regular') {
+    const undecided = tplRows.filter(r => r.id !== 1 && !spec.serviceRows.some(x => x.id === r.id));
+    if (undecided.length) m.push(`האם להוסיף: ${undecided.map(r => r.label).join(', ')}`);
+  }
   return m;
 }
 
@@ -159,7 +165,7 @@ async function runOfferBuilder({ leadId, messages, prevSpec, template, language 
   const context = [
     `LEAD CARD: ${JSON.stringify(lead?.card || {})}`,
     `LEAD HISTORY (background only, newest first):\n${(lead?.history || []).join('\n') || '(none)'}`,
-    `TEMPLATE rows (regular offer; row id 1 is the per-guest row; these default prices are placeholders, not agreed prices): ${JSON.stringify(tpl.rows)}`,
+    `TEMPLATE rows (regular offer; row id 1 is the per-guest row and its default price is a placeholder, never an agreed price; the other rows are the optional service rows with their usual prices before VAT): ${JSON.stringify(tpl.rows)}`,
     `TEMPLATE includes ("המחיר כולל"): ${JSON.stringify(tpl.includes)}`,
     `SPEC SO FAR: ${JSON.stringify(prevSpec || null)}`,
     language === 'en'
@@ -177,7 +183,7 @@ async function runOfferBuilder({ leadId, messages, prevSpec, template, language 
   try { out = JSON.parse(res.choices?.[0]?.message?.content || '{}'); } catch { out = {}; }
 
   const spec = normalizeSpec(out.spec, tpl);
-  const missing = missingOf(spec);
+  const missing = missingOf(spec, tpl.rows);
   const ready = missing.length === 0 && out.open_questions !== true;
   let reply = isStr(out.reply) ? out.reply.trim() : '';
   // The model says "ready" but something required is missing → say so, the server decides.

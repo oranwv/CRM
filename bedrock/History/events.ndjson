@@ -97,3 +97,4 @@
 {"ts": "2026-11-18T12:20:00Z", "type": "feature", "tool": "cowork", "slug": "CRM", "summary": "1.25.0 (branch callback-tasks, pending approval): callback tasks — button on lead, on-screen pop-up 5 min before, escalation to other sales users after 10 min"}
 {"ts": "2026-11-18T12:26:00Z", "type": "deploy", "tool": "cowork", "slug": "CRM", "summary": "1.25.0 approved by Oran and merged to main (callback tasks)"}
 {"ts": "2026-11-18T06:00:00Z", "type": "feature", "tool": "cowork", "slug": "CRM", "summary": "1.26.0 Phase 102: price offer built by conversation (record/type, assistant asks only what is missing, fills the template), preview assistant on offers, voice input, guest count from the lead, gpt-4.1"}
+{"ts": "2026-11-18T09:00:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.26.1 Phase 102b: offer builder asks which service rows (waiters, bartenders, manager, lighting) to include; rows not approved are left out"}

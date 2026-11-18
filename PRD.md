@@ -1803,6 +1803,16 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 102b — Offer builder: service rows only when the user says so ✅ Built 2026-11-18 (1.26.1)
+Oran's first live offer (18.11): it worked, but waiters / bartenders / event manager / lighting &
+sound rows were in the offer without being asked for. He wants the assistant to ask about them,
+and rows that are not wanted removed. Spec: `rowEdits` → `serviceRows: [{id, include, qty?,
+price?}]` — a decision per template row other than the per-guest one. The server lists
+undecided rows as missing (so the offer is not "ready" until the user answered), the prompt asks
+about all of them in one question with their template prices, and `applyOfferSpec` keeps a
+service row only when `include` is true. The check line in the preview names the service rows
+that are in. Package offers are not asked.
+
 ### Phase 102 — Price offer by conversation + assistant on the offer preview ✅ Built 2026-11-18 (1.26.0)
 Oran (18.11): (1) lead-card details do not always reach the offer / contract; (2) he wants to
 build a whole offer with the AI: the user first records or types freely what the offer is

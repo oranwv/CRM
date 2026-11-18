@@ -175,7 +175,7 @@ export default function ContractAssistant({ leadId, visible, getContract, onAppl
           <textarea id="contract-assistant-input" ref={inputRef} rows={1} value={input} onChange={onInput}
             onFocus={() => setOpen(true)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder={voice.state === 'recording' ? `מקליט… ${voice.mmss}` : voice.state === 'transcribing' ? 'מתמלל…' : `בקש מהעוזר לשנות את ${noun}…`}
+            placeholder={voice.state === 'recording' ? `מקליט… ${voice.mmss}` : voice.state === 'transcribing' ? 'מתמלל…' : 'בקש שינוי מהעוזר…'}
             className="flex-1 min-w-0 resize-none bg-transparent text-sm py-1.5 focus:outline-none placeholder:text-slate-400" />
           <button type="button" onClick={voice.toggle} disabled={busy || voice.state === 'transcribing'} aria-label="הקלטה" title="הקלט בקשה"
             className={`w-8 h-8 mb-0.5 shrink-0 rounded-full grid place-items-center disabled:opacity-40 ${voice.state === 'recording' ? 'bg-red-600 text-white animate-pulse' : 'bg-rose-50 text-rose-600'}`}>

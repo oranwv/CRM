@@ -54,10 +54,11 @@ export function applyOfferSpec({ fields, rows, texts }, spec, en = null) {
     f.guests = spec.guests ? String(spec.guests) : '';
     f.extraGuestPrice = spec.extraGuestPrice ? String(net(spec.extraGuestPrice)) : '';
     r = r.map(row => (row.id === 1 ? { ...row, qty: spec.guests || 0, price: spec.perGuestPrice ? net(spec.perGuestPrice) : row.price } : row));
-    for (const e of spec.rowEdits || []) {
-      if (e.remove) { r = r.filter(row => row.id !== e.id); continue; }
-      r = r.map(row => (row.id === e.id ? { ...row, ...(e.qty != null ? { qty: e.qty } : {}), ...(e.price != null ? { price: net(e.price) } : {}) } : row));
-    }
+    // Service rows (waiters, bartenders, …) are in the offer only when the user said so:
+    // every template row other than the per-guest one is dropped unless serviceRows includes it.
+    const decided = new Map((spec.serviceRows || []).map(e => [e.id, e]));
+    r = r.filter(row => row.id === 1 || decided.get(row.id)?.include === true)
+      .map(row => { const e = decided.get(row.id); return e ? { ...row, ...(e.qty != null ? { qty: e.qty } : {}), ...(e.price != null ? { price: net(e.price) } : {}) } : row; });
     let nextId = Math.max(0, ...rows.map(x => x.id)) + 1; // above every template id, so a removed row's id is never reused (labels are matched by id)
     for (const x of spec.extraRows || []) r.push({ id: nextId++, label: x.label, desc: x.desc || '', qty: x.qty ?? 1, price: net(x.price) });
   }
@@ -68,6 +69,10 @@ export function applyOfferSpec({ fields, rows, texts }, spec, en = null) {
   if (isPackage) parts.push(spec.packagePrice ? `${fmt(spec.packagePrice)} ש"ח ${vatWord}${incl ? '' : ` (${fmt(toGross(spec.packagePrice))} כולל)`}` : 'חסר מחיר חבילה');
   else parts.push(spec.perGuestPrice ? `${fmt(spec.perGuestPrice)} ש"ח לאורח ${vatWord}` : 'חסר מחיר לאורח');
   parts.push(spec.extraGuestPrice ? `אורח נוסף ${fmt(spec.extraGuestPrice)} ש"ח ${vatWord}` : 'בלי אורח נוסף');
+  if (!isPackage) {
+    const services = r.filter(row => row.id !== 1 && rows.some(x => x.id === row.id)).map(row => row.label);
+    parts.push(services.length ? `שירותים: ${services.join(', ')}` : 'בלי שורות שירות');
+  }
 
   return { offerType: isPackage ? 'package' : 'regular', fields: f, rows: r, texts: t, summary: parts.join(' · ') };
 }
