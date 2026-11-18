@@ -164,11 +164,43 @@ function FragmentRow({ m, rate, open, onToggle }) {
                     <span dir="ltr" className="shrink-0">{usd(r.cost_usd)}</span>
                   </div>
                 )) : <div className="text-slate-400">אין שימוש מתועד</div>}
+                <CallSummaryBreakdown cs={m.call_summary} rate={rate} />
               </div>
             </div>
           </td>
         </tr>
       )}
     </>
+  );
+}
+
+// What a phone-call summary is made of (Oran, 2026-11-18): transcription + the four parts of the
+// model call. Per-part amounts exist from 1.35.0 on; older summaries are shown as one line.
+function CallSummaryBreakdown({ cs, rate }) {
+  if (!cs) return null;
+  const parts = [
+    ['תמלול ההקלטה (Whisper)', cs.transcription_usd],
+    ['ההנחיות למודל', cs.prompt_usd],
+    ['מידע רקע מה-CRM', cs.background_usd],
+    ['התמלול שנשלח למודל', cs.transcript_usd],
+    ['הסיכום שהמודל כותב', cs.output_usd],
+    ['סיכומים ישנים (לא מפורט)', cs.unsplit_usd],
+  ].filter(([, v]) => v > 0.000001);
+  if (!parts.length) return null;
+  const total = parts.reduce((s, [, v]) => s + v, 0);
+  const agorot = (v) => `${(v * rate * 100).toFixed(1)} אג׳`;
+  return (
+    <div className="mt-3 pt-2 border-t border-slate-200">
+      <div className="font-black text-slate-600 mb-1">📞 סיכום שיחות — ממה העלות מורכבת</div>
+      {parts.map(([label, v]) => (
+        <div key={label} className="flex justify-between py-0.5 text-slate-600 gap-2">
+          <span>{label}</span><span dir="ltr" className="shrink-0">${v.toFixed(3)}</span>
+        </div>
+      ))}
+      <div className="flex justify-between py-0.5 font-bold text-slate-700 gap-2 border-t border-slate-100 mt-1 pt-1">
+        <span>סה"כ · {cs.summaries} סיכומים{cs.summaries ? ` · ממוצע ${agorot(total / cs.summaries)} לשיחה` : ''}</span>
+        <span dir="ltr" className="shrink-0">{usd(total)}</span>
+      </div>
+    </div>
   );
 }

@@ -75,7 +75,7 @@ router.get('/', async (req, res) => {
   const months = lastMonths(n);
   const since = `${months[months.length - 1]}-01`;
   try {
-    const [{ rows: ai }, { rows: calls }, { rows: subs }, { rows: [rateRow] }, twilio] = await Promise.all([
+    const [{ rows: ai }, { rows: calls }, { rows: subs }, { rows: [rateRow] }, twilio, { rows: summaryParts }] = await Promise.all([
       pool.query(
         `SELECT to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM') AS month, feature, model,
                 SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens,
@@ -87,6 +87,18 @@ router.get('/', async (req, res) => {
       pool.query('SELECT * FROM cost_subscriptions WHERE active = TRUE ORDER BY amount DESC'),
       pool.query(`SELECT value FROM settings WHERE key = 'usd_ils_rate'`),
       twilioMonthly(),
+      // Call summaries: what each one is made of (the split is stored per call from 1.35.0 on;
+      // earlier summaries have no split and show up as "לא מפורט")
+      pool.query(
+        `SELECT to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM') AS month,
+                COUNT(*) FILTER (WHERE audio_seconds = 0) AS summaries,
+                COALESCE(SUM(cost_usd) FILTER (WHERE audio_seconds > 0), 0) AS transcription,
+                COALESCE(SUM((meta->'usd'->>'prompt')::numeric), 0) AS prompt,
+                COALESCE(SUM((meta->'usd'->>'background')::numeric), 0) AS background,
+                COALESCE(SUM((meta->'usd'->>'transcript')::numeric), 0) AS transcript,
+                COALESCE(SUM((meta->'usd'->>'output')::numeric), 0) AS output,
+                COALESCE(SUM(cost_usd) FILTER (WHERE audio_seconds = 0 AND meta->'usd' IS NULL), 0) AS unsplit
+         FROM ai_usage WHERE feature = 'call-analysis' AND created_at >= $1 GROUP BY 1`, [since]),
     ]);
     const rate = Number(rateRow?.value) || 3.7;
 
@@ -100,8 +112,13 @@ router.get('/', async (req, res) => {
       const numberFee = tw.isEnabled() ? TW.number : 0;
       const twilioTotal = twBilled ? twBilled.total : callsEstimate + numberFee;
       const subsTotalUsd = subs.reduce((s, x) => s + (x.currency === 'ILS' ? Number(x.amount) / rate : Number(x.amount)), 0);
+      const sp = summaryParts.find(r => r.month === month);
       return {
         month,
+        call_summary: sp ? {
+          summaries: Number(sp.summaries), transcription_usd: Number(sp.transcription), prompt_usd: Number(sp.prompt),
+          background_usd: Number(sp.background), transcript_usd: Number(sp.transcript), output_usd: Number(sp.output), unsplit_usd: Number(sp.unsplit),
+        } : null,
         ai: { total_usd: aiTotal, rows: aiRows.map(r => ({ ...r, cost_usd: Number(r.cost_usd || 0), input_tokens: Number(r.input_tokens), output_tokens: Number(r.output_tokens), audio_seconds: Number(r.audio_seconds), calls: Number(r.calls) })) },
         twilio: {
           total_usd: twilioTotal, billed: !!twBilled, categories: twBilled?.categories || null,

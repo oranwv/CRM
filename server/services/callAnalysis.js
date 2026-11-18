@@ -57,41 +57,79 @@ async function transcribe(tmpPath, durationSec, call, recordingUrl) {
   return (t.text || '').trim();
 }
 
-async function analyze({ transcript, direction, lead, repName, durationSec }) {
-  const prompt = `אתה עוזר למנהל מכירות של שרביה — מקום אירועים ביפו. לפניך תמלול של שיחת טלפון ${direction === 'inbound' ? 'נכנסת מלקוח' : 'יוצאת ללקוח'} באורך ${fmtDuration(durationSec)}, עם סימון מי מדבר (נציג / לקוח) כשידוע.
-נציג: ${repName || 'לא ידוע'}. ליד: ${lead?.name || 'לא ידוע'}${lead?.event_type ? ', סוג אירוע: ' + lead.event_type : ''}${lead?.stage ? ', שלב: ' + lead.stage : ''}.
+const STAGE_LABELS = {
+  new: 'חדש', new_no_answer: 'חדש — אין מענה', contacted: 'נוצר קשר', meeting_scheduled: 'נקבעה פגישה', meeting: 'פגישה',
+  offer_sent: 'נשלחה הצעה', negotiation: 'משא ומתן', contract_sent: 'נשלח חוזה', process_no_answer: 'בתהליך — אין מענה',
+  deposit: 'מקדמה', production: 'הפקה', completed: 'הסתיים', lost: 'אבוד',
+};
+const MAX_TRANSCRIPT_CHARS = 60000;       // ~45 minutes of talk; longer calls are cut at the end
+const MAX_PREVIOUS_CALLS   = 5;
+const MAX_PREVIOUS_CHARS   = 1500;        // per earlier call summary
 
-המשימה: לתאר במדויק מה קרה בשיחה הזו, כך שמי שלא שמע אותה יבין מה נאמר, מה סוכם ומה צריך לעשות.
-כללים:
-- הסיכום מתאר את מה שנאמר בפועל, בסדר שקרה, כולל שמות, מספרים, תאריכים וסכומים שהוזכרו. לא להמציא, לא להכליל, לא לתת ציונים "מן הסתם".
-- גם שיחה קצרה או טכנית (לא שומעים, נתקשר אחר כך) מסוכמת כפי שהיא — למשל: "הנציג התקשר, הצד השני לא שמע אותו, סוכם שהנציג יתקשר שוב". לא לכתוב "שיחת בדיקה" אלא אם נאמר במפורש שזו בדיקה.
-- customer_needs / objections / agreements / next_steps — רק דברים שנאמרו בשיחה. אם לא היה — מערך ריק.
-- **תאריכים ומחירים הם המידע הכי חשוב למנהל** — אסור לפספס אותם:
-  * dates_mentioned: כל תאריך/מועד שעלה בשיחה (תאריך האירוע, תאריכים חלופיים, מועד לפגישה/סיור/החלטה, "בעוד שבועיים"), כל אחד עם ההקשר: "15.3 — תאריך החתונה המבוקש", "יום שלישי הבא — סיור במקום".
-  * prices_mentioned: כל סכום שעלה בשיחה, עם מי אמר ומה הוא כולל: "₪350 לאורח כולל מע"מ — הנציג הציע", "תקציב הזוג ₪120,000 — הלקוח אמר", "₪5,000 מקדמה — סוכם".
-  * אם הוזכר תקציב של הלקוח — לכתוב אותו גם ב-event_details.budget.
-  * הסיכום (summary) עצמו חייב לכלול את התאריכים והסכומים האלה במפורש, לא "דובר על מחירים".
-- sales_score (1-10) והטיפים ניתנים רק אם הייתה שיחת מכירה אמיתית עם לקוח (הוצג מקום, מחיר, תאריך וכו'). אם השיחה לא הגיעה לתוכן מכירתי — sales_score = 0 וללא טיפים.
-
-החזר JSON בלבד במבנה:
-{
-  "summary": "2-5 משפטים: מה קרה בשיחה, בעברית פשוטה",
-  "dates_mentioned": [], "prices_mentioned": [],
-  "customer_needs": [], "objections": [], "agreements": [], "next_steps": [],
-  "sentiment": "חיובי|נייטרלי|שלילי",
-  "sales_score": 0-10,
-  "coaching_tips": [],
-  "event_details": { "date": "", "guests": "", "budget": "", "event_type": "" }
+// What the CRM already knows about the lead — sent as background so the model can tell what was
+// said in THIS call from what is on file, and judge a follow-up call fairly (Oran, 2026-11-18).
+async function loadBackground(leadId, callId) {
+  if (!leadId) return '';
+  const lines = [];
+  try {
+    const { rows: [l] } = await pool.query(
+      `SELECT name, event_type, event_name, event_date, event_date_text, event_time, guest_count, guest_count_max,
+              budget, stage, source, lost_reason_text, notes FROM leads WHERE id = $1`, [leadId]);
+    if (l) {
+      const add = (label, v) => { if (v != null && String(v).trim()) lines.push(`${label}: ${String(v).trim()}`); };
+      add('שם האירוע', l.event_name);
+      add('תאריך אירוע רשום', l.event_date ? new Date(l.event_date).toLocaleDateString('he-IL') : l.event_date_text);
+      add('שעת אירוע רשומה', l.event_time);
+      add('מספר אורחים רשום', l.guest_count_max && String(l.guest_count_max) !== String(l.guest_count) ? `${l.guest_count || '?'}–${l.guest_count_max}` : l.guest_count);
+      add('תקציב רשום', l.budget);
+      add('מקור הליד', l.source);
+      add('סיבת אובדן רשומה', l.lost_reason_text);
+      add('הערות בכרטיס הליד', l.notes ? String(l.notes).slice(0, 800) : '');
+    }
+    const { rows: prev } = await pool.query(
+      `SELECT c.started_at, c.direction, c.duration_sec, c.summary, u.display_name
+       FROM calls c LEFT JOIN users u ON u.id = COALESCE(c.answered_by, c.user_id)
+       WHERE c.lead_id = $1 AND c.id <> $2 AND c.summary IS NOT NULL AND c.summary <> ''
+         AND c.started_at < COALESCE((SELECT started_at FROM calls WHERE id = $2), NOW())
+       ORDER BY c.started_at DESC LIMIT $3`, [leadId, callId || 0, MAX_PREVIOUS_CALLS]);
+    if (prev.length) {
+      lines.push('', 'סיכומי שיחות טלפון קודמות עם הליד (מהחדשה לישנה):');
+      for (const p of prev) {
+        lines.push(`— ${new Date(p.started_at).toLocaleDateString('he-IL')} · ${p.direction === 'inbound' ? 'נכנסת' : 'יוצאת'} · ${fmtDuration(p.duration_sec)}${p.display_name ? ' · ' + p.display_name : ''}:`,
+          String(p.summary).slice(0, MAX_PREVIOUS_CHARS));
+      }
+    } else {
+      lines.push('', 'אין במערכת סיכומים של שיחות טלפון קודמות עם הליד.');
+    }
+  } catch (err) { console.warn('[Calls] background for analysis failed:', err.message); }
+  return lines.join('\n').trim();
 }
 
-תמלול:
-"""${transcript.slice(0, 24000)}"""`;
+// instructions: optional override (the "נסה על שיחה" button in settings tests unsaved text)
+async function analyze({ transcript, direction, lead, repName, durationSec, background = '', instructions = null, startedAt = null }) {
+  const { getInstructions, systemPrompt } = require('./callAnalysisPrompt');
+  const inst = instructions || (await getInstructions()).text;
+  const system = systemPrompt(inst);
+  const header = [
+    '# נתוני השיחה הנוכחית', '',
+    `כיוון: ${direction === 'inbound' ? 'נכנסת מלקוח' : 'יוצאת ללקוח'}`,
+    `תאריך השיחה: ${new Date(startedAt || Date.now()).toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'numeric', year: 'numeric', timeZone: 'Asia/Jerusalem' })}`,
+    `משך: ${fmtDuration(durationSec)}`,
+    `נציג: ${repName || 'לא ידוע'}`,
+    `ליד: ${lead?.name || 'לא ידוע'}`,
+    `סוג אירוע רשום: ${lead?.event_type || 'לא ידוע'}`,
+    `שלב ליד רשום: ${STAGE_LABELS[lead?.stage] || lead?.stage || 'לא ידוע'}`,
+  ].join('\n');
+  const bg = background ? `# מידע רקע ממערכת ה-CRM (לא נאמר בשיחה הנוכחית)\n\n${background}` : '# מידע רקע ממערכת ה-CRM\n\nאין מידע רקע נוסף.';
+  const body = `# תמלול\n\n"""${transcript.slice(0, MAX_TRANSCRIPT_CHARS)}"""`;
 
   const res = await openai().chat.completions.create({
-    model: 'gpt-4o',
+    model: process.env.CALL_ANALYSIS_MODEL || 'gpt-4o',
     temperature: 0.2,
     response_format: { type: 'json_object' },
-    messages: [{ role: 'user', content: prompt }],
+    messages: [{ role: 'system', content: system }, { role: 'user', content: `${header}\n\n${bg}\n\n${body}` }],
+    // Not an OpenAI parameter: lets the costs panel split the input cost by what was sent
+    usageSplit: { prompt: system.length + header.length, background: bg.length, transcript: body.length },
   });
   try { return JSON.parse(res.choices[0].message.content); } catch { return null; }
 }
@@ -109,7 +147,10 @@ function renderBody({ direction, durationSec, repName, analysis, fileMarker, fro
     if (analysis.summary) {
       const mins = Math.round((Number(durationSec) || 0) / 60);
       const minsText = mins < 1 ? 'פחות מדקה' : `${mins} דק'`;
-      lines.push('', `📝 שיחה של ${minsText} · ${analysis.summary}`);
+      const summary = String(analysis.summary).trim();
+      // The v2 guidelines return a bulleted, multi-line summary — it gets its own block
+      if (summary.includes('\n')) lines.push('', `📝 סיכום השיחה (${minsText}):`, summary);
+      else lines.push('', `📝 שיחה של ${minsText} · ${summary}`);
     }
     const list = (title, arr) => { if (Array.isArray(arr) && arr.length) lines.push('', `${title}`, ...arr.map(x => `• ${x}`)); };
     list('📅 תאריכים שדוברו:', analysis.dates_mentioned);
@@ -119,10 +160,11 @@ function renderBody({ direction, durationSec, repName, analysis, fileMarker, fro
     list('🤝 סוכם:', analysis.agreements);
     list('➡️ צעדים הבאים:', analysis.next_steps);
     const score = Number(analysis.sales_score);
-    if (score) {
-      lines.push('', `⭐ ציון שיחה: ${score}/10${analysis.sentiment ? ' · ' + analysis.sentiment : ''}`);
-      if (Array.isArray(analysis.coaching_tips) && analysis.coaching_tips.length) lines.push(...analysis.coaching_tips.map(x => `💡 ${x}`));
-    }
+    // Score 0 = "no score" (not a sales call / nothing to judge). Tips may still exist: the
+    // guidelines also use them for information worth finding out next time.
+    const tips = Array.isArray(analysis.coaching_tips) ? analysis.coaching_tips.filter(Boolean) : [];
+    if (score) lines.push('', `⭐ מיצוי השיחה: ${score}/10${analysis.sentiment ? ' · ' + analysis.sentiment : ''}`);
+    if (tips.length) lines.push(...(score ? [] : ['']), ...tips.map(x => `💡 ${x}`));
   } else if (failed) {
     // The recording exists at Twilio but our copy/summary failed — say so instead of the
     // misleading "short call"; the retry sweep fills this entry in when it succeeds.
@@ -174,7 +216,8 @@ async function processRecording({ callId, recordingSid, recordingUrl, durationSe
     } else if (durationSec >= MIN_SECONDS_FOR_ANALYSIS && process.env.OPENAI_API_KEY) {
       transcript = await transcribe(tmp, durationSec, call, recordingUrl);
       if (transcript.length > 20) {
-        analysis = await analyze({ transcript, direction: call.direction, lead, repName, durationSec });
+        const background = await loadBackground(call.lead_id, callId);
+        analysis = await analyze({ transcript, direction: call.direction, lead, repName, durationSec, background, startedAt: call.started_at });
       }
     }
   } catch (err) {
@@ -252,4 +295,4 @@ async function retryFailedRecordings() {
   finally { sweeping = false; }
 }
 
-module.exports = { processRecording, retryFailedRecordings, fmtDuration };
+module.exports = { processRecording, retryFailedRecordings, fmtDuration, analyze, loadBackground, renderBody };

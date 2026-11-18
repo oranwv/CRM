@@ -1803,6 +1803,49 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 120 — Call summaries: Oran's v2.0 guidelines, CRM background, editable in settings, cost breakdown ✅ Built 2026-11-18, released 2026-11-23 (1.35.0)
+
+_Built on the Mac on 18/11 as "Phase 107 / 1.29.0" and never pushed; both labels were later used by other work, so it was renumbered when Oran released it on 23/11._
+
+Owner request (18/11): "the summary is not good" — he wrote a full guideline document ("מערכת ניתוח
+שיחות — גרסה 2.0") and asked to (a) use it, (b) put it in settings so he can replace it himself
+("אמחק ואזין חדש"), (c) send the model the CRM background (approved after the cost estimate of
+~1–2 agorot per call), (d) show the cost in the costs screen, split by what it is made of.
+
+- **Guidelines:** `server/services/callAnalysisPrompt.md` holds his text verbatim (parts א–ז) and is
+  the default. `settings.call_analysis_prompt` overrides it (empty = default).
+  `callAnalysisPrompt.js`: `getInstructions()`, `cleanInstructions()`, `systemPrompt()`.
+- **Locked parts (not editable, always added by the server):** the output format (JSON field names —
+  the CRM reads them by name) and the call's own data. If a pasted prompt contains its own
+  "# פורמט הפלט" / "# נתוני השיחה הנוכחית" sections, everything from the first of them is cut.
+  The JSON structure is unchanged from before, so stored analyses and the UI keep working.
+- **Model call (`callAnalysis.analyze`)**: system = guidelines + locked format; user = call data
+  (direction, call date, duration, rep, lead, registered event type, stage in Hebrew) + CRM
+  background + transcript. Model `gpt-4o` (env `CALL_ANALYSIS_MODEL` overrides), temp 0.2, JSON mode.
+  Transcript limit raised 24,000 → 60,000 characters.
+- **CRM background (`loadBackground`)**: registered event name/date/time, guests, budget, source,
+  lost reason, lead notes (≤800 chars) + summaries of up to 5 earlier calls on the lead (≤1,500
+  chars each), labelled as "not said in this call".
+- **Call card text (`renderBody`)**: a multi-line summary gets its own block "📝 סיכום השיחה (N דק'):";
+  score line renamed "⭐ מיצוי השיחה"; tips are shown even when the score is 0 (the guidelines also
+  use them for "worth finding out"). Old single-line summaries render as before.
+- **Settings card (`CallPromptCard.jsx`, in AdminPage after "הוראות לבינה מלאכותית")**: textarea,
+  character count, "שחזר ברירת מחדל", save (through the existing `PUT /admin/settings/:key`), and
+  "נסה על שיחה קיימת": `POST /api/calls/analysis-prompt/test { callId, prompt }` runs the text in
+  the box on a stored transcript and shows the result next to the summary saved today — nothing is
+  stored. `GET /api/calls/analysis-prompt` returns the text, the default and the last 20 calls with
+  a transcript. Managers only.
+- **Costs:** `openaiClient` chat calls accept `usageSplit: { part: characters }`; the input cost is
+  divided in that proportion and stored in `ai_usage.meta.usd` (+ `output`). `/api/costs` returns
+  `call_summary` per month; CostsPage shows "📞 סיכום שיחות — ממה העלות מורכבת" (Whisper
+  transcription / guidelines / CRM background / transcript sent / summary written / old unsplit)
+  with the average per call. The split exists only for summaries made from this version on.
+- Not built (raised with Oran, no decision): a separate "worth finding out" field (today it shares
+  the two `coaching_tips` slots); re-summarising old calls; comparing models.
+- Verification: scratch Postgres run of `loadBackground`, `getInstructions`/`cleanInstructions`,
+  `renderBody` and the costs SQL; `node --check`; `vite build`. **No real OpenAI call was made** —
+  the first real summaries (or the "נסה" button) are the actual test of quality.
+
 ### Phase 110 — Leads list: retry before showing "שגיאה בטעינת לידים" ✅ Built 2026-11-22 (1.28.7)
 Oran: sometimes the leads page first shows the error and then the leads. `loadLeads`
 (`LeadsPage.jsx`) set the error on a single failed `GET /leads` and nothing retried until the

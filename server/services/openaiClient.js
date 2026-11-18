@@ -51,6 +51,17 @@ async function record({ feature, model, inputTokens = 0, outputTokens = 0, audio
   }
 }
 
+function splitMeta(split, model, usage) {
+  const p = priceFor(model);
+  const total = split ? Object.values(split).reduce((a, b) => a + (Number(b) || 0), 0) : 0;
+  if (!split || !p?.input || !total || !usage) return null;
+  const inputUsd = ((usage.prompt_tokens || 0) / 1e6) * p.input;
+  const usd = {};
+  for (const [k, v] of Object.entries(split)) usd[k] = Math.round(inputUsd * ((Number(v) || 0) / total) * 1e6) / 1e6;
+  usd.output = Math.round((((usage.completion_tokens || 0) / 1e6) * (p.output || 0)) * 1e6) / 1e6;
+  return { usd };
+}
+
 let _raw = null;
 function raw() {
   const key = process.env.OPENAI_API_KEY;
@@ -86,13 +97,17 @@ function openai(feature = 'unknown') {
   return {
     chat: {
       completions: {
-        async create(params, options) {
+        // `usageSplit` (not an OpenAI param): { part: characters } of what the input was made of —
+        // the input cost is divided between the parts in that proportion and kept in meta.usd,
+        // with the output under `output` (costs panel: what a call summary is made of).
+        async create({ usageSplit, ...params }, options) {
           if (params.stream) {
             const stream = await client.chat.completions.create({ ...params, stream_options: { include_usage: true, ...(params.stream_options || {}) } }, options);
             return meteredStream(stream, feature, params.model);
           }
           const res = await client.chat.completions.create(params, options);
-          record({ feature, model: res.model || params.model, inputTokens: res.usage?.prompt_tokens, outputTokens: res.usage?.completion_tokens });
+          record({ feature, model: res.model || params.model, inputTokens: res.usage?.prompt_tokens, outputTokens: res.usage?.completion_tokens,
+            meta: splitMeta(usageSplit, res.model || params.model, res.usage) });
           return res;
         },
       },

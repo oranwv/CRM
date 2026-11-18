@@ -1,5 +1,6 @@
 import UserTransferModal from '../components/UserTransferModal';
 import { useState, useEffect, useRef } from 'react';
+import CallPromptCard from '../components/CallPromptCard';
 import api from '../api';
 import { ManagerNotesSettings } from '../components/ManagerNotes';
 
@@ -813,6 +814,9 @@ export default function AdminPage() {
             </>
           )}
         </div>
+
+        {/* ── Call summary guidelines ── */}
+        <CallPromptCard />
 
         {/* ── AI Knowledge Base ── */}
         <div className="rounded-2xl p-4 bg-white border border-violet-100 shadow-sm">

@@ -110,6 +110,47 @@ api.get('/mine', async (req, res) => {
   res.json(rows);
 });
 
+/* ── Call-summary guidelines (settings → "הנחיות לסיכום שיחות", managers only) ──
+   The text itself is saved through PUT /api/admin/settings/call_analysis_prompt. */
+api.get('/analysis-prompt', async (req, res) => {
+  if (!isManagerUser(req.user)) return res.status(403).json({ error: 'אין הרשאה' });
+  const P = require('../services/callAnalysisPrompt');
+  const cur = await P.getInstructions();
+  // Recent calls that have a transcript — to try the guidelines on
+  const { rows } = await pool.query(
+    `SELECT c.id, c.started_at, c.direction, c.duration_sec, l.name AS lead_name
+     FROM calls c LEFT JOIN leads l ON l.id = c.lead_id
+     WHERE c.transcript IS NOT NULL AND length(c.transcript) > 20 AND c.lead_id IS NOT NULL AND c.status = 'completed'
+     ORDER BY c.started_at DESC LIMIT 20`);
+  res.json({ value: cur.text, custom: cur.custom, default: P.DEFAULT_INSTRUCTIONS, calls: rows });
+});
+
+// Run guidelines (saved or not yet saved) on an existing call. Nothing is stored — the lead's
+// call card keeps its current summary. Costs one model call (metered like any summary).
+api.post('/analysis-prompt/test', async (req, res) => {
+  if (!isManagerUser(req.user)) return res.status(403).json({ error: 'אין הרשאה' });
+  try {
+    const P = require('../services/callAnalysisPrompt');
+    const A = require('../services/callAnalysis');
+    const { rows: [call] } = await pool.query('SELECT * FROM calls WHERE id = $1', [Number(req.body.callId) || 0]);
+    if (!call?.transcript) return res.status(404).json({ error: 'לשיחה הזו אין תמלול' });
+    const uid = call.answered_by || call.user_id;
+    const [{ rows: [lead] }, { rows: [rep] }] = await Promise.all([
+      pool.query('SELECT id, name, event_type, stage FROM leads WHERE id = $1', [call.lead_id]),
+      uid ? pool.query('SELECT display_name FROM users WHERE id = $1', [uid]) : { rows: [null] },
+    ]);
+    const instructions = P.cleanInstructions(req.body.prompt) || null;
+    const background = await A.loadBackground(call.lead_id, call.id);
+    const analysis = await A.analyze({ transcript: call.transcript, direction: call.direction, lead, repName: rep?.display_name, durationSec: call.duration_sec, background, instructions, startedAt: call.started_at });
+    if (!analysis) return res.status(502).json({ error: 'המודל לא החזיר תשובה תקינה — נסה שוב' });
+    const text = A.renderBody({ direction: call.direction, durationSec: call.duration_sec, repName: rep?.display_name, analysis, fromNumber: null });
+    res.json({ text, current: call.summary || '' });
+  } catch (err) {
+    console.error('[Calls] analysis-prompt test failed:', err.message);
+    res.status(500).json({ error: 'הבדיקה נכשלה: ' + String(err.message || err).slice(0, 200) });
+  }
+});
+
 // GET /api/calls/:id/recording — 60s signed URL for playback.
 //   Lead calls: every logged-in user may listen; only managers get a download link
 //   (Oran, 2026-10-05 — replaces the managers-only listening rule of 2026-09-29).

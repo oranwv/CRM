@@ -6,6 +6,13 @@ updated: 2026-11-23
 
 # Now
 
+## 2026-11-23 — Phase 120 (1.35.0, built 18/11 as "Phase 107", released 23/11): call summaries by Oran's v2.0 guidelines (NOT run against the real model)
+
+- Guidelines in `callAnalysisPrompt.md` (default) / `settings.call_analysis_prompt` (settings card with restore + "נסה על שיחה קיימת"); output format locked server-side. CRM background (lead fields + 5 earlier call summaries) sent with every summary. Costs panel splits a call summary into its parts (`ai_usage.meta.usd`).
+- To verify with Oran after deploy: press "נסה" on a few real calls and compare with the saved summaries; watch that gpt-4o follows the long guidelines (else try `CALL_ANALYSIS_MODEL`).
+- Open with Oran: ring-trail on call cards (preview sent, no answer yet); Android dialer app still on the 16/11 bundle (OTA to `preview` not arriving — waiting for his `eas update:list` screenshot); the one inbound call that rang his mobile instead of the app.
+- Noticed: `greenapi-credentials.txt.txt` is tracked in git at the repo root — told Oran; not touched.
+
 ## 2026-11-23 — Phase 119 (1.34.0): הערות מנהל — code-locked private notes per event
 
 - `ManagerNotes.jsx` in the lead card between `ProductionSection` and ספקים; settings card `ManagerNotesSettings` in `AdminPage`. Server: `routes/managerNotes.js` + `services/managerNotes.js`, tables `manager_note_pins / _codes / _entries`.
