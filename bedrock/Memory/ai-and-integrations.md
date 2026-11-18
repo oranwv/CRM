@@ -18,6 +18,9 @@ service clients in `server/services/`.
 - Dedup: `messages.external_id` = Green API `idMessage`, unique partial index; CRM sends store it, sync/webhook use ON CONFLICT (Phase 48).
 - Inbound message notification (webhook) → lead owner + anyone who sent that lead a
   WhatsApp from the CRM in the last 7 days (`messages.sent_by`), WhatsApp only (Phase 41, 2026-10-14).
+- **וואטסאפ tab additions** (Phase 96, 2026-11-18): profile pictures from `leads.avatar_url` (links expire → background refresh
+  every 3 days, started by `GET /whatsapp/inbox`); attach menu = device / Drive / lead files; אחראי filter; leads in stage `lost`
+  are excluded from the list and the badge.
 - **וואטסאפ tab** (Phase 88, 2026-11-16, sales mode): `/whatsapp` page = inbox over the `messages` table, one chat per lead;
   nav badge = unread inbound; a chat is "awaiting" when the customer wrote last (chatbot replies ignored, 14-day window);
   sending reuses `/api/whatsapp/send` + `/send-file`, so nothing is stored twice.

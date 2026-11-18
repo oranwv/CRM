@@ -6,6 +6,14 @@ updated: 2026-11-18
 
 # Now
 
+## 2026-11-18 — Phase 96 (1.23.0): וואטסאפ tab — profile pictures, full attach menu, אחראי filter, lost leads hidden
+
+- Built in the cloud clone on top of origin 1.22.1 and pushed. Details: PRD Phase 96.
+- **Version/phase clash to resolve:** the Mac folder holds an UNPUSHED commit da39583 from another chat ("1.23.0: AI assistant searches a lead's full history", written as Phase 95). Origin already has Phase 95 (1.22.1) and now 1.23.0 / Phase 96 (this entry). That commit must be rebased onto origin and renumbered (next free: 1.24.0 / Phase 97) before it is pushed. It was left untouched on purpose.
+- NOT verified on production: real profile pictures from Green API, Google Drive attach, real send.
+- Open (ask Oran): a lost lead who writes again stays hidden in the tab until its stage changes — wanted?
+
+
 ## 2026-11-18 — Phase 95 (1.22.1): contract tracking follows the latest sent contract
 
 - `ctrk` lateral, worklist and advisor read only the newest SENT contract. `files.contract_id` + files API fields are in place; the eye in the lead's files list is NOT built yet — preview sent to Oran, waiting for his OK (viewed = indigo eye + count, not yet viewed = grey eye).

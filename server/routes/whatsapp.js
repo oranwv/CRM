@@ -566,14 +566,50 @@ router.post('/send-file', requireAuth, upload.single('file'), async (req, res) =
 //              follow-up do not count as an answer. Highlighted only while the customer's last
 //              message is at most WA_AWAIT_DAYS old, so years of old threads that simply ended
 //              on the customer's "תודה" do not light up the whole list.
+//   Leads in stage "לא סגרו" (lost) are left out of the tab altogether — list and badge
+//   (Oran, 2026-11-18). Their messages stay on the lead card as before.
 const WA_AWAIT_DAYS = 14;
+
+// Phase 96 — profile pictures. WhatsApp's picture links expire, so a lead's picture is fetched
+// again once it is WA_AVATAR_DAYS old. Runs in the background when the inbox is opened: newest
+// chats first, one request a second, at most WA_AVATAR_BATCH per run, one run at a time.
+// A customer who hides the picture (or has none) simply has no link, and a link that has
+// expired fails to load — in both cases the client shows the first letter of the name.
+// Only the link is stored, never the image file.
+const WA_AVATAR_DAYS = 3;
+const WA_AVATAR_BATCH = 20;
+let avatarRefreshRunning = false;
+async function refreshAvatars(rows) {
+  if (avatarRefreshRunning || !rows.length || !process.env.GREEN_API_INSTANCE) return;
+  avatarRefreshRunning = true;
+  try {
+    for (const r of rows.slice(0, WA_AVATAR_BATCH)) {
+      const phone = parsePhoneList(r.phone)[0];
+      if (phone) {
+        const avatar = await fetchAvatar(`${phone}@c.us`);
+        // A failed request returns null too; keep the picture we have and try again next round.
+        if (avatar) await pool.query('UPDATE leads SET avatar_url = $1, avatar_checked_at = NOW() WHERE id = $2', [avatar, r.lead_id]);
+        else await pool.query('UPDATE leads SET avatar_checked_at = NOW() WHERE id = $1', [r.lead_id]);
+        await new Promise(res => setTimeout(res, 1000));
+      } else {
+        await pool.query('UPDATE leads SET avatar_checked_at = NOW() WHERE id = $1', [r.lead_id]);
+      }
+    }
+  } catch (e) {
+    console.error('[WhatsApp] avatar refresh error:', e.message);
+  } finally {
+    avatarRefreshRunning = false;
+  }
+}
 
 // GET /api/whatsapp/unread-count — number for the nav badge
 router.get('/unread-count', requireAuth, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT COUNT(*)::int AS count FROM messages
-        WHERE channel = 'whatsapp' AND direction = 'inbound' AND is_read = false AND lead_id IS NOT NULL`
+      `SELECT COUNT(*)::int AS count
+         FROM messages m JOIN leads l ON l.id = m.lead_id
+        WHERE m.channel = 'whatsapp' AND m.direction = 'inbound' AND m.is_read = false
+          AND l.stage <> 'lost'`
     );
     res.json({ count: rows[0].count });
   } catch (err) {
@@ -604,7 +640,8 @@ router.get('/inbox', requireAuth, async (req, res) => {
               u.display_name AS assigned_name,
               a.last_at, a.unread,
               lm.body AS last_body, lm.direction AS last_direction, su.display_name AS last_sent_by_name,
-              w.waiting_since,
+              w.waiting_since, l.avatar_url,
+              (l.avatar_checked_at IS NULL OR l.avatar_checked_at < NOW() - INTERVAL '${WA_AVATAR_DAYS} days') AS avatar_stale,
               (w.waiting_since IS NOT NULL AND a.last_in > NOW() - ($1 || ' days')::interval) AS awaiting
          FROM agg a
          JOIN leads l ON l.id = a.lead_id
@@ -620,11 +657,13 @@ router.get('/inbox', requireAuth, async (req, res) => {
             WHERE m.lead_id = a.lead_id AND m.channel = 'whatsapp' AND m.direction = 'inbound'
               AND (a.last_out IS NULL OR m.timestamp > a.last_out)
          ) w ON TRUE
+        WHERE l.stage <> 'lost'
         ORDER BY a.last_at DESC
         LIMIT 500`,
       [String(WA_AWAIT_DAYS)]
     );
-    res.json(rows);
+    refreshAvatars(rows.filter(r => r.avatar_stale)); // background, never delays the list
+    res.json(rows.map(({ avatar_stale, ...r }) => r));
   } catch (err) {
     console.error('[WhatsApp] inbox error:', err.message);
     res.status(500).json({ error: err.message });

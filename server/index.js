@@ -90,6 +90,10 @@ migrate(`
   ALTER TABLE tasks ADD COLUMN IF NOT EXISTS result TEXT;
   ALTER TABLE tasks ADD COLUMN IF NOT EXISTS remind_sent_at TIMESTAMPTZ;
   ALTER TABLE leads ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(500);
+  -- Phase 96: WhatsApp profile pictures in the וואטסאפ tab. The picture links expire, so they are
+  -- re-fetched every few days (avatar_checked_at); TEXT because the links can be long.
+  ALTER TABLE leads ALTER COLUMN avatar_url TYPE TEXT;
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS avatar_checked_at TIMESTAMPTZ;
   ALTER TABLE leads ADD COLUMN IF NOT EXISTS meeting_event_id TEXT;
   ALTER TABLE leads ADD COLUMN IF NOT EXISTS meeting_rsvp_status VARCHAR(20);
   ALTER TABLE leads ADD COLUMN IF NOT EXISTS deposit_amount NUMERIC;

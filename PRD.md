@@ -656,8 +656,8 @@ Files embedded in interaction/message bodies use this format where `id` is the `
 | POST | `/webhook` | Receives Green API webhook. Handles text + media (imageMessage, documentMessage, audioMessage, videoMessage). Media downloaded and uploaded to Supabase. |
 | POST | `/send` | Send text message (auto-advances new→contacted). `phone` accepts one number, a comma-separated list, or an array — one send + one `messages` row per recipient |
 | POST | `/send-file` | Send file: upload to Green API → Supabase → insert into files table → embed [[FILE:id\|name]] in message. `phone` accepts several recipients (file uploaded once, sent to each) |
-| GET | `/unread-count` | ✅ auth. `{ count }` — unread inbound WhatsApp messages, for the nav badge (Phase 88) |
-| GET | `/inbox` | ✅ auth. Conversation list for the וואטסאפ tab: per lead — last message, `unread`, `waiting_since`, `awaiting` (customer wrote last, bot replies ignored, last 14 days) (Phase 88) |
+| GET | `/unread-count` | ✅ auth. `{ count }` — unread inbound WhatsApp messages, leads in stage `lost` excluded, for the nav badge (Phase 88, 96) |
+| GET | `/inbox` | ✅ auth. Conversation list for the וואטסאפ tab: per lead — last message, `unread`, `waiting_since`, `awaiting` (customer wrote last, bot replies ignored, last 14 days), `avatar_url`; leads in stage `lost` are excluded; starts the background profile-picture refresh (Phase 88, 96) |
 
 ### Files (`/api/leads/:leadId/files`) — require auth
 | Method | Path | Description |
@@ -1802,6 +1802,34 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 ---
 
 ## Build Phases — Status
+
+### Phase 96 — לשונית וואטסאפ: profile pictures, full attach menu, אחראי filter, no "לא סגרו" leads ✅ Built 2026-11-18 (1.23.0)
+
+Asked by Oran 2026-11-18, preview approved the same day (same canvas as Phase 88:
+https://claude.ai/artifact/4xc86jdwZwUxgefAaJ9vNE). Changes to the Phase 88 tab only.
+
+- **Profile pictures** — the list rows and the chat header show the customer's WhatsApp picture
+  (`leads.avatar_url`, which the webhook already filled once when a lead was created). The
+  links expire, so `GET /api/whatsapp/inbox` now starts a background refresh
+  (`refreshAvatars` in `routes/whatsapp.js`): leads whose `avatar_checked_at` is empty or
+  older than 3 days, newest chats first, one Green API `getContactInfo` call a second, at most
+  20 per run, one run at a time. No picture / hidden by the customer's privacy settings / a
+  link that no longer loads → the first letter of the name, as before. Only the link is
+  stored, never the image. DB: `leads.avatar_url` → TEXT, new `leads.avatar_checked_at`.
+- **Attach menu** — the paperclip opens the same three sources as the lead card's WhatsApp
+  form: מהטלפון / מהמחשב, מ-Google Drive (`DriveFilePicker`), מקבצים שנשלחו (the lead's files,
+  `GET /api/leads/:id/files`). Files can also be dragged onto the chat on desktop. All of them go
+  through the existing `POST /api/whatsapp/send-file` (`file` / `driveFileId` / `leadFileId`).
+- **אחראי filter** — replaces the "שלי" chip: כולם / שלי / every user who is אחראי on at least
+  one conversation / ללא אחראי; several can be ticked; combines with "לא נענו" (its counter
+  follows the filter); remembered per browser (`localStorage.crm_wa_owners`).
+- **"לא סגרו" leads are left out** of the tab — the list and the nav badge (`l.stage <> 'lost'`
+  in both queries). Their messages stay on the lead card, and the lead-list unread marker is
+  unchanged. Note: a lost lead who writes again stays hidden here until its stage changes.
+- Verified: both queries on a scratch Postgres (lost lead excluded from list and count),
+  client build + headless Chromium (phone + desktop) against mocked API: picture / broken-link
+  fallback, filter combinations, lead-file and local-file sends. NOT verified against Green
+  API (real pictures), Google Drive, or production data.
 
 ### Phase 95 — Contract eye/signature follow the latest contract sent ✅ Built 2026-11-18 (1.22.1); eye in the files list ⏳ awaiting Oran's OK on the preview
 Oran (17.11): after sending a NEW contract the eye beside "נשלח חוזה" stayed on from the previous
