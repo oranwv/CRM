@@ -1803,6 +1803,15 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 98 — Missing-expense status: visible save ✅ Built 2026-11-18 (1.24.1)
+Oran typed a status on a missing expense and looked for a button — the only "הוסף" on the row
+belongs to the notes field. The status always saved on Enter / blur, with no feedback.
+- `ExpenseRow` (FinancePage): a "שמור" button beside the status input (same style as "הוסף",
+  disabled until the text differs from what is saved), "נשמר ✓" for 2.5 s after a save,
+  "השמירה נכשלה — נסה שוב" on error (errors were swallowed before). Enter / blur saving unchanged;
+  `savedStatus` keeps the button click that follows the blur from sending the value twice.
+- Approved by Oran in chat before building (described, no mock-up).
+
 ### Phase 97 — AI assistant: search a lead's full history with citations ✅ Built 2026-11-18 (1.24.0)
 Oran: with a lead card open, the assistant should find information in the calls and notes —
 e.g. "what date was discussed for the event" — list every mention and say where it appears

@@ -23,12 +23,25 @@ function ExpenseRow({ item, onChanged, periods = [], periodId }) {
     }
   }
 
+  // Saved on Enter / blur as before, and by the "שמור" button. `savedStatus`
+  // is what the server holds, so the button's click right after the input's
+  // blur does not send the same value twice.
+  const [savedStatus, setSavedStatus] = useState(item.status || '');
+  const [statusState, setStatusState] = useState(null); // null | 'saving' | 'saved' | 'error'
+  const statusDirty = status.trim() !== savedStatus;
   async function saveStatus() {
-    if ((item.status || '') === status.trim()) return;
+    const value = status.trim();
+    if (value === savedStatus || statusState === 'saving') return;
+    setStatusState('saving');
     try {
-      await api.patch(`/finance/missing/${item.id}`, { status: status.trim() });
+      await api.patch(`/finance/missing/${item.id}`, { status: value });
+      setSavedStatus(value);
+      setStatusState('saved');
+      setTimeout(() => setStatusState(st => (st === 'saved' ? null : st)), 2500);
       onChanged();
-    } catch {}
+    } catch {
+      setStatusState('error');
+    }
   }
 
   async function addNote() {
@@ -125,10 +138,18 @@ function ExpenseRow({ item, onChanged, periods = [], periodId }) {
           )}
           <div>
             <label className="text-xs font-bold text-slate-500 mb-1 block">סטטוס</label>
-            <input value={status} onChange={e => setStatus(e.target.value)} onBlur={saveStatus}
-              onKeyDown={e => e.key === 'Enter' && e.target.blur()}
-              placeholder='למשל: התקשרתי לספק, ישלח חשבונית'
-              className="w-full text-sm bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-violet-400" />
+            <div className="flex gap-2">
+              <input value={status} onChange={e => { setStatus(e.target.value); if (statusState !== 'saving') setStatusState(null); }} onBlur={saveStatus}
+                onKeyDown={e => e.key === 'Enter' && e.target.blur()}
+                placeholder='למשל: התקשרתי לספק, ישלח חשבונית'
+                className="flex-1 min-w-0 text-sm bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-violet-400" />
+              <button type="button" onClick={saveStatus} disabled={!statusDirty || statusState === 'saving'}
+                className="px-4 py-2 rounded-xl bg-violet-600 text-white text-sm font-bold disabled:opacity-40">
+                {statusState === 'saving' ? '…' : 'שמור'}
+              </button>
+            </div>
+            {statusState === 'saved' && <p className="text-xs text-emerald-600 font-bold mt-1">נשמר ✓</p>}
+            {statusState === 'error' && <p className="text-xs text-red-600 font-bold mt-1">השמירה נכשלה — נסה שוב</p>}
           </div>
           <div>
             <label className="text-xs font-bold text-slate-500 mb-1 block">הערות</label>

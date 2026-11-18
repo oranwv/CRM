@@ -6,6 +6,11 @@ updated: 2026-11-18
 
 # Now
 
+## 2026-11-18 — Phase 98 (1.24.1): status field on a missing expense gets a שמור button + "נשמר ✓"
+
+- UI-only (`ExpenseRow` in FinancePage). Not rendered or run here — eslint only; Oran to confirm on the live page after deploy.
+- Still waiting for Oran: bulk-trash of the 35 duplicate files in Drive 09-2026 (`2026-09-17 07-2026 - …` / `08-2026 - …`).
+
 ## 2026-11-18 — Phase 97 (1.24.0): assistant searches a lead's full history
 
 - New `search_lead_history` tool + `services/leadHistorySearch.js`: transcripts, call
