@@ -1,10 +1,14 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-11-19
+updated: 2026-11-20
 ---
 
 # Now
+
+## 2026-11-20 — Phase 106 (1.28.3): emptied contract overrides respected in the PDF and signing page
+
+- `cancellationDateLabel` / `remainderAmtLabel` / `reserveAmtLabel`: `!= null` / `??` instead of truthiness. Rule: the three contract renderers (LeadCard preview, `buildContractHtml`, SignaturePage) must read every `*Label` override the same way.
 
 ## 2026-11-19 — 1.28.2: username labelled in ניהול משתמשים
 

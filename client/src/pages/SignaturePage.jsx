@@ -189,12 +189,12 @@ function ContractDisplay({ data }) {
             <p>{texts.finalSettlementIntro}</p>
             <p>
               {texts.securityCheckPre}{' '}
-              <strong>{texts.remainderAmtLabel || `${fmt(remainingBalance)} ${cur}`}</strong>{' '}
+              <strong>{texts.remainderAmtLabel ?? `${fmt(remainingBalance)} ${cur}`}</strong>{' '}
               {texts.securityCheckSuf}
             </p>
             <p>
               {texts.reserveCheckPre}{' '}
-              <strong>{texts.reserveAmtLabel || `${fmt(Math.round(total * 0.1))} ${cur}`}</strong>{' '}
+              <strong>{texts.reserveAmtLabel ?? `${fmt(Math.round(total * 0.1))} ${cur}`}</strong>{' '}
               {texts.reserveCheckSuf}
             </p>
             <p>{texts.checksUsageNote}</p>
@@ -225,7 +225,7 @@ function ContractDisplay({ data }) {
           ]).map((item, i) => (
             <li key={i}>
               {`5.${i + 1} `}{item}
-              {i === 0 && (texts?.cancellationDateLabel || cancellationDate) ? <strong> {texts?.cancellationDateLabel || cancellationDate}</strong> : null}
+              {i === 0 && (texts?.cancellationDateLabel ?? cancellationDate) ? <strong> {texts?.cancellationDateLabel ?? cancellationDate}</strong> : null}
             </li>
           ))}
         </ul>

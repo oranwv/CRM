@@ -50,3 +50,6 @@ Covers the post-booking side: event production, sales documents, and guest RSVP.
 - `ManagementPage.jsx` — employee activity dashboard for admin/manager: calls /
   meetings split into done vs documented, first/last activity per employee.
 - App "mode" switching via `client/src/context/AppModeContext.jsx`.
+
+## Contract overrides — three renderers (from 2026-11-20, Phase 106)
+- A contract is rendered in three places: the editor preview (`LeadCard.jsx`), the PDF (`buildContractHtml` in `routes/contracts.js`) and the signing page (`SignaturePage.jsx`). Edited values live in `texts.*Label`; `null`/missing = use the calculated value, `''` = the user deleted it. All three must use `?? ` / `!= null`, never truthiness.

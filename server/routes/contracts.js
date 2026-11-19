@@ -201,8 +201,8 @@ ${tArr('costExtraLines').map(l => (l && l.trim()) ? `<p>${esc(l)}</p>` : '').joi
 <p>${t('depositLine')} <strong>${texts.depositAmtLabel != null ? esc(texts.depositAmtLabel) : money(depositAmount)} ${texts.depositPctLabel != null ? esc(texts.depositPctLabel) : `(${esc(String(depositPercent))}%)`}</strong> ${t('depositSuffix')} <strong>${texts.depositAmtVatLabel != null ? esc(texts.depositAmtVatLabel) : money(depositAmountVat)}</strong></p>
 ${texts.finalSettlementIntro ? `
 <p>${t('finalSettlementIntro')}</p>
-<p>${t('securityCheckPre')} <strong>${texts.remainderAmtLabel ? esc(texts.remainderAmtLabel) : money(remainingBalance)}</strong> ${t('securityCheckSuf')}</p>
-<p>${t('reserveCheckPre')} <strong>${texts.reserveAmtLabel ? esc(texts.reserveAmtLabel) : money(Math.round(total * 0.1))}</strong> ${t('reserveCheckSuf')}</p>
+<p>${t('securityCheckPre')} <strong>${texts.remainderAmtLabel != null ? esc(texts.remainderAmtLabel) : money(remainingBalance)}</strong> ${t('securityCheckSuf')}</p>
+<p>${t('reserveCheckPre')} <strong>${texts.reserveAmtLabel != null ? esc(texts.reserveAmtLabel) : money(Math.round(total * 0.1))}</strong> ${t('reserveCheckSuf')}</p>
 <p>${t('checksUsageNote')}</p>
 ` : `
 <p>${t('remainderLine')} <strong>${money(remainingBalance)} ${t('remainderSuffix')}</strong></p>
@@ -215,7 +215,7 @@ ${tArr('paymentExtras').map(l => (l && l.trim()) ? `<p>${esc(l)}</p>` : '').join
 <ul>
   ${tArr('cancellationItems').map((item, i) =>
     i === 0
-      ? `<li>5.${i + 1} ${esc(item)} <strong>${texts.cancellationDateLabel ? esc(texts.cancellationDateLabel) : esc(cancellationDate)}</strong></li>`
+      ? `<li>5.${i + 1} ${esc(item)} <strong>${texts.cancellationDateLabel != null ? esc(texts.cancellationDateLabel) : esc(cancellationDate)}</strong></li>`
       : `<li>5.${i + 1} ${esc(item)}</li>`
   ).join('\n  ')}
 </ul>

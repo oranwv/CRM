@@ -1803,6 +1803,18 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 106 — Contract: a value deleted in the editor came back in the PDF ✅ Built 2026-11-20 (1.28.3)
+Oran (19.11): he deleted the date at the end of clause 5.1 in the contract editor; the downloaded
+PDF still printed it. The editor keeps an emptied cell as `''` and reads overrides with `??`
+(`contractTexts.cancellationDateLabel ?? cancellationDate`), but the PDF builder
+(`routes/contracts.js`) and the signing page (`SignaturePage.jsx`) tested truthiness (`x ? x : calc`
+/ `x || calc`), so an empty override fell back to the calculated value. Fixed in both to `!= null`
+/ `??` for the three overrides that had this: `cancellationDateLabel`, `remainderAmtLabel` (balance
+cheque), `reserveAmtLabel` (10% reserve cheque). The deposit overrides were already correct.
+Verified by running the real `buildContractHtml`: untouched → calculated date, deleted → empty,
+edited → edited value; the deleted case printed the date before the fix. Contracts already sent keep
+the PDF that was generated then — re-download / re-send to get a corrected file.
+
 ### Phase 105 — ניהול on phones: table column painted over the sticky toolbar ✅ Built 2026-11-19 (1.28.1)
 Oran's screenshot (19.11): after scrolling in ניהול the table's "שם" column covered the date /
 range toolbar, and the toolbar's first row was cut off under the top bar. Two causes:
