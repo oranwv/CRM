@@ -17,7 +17,7 @@ import ContractAssistant from './ContractAssistant';
 import OfferBuilder from './OfferBuilder';
 import { applyOfferSpec } from '../utils/offerSpec';
 import { openFileViewer, leadFileRef } from '../files/fileBox';
-import ContractTrackIcons from './ContractTrackIcons';
+import ContractTrackIcons, { ContractFileEye } from './ContractTrackIcons';
 import { docTypeLabel } from '../utils/docTypes';
 import { israelToISO, israelLocalToISO, isoToIsraelLocal } from '../utils/israelTime';
 import { useCalls } from '../context/CallContext';
@@ -1328,7 +1328,7 @@ function FilesSection({ leadId, files, onChanged, isAdmin }) {
                     className="text-base font-semibold text-violet-700 hover:underline block w-full max-w-full text-right wrap-break-word sm:truncate">
                     {f.filename}
                   </button>
-                  <p className="text-sm text-slate-400">{f.uploaded_by_name || ''} · {formatFull(f.created_at)}</p>
+                  <p className="text-sm text-slate-400">{f.uploaded_by_name || ''} · {formatFull(f.created_at)}{f.contract_id && f.contract_sent ? ' · ' : ''}<ContractFileEye file={f} /></p>
                 </>
               )}
             </div>

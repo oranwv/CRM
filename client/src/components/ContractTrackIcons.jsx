@@ -34,3 +34,26 @@ export default function ContractTrackIcons({ lead, size = 16 }) {
     </span>
   );
 }
+
+// Phase 95 — the same eye beside a contract PDF in the lead's files list. Shown only for a
+// contract that was sent for signing (the file row carries contract_sent / contract_views from
+// GET /leads/:id/files): violet + count once the customer opened the signing page, grey
+// "טרם נצפה" until then. Signed PDFs and download-only contracts get nothing.
+export function ContractFileEye({ file }) {
+  if (!file?.contract_id || !file.contract_sent) return null;
+  const views = Number(file.contract_views) || 0;
+  const title = views
+    ? `הלקוח פתח את החוזה ${views === 1 ? 'פעם אחת' : `${views} פעמים`} · אחרונה ${fmt(file.contract_last_viewed_at)}`
+    : 'החוזה נשלח — הלקוח עוד לא פתח אותו';
+  return (
+    <span title={title} onClick={e => { e.stopPropagation(); alert(title); }}
+      className={`inline-flex items-center gap-1 align-middle cursor-default whitespace-nowrap ${views ? 'text-indigo-500 font-bold' : 'text-slate-400'}`}>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+      {views ? views : 'טרם נצפה'}
+    </span>
+  );
+}
+

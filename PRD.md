@@ -2041,7 +2041,7 @@ https://claude.ai/artifact/4xc86jdwZwUxgefAaJ9vNE). Changes to the Phase 88 tab 
   fallback, filter combinations, lead-file and local-file sends. NOT verified against Green
   API (real pictures), Google Drive, or production data.
 
-### Phase 95 — Contract eye/signature follow the latest contract sent ✅ Built 2026-11-18 (1.22.1); eye in the files list ⏳ awaiting Oran's OK on the preview
+### Phase 95 — Contract eye/signature follow the latest contract sent ✅ Built 2026-11-18 (1.22.1); eye in the files list ✅ Built 2026-11-19 (1.27.0)
 Oran (17.11): after sending a NEW contract the eye beside "נשלח חוזה" stayed on from the previous
 contract. He also wants an eye beside the sent contract in the lead's files (no signature mark
 there — the signed PDF itself appears in the files).
@@ -2057,6 +2057,12 @@ there — the signed PDF itself appears in the files).
   signed PDFs "חוזה חתום…" and unrelated uploads stay unlinked). The unsigned PDF saved on send now
   stores its contract id. `GET /leads/:id/files` returns `contract_sent`, `contract_views`,
   `contract_last_viewed_at` per file.
+- **Eye in the lead's files (1.27.0, approved from a text preview).** `ContractFileEye`
+  (`ContractTrackIcons.jsx`) on the file's meta line in `FilesSection`: only for a file with
+  `contract_id` whose contract was sent (`contract_sent`); violet eye + view count once opened,
+  grey eye + "טרם נצפה" before; tooltip / tap gives the last view time. Each contract PDF shows its
+  own contract's views, so earlier contracts stay readable. Signed PDFs and download-only contracts
+  show nothing. Checked in headless Chromium (360px, 1280px) with stub files.
 Verified on a local Postgres 16 with scenario data (new unviewed contract after a viewed one → 0
 views; signed then new contract → signature gone, new views counted; download-only after sent →
 sent one still tracked; migration runs twice cleanly; files list query). Not run against production.

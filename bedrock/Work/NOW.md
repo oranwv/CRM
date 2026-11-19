@@ -1,10 +1,14 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-11-18
+updated: 2026-11-19
 ---
 
 # Now
+
+## 2026-11-19 — Phase 95 part 2 (1.27.0): eye beside sent contracts in the lead's files
+
+- `ContractFileEye` in `FilesSection`. Open request from Oran: see employees' passwords in הגדרות — passwords are bcrypt hashes (cannot be shown); options put to him (reset button vs storing a readable copy), no code until he decides.
 
 ## 2026-11-18 — Phase 103 (1.26.5): reconcile timeout + karteset-only from the main button
 

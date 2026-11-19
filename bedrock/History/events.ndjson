@@ -102,3 +102,4 @@
 {"ts": "2026-11-18T11:00:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.26.3 Phase 102d: assistant dictation — gpt-4o-transcribe with vocabulary prompt (whisper-1 fallback), 1s recorder slices so long recordings are complete, builder text box grows"}
 {"ts": "2026-11-18T14:05:00Z", "type": "feature", "tool": "chat", "slug": "CRM", "summary": "1.26.4 Phase 102e: Drive folders in settings are added by pasting the folder link (ID extracted; saved links normalized server-side)"}
 {"ts": "2026-11-18T16:45:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.26.5 Phase 103: reconcile batched (one query per step instead of hundreds) so it no longer times out; main button compares a karteset alone against the stored expense rows"}
+{"ts": "2026-11-19T10:55:00Z", "type": "feature", "tool": "cowork", "slug": "CRM", "summary": "1.27.0: eye beside sent contract PDFs in the lead card's files (viewed count / 'טרם נצפה')"}
