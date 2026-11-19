@@ -6,6 +6,10 @@ updated: 2026-11-19
 
 # Now
 
+## 2026-11-19 — Phase 104 (1.28.0): password eye in הגדרות; files eye only when viewed
+
+- `users.password_view` (encrypted, `utils/passwordVault.js`), written on admin set + successful login; `GET /admin/users/:id/password` admins only. Oran chose this over a reset button after hearing the trade-off. Revisit before multi-business rollout.
+
 ## 2026-11-19 — Phase 95 part 2 (1.27.0): eye beside sent contracts in the lead's files
 
 - `ContractFileEye` in `FilesSection`. Open request from Oran: see employees' passwords in הגדרות — passwords are bcrypt hashes (cannot be shown); options put to him (reset button vs storing a readable copy), no code until he decides.

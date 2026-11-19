@@ -414,6 +414,10 @@ migrate(`
   );
 `).catch(err => console.error('[DB] calls migration error:', err.message));
 
+// Phase 104: encrypted, admin-readable copy of each user's password (utils/passwordVault.js).
+migrate(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_view TEXT;`)
+  .catch(err => console.error('[DB] users.password_view migration error:', err.message));
+
 // Own migrate() call: a multi-statement block is all-or-nothing, and this one must not be able to hold back the block above.
 migrate(`
   -- Phase 95: the unsigned contract PDF saved in a lead's files points at its contract, so the

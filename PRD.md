@@ -1803,6 +1803,35 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 104 — Admin can see employees' passwords; files eye only when viewed ✅ Built 2026-11-19 (1.28.0)
+Oran (19.11). He was told existing passwords are bcrypt hashes and cannot be shown, and offered a
+reset-password button instead of a readable copy (admins and anyone with DB access could read every
+password; staff reuse passwords elsewhere; a point business customers check). He chose to see the
+passwords, with an eye he presses beside each one.
+- **Storage.** `users.password_view` (own boot migration) holds an AES-256-GCM encrypted copy
+  (`server/utils/passwordVault.js`; key = sha256 of `PASSWORD_VIEW_KEY`, else `JWT_SECRET` — rotating
+  that secret makes stored copies unreadable until each password is set or used again). Login still
+  verifies the bcrypt hash only.
+- **When the copy is written.** Admin creates a user or sets a password in ✏️ (`routes/admin.js`);
+  and on every successful login (`routes/auth.js`) when the stored copy differs — so a password set
+  before this phase becomes readable at its owner's next login. Failed logins never write. Users on a
+  long "stay logged in" session stay unknown until they log in again or get a new password.
+- **Reveal.** `GET /api/admin/users/:id/password` (system admins only — `adminOnly`; not managers),
+  one user per request, `Cache-Control: no-store`, each call logged with who looked at whom. The
+  users list never carries passwords.
+- **UI.** `AdminPage.jsx` `PasswordPeek`: "סיסמה: •••••• 👁" under each user in ניהול משתמשים;
+  pressing the eye fetches and shows the password, pressing again hides it; no copy stored yet →
+  "עוד לא ידועה — תופיע אחרי הכניסה הבאה של העובד, או אחרי שתגדיר סיסמה חדשה".
+- **Files eye (Phase 95 follow-up).** Oran did not want the grey "טרם נצפה" state: `ContractFileEye`
+  now renders a single indigo eye only when the contract was viewed (count and last view in the
+  tooltip / tap), nothing otherwise.
+Verified: integration test of the real auth + admin routers on a local Postgres 16 (18 checks: login
+unaffected with and without the column, wrong password not recorded, reveal after login / after
+admin set, 403 for non-admin, 401 without token, list has no password fields, DB holds ciphertext);
+headless Chromium at 360px and 1280px with stub data. Not run against production.
+⚠️ For the multi-business plan: readable passwords should be revisited before other businesses use
+the system (per-business key, or reset-only).
+
 ### Phase 103 — Reconcile: fast enough not to time out; karteset-only compare from the main button ✅ Built 2026-11-18 (1.26.5)
 Oran (18.11): "שגיאה בהשוואה" on ספטמבר אוקטובר with 2 karteset + 3 expense files; and he does not
 want to re-upload the expense files each time the accountant's karteset grows.

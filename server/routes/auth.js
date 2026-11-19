@@ -2,6 +2,7 @@ const router = require('express').Router();
 const pool = require('../db/pool');
 const bcrypt = require('bcryptjs');
 const { signToken, appCookie } = require('../middleware/auth');
+const { encryptPassword, decryptPassword } = require('../utils/passwordVault');
 
 const ROLE_PRIORITY = ['admin','manager','sales','production','suppliers','rsvp','operations'];
 
@@ -13,6 +14,11 @@ router.post('/login', async (req, res) => {
     const valid = await bcrypt.compare(password, rows[0].password_hash);
     if (!valid) return res.status(401).json({ error: 'שם משתמש או סיסמה שגויים' });
     if (rows[0].blocked) return res.status(401).json({ error: 'החשבון שלך חסום, פנה למנהל המערכת' });
+    // Keep the admin-readable copy in step with the password actually in use (Phase 104): passwords
+    // set before that phase have no copy until their owner logs in.
+    if (decryptPassword(rows[0].password_view) !== password) {
+      pool.query('UPDATE users SET password_view = $1 WHERE id = $2', [encryptPassword(password), rows[0].id]).catch(() => {});
+    }
     const roles = rows[0].roles?.length ? rows[0].roles : [rows[0].role];
     const primaryRole = ROLE_PRIORITY.find(r => roles.includes(r)) || rows[0].role;
     const token = signToken({ id: rows[0].id, username: rows[0].username, display_name: rows[0].display_name, role: primaryRole, roles });

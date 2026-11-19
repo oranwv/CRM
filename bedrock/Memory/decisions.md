@@ -54,3 +54,6 @@ stable key across channels.
 - The punch happens on opening the tag URL (no confirm button); cheating is handled by GPS radius + registered phone, with exceptions going to a manager, not by blocking.
 - Vacation and sick days both need approval; any admin/manager approves. The system counts days only — no sick-pay or overtime-pay calculation.
 - Attendance rows are never hard-deleted: void status + `attendance_edits` audit.
+
+## 2026-11-19 — Readable passwords for the admin (Phase 104)
+- Oran wants to see employees' passwords in הגדרות. Decision: keep bcrypt for login, add an AES-256-GCM encrypted copy (`users.password_view`, key from `PASSWORD_VIEW_KEY` or `JWT_SECRET`) revealed one user at a time to system admins only. Alternative offered and declined: reset-password button with no readable copy. Do not change `JWT_SECRET` without knowing the copies become unreadable. Revisit for multi-business.

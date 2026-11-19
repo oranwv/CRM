@@ -742,6 +742,7 @@ export default function AdminPage() {
                     {u.phone && <> · <a href={`tel:${u.phone}`} className="text-violet-500">{u.phone}</a></>}
                     {u.email && ` · ${u.email}`}
                   </p>
+                  <PasswordPeek userId={u.id} />
                 </div>
                 <div className="flex items-center gap-1.5 shrink sm:shrink-0 min-w-0 max-w-full mr-2 flex-wrap justify-end">
                   {u.blocked && (
@@ -1357,6 +1358,39 @@ function VersionFooter() {
   return (
     <p className="text-center text-[11px] text-slate-400 pt-2" dir="rtl">
       ProEvent CRM · גרסה {v.version}{built ? ` · נבנה ${built}` : ''}{v.commit ? ` · ${v.commit}` : ''}
+    </p>
+  );
+}
+
+// "סיסמה: •••••• 👁" under a user in ניהול משתמשים. The password is fetched only when the eye is
+// pressed (GET /admin/users/:id/password) and hidden again on the next press.
+function PasswordPeek({ userId }) {
+  const [state, setState] = useState({ shown: false, loading: false, password: undefined });
+  async function toggle() {
+    if (state.shown) { setState({ shown: false, loading: false, password: undefined }); return; }
+    setState(s => ({ ...s, loading: true }));
+    try {
+      const { data } = await api.get(`/admin/users/${userId}/password`);
+      setState({ shown: true, loading: false, password: data.password });
+    } catch {
+      setState({ shown: true, loading: false, password: undefined });
+    }
+  }
+  return (
+    <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
+      <span>סיסמה:</span>
+      {!state.shown
+        ? <span className="tracking-widest">••••••</span>
+        : state.password
+          ? <span dir="ltr" className="font-mono font-bold text-slate-700 select-all">{state.password}</span>
+          : <span>{state.password === null ? 'עוד לא ידועה — תופיע אחרי הכניסה הבאה של העובד, או אחרי שתגדיר סיסמה חדשה' : 'שגיאה בטעינה'}</span>}
+      <button type="button" onClick={toggle} disabled={state.loading} title={state.shown ? 'הסתר סיסמה' : 'הצג סיסמה'}
+        aria-label={state.shown ? 'הסתר סיסמה' : 'הצג סיסמה'} className="shrink-0 text-slate-400 hover:text-violet-600 disabled:opacity-50">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" />
+          {state.shown && <path d="M4 4l16 16" />}
+        </svg>
+      </button>
     </p>
   );
 }

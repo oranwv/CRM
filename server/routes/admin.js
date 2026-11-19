@@ -7,6 +7,7 @@ const path   = require('path');
 const fs     = require('fs');
 const os     = require('os');
 const { uploadFile, uploadBuffer, getSignedUrl } = require('../services/storageService');
+const { encryptPassword, decryptPassword } = require('../utils/passwordVault');
 
 const { PDFParse } = require('pdf-parse'); // v2 API: class, not a callable default
 
@@ -81,6 +82,22 @@ router.get('/users', adminOnly, async (req, res) => {
   }
 });
 
+// GET /api/admin/users/:id/password — the "eye" beside a user in הגדרות (admins only).
+// Returns the readable copy of the password, or null when none is stored yet (a password set
+// before Phase 104 becomes readable the next time that user logs in, or when it is set again).
+// Never part of the users list — fetched one user at a time, on click, and logged.
+router.get('/users/:id/password', adminOnly, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT username, password_view FROM users WHERE id = $1', [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ error: 'משתמש לא נמצא' });
+    console.log(`[Admin] password viewed: user "${rows[0].username}" by ${req.user.username}`);
+    res.set('Cache-Control', 'no-store');
+    res.json({ password: decryptPassword(rows[0].password_view) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/admin/users
 router.post('/users', adminOnly, async (req, res) => {
   const { username, display_name, email, phone, roles, blocked, shabbat_mode, password } = req.body;
@@ -94,6 +111,7 @@ router.post('/users', adminOnly, async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, username, display_name, email, phone, role, roles, blocked, shabbat_mode, created_at`,
       [username, display_name || null, email || null, phone || null, primaryRole, rolesArr, blocked || false, shabbat_mode || false, hash]
     );
+    await pool.query('UPDATE users SET password_view = $1 WHERE id = $2', [encryptPassword(password), rows[0].id]).catch(() => {});
     res.json(rows[0]);
   } catch (err) {
     if (err.code === '23505') return res.status(400).json({ error: 'שם משתמש כבר קיים' });
@@ -113,6 +131,7 @@ router.put('/users/:id', adminOnly, async (req, res) => {
         `UPDATE users SET username=$1, display_name=$2, email=$3, phone=$4, role=$5, roles=$6, blocked=$7, shabbat_mode=$8, password_hash=$9 WHERE id=$10`,
         [username, display_name || null, email || null, phone || null, primaryRole, rolesArr, blocked || false, shabbat_mode || false, hash, req.params.id]
       );
+      await pool.query('UPDATE users SET password_view = $1 WHERE id = $2', [encryptPassword(password), req.params.id]).catch(() => {});
     } else {
       await pool.query(
         `UPDATE users SET username=$1, display_name=$2, email=$3, phone=$4, role=$5, roles=$6, blocked=$7, shabbat_mode=$8 WHERE id=$9`,
