@@ -4,10 +4,18 @@
 html { font-size: 18px; }
 
 /* Top bar height: one row (44px); on phones two rows (80px) while badges are shown (GlobalHeader in App.jsx). */
-.crm-header { --crm-header-h: 44px; }
+/* Top bar height. In rem, not px: the root font is 18px, so Tailwind's h-11 / h-20 on the bar are
+   49.5px / 90px — the old 44px / 80px values left page content and sticky toolbars 5–10px under it. */
+.crm-header { --crm-header-h: 2.75rem; }
 @media (max-width: 639px) {
-  .crm-header.crm-header-tall { --crm-header-h: 80px; }
-  html.crm-header-tall .crm-header-spacer { padding-top: 80px; }
+  .crm-header.crm-header-tall { --crm-header-h: 5rem; }
+  html.crm-header-tall .crm-header-spacer { padding-top: 5rem; }
+}
+/* Page toolbars that stick right under the top bar — use this class instead of `top-11`, which is
+   wrong on phones while the bar is two rows (the toolbar slid under it). */
+.crm-below-header { top: 2.75rem; }
+@media (max-width: 639px) {
+  html.crm-header-tall .crm-below-header { top: 5rem; }
 }
 
 * { box-sizing: border-box; }

@@ -293,7 +293,7 @@ export default function ManagementPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-32" dir="rtl">
-      <div className="px-4 pt-4 pb-3 flex items-center gap-2 flex-wrap sticky top-11 bg-slate-50 z-10 border-b border-slate-200">
+      <div className="px-4 pt-4 pb-3 flex items-center gap-2 flex-wrap sticky crm-below-header bg-slate-50 z-20 border-b border-slate-200">
         <span className="font-black text-slate-700 text-sm">פעילות עובדים</span>
         <div className="flex items-center gap-1">
           <button onClick={() => shiftRange(-1)} title="טווח קודם" aria-label="טווח קודם"

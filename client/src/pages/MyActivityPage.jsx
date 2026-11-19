@@ -111,7 +111,7 @@ export default function MyActivityPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-32" dir="rtl">
-      <div className="px-4 pt-4 pb-3 flex items-center gap-2 flex-wrap sticky top-11 bg-slate-50 z-10 border-b border-slate-200">
+      <div className="px-4 pt-4 pb-3 flex items-center gap-2 flex-wrap sticky crm-below-header bg-slate-50 z-20 border-b border-slate-200">
         <span className="font-black text-slate-700 text-sm">👤 {userId === me.id ? 'הפעילות שלי' : `הפעילות של ${users.find(u => u.id === userId)?.display_name || ''}`}</span>
         {isManager && users.length > 0 && (
           <select value={userId} onChange={e => setUserId(Number(e.target.value))}

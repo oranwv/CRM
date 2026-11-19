@@ -75,3 +75,7 @@ each with its own bottom tabs: מכירות, הפקה, תפעול, ספקים, �
 
 ## Lead card + bottom nav (from 2026-11-14, Phase 81)
 - The lead card (`fixed`, z-50) stops at `bottom: var(--crm-nav-h)` so `AppShellNav` (z-30) stays usable; open cards register in `client/src/utils/leadCardNav.js`. Calendar tab → calendar layer (z-56) over the card; other tabs → close cards, wait for back-guards (`afterBackGuardsSettle`), navigate. New full-screen layers inside the card should keep using `fixed inset-0` (they cover the nav, as before).
+
+## Layout gotchas (from 2026-11-19, Phase 105)
+- Root font is 18px: Tailwind rem utilities are 12.5% larger than their usual px (h-11 = 49.5px, h-20 = 90px). Never hard-code the top bar height in px.
+- A toolbar that sticks under the top bar uses the `crm-below-header` class (not `top-11`) and needs a z-index above any sticky table cells below it.

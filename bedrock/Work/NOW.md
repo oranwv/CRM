@@ -6,6 +6,10 @@ updated: 2026-11-19
 
 # Now
 
+## 2026-11-19 — Phase 105 (1.28.1): sticky toolbars vs the top bar
+
+- `.crm-below-header` replaces `sticky top-11` (6 pages); header heights in rem (root font is 18px → h-11 = 49.5px, h-20 = 90px). Management toolbar z-20 over the sticky name column.
+
 ## 2026-11-19 — Phase 104 (1.28.0): password eye in הגדרות; files eye only when viewed
 
 - `users.password_view` (encrypted, `utils/passwordVault.js`), written on admin set + successful login; `GET /admin/users/:id/password` admins only. Oran chose this over a reset button after hearing the trade-off. Revisit before multi-business rollout.

@@ -1803,6 +1803,21 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 105 — ניהול on phones: table column painted over the sticky toolbar ✅ Built 2026-11-19 (1.28.1)
+Oran's screenshot (19.11): after scrolling in ניהול the table's "שם" column covered the date /
+range toolbar, and the toolbar's first row was cut off under the top bar. Two causes:
+- The toolbar and the table's sticky name cells were both `z-10`; the cells come later in the DOM
+  and won. Toolbar → `z-20` (ManagementPage, MyActivityPage, CostsPage).
+- The toolbar stuck at `top-11`, the one-row bar height, while on phones with badges the bar is two
+  rows. New `.crm-below-header` class (`index.css`) follows the real height and replaces
+  `sticky top-11` on all six page toolbars (Management, MyActivity, Costs, Suppliers, Events,
+  RSVP detail).
+- Found on the way: the bar's heights were written in px (44 / 80) but the root font is 18px, so
+  the bar is really 49.5 / 90px (`h-11` / `h-20`). `--crm-header-h`, the phone spacer and the new
+  class are now in rem (2.75 / 5) — page content no longer starts 10px under a two-row bar.
+Verified in headless Chromium (360px with badges, 1280px) on the scrolled ניהול page: toolbar top =
+header bottom, and the toolbar is the element on top where the name column passes under it.
+
 ### Phase 104 — Admin can see employees' passwords; files eye only when viewed ✅ Built 2026-11-19 (1.28.0)
 Oran (19.11). He was told existing passwords are bcrypt hashes and cannot be shown, and offered a
 reset-password button instead of a readable copy (admins and anyone with DB access could read every

@@ -105,7 +105,7 @@ export default function EventsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-violet-50 to-indigo-50" dir="rtl">
-      <div className="sticky top-11 z-20 bg-white/90 backdrop-blur border-b border-violet-100 px-4 pt-4 pb-3">
+      <div className="sticky crm-below-header z-20 bg-white/90 backdrop-blur border-b border-violet-100 px-4 pt-4 pb-3">
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-xl font-black text-slate-800">אירועים</h1>
           <span className="text-xs text-slate-400">{leads.length} אירועים</span>

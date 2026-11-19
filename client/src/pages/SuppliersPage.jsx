@@ -94,7 +94,7 @@ export default function SuppliersPage() {
   return (
     <div className="min-h-screen bg-slate-50" dir="rtl">
       {/* Top bar */}
-      <div className="bg-white border-b border-slate-200 px-4 py-3 sticky top-11 z-10">
+      <div className="bg-white border-b border-slate-200 px-4 py-3 sticky crm-below-header z-10">
         <div className="flex items-center gap-2 flex-wrap">
           <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder="חיפוש ספק..."

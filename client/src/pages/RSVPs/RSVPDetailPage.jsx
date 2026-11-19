@@ -475,7 +475,7 @@ export default function RSVPDetailPage() {
       </div>
 
       {/* Tab bar */}
-      <div className="flex border-b border-slate-200 bg-white sticky top-11 z-20">
+      <div className="flex border-b border-slate-200 bg-white sticky crm-below-header z-20">
         {TABS.map(t => (
           <button
             key={t.key}

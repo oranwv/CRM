@@ -48,7 +48,7 @@ export default function CostsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-32" dir="rtl">
-      <div className="px-4 pt-4 pb-3 flex items-center gap-3 flex-wrap sticky top-11 bg-slate-50 z-10 border-b border-slate-200">
+      <div className="px-4 pt-4 pb-3 flex items-center gap-3 flex-wrap sticky crm-below-header bg-slate-50 z-20 border-b border-slate-200">
         <span className="font-black text-slate-700 text-sm">עלויות שירותים</span>
         <select value={months} onChange={e => setMonths(Number(e.target.value))}
           className="border border-slate-300 rounded-xl px-2 py-1.5 text-sm bg-white">
