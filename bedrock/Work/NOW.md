@@ -6,6 +6,10 @@ updated: 2026-11-19
 
 # Now
 
+## 2026-11-19 — 1.28.2: username labelled in ניהול משתמשים
+
+- "שם משתמש: …" line above the password line (Phase 104 follow-up).
+
 ## 2026-11-19 — Phase 105 (1.28.1): sticky toolbars vs the top bar
 
 - `.crm-below-header` replaces `sticky top-11` (6 pages); header heights in rem (root font is 18px → h-11 = 49.5px, h-20 = 90px). Management toolbar z-20 over the sticky name column.

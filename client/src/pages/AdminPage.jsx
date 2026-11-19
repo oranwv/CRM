@@ -738,10 +738,12 @@ export default function AdminPage() {
                 <div className="min-w-0 flex-1 basis-24 sm:basis-auto sm:flex-initial">
                   <p className="text-sm font-bold text-slate-800 truncate">{u.display_name || u.username}</p>
                   <p className="text-xs text-slate-400 truncate">
-                    {u.username}
-                    {u.phone && <> · <a href={`tel:${u.phone}`} className="text-violet-500">{u.phone}</a></>}
-                    {u.email && ` · ${u.email}`}
+                    {u.phone && <a href={`tel:${u.phone}`} className="text-violet-500">{u.phone}</a>}
+                    {u.phone && u.email && ' · '}
+                    {u.email}
                   </p>
+                  {/* Login details, labelled: the bare username used to sit unlabelled before the phone */}
+                  <p className="text-xs text-slate-400 mt-0.5">שם משתמש: <span dir="ltr" className="font-mono font-bold text-slate-700 select-all">{u.username}</span></p>
                   <PasswordPeek userId={u.id} />
                 </div>
                 <div className="flex items-center gap-1.5 shrink sm:shrink-0 min-w-0 max-w-full mr-2 flex-wrap justify-end">

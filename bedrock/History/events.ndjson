@@ -105,3 +105,4 @@
 {"ts": "2026-11-19T10:55:00Z", "type": "feature", "tool": "cowork", "slug": "CRM", "summary": "1.27.0: eye beside sent contract PDFs in the lead card's files (viewed count / 'טרם נצפה')"}
 {"ts": "2026-11-19T11:20:00Z", "type": "feature", "tool": "cowork", "slug": "CRM", "summary": "1.28.0: admins can reveal employees' passwords in settings (encrypted copy users.password_view, written on admin set and successful login); files eye shows only when the contract was viewed"}
 {"ts": "2026-11-19T11:40:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.28.1: sticky page toolbars follow the real top-bar height (.crm-below-header, rem) and sit above the management table's sticky name column"}
+{"ts": "2026-11-19T11:50:00Z", "type": "change", "tool": "cowork", "slug": "CRM", "summary": "1.28.2: users list in settings shows a labelled username line above the password line"}

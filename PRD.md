@@ -1837,6 +1837,8 @@ passwords, with an eye he presses beside each one.
 - **UI.** `AdminPage.jsx` `PasswordPeek`: "סיסמה: •••••• 👁" under each user in ניהול משתמשים;
   pressing the eye fetches and shows the password, pressing again hides it; no copy stored yet →
   "עוד לא ידועה — תופיע אחרי הכניסה הבאה של העובד, או אחרי שתגדיר סיסמה חדשה".
+- **Username (1.28.2).** Oran asked to see the username too: it is now its own labelled line
+  "שם משתמש: …" above the password line (it used to sit unlabelled before the phone number).
 - **Files eye (Phase 95 follow-up).** Oran did not want the grey "טרם נצפה" state: `ContractFileEye`
   now renders a single indigo eye only when the contract was viewed (count and last view in the
   tooltip / tap), nothing otherwise.
