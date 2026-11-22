@@ -6,7 +6,11 @@ updated: 2026-11-22
 
 # Now
 
-## 2026-11-22 — Phase 107 (1.28.4): repeated logouts — OPEN, cause not found yet
+## 2026-11-22 — Phase 108 (1.28.5): logouts SOLVED — cached X-Refresh-Token of a previous user
+
+- API responses were cacheable (ETag, no Cache-Control); Chrome replayed an old response with the previous PC user's `X-Refresh-Token`, and the client adopted it → requests ran as that (blocked) user → logout. Fixed: `/api` is `no-store` + no ETag; client takes a refresh token only for the same user id and a later expiry. Oran to confirm on Emili's laptop after 1.28.5.
+
+## 2026-11-22 — Phase 107 (1.28.4): repeated logouts — diagnostics (cause found in Phase 108)
 
 - Oran: system keeps returning to the login screen (video: lead opened in its own tab on a Windows laptop → card renders → login). Not reproduced; no non-session 401 found in the code. Shipped: marked + logged session failures (`[Auth] 401 <reason>` in Railway logs), client logs out only on those and retries when the token changed in flight, login screen shows the reason. **Waiting for the reason line from the next occurrence** (amber box on the login screen / `localStorage.crm_logout_log` / Railway log), then fix the real cause.
 

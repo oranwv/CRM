@@ -1803,7 +1803,31 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
-### Phase 107 — "The system keeps logging me out": hardening + the reason on the login screen ✅ Built 2026-11-22 (1.28.4) — root cause NOT yet identified
+### Phase 108 — Root cause of the logouts: a previous user's session token served from the browser cache ✅ Built 2026-11-22 (1.28.5)
+The amber line from Phase 107 said "החשבון חסום" for Emili, who is not blocked and could log in.
+- **Cause.** Express puts an ETag on every `res.json()` and the API sent no `Cache-Control`, so
+  Chrome stored API responses — headers included — and replayed them for the same URL. One header is
+  `X-Refresh-Token` (the daily sliding-session token, `middleware/auth.js`). `api.js` stored whatever
+  token arrived in that header. On a PC shared by two users, the user who logs in today got, with a
+  cached response, the refresh token issued weeks ago to the PREVIOUS user of that browser, and from
+  then on sent requests as that user. That user being blocked → 401 "blocked" → login screen, every
+  time a lead (or any page with a cached URL) was opened.
+- **Worse case, same bug.** Had the previous user not been blocked, the new user would have silently
+  continued under the previous user's identity (name on actions, permissions). Only shared browsers
+  are exposed; nothing leaves the PC.
+- **Fix — server (`index.js`).** `app.set('etag', false)` and `Cache-Control: no-store` on every
+  `/api` response (routes that want caching set their own header afterwards; the two that do are
+  public and never carry a refresh token).
+- **Fix — client (`api.js`).** A refresh token is accepted only if it is for the same user id as the
+  token the request was sent with, that token is still the stored one, and the new one expires later.
+  This also neutralises responses already sitting in a browser's cache, and stops an old cached copy
+  of the user's own token from shortening the session.
+Verified: reproduced in real Chromium against the real middleware (old user's response cached → new
+user's page receives the old user's refresh token); with the server fix the page receives none
+(`Cache-Control: no-store`, no ETag); client rules unit-tested (foreign token ignored, own newer
+taken, own older ignored, garbage ignored). Not run against production; confirm on Emili's laptop.
+
+### Phase 107 — "The system keeps logging me out": hardening + the reason on the login screen ✅ Built 2026-11-22 (1.28.4) — root cause found and fixed in Phase 108
 Oran's screen recording (22.11, Windows laptop): a lead clicked in the list opens in its own tab,
 the card renders (so `GET /leads/:id` passed), and a moment later the tab is on the login screen.
 The client logs out on ANY 401 from an `api` call (`api.js`). Static review found no endpoint a lead

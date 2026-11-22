@@ -79,3 +79,7 @@ each with its own bottom tabs: מכירות, הפקה, תפעול, ספקים, �
 ## Layout gotchas (from 2026-11-19, Phase 105)
 - Root font is 18px: Tailwind rem utilities are 12.5% larger than their usual px (h-11 = 49.5px, h-20 = 90px). Never hard-code the top bar height in px.
 - A toolbar that sticks under the top bar uses the `crm-below-header` class (not `top-11`) and needs a z-index above any sticky table cells below it.
+
+## Sessions and caching (from 2026-11-22, Phase 108)
+- Every `/api` response is `Cache-Control: no-store` and has no ETag (`server/index.js`). Never make an authenticated JSON route cacheable: response headers are cached too, and `X-Refresh-Token` in a cached response handed one user another user's session on a shared PC.
+- The client (`api.js`) adopts `X-Refresh-Token` only for the same user id and a later expiry; session failures are marked `X-Auth-Failed` and only those log out (Phase 107).

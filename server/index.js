@@ -990,6 +990,17 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// PHASE108-START
+// API responses must never be kept by the browser. Express adds an ETag to every res.json(), and
+// with no Cache-Control Chrome stored the response — headers included — and answered the next
+// request for the same URL from that copy. One of those headers is X-Refresh-Token: on a shared
+// PC the next user who logged in was handed the PREVIOUS user's session token from the cache
+// (Emili's laptop, 22.11: thrown out as "blocked" because the cached token belonged to a blocked
+// user). Routes that really want caching (images) set their own Cache-Control afterwards.
+app.set('etag', false);
+app.use('/api', (req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
+// PHASE108-END
+
 // Public
 app.use('/api/auth',      authRoutes);
 app.use('/api/whatsapp',  whatsappRoutes);

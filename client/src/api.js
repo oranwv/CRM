@@ -8,11 +8,31 @@ api.interceptors.request.use(config => {
   return config;
 });
 
+// Payload of a JWT, or null. Only read here to compare two of our own tokens — never trusted.
+function tokenPayload(token) {
+  try {
+    const b64 = String(token).split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(decodeURIComponent(escape(atob(b64))));
+  } catch { return null; }
+}
+
 api.interceptors.response.use(
   res => {
-    // Sliding session: the server re-issues a token once a day of use (see server/middleware/auth.js)
+    // Sliding session: the server re-issues a token once a day of use (see server/middleware/auth.js).
+    // Take it ONLY if it is for the same user as the token this request was sent with, and it lasts
+    // longer. A response replayed from the browser's HTTP cache carries the X-Refresh-Token of
+    // whoever made the request back then — on a shared PC that was another user's session
+    // (Phase 108), and for the same user an old copy would shorten the session.
     const fresh = res.headers?.['x-refresh-token'];
-    if (fresh) { try { localStorage.setItem('crm_token', fresh); } catch {} }
+    if (fresh) {
+      const sent = String(res.config?.headers?.Authorization || '').replace(/^Bearer /, '');
+      const cur = tokenPayload(sent), next = tokenPayload(fresh);
+      const sameUser = cur && next && cur.id != null && String(cur.id) === String(next.id);
+      const stillCurrent = sent && localStorage.getItem('crm_token') === sent;
+      if (sameUser && stillCurrent && Number(next.exp) > Number(cur.exp)) {
+        try { localStorage.setItem('crm_token', fresh); } catch {}
+      }
+    }
     return res;
   },
   err => {
