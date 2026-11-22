@@ -418,6 +418,19 @@ migrate(`
 migrate(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_view TEXT;`)
   .catch(err => console.error('[DB] users.password_view migration error:', err.message));
 
+// Phase 112: when a lead's card was first opened by anyone (drives the "לידים" tab badge and the
+// blue dot in the list). The column is added and back-filled in one step, once: every lead that
+// exists at that moment counts as opened, so the count starts from zero. Later boots skip it.
+migrate(`
+  DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_schema = current_schema() AND table_name = 'leads' AND column_name = 'first_opened_at') THEN
+      ALTER TABLE leads ADD COLUMN first_opened_at TIMESTAMPTZ;
+      UPDATE leads SET first_opened_at = NOW();
+    END IF;
+  END $$;
+`).catch(err => console.error('[DB] leads.first_opened_at migration error:', err.message));
+
 // Own migrate() call: a multi-statement block is all-or-nothing, and this one must not be able to hold back the block above.
 migrate(`
   -- Phase 95: the unsigned contract PDF saved in a lead's files points at its contract, so the

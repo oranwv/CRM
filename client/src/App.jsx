@@ -32,6 +32,7 @@ import AttendancePage   from './pages/attendance/AttendancePage';
 import AIChat           from './components/AIChat';
 import useBackGuard, { afterBackGuardsSettle } from './hooks/useBackGuard';
 import { useLeadCardNav, openCalendarOverCard, closeCalendarOverCard, closeTopLeadCard, closeAllLeadCards } from './utils/leadCardNav';
+import WhatsAppIcon from './components/WhatsAppIcon';
 import PendingDocsModal  from './components/PendingDocsModal';
 import PaymentSignalsModal from './components/PaymentSignalsModal';
 import UnreadyEventsModal from './components/UnreadyEventsModal';
@@ -401,6 +402,19 @@ function AppShellNav() {
     return () => clearInterval(t);
   }, [mode]);
 
+  // Phase 112 — לשונית לידים (sales mode): new leads whose card nobody has opened yet.
+  const [unopenedLeads, setUnopenedLeads] = useState(0);
+  useEffect(() => {
+    if (!localStorage.getItem('crm_token') || mode !== 'מכירות') return;
+    const load = () => api.get('/leads/unopened-count').then(r => setUnopenedLeads(r.data.count || 0)).catch(() => {});
+    load();
+    const t = setInterval(() => { if (!document.hidden) load(); }, 30_000);
+    const onStorage = e => { if (e.key === 'crm_lead_opened') load(); };
+    window.addEventListener('crm-lead-opened', load);
+    window.addEventListener('storage', onStorage);
+    return () => { clearInterval(t); window.removeEventListener('crm-lead-opened', load); window.removeEventListener('storage', onStorage); };
+  }, [mode]);
+
   // Phase 88 — לשונית וואטסאפ (sales mode): unread inbound WhatsApp messages for the tab's badge.
   const [waUnread, setWaUnread] = useState(0);
   useEffect(() => {
@@ -455,8 +469,8 @@ function AppShellNav() {
         { path: '/my-activity',    icon: '👤', label: 'הפעילות שלי' },
       ]
     : [
-        { path: '/',               icon: '👥', label: 'לידים' },
-        { path: '/whatsapp',       icon: '💬', label: 'וואטסאפ', badge: waUnread },
+        { path: '/',               icon: '👥', label: 'לידים', badge: unopenedLeads },
+        { path: '/whatsapp',       icon: <WhatsAppIcon />, label: 'וואטסאפ', badge: waUnread },
         { path: '/sales-worklist', icon: '💡', label: 'AI מכירות' },
         { path: '/calendar',       icon: '📅', label: 'לוח שנה' },
         { path: '/analytics',      icon: '📊', label: 'אנליטיקס' },

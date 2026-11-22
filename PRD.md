@@ -1826,6 +1826,24 @@ submit click (a `window.open` after the save's `await` would be popup-blocked) a
 Verified in headless Chromium (phone + desktop, success + failed save) with a stubbed API;
 not run against production.
 
+### Phase 112 — Unopened new leads: badge on the לידים tab + blue dot; WhatsApp tab icon ✅ Built 2026-11-22 (1.30.0)
+Owner: "שגם על הלידים יופיע מספר שיגיד כמה לידים חדשים יש שעוד לא פתחנו אותם"; approved the
+mock-up with a blue (not red) dot; "opened" = anyone on the team opened the card.
+- `leads.first_opened_at` — added and back-filled in ONE conditional `DO` block (only when the
+  column does not exist), so leads that existed at rollout count as opened and later boots never
+  reset new ones.
+- `POST /api/leads/:id/opened` (LeadCard calls it on mount; first time only is kept),
+  `GET /api/leads/unopened-count` (stages `new`, `new_no_answer`). Manual creation
+  (`POST /api/leads`) stores the lead as opened; leads from WhatsApp / forms / calls / Gmail / the
+  AI assistant start unopened.
+- Client: red count badge on the sales-mode לידים tab (30s poll + instant update through the
+  `crm-lead-opened` window event and a `crm_lead_opened` localStorage ping for other tabs); blue
+  dot next to the name in the list for unopened leads in the new stages.
+- WhatsApp tab icon: 💬 replaced by `components/WhatsAppIcon.jsx` (the glyph already used on the
+  "שלח בוואטסאפ" button, white on a green circle).
+Verified: migration + endpoints against a local Postgres; badge/dots/icon in headless Chromium
+(phone + desktop, incl. cross-tab update). Not run against production.
+
 ### Phase 109 — Assistant states the build time with the hour ✅ Built 2026-11-22 (1.28.6)
 Oran: when the assistant says when the version was built it should include the hour. The prompt
 carried the raw UTC ISO build time, and the assistant answered with the date only. `utils/version.js`

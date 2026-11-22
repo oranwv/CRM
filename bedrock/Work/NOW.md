@@ -6,6 +6,10 @@ updated: 2026-11-22
 
 # Now
 
+## 2026-11-22 — Phase 112 (1.30.0): unopened-leads badge + blue dot, WhatsApp tab icon
+
+- `leads.first_opened_at` (one-time conditional add + backfill), `POST /leads/:id/opened`, `GET /leads/unopened-count`; badge on the לידים tab, blue dot in the list; "opened" = anyone opened the card (owner's choice). WhatsApp tab uses `WhatsAppIcon.jsx`.
+
 ## 2026-11-22 — Phase 111 (1.29.0): new lead opens its card after saving
 
 - `AddLeadModal` passes the created lead to `onSaved`; phone → in-page card (after back-guards settle), desktop → own tab opened inside the submit click (popup-blocker safe), closed if the save fails.

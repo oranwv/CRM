@@ -197,6 +197,19 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/leads/unopened-count — new leads whose card nobody has opened yet (Phase 112)
+router.get('/unopened-count', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM leads WHERE first_opened_at IS NULL AND stage = ANY($1)`,
+      [STAGE_TABS.new]
+    );
+    res.json({ count: rows[0].count });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/leads/:id
 router.get('/:id', async (req, res) => {
   try {
@@ -251,8 +264,8 @@ router.post('/', async (req, res) => {
   const { name, phone, email, event_name, event_date, event_date_text, event_time, event_end_time, event_type, guest_count, budget, source = 'manual', notes, assigned_to, priority = 'normal' } = req.body;
   try {
     const { rows } = await pool.query(
-      `INSERT INTO leads (name, phone, email, event_name, event_date, event_date_text, event_time, event_end_time, event_type, guest_count, budget, source, notes, assigned_to, priority, created_by, guest_count_max)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
+      `INSERT INTO leads (name, phone, email, event_name, event_date, event_date_text, event_time, event_end_time, event_type, guest_count, budget, source, notes, assigned_to, priority, created_by, guest_count_max, first_opened_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17, NOW()) RETURNING *`,
       [name, phone, email, event_name || name, event_date || null, event_date_text || null, event_time || null, event_end_time || null, event_type, parseGuestRange(guest_count).min, budget, source, notes, assigned_to || null, priority, req.user.id, parseGuestRange(guest_count).max]
     );
     const lead = rows[0];
@@ -401,6 +414,17 @@ router.patch('/:id/remaining-balance', async (req, res) => {
     );
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/leads/:id/opened — the lead's card was opened; only the first time is kept (Phase 112)
+router.post('/:id/opened', async (req, res) => {
+  try {
+    const { rowCount } = await pool.query(
+      `UPDATE leads SET first_opened_at = NOW() WHERE id = $1 AND first_opened_at IS NULL`, [req.params.id]);
+    res.json({ success: true, first: rowCount > 0 });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -212,6 +212,16 @@ export default function LeadsPage() {
     }
   }, [searchParams]);
 
+  // Phase 112 — a card was opened (here or in another tab): drop that lead's blue dot at once.
+  useEffect(() => {
+    const mark = id => { if (id) setLeads(ls => ls.map(l => (l.id === id && !l.first_opened_at) ? { ...l, first_opened_at: new Date().toISOString() } : l)); };
+    const onOpened  = e => mark(Number(e.detail?.id));
+    const onStorage = e => { if (e.key === 'crm_lead_opened' && e.newValue) mark(Number(e.newValue.split(':')[0])); };
+    window.addEventListener('crm-lead-opened', onOpened);
+    window.addEventListener('storage', onStorage);
+    return () => { window.removeEventListener('crm-lead-opened', onOpened); window.removeEventListener('storage', onStorage); };
+  }, []);
+
   function closeLead() {
     setSelectedId(null); setOpenLeadId(null);
     const back = returnRef.current;
@@ -511,6 +521,9 @@ export default function LeadsPage() {
                         {PRIORITY_ICONS[lead.priority] && <span>{PRIORITY_ICONS[lead.priority]}</span>}
                         {lead.avatar_url && (
                           <img src={lead.avatar_url} className="w-7 h-7 rounded-full object-cover shrink-0" onError={e => e.target.style.display='none'} />
+                        )}
+                        {!lead.first_opened_at && (lead.stage === 'new' || lead.stage === 'new_no_answer') && (
+                          <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0" title="ליד חדש שעוד לא נפתח" aria-label="ליד חדש שעוד לא נפתח" />
                         )}
                         <span>{lead.name || lead.event_name || '—'}</span>
                       </div>

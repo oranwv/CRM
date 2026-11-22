@@ -289,6 +289,12 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
     const ctrl = new AbortController();
     load(ctrl.signal);
     api.post(`/leads/${leadId}/read`).catch(() => {});
+    // Phase 112 — the card was opened: the lead leaves the "לידים" badge and loses its blue dot,
+    // in this tab (event) and in the other open tabs (storage event).
+    api.post(`/leads/${leadId}/opened`).then(() => {
+      window.dispatchEvent(new CustomEvent('crm-lead-opened', { detail: { id: Number(leadId) } }));
+      try { localStorage.setItem('crm_lead_opened', `${leadId}:${Date.now()}`); } catch {}
+    }).catch(() => {});
     const onVisible = () => { if (document.visibilityState === 'visible') load(ctrl.signal); };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
