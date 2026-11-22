@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../api';
 import useBackGuard from '../hooks/useBackGuard';
+import { isDesktop } from '../utils/device';
 
 function parseDateIL(str) {
   if (!str || !str.trim()) return null;
@@ -79,6 +80,13 @@ export default function AddLeadModal({ onClose, onSaved }) {
   async function handleSubmit(e) {
     e.preventDefault();
     setSaving(true);
+    // On desktop a lead card lives in its own browser tab. The tab has to be opened now, inside
+    // the click itself — after the save's await the browser would block it as a popup.
+    let cardTab = null;
+    if (isDesktop()) {
+      try { cardTab = window.open('', '_blank'); if (cardTab) cardTab.document.title = 'ProEvent CRM'; } catch { cardTab = null; }
+    }
+    const closeCardTab = () => { try { if (cardTab && !cardTab.closed) cardTab.close(); } catch {} cardTab = null; };
     try {
       const payload = { ...form };
       if (!payload.guest_count) delete payload.guest_count;
@@ -98,9 +106,17 @@ export default function AddLeadModal({ onClose, onSaved }) {
       const parsedEnd = parseTimeIL(payload.event_end_time);
       payload.event_end_time = parsedEnd || null;
       if (!payload.event_end_time) delete payload.event_end_time;
-      await api.post('/leads', payload);
-      onSaved();
+      const { data: created } = await api.post('/leads', payload);
+      // Phase 111 — after saving, the new lead's card opens right away. Desktop: in the tab
+      // opened above (same as clicking a lead in the list); phone: LeadsPage opens it in-page.
+      let openedInTab = false;
+      if (cardTab && !cardTab.closed && created?.id) {
+        try { cardTab.location.replace(`/leads/${created.id}`); openedInTab = true; } catch {}
+      }
+      if (!openedInTab) closeCardTab();
+      onSaved(created, { openedInTab });
     } catch (err) {
+      closeCardTab();
       alert(err.response?.data?.error || 'שגיאה בשמירה');
     } finally {
       setSaving(false);

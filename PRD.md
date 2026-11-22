@@ -1815,6 +1815,17 @@ check the Railway log around such a moment if it keeps happening.
 Verified in headless Chromium with a stub server: fails once → list after 1.0s, no error; fails
 twice → list after 3.5s, no error; always fails → error after 3 tries, retry button loads the list.
 
+### Phase 111 — New lead opens its card right after saving ✅ Built 2026-11-22 (1.29.0)
+Owner: "אחרי שמוסיפים ליד זה יפתח את הכרטיס שלו" — the usual flow is to keep working on the
+card right after adding the lead. `AddLeadModal` now returns the created lead to `onSaved`.
+Phone: `LeadsPage` opens the in-page card (after `afterBackGuardsSettle`, so the modal's
+synthetic `history.back()` does not eat the card's guard entry — one back closes the card).
+Desktop: the card opens in its own tab like a list click; the tab is opened blank inside the
+submit click (a `window.open` after the save's `await` would be popup-blocked) and pointed at
+`/leads/:id` on success, closed on failure. If the tab is blocked, the in-page card is used.
+Verified in headless Chromium (phone + desktop, success + failed save) with a stubbed API;
+not run against production.
+
 ### Phase 109 — Assistant states the build time with the hour ✅ Built 2026-11-22 (1.28.6)
 Oran: when the assistant says when the version was built it should include the hour. The prompt
 carried the raw UTC ISO build time, and the assistant answered with the date only. `utils/version.js`

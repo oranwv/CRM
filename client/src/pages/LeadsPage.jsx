@@ -8,6 +8,7 @@ import FilterPanel from '../components/FilterPanel';
 import ContractTrackIcons from '../components/ContractTrackIcons';
 import { useAppMode } from '../context/AppModeContext';
 import { isDesktop } from '../utils/device';
+import { afterBackGuardsSettle } from '../hooks/useBackGuard';
 
 const TABS = [
   { key: 'new',        label: 'חדשים' },
@@ -605,7 +606,15 @@ export default function LeadsPage() {
         <LeadCard leadId={selectedId} onClose={closeLead} onUpdated={loadLeads} />
       )}
       {showAdd && (
-        <AddLeadModal onClose={() => setShowAdd(false)} onSaved={() => { setShowAdd(false); loadLeads(); }} />
+        <AddLeadModal onClose={() => setShowAdd(false)} onSaved={(created, info) => {
+          setShowAdd(false); loadLeads();
+          // Phase 111 — open the new lead's card. Desktop already got it in its own tab; here
+          // (phone, or a blocked tab) open it in-page, once the modal's back-guard has settled
+          // so its history.back() does not eat the card's own guard entry.
+          if (created?.id && !info?.openedInTab) {
+            afterBackGuardsSettle(() => { setSelectedId(created.id); setOpenLeadId(created.id); });
+          }
+        }} />
       )}
     </div>
   );

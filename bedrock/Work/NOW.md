@@ -6,6 +6,10 @@ updated: 2026-11-22
 
 # Now
 
+## 2026-11-22 — Phase 111 (1.29.0): new lead opens its card after saving
+
+- `AddLeadModal` passes the created lead to `onSaved`; phone → in-page card (after back-guards settle), desktop → own tab opened inside the submit click (popup-blocker safe), closed if the save fails.
+
 ## 2026-11-22 — Phase 110 (1.28.7): leads list retries before showing an error
 
 - `loadLeads` retries twice on the first load; silent refresh failures keep the list. Cause of the first failure not established (deploy restarts / busy pool suspected).
