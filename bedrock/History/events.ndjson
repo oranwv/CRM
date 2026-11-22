@@ -107,3 +107,4 @@
 {"ts": "2026-11-19T11:40:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.28.1: sticky page toolbars follow the real top-bar height (.crm-below-header, rem) and sit above the management table's sticky name column"}
 {"ts": "2026-11-19T11:50:00Z", "type": "change", "tool": "cowork", "slug": "CRM", "summary": "1.28.2: users list in settings shows a labelled username line above the password line"}
 {"ts": "2026-11-20T06:00:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.28.3: contract PDF and signing page honour an emptied override (5.1 date, balance/reserve cheque amounts) like the editor"}
+{"ts": "2026-11-22T10:30:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.28.4: session failures marked (X-Auth-Failed) and logged with a reason; client logs out only on those, retries on token change, login page shows why; one blocked-lookup per page load. Root cause of Oran's repeated logouts still open."}

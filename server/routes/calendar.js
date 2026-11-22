@@ -192,7 +192,9 @@ router.post('/leads/:leadId/meeting', async (req, res) => {
     res.json(out);
   } catch (err) {
     console.error('[Calendar] createMeeting error:', err.message);
-    res.status(err.status || 500).json({ error: err.message });
+    // Only our own validation error (status 400, set in bookLeadMeeting) keeps its status. A Google
+    // API error also carries `.status` (401 / 403 / 404…) and must not reach the browser as-is.
+    res.status(err.status === 400 ? 400 : 500).json({ error: err.message });
   }
 });
 

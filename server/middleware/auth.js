@@ -23,28 +23,55 @@ function appCookie(req) {
 
 // A blocked user is cut off on his next request, not only at the daily token refresh
 // (2026-11-18). One small query per user per minute; a DB error never blocks a request.
-const blockedCache = new Map(); // user id → { at, blocked }
-async function isBlocked(userId) {
+// The cache holds the in-flight promise, so the ~25 requests of one page load share ONE query
+// instead of each running its own against a 6-connection pool (Phase 107).
+const blockedCache = new Map(); // user id → { at, state: Promise<'ok' | 'blocked' | 'missing'> }
+function userState(userId) {
   const hit = blockedCache.get(userId);
-  if (hit && Date.now() - hit.at < 60_000) return hit.blocked;
-  try {
-    const pool = require('../db/pool');
-    const { rows } = await pool.query('SELECT blocked FROM users WHERE id = $1', [userId]);
-    const blocked = !rows.length || !!rows[0].blocked;
-    blockedCache.set(userId, { at: Date.now(), blocked });
-    return blocked;
-  } catch { return false; }
+  if (hit && Date.now() - hit.at < 60_000) return hit.state;
+  const state = (async () => {
+    try {
+      const pool = require('../db/pool');
+      const { rows } = await pool.query('SELECT blocked FROM users WHERE id = $1', [userId]);
+      return !rows.length ? 'missing' : rows[0].blocked ? 'blocked' : 'ok';
+    } catch {
+      blockedCache.delete(userId); // do not remember a failed lookup
+      return 'ok';
+    }
+  })();
+  blockedCache.set(userId, { at: Date.now(), state });
+  return state;
+}
+
+// Every session failure goes through here (Phase 107): the response is marked (X-Auth-Failed +
+// `auth` in the body) so the client logs out ONLY for these and never for some other 401, and
+// the reason is logged — "why was I thrown out" can be answered from the Railway log.
+const AUTH_MESSAGES = {
+  no_token:  'Unauthorized',
+  bad_token: 'Invalid token',
+  expired:   'Session expired',
+  blocked:   'החשבון שלך חסום, פנה למנהל המערכת',
+  missing:   'החשבון שלך חסום, פנה למנהל המערכת',
+};
+function authFail(req, res, reason, detail) {
+  const who = req.user?.username || req.user?.id || '-';
+  console.warn(`[Auth] 401 ${reason}${detail ? ` (${detail})` : ''} user=${who} ${req.method} ${req.originalUrl.split('?')[0]}`);
+  res.setHeader('X-Auth-Failed', reason);
+  return res.status(401).json({ error: AUTH_MESSAGES[reason] || 'Unauthorized', auth: reason });
 }
 
 async function requireAuth(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+  if (!token) return authFail(req, res, 'no_token');
   try {
     req.user = jwt.verify(token, process.env.JWT_SECRET);
-  } catch {
-    return res.status(401).json({ error: 'Invalid token' });
+  } catch (err) {
+    return authFail(req, res, err.name === 'TokenExpiredError' ? 'expired' : 'bad_token', err.message);
   }
-  if (req.user?.id && await isBlocked(req.user.id)) return res.status(401).json({ error: 'החשבון שלך חסום, פנה למנהל המערכת' });
+  if (req.user?.id) {
+    const state = await userState(req.user.id);
+    if (state !== 'ok') return authFail(req, res, state);
+  }
   // Phase 84: a clock-only user (roles = ['attendance']) may use the attendance API and nothing else.
   const roles = req.user.roles?.length ? req.user.roles : [];
   if (roles.length && roles.every(r => r === 'attendance') && !req.originalUrl.startsWith('/api/attendance')) {
@@ -58,7 +85,7 @@ async function requireAuth(req, res, next) {
       // long-lived session is re-checked against the DB.
       const pool = require('../db/pool');
       const { rows } = await pool.query('SELECT blocked FROM users WHERE id = $1', [req.user.id]);
-      if (!rows.length || rows[0].blocked) return res.status(401).json({ error: 'החשבון שלך חסום, פנה למנהל המערכת' });
+      if (!rows.length || rows[0].blocked) return authFail(req, res, rows.length ? 'blocked' : 'missing', 'at token refresh');
       res.setHeader('X-Refresh-Token', signToken(req.user));
     }
   } catch { /* best-effort — never block the request */ }

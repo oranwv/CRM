@@ -1,10 +1,14 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-11-20
+updated: 2026-11-22
 ---
 
 # Now
+
+## 2026-11-22 — Phase 107 (1.28.4): repeated logouts — OPEN, cause not found yet
+
+- Oran: system keeps returning to the login screen (video: lead opened in its own tab on a Windows laptop → card renders → login). Not reproduced; no non-session 401 found in the code. Shipped: marked + logged session failures (`[Auth] 401 <reason>` in Railway logs), client logs out only on those and retries when the token changed in flight, login screen shows the reason. **Waiting for the reason line from the next occurrence** (amber box on the login screen / `localStorage.crm_logout_log` / Railway log), then fix the real cause.
 
 ## 2026-11-20 — Phase 106 (1.28.3): emptied contract overrides respected in the PDF and signing page
 

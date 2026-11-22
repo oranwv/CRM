@@ -11,6 +11,19 @@ export default function LoginPage() {
   const location = useLocation();
   const returnTo = location.state?.from && location.state.from !== '/login' ? location.state.from : '/';
 
+  // Thrown out by the server (api.js): say why. Kept until the next successful login so it can be
+  // read or photographed; the small grey line is what to send when reporting a disconnect.
+  const [kicked] = useState(() => {
+    try { const v = JSON.parse(sessionStorage.getItem('crm_session_expired') || 'null'); return v && typeof v === 'object' ? v : null; } catch { return null; }
+  });
+  const kickedText = kicked && ({
+    expired:   'החיבור פג — לא נעשה שימוש במערכת מעל 30 יום',
+    bad_token: 'פרטי החיבור השמורים בדפדפן אינם תקינים',
+    no_token:  'בקשה נשלחה בלי פרטי חיבור',
+    blocked:   'החשבון חסום',
+    missing:   'המשתמש לא נמצא במערכת',
+  }[kicked.reason] || 'החיבור נדחה על ידי השרת');
+
   // Already logged in (e.g. navigated/back to /login while a valid token exists):
   // go to the app instead of showing the login form again.
   if (localStorage.getItem('crm_token')) return <Navigate to={returnTo} replace />;
@@ -26,6 +39,7 @@ export default function LoginPage() {
       document.cookie = 'crm_app=1; path=/; max-age=31536000; SameSite=Lax';
       localStorage.setItem('crm_user', JSON.stringify(data.user));
       localStorage.removeItem('crm_att'); // Phase 84: the attendance tabs are cached per user
+      sessionStorage.removeItem('crm_session_expired');
       // Replace so /login does not stay in history (back button won't return here).
       navigate(returnTo, { replace: true });
     } catch (err) {
@@ -45,6 +59,15 @@ export default function LoginPage() {
           <p className="text-[11px] font-bold tracking-tight text-violet-500 mt-0.5" dir="ltr">pro<span className="text-violet-300">event</span></p>
           <p className="text-slate-400 text-sm mt-1">ברוכים הבאים! התחבר להמשך</p>
         </div>
+
+        {kicked && (
+          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-right" dir="rtl">
+            <p className="text-sm font-bold text-amber-800">נותקת מהמערכת: {kickedText}</p>
+            <p className="text-[10px] text-amber-700/70 mt-0.5 select-all" dir="ltr" style={{ textAlign: 'left' }}>
+              {kicked.reason} · {kicked.request} · {kicked.page} · {new Date(kicked.at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </p>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

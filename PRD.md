@@ -1803,6 +1803,33 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 107 — "The system keeps logging me out": hardening + the reason on the login screen ✅ Built 2026-11-22 (1.28.4) — root cause NOT yet identified
+Oran's screen recording (22.11, Windows laptop): a lead clicked in the list opens in its own tab,
+the card renders (so `GET /leads/:id` passed), and a moment later the tab is on the login screen.
+The client logs out on ANY 401 from an `api` call (`api.js`). Static review found no endpoint a lead
+card calls that answers 401 other than `requireAuth` itself (no token / invalid token / blocked or
+missing user), and the recording cannot show which request failed — so the cause is still open.
+What was built, so the next occurrence names itself and the avoidable cases stop:
+- **Server (`middleware/auth.js`).** Every session failure goes through `authFail()`: header
+  `X-Auth-Failed: <reason>` + `auth` in the body, reasons `no_token` / `bad_token` / `expired` /
+  `blocked` / `missing`, and a log line `[Auth] 401 <reason> (<detail>) user=… <METHOD> <path>`.
+  The blocked-user lookup caches the in-flight promise, so one page load (~25 parallel requests) runs
+  ONE `SELECT blocked` instead of ~25 on a 6-connection pool; a failed lookup is not cached.
+- **Client (`api.js`).** Logs out only for a marked session failure (or the two legacy messages of an
+  older instance during a deploy); any other 401 is that request's error. If the stored token changed
+  after the request left (another tab logged in again / daily refresh), the request is retried once
+  with the current token instead of logging out. The reason, request and page are kept in
+  `sessionStorage.crm_session_expired` and the last 10 in `localStorage.crm_logout_log`.
+- **Login page.** Amber notice "נותקת מהמערכת: <סיבה>" with a small technical line
+  (reason · request · page · time), shown until the next successful login.
+- **`routes/calendar.js`.** The meeting route passed `err.status` through (added in Phase 71); a
+  Google API error carries `.status` too (401/403…). Only our own 400 keeps its status now.
+Verified: real middleware on a local Postgres 16 (14 checks — each reason marked, a non-session 401
+unmarked, 30 parallel requests → 1 lookup, DB error passes and is not cached, sliding refresh);
+`api.js` with a fake browser + HTTP server (10 checks incl. token replaced in flight → retried);
+login notice rendered in headless Chromium. Not run against production.
+**Next:** when it happens again, read the amber line (or Railway log `[Auth] 401`) and fix the cause.
+
 ### Phase 106 — Contract: a value deleted in the editor came back in the PDF ✅ Built 2026-11-20 (1.28.3)
 Oran (19.11): he deleted the date at the end of clause 5.1 in the contract editor; the downloaded
 PDF still printed it. The editor keeps an emptied cell as `''` and reads overrides with `??`
