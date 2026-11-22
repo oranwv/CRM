@@ -23,6 +23,9 @@ function buildContractHtml({ contractData, signingData, staffSignature }) {
   const { fields, rows, calculated } = contractData;
   const texts = contractData.texts || {};
   const isPackage = (contractData.offerType || 'regular') === 'package';
+  // "הסכם מותאם" (Phase 114): no cost table / package line and no standard deposit + cheque
+  // lines — sections 2 and 4 are only the free clauses (costExtraLines / paymentExtras).
+  const isCustom  = contractData.offerType === 'custom';
   const en   = contractData.language === 'en';
   const dir  = en ? 'ltr' : 'rtl';
   const cur  = en ? 'NIS' : '&#x05E9;"&#x05D7;';
@@ -126,7 +129,7 @@ ${logoB64 ? `<div style="text-align:center;margin-bottom:10pt;"><img src="data:i
 
 ${tArr('eventExtraLines').map(l => (l && l.trim()) ? `<p>${esc(l)}</p>` : '').join('\n')}
 <h3>2. ${en ? 'Costs:' : '&#x05E2;&#x05DC;&#x05D5;&#x05D9;&#x05D5;&#x05EA;:'}</h3>
-${isPackage ? (texts.packageCostLine ? `
+${isCustom ? '' : isPackage ? (texts.packageCostLine ? `
 <p>${esc(texts.packageCostLine)}</p>
 ${texts.packageExtraLine && texts.packageExtraLine.trim() ? `<p>${esc(texts.packageExtraLine)}</p>` : ''}
 ` : `
@@ -198,7 +201,7 @@ ${tArr('costExtraLines').map(l => (l && l.trim()) ? `<p>${esc(l)}</p>` : '').joi
 </ul>
 
 <h3>4. ${t('paymentHeader')}</h3>
-<p>${t('depositLine')} <strong>${texts.depositAmtLabel != null ? esc(texts.depositAmtLabel) : money(depositAmount)} ${texts.depositPctLabel != null ? esc(texts.depositPctLabel) : `(${esc(String(depositPercent))}%)`}</strong> ${t('depositSuffix')} <strong>${texts.depositAmtVatLabel != null ? esc(texts.depositAmtVatLabel) : money(depositAmountVat)}</strong></p>
+${isCustom ? '' : `<p>${t('depositLine')} <strong>${texts.depositAmtLabel != null ? esc(texts.depositAmtLabel) : money(depositAmount)} ${texts.depositPctLabel != null ? esc(texts.depositPctLabel) : `(${esc(String(depositPercent))}%)`}</strong> ${t('depositSuffix')} <strong>${texts.depositAmtVatLabel != null ? esc(texts.depositAmtVatLabel) : money(depositAmountVat)}</strong></p>
 ${texts.finalSettlementIntro ? `
 <p>${t('finalSettlementIntro')}</p>
 <p>${t('securityCheckPre')} <strong>${texts.remainderAmtLabel != null ? esc(texts.remainderAmtLabel) : money(remainingBalance)}</strong> ${t('securityCheckSuf')}</p>
@@ -208,7 +211,7 @@ ${texts.finalSettlementIntro ? `
 <p>${t('remainderLine')} <strong>${money(remainingBalance)} ${t('remainderSuffix')}</strong></p>
 <p>${t('checkNote')}</p>
 `}
-<p>${t('paymentNote')}</p>
+<p>${t('paymentNote')}</p>`}
 ${tArr('paymentExtras').map(l => (l && l.trim()) ? `<p>${esc(l)}</p>` : '').join('\n')}
 
 <h3>5. ${t('cancellationHeader')}</h3>
@@ -272,16 +275,30 @@ contractLeadRouter.get('/latest', async (req, res) => {
   }
 });
 
+// POST /api/leads/:id/contracts/build — build a contract by conversation (Phase 112).
+// { messages, spec (last one returned), template: { rows, includes, eventDate }, language }
+// → { reply, spec, missing, ready, quickReplies }
+contractLeadRouter.post('/build', async (req, res) => {
+  try {
+    const { runContractBuilder } = require('../services/contractBuilder');
+    const { messages, spec, template, language } = req.body || {};
+    res.json(await runContractBuilder({ leadId: req.params.id, messages, prevSpec: spec || null, template, language }));
+  } catch (err) {
+    console.error('[Contracts] build error:', err.response?.data || err.message);
+    res.status(500).json({ error: 'העוזר לא זמין כרגע, נסה שוב' });
+  }
+});
+
 // POST /api/leads/:id/contracts/assistant — chat in the contract preview (Phase 90).
 // { contract: {fields, rows, texts, calculated, offerType, language}, messages: [{role, content}], pending: ops[]|null }
 // → { reply, proposal: {ops, items, notes} | null, apply_pending }. Nothing is saved here:
 // the client applies an approved proposal to its own state.
 contractLeadRouter.post('/assistant', async (req, res) => {
   try {
-    const { contract, messages, pending, recentTexts } = req.body || {};
+    const { contract, messages, pending, recentTexts, review } = req.body || {};
     if (!contract || typeof contract !== 'object' || !contract.texts) return res.status(400).json({ error: 'contract required' });
     const { runContractAssistant } = require('../services/contractAssistant');
-    res.json(await runContractAssistant({ contract, messages, pending: Array.isArray(pending) ? pending : null, recentTexts }));
+    res.json(await runContractAssistant({ contract, messages, pending: Array.isArray(pending) ? pending : null, recentTexts, review: review === true }));
   } catch (err) {
     console.error('[Contracts] assistant error:', err.response?.data || err.message);
     res.status(500).json({ error: 'העוזר לא זמין כרגע, נסה שוב' });

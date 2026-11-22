@@ -52,6 +52,8 @@ const SCALARS = [
   ['obligationsHeader',    'כותרת סעיף 6'],
 ];
 const SCALAR_LABEL = Object.fromEntries(SCALARS);
+// Pieces a custom agreement does not show (see buildContractHtml)
+const CUSTOM_HIDDEN = new Set(['packageCostLine', 'packageExtraLine', 'depositLine', 'depositSuffix', 'finalSettlementIntro', 'securityCheckPre', 'securityCheckSuf', 'reserveCheckPre', 'reserveCheckSuf', 'checksUsageNote', 'paymentNote']);
 
 // Fields the assistant may set. type: int | money | date | time | text
 const FIELDS = {
@@ -63,7 +65,7 @@ const FIELDS = {
   extraGuestPrice:        { he: 'מחיר לאורח נוסף (לפני מע"מ)',   type: 'money', only: 'regular' },
   chefMenu:               { he: 'תפריט שף',                      type: 'text' },
   barMenu:                { he: 'תפריט בר',                      type: 'text' },
-  depositPercent:         { he: 'אחוז מקדמה',                    type: 'int' },
+  depositPercent:         { he: 'אחוז מקדמה',                    type: 'int',   notIn: 'custom' },
   packageGuests:          { he: 'מספר אורחים בחבילה',            type: 'int',   only: 'package' },
   packageTotal:           { he: 'מחיר החבילה',                   type: 'money', only: 'package' },
   packageExtraGuestPrice: { he: 'מחיר אורח נוסף בחבילה',         type: 'money', only: 'package' },
@@ -100,6 +102,11 @@ const OFFER_FIELDS = {
   chefMenu:        { he: 'תפריט שף',                      type: 'text' },
   barMenu:         { he: 'תפריט בר',                      type: 'text' },
   notes:           { he: 'הערות',                         type: 'longtext' },
+};
+// A field belongs to the document when its type matches (only) and it is not excluded (notIn).
+const fieldAllowed = (def, offerType) => {
+  const type = offerType === 'package' || offerType === 'custom' ? offerType : 'regular';
+  return !(def.only && def.only !== type) && def.notIn !== type;
 };
 const CONTRACT_DOC = { LISTS, SCALAR_LABEL, FIELDS, noun: 'חוזה' };
 const OFFER_DOC    = { LISTS: OFFER_LISTS, SCALAR_LABEL: Object.fromEntries(OFFER_SCALARS), FIELDS: OFFER_FIELDS, noun: 'הצעת מחיר' };
@@ -166,6 +173,7 @@ function buildOutline(contract) {
   if (contract && contract.kind === 'offer') return buildOfferOutline(contract);
   const { fields = {}, rows = [], texts = {}, calculated = {}, offerType = 'regular', language = 'he' } = contract;
   const isPackage = offerType === 'package';
+  const isCustom = offerType === 'custom'; // "הסכם מותאם": no cost table and no standard payment lines
   const L = [];
   const scalar = (key) => { if (isStr(texts[key]) && texts[key].trim()) L.push(`[texts.${key}] ${texts[key]}`); };
   const list = (key) => {
@@ -176,14 +184,14 @@ function buildOutline(contract) {
   };
   const money = (n) => `${Number(n || 0).toLocaleString('en-US')} ₪`;
 
-  L.push(`CONTRACT TYPE: ${isPackage ? 'package' : 'regular'} · DOCUMENT LANGUAGE: ${language === 'en' ? 'English' : 'Hebrew'}`);
+  L.push(`CONTRACT TYPE: ${isCustom ? 'custom agreement (הסכם מותאם) — there is NO cost table, NO price field and NO standard deposit / cheque lines; the costs (section 2) and the payment terms (section 4) are only the free clauses in costExtraLines and paymentExtras' : isPackage ? 'package' : 'regular'} · DOCUMENT LANGUAGE: ${language === 'en' ? 'English' : 'Hebrew'}`);
   L.push('');
   L.push('== FIELDS (change with set_field) ==');
   for (const [k, def] of Object.entries(FIELDS)) {
-    if (def.only && def.only !== (isPackage ? 'package' : 'regular')) continue;
+    if (!fieldAllowed(def, offerType)) continue;
     L.push(`${k} = ${JSON.stringify(fields[k] ?? '')}   (${def.he})`);
   }
-  if (!isPackage) {
+  if (!isPackage && !isCustom) {
     L.push('');
     L.push('== COST ROWS (change with set_row; prices are before VAT) ==');
     rows.forEach((r, i) => L.push(r.isPct
@@ -191,18 +199,20 @@ function buildOutline(contract) {
       : `row ${i}: "${r.label}"${r.desc ? ` (${r.desc})` : ''} — qty ${r.qty}, price ${r.price}`));
   }
   L.push('');
-  L.push(`== COMPUTED (read only) == subtotal before VAT ${money(calculated.subtotal)}, VAT ${money(calculated.vat)}, total ${money(calculated.total)}, deposit ${money(calculated.depositAmount)} before VAT / ${money(calculated.depositAmountVat)} incl. VAT, balance ${money(calculated.remainingBalance)}`);
+  if (!isCustom) L.push(`== COMPUTED (read only) == subtotal before VAT ${money(calculated.subtotal)}, VAT ${money(calculated.vat)}, total ${money(calculated.total)}, deposit ${money(calculated.depositAmount)} before VAT / ${money(calculated.depositAmountVat)} incl. VAT, balance ${money(calculated.remainingBalance)}`);
   L.push('');
   L.push('== DOCUMENT (in order) ==');
   ['title', 'whereas1', 'whereas2', 'therefore', 'preamble'].forEach(scalar);
   L.push('-- 1. The event: date, venue, start and end time (from the fields) --');
   list('eventExtraLines');
   L.push('-- 2. Costs --');
-  if (isPackage) { scalar('packageCostLine'); scalar('packageExtraLine'); }
+  if (isCustom) L.push('(no cost table — only the clauses below)');
+  else if (isPackage) { scalar('packageCostLine'); scalar('packageExtraLine'); }
   else L.push('(the cost rows table, totals, minimum guests line and extra-guest line are built from the fields and rows)');
   list('costExtraLines');
   L.push('-- 3. --'); scalar('includesHeader'); list('includes');
   L.push('-- 4. --'); scalar('paymentHeader');
+  if (!isCustom) {
   scalar('depositLine');
   L.push(`   {deposit amount: ${texts.depositAmtLabel ?? money(calculated.depositAmount)} ${texts.depositPctLabel ?? `(${fields.depositPercent}%)`}}`);
   scalar('depositSuffix');
@@ -211,6 +221,7 @@ function buildOutline(contract) {
   scalar('securityCheckPre'); L.push(`   {balance cheque amount: ${texts.remainderAmtLabel || money(calculated.remainingBalance)}}`); scalar('securityCheckSuf');
   scalar('reserveCheckPre'); L.push(`   {reserve cheque amount: ${texts.reserveAmtLabel || money(Math.round((calculated.total || 0) * 0.1))}}`); scalar('reserveCheckSuf');
   scalar('checksUsageNote'); scalar('paymentNote');
+  }
   list('paymentExtras');
   L.push('-- 5. --'); scalar('cancellationHeader'); list('cancellationItems');
   L.push(`   (item 5.1 is followed automatically by the date ${texts.cancellationDateLabel || calculated.cancellationDate || ''})`);
@@ -261,10 +272,12 @@ function checkOp(raw, contract) {
   const { fields = {}, rows = [], texts = {}, offerType = 'regular' } = contract;
   const { LISTS, SCALAR_LABEL, FIELDS, noun } = docOf(contract); // contract or price-offer vocabulary
   const isPackage = offerType === 'package';
+  const isCustom = contract.kind !== 'offer' && offerType === 'custom';
   const op = raw && raw.op;
   if (contract.kind === 'offer' && (raw?.list === 'packageCostLines' || /^texts\.packageCostLines/.test(String(raw?.target || ''))) && !isPackage)
     return { error: 'אין שורות חבילה בהצעה רגילה' };
 
+  if (isCustom && (op === 'add_row' || op === 'delete_row' || op === 'set_row')) return { error: 'בהסכם מותאם אין טבלת עלויות' };
   if (op === 'add_row' || op === 'delete_row') {
     if (isPackage) return { error: `ב${noun} חבילה אין טבלת עלויות` };
     if (op === 'delete_row') {
@@ -305,7 +318,7 @@ function checkOp(raw, contract) {
     if (!t) return { error: `יעד לא תקין: ${raw.target}` };
     let before, where;
     if (t.index == null) {
-      if (!SCALAR_LABEL[t.key] || !isStr(texts[t.key]) || !texts[t.key].trim()) return { error: `אי אפשר לשנות את ${raw.target}` };
+      if (!SCALAR_LABEL[t.key] || !isStr(texts[t.key]) || !texts[t.key].trim() || (isCustom && CUSTOM_HIDDEN.has(t.key))) return { error: `אי אפשר לשנות את ${raw.target}` };
       if (op === 'delete') return { error: 'אי אפשר למחוק טקסט קבוע, רק לנסח אותו מחדש' };
       before = texts[t.key]; where = SCALAR_LABEL[t.key];
     } else {
@@ -327,7 +340,7 @@ function checkOp(raw, contract) {
 
   if (op === 'set_field') {
     const def = FIELDS[raw.field];
-    if (!def || (def.only && def.only !== (isPackage ? 'package' : 'regular'))) return { error: `שדה לא מוכר: ${raw.field}` };
+    if (!def || !fieldAllowed(def, offerType)) return { error: `שדה לא מוכר: ${raw.field}` };
     let value = clean(raw.value);
     if (def.type === 'int' || def.type === 'money') {
       const n = Number(String(value).replace(/[,₪\s]/g, ''));
@@ -397,8 +410,17 @@ function similar(a, b) {
   return common / Math.max(A.size, B.size);
 }
 
+// Contradiction check (Phase 114) — the one case where the assistant proposes changes nobody named.
+const REVIEW_MODE = `REVIEW MODE — the user pressed "בדוק סתירות". For this reply the "touch only what was asked" rule is replaced by the instructions here. Read the WHOLE contract and look for:
+(a) two provisions that cannot both hold (e.g. one clause lets the Vendor postpone the event freely and another promises a fixed date with compensation; two different payment dates for the same sum);
+(b) a provision that does not fit this deal (e.g. cancellation fees defined as a percent of "the total sum" / "סך העסקה" when the Orderer pays no sum; a deposit or cheque clause when nothing is paid; an "included in the price" item the deal does not include);
+(c) a provision that refers to something that does not exist in the contract (an amount, a date, a section).
+Do not report style, typos or things that are merely unusual. Do not invent a problem: if you find none, say so in one sentence and return "proposal": null.
+For every finding write a numbered line in "reply": which provisions (by their section numbers), why they do not hold together in one short sentence, and what you suggest — remove one of them, or reword one. Then return ONE proposal with one operation per finding, in the same order (a "delete" of the list item you suggest dropping, or a "replace" with the corrected wording). The user approves or drops each one separately, so each operation must stand on its own. Prefer changing an ADDED clause; suggest removing or rewording a standard clause only when it truly cannot apply to this deal, and say so. When the right fix depends on a business decision you cannot know (which of two terms the parties meant), do not guess: describe the finding in "reply", ask, and leave it out of the proposal. At most 6 findings, the most serious first. End "reply" with "אפשר לאשר הכול, או להסיר מההצעה את מה שלא רוצים."`;
+
 // recentTexts: clause texts the assistant already offered in this conversation (client keeps the last few)
-async function runContractAssistant({ contract, messages, pending, recentTexts }) {
+// review: true → the contradiction check (contracts only)
+async function runContractAssistant({ contract, messages, pending, recentTexts, review }) {
   const history = (Array.isArray(messages) ? messages : [])
     .filter(m => m && (m.role === 'user' || m.role === 'assistant') && isStr(m.content) && m.content.trim())
     .slice(-14)
@@ -406,7 +428,8 @@ async function runContractAssistant({ contract, messages, pending, recentTexts }
   if (!history.length || history[history.length - 1].role !== 'user') throw new Error('no user message');
 
   const isOffer = contract.kind === 'offer';
-  const context = `${isOffer ? OFFER_MODE + '\n\nPRICE OFFER' : 'CONTRACT'} OUTLINE (current state):\n${buildOutline(contract)}\n\nPENDING PROPOSAL: ${pending && pending.length ? JSON.stringify(pending.map(({ before, rowId, ...o }) => o)) : 'none'}`;
+  const reviewing = review === true && !isOffer;
+  const context = `${reviewing ? REVIEW_MODE + '\n\n' : ''}${isOffer ? OFFER_MODE + '\n\nPRICE OFFER' : 'CONTRACT'} OUTLINE (current state):\n${buildOutline(contract)}\n\nPENDING PROPOSAL: ${pending && pending.length ? JSON.stringify(pending.map(({ before, rowId, ...o }) => o)) : 'none'}`;
 
   const ask = async (extra, temperature) => {
     const res = await openai(isOffer ? 'offer-assistant' : 'contract-assistant').chat.completions.create({
@@ -417,7 +440,7 @@ async function runContractAssistant({ contract, messages, pending, recentTexts }
     });
     try { return JSON.parse(res.choices?.[0]?.message?.content || '{}'); } catch { return {}; }
   };
-  let out = await ask(null, 0.4);
+  let out = await ask(null, reviewing ? 0.1 : 0.4);
 
   // The user asked for a change and got (almost) the same wording as before → one retry that says so.
   const recent = (Array.isArray(recentTexts) ? recentTexts : []).filter(isStr).slice(-6);
@@ -439,7 +462,11 @@ async function runContractAssistant({ contract, messages, pending, recentTexts }
       const r = checkOp(raw, contract);
       if (r.error) errors.push(r.error); else ok.push(r);
     }
-    if (errors.length) {
+    if (reviewing && ok.length) {
+      // A review is a list of separate suggestions — keep the valid ones.
+      const ops = ok.map(r => r.op);
+      proposal = { ops, items: ok.map(r => r.display), notes: overrideNote(ops, contract.texts), review: true };
+    } else if (errors.length) {
       // All-or-nothing: a half-valid proposal could do something other than what was described.
       reply = `לא הצלחתי להכין את השינוי (${errors[0]}). נסה לנסח את הבקשה שוב, או לציין את מספר הסעיף.`;
     } else {

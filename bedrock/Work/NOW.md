@@ -1,10 +1,18 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-11-22
+updated: 2026-11-23
 ---
 
 # Now
+
+## 2026-11-23 — Phase 114 (1.31.0): contract by conversation + custom agreement + contradiction check
+
+- Builder (`contractBuilder.js`, `/contracts/build`): proposes regular / package / custom and asks; asks whether to check WhatsApp + call transcripts and reports findings for approval (history loaded for one turn only); special terms added as clauses; standard clause dropped only after approval (`standardRemove`).
+- `offerType: 'custom'` in the modal, `SignaturePage`, `buildContractHtml`; saved with total 0 / null deposit so signing records no amounts.
+- "בדוק סתירות" in the preview assistant (`review: true`, `REVIEW_MODE`), per-item "הסר מההצעה".
+- **Not tested against the real model.** First real contracts should be tried before sending to a customer; watch the prompts' behaviour on the template question, the history findings and the review.
+- Open on the Mac: local unpushed commit `f5ffdaa` (call summaries v2.0, 18.11) keeps `main` diverged; this work is delivered on branch `contract-builder`. Waiting for Oran's decision about that commit.
 
 ## 2026-11-23 — Phase 113 (1.30.1): overdue-tasks + callback windows open above the lead card
 

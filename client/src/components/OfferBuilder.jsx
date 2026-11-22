@@ -13,12 +13,24 @@ const Mic = ({ size = 16 }) => (
 );
 const Stop = ({ size = 14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>;
 
-export default function OfferBuilder({ lead, template, language = 'he', onDone, onManual }) {
+// The contract modal uses the same component (Phase 114): `endpoint` + `copy` switch the wording,
+// and the server may send quick answers (the "continue with this template?" question).
+const OFFER_COPY = {
+  title: 'ספר לי על ההצעה', docWord: 'ההצעה', done: 'הכן את ההצעה עם מה שיש',
+  placeholder: 'כתוב כאן… למשל: חבילה ל-40 איש עם תפריט צהריים ובר, והם מקבלים גם את המתחם ליד ליוגה',
+};
+export const CONTRACT_COPY = {
+  title: 'ספר לי על החוזה', docWord: 'החוזה', done: 'הכן את החוזה עם מה שיש',
+  placeholder: 'כתוב או הדבק כאן את מה שסוכם… למשל: 100 איש, 395 לאורח לפני מע"מ, מקדמה 30%, ואם נכנס אירוע אחר נוכל לדחות',
+};
+
+export default function OfferBuilder({ lead, template, language = 'he', onDone, onManual, endpoint = 'price-offer/build', copy = OFFER_COPY }) {
   const [messages, setMessages] = useState([]); // { role: 'user'|'assistant'|'system', content, voice? }
   const [spec, setSpec]         = useState(null);
   const [input, setInput]       = useState('');
   const [busy, setBusy]         = useState(false);
   const [viaVoice, setViaVoice] = useState(false); // the text in the input came from a recording
+  const [quick, setQuick]       = useState([]);    // quick answers offered by the server for its last question
   const scrollRef = useRef(null);
   const inputRef  = useRef(null);
   const started = messages.length > 0;
@@ -33,17 +45,18 @@ export default function OfferBuilder({ lead, template, language = 'he', onDone, 
 
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages, busy]);
 
-  async function send() {
-    const text = input.trim();
+  async function send(preset) {
+    const text = (typeof preset === 'string' ? preset : input).trim();
     if (!text || busy) return;
-    const history = [...messages, { role: 'user', content: text, voice: viaVoice }];
-    setMessages(history); setInput(''); setViaVoice(false); setBusy(true);
+    const history = [...messages, { role: 'user', content: text, voice: typeof preset === 'string' ? false : viaVoice }];
+    setMessages(history); setInput(''); setViaVoice(false); setQuick([]); setBusy(true);
     try {
-      const { data } = await api.post(`/leads/${lead.id}/price-offer/build`, {
+      const { data } = await api.post(`/leads/${lead.id}/${endpoint}`, {
         messages: history.filter(m => m.role !== 'system').map(({ role, content }) => ({ role, content })),
         spec, template, language,
       });
       setSpec(data.spec);
+      setQuick(Array.isArray(data.quickReplies) ? data.quickReplies : []);
       setMessages(m => [...m, { role: 'assistant', content: data.reply }]);
       if (data.ready) setTimeout(() => onDone(data.spec), 900);
     } catch (e) {
@@ -70,8 +83,8 @@ export default function OfferBuilder({ lead, template, language = 'he', onDone, 
           </div>
         )}
         <div className="text-center">
-          <p className="font-black text-slate-800 text-lg">ספר לי על ההצעה</p>
-          <p className="text-sm text-slate-500">הקלט או כתוב בחופשיות{language === 'en' ? ' (בעברית, ההצעה תצא באנגלית)' : ''}. אני אשאל רק על מה שחסר.</p>
+          <p className="font-black text-slate-800 text-lg">{copy.title}</p>
+          <p className="text-sm text-slate-500">הקלט או כתוב בחופשיות{language === 'en' ? ` (בעברית, ${copy.docWord} ייצא באנגלית)` : ''}. אני אשאל רק על מה שחסר.</p>
         </div>
         <button type="button" onClick={voice.toggle} disabled={transcribing}
           className={`mx-auto w-24 h-24 rounded-full grid place-items-center text-white transition disabled:opacity-60 ${recording ? 'bg-red-600 animate-pulse' : 'bg-rose-500 hover:bg-rose-600'}`}
@@ -84,7 +97,7 @@ export default function OfferBuilder({ lead, template, language = 'he', onDone, 
         {voice.error && <p className="text-sm text-center font-bold text-red-500">{voice.error}</p>}
         <div className="flex items-center gap-2 text-xs text-slate-400"><span className="flex-1 h-px bg-slate-200" />או<span className="flex-1 h-px bg-slate-200" /></div>
         <textarea id="offer-builder-first" ref={firstRef} value={input} onChange={e => { setInput(e.target.value); }} rows={4}
-          placeholder="כתוב כאן… למשל: חבילה ל-40 איש עם תפריט צהריים ובר, והם מקבלים גם את המתחם ליד ליוגה"
+          placeholder={copy.placeholder}
           style={{ overscrollBehavior: 'contain', touchAction: 'pan-y' }}
           className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:border-violet-400 resize-none overflow-y-auto" />
         {viaVoice && input && <p className="text-xs text-slate-400 -mt-2">זה התמלול של ההקלטה. אפשר לגלול בתוך התיבה, לתקן, או להקליט שוב כדי להוסיף.</p>}
@@ -119,6 +132,14 @@ export default function OfferBuilder({ lead, template, language = 'he', onDone, 
         ))}
         {busy && <p className="text-xs text-slate-400 text-center">העוזר חושב…</p>}
       </div>
+      {quick.length > 0 && !busy && (
+        <div className="flex flex-wrap gap-2">
+          {quick.map(q => (
+            <button key={q} type="button" onClick={() => send(q)}
+              className="text-sm font-bold px-3 py-1.5 rounded-full border-2 border-violet-300 text-violet-700 bg-white hover:bg-violet-50">{q}</button>
+          ))}
+        </div>
+      )}
       <div className="flex items-end gap-1 rounded-xl border-2 border-violet-300 focus-within:border-violet-500 bg-white px-2 py-1">
         <textarea id="offer-builder-input" ref={inputRef} rows={1} value={input}
           onChange={e => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; }}
@@ -138,7 +159,7 @@ export default function OfferBuilder({ lead, template, language = 'he', onDone, 
       <button type="button" onClick={() => spec && onDone(spec)} disabled={busy || !spec}
         className="w-full py-2.5 rounded-xl font-black text-white disabled:opacity-40"
         style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
-        הכן את ההצעה עם מה שיש
+        {copy.done}
       </button>
       <button type="button" onClick={onManual} className="text-sm font-bold text-slate-500 underline">מעדיף למלא לבד, שלב אחרי שלב</button>
     </div>

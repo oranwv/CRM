@@ -1843,7 +1843,6 @@ mock-up with a blue (not red) dot; "opened" = anyone on the team opened the card
   "שלח בוואטסאפ" button, white on a green circle).
 Verified: migration + endpoints against a local Postgres; badge/dots/icon in headless Chromium
 (phone + desktop, incl. cross-tab update). Not run against production.
-
 ### Phase 113 — Self-opening windows show above an open lead card ✅ Built 2026-11-23 (1.30.1)
 Owner's screenshot: an open lead card with a dimmed bottom bar and a strip of another window
 under the card. Cause: `OverdueTasksModal` (Phase 55) and `CallbackPopup` are rendered inside
@@ -1854,6 +1853,56 @@ are rendered through `createPortal(…, document.body)`. Owner chose that the ov
 above the card (not deferred until the card closes). The header's click-opened modals
 (payments, unready events, pending docs) are unchanged. Verified in headless Chromium (phone +
 desktop): each window is the top element over the card and the bar; × returns to the card.
+
+### Phase 114 — Contract by conversation: template choice, WhatsApp/calls check, custom agreement, contradiction check ✅ Built 2026-11-23 (1.31.0)
+Owner: "את מה שעשינו עם העוזר להצעת מחיר לעשות גם לחוזה". The assistant decides which
+template fits and asks before continuing ("זה מתאים יותר לחוזה רגיל, להמשיך?"; the user
+answers yes / "למה?" / names another template). It must cope with deals like a ticketed party
+(ticket + bar revenue to the venue, a sales target, the venue may postpone). Owner decisions:
+standard cancellation/postponement clauses are not changed, terms are only added; the assistant
+should be "smarter" — say which clauses do not hold together and propose dropping one, the
+user decides; a custom agreement keeps "התחייבויות והצהרות הצדדים"; and (23.11) the assistant
+asks whether to look in WhatsApp and the call transcripts, shows what it found there and how
+it would put it in the contract, and adds nothing without approval.
+- `server/services/contractBuilder.js` (`POST /leads/:id/contracts/build`, usage feature
+  `contract-builder`): the model returns a spec only; the server decides `ready`.
+  Step 1 — template (regular / package / custom) with a reason, then "להמשיך כך?". The server
+  accepts `typeConfirmed` only if a template was proposed in an earlier turn or the user named
+  one, and appends the question if the model forgot it.
+  Step 1b — "לבדוק גם בוואטסאפ ובתמלולי השיחות…?". `historyCheck` is set by the server (only
+  once the question could have been asked, or the user raised it). On "yes" the full history
+  (`leadHistorySearch.searchLeadHistory`: WhatsApp, call transcripts + summaries, notes) is
+  loaded for that ONE turn and the model answers again with it: a numbered list of findings,
+  each with its source and the proposed placement, then asks for approval. Later turns do not
+  get the history again (the findings stay in the conversation). Empty history → a one-line note.
+  Step 2 — only what is missing (VAT basis, guests, price, deposit %, event date, a decision
+  per service row); never invents a price. Special terms become full clauses in `paymentAdd` /
+  `cancellationAdd` / `obligationsAdd` / `eventAdd` / `costAdd` / `includesAdd`. Clauses that
+  cannot both hold are pointed out with a proposed way out; a standard clause is dropped only
+  via `standardRemove` (exact template text, never clause 5.1) after the user agreed.
+- Third template `offerType: 'custom'` ("הסכם מותאם"): no cost table / package line and no
+  deposit + cheque lines — sections 2 and 4 are only `costExtraLines` / `paymentExtras`; the
+  includes list (with an optional `includesHeader`), standard cancellation and obligations
+  stay. Rendered in all three places (modal preview, `SignaturePage`, `buildContractHtml`).
+  `calculated` is saved with total 0 and null deposit/balance, so signing writes nothing into
+  the lead's payment amounts. Manual wizard: a third button in "בחר סוג חוזה" → the six
+  who/when fields → includes → preview. No builder requirement on guests/price; it needs at
+  least one consideration clause.
+- `client/src/utils/contractSpec.js` `applyContractSpec` fills the modal state (pure) and
+  writes the "כך מילא העוזר" line. `OfferBuilder.jsx` is shared (`endpoint`, `copy`, quick-reply
+  chips). `ContractModal`: "איך להכין את החוזה?" step after the language (עם העוזר / ידנית).
+- Contradiction check: "בדוק סתירות" under the contract preview sends `review: true` to
+  `/contracts/assistant`. `REVIEW_MODE` in `contractAssistant.js` replaces the "touch only what
+  was asked" rule for that reply: findings numbered in the reply, one delete/replace op per
+  finding; invalid ops are dropped instead of failing the whole proposal. The proposal card
+  got "הסר מההצעה" per item (also useful for ordinary multi-item proposals). The preview
+  assistant knows the custom type (no rows, no price/deposit fields, hidden payment lines).
+Verified: stubbed-model tests for the builder rules, history flow, custom spec and review
+mode; the real `ContractModal` in headless Chromium with a stubbed API (builder → custom
+preview, review card, dropping one suggestion, apply, saved payload, manual custom path); the
+server PDF HTML rendered for the saved custom contract. NOT run against the real model, and
+the signing page was only built, not opened. Regular and package rendering re-checked on the
+server renderer only.
 
 ### Phase 109 — Assistant states the build time with the hour ✅ Built 2026-11-22 (1.28.6)
 Oran: when the assistant says when the version was built it should include the hour. The prompt

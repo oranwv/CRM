@@ -8,6 +8,7 @@ function fmt(n) { return Number(n || 0).toLocaleString('he-IL'); }
 function ContractDisplay({ data }) {
   const { fields, rows, calculated, texts } = data;
   const isPackage = (data.offerType || 'regular') === 'package';
+  const isCustom  = data.offerType === 'custom'; // "הסכם מותאם": no cost table, no standard payment lines
   const en = data.language === 'en';
   const { clientName, eventDate, startTime, endTime, guests, extraGuestPrice, chefMenu, barMenu, depositPercent,
           packageGuests, packageTotal, packageExtraGuestPrice } = fields;
@@ -83,7 +84,7 @@ function ContractDisplay({ data }) {
 
       <div>
         <p className="font-bold">2. {L.costsH}</p>
-        {isPackage && texts?.packageCostLine ? (
+        {isCustom ? null : isPackage && texts?.packageCostLine ? (
           <div className="space-y-1">
             <p>{texts.packageCostLine}</p>
             {(texts.packageExtraLine || '').trim() && <p>{texts.packageExtraLine}</p>}
@@ -178,6 +179,7 @@ function ContractDisplay({ data }) {
 
       <div>
         <p className="font-bold">4. {texts?.paymentHeader || 'תנאי תשלום:'}</p>
+        {!isCustom && (<>
         <p>
           {texts?.depositLine || 'במעמד חתימת הסכם זה תינתן מקדמה על-סך'}{' '}
           <strong>{texts?.depositAmtLabel ?? `${fmt(depositAmount)} ${cur}`} {texts?.depositPctLabel ?? `(${depositPercent}%)`}</strong>{' '}
@@ -209,6 +211,7 @@ function ContractDisplay({ data }) {
           </>
         )}
         <p>{texts?.paymentNote || 'חשוב לציין כי ללא הנ"ל מנהל האירוע לא יתחיל ויקיים את האירוע!'}</p>
+        </>)}
         {(texts?.paymentExtras || []).map((line, i) => (
           <p key={i}>{line}</p>
         ))}

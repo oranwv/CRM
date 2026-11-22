@@ -14,7 +14,8 @@ import AddSupplierModal from './AddSupplierModal';
 import SupplierCard from './SupplierCard';
 import FileActions from './FileActions';
 import ContractAssistant from './ContractAssistant';
-import OfferBuilder from './OfferBuilder';
+import OfferBuilder, { CONTRACT_COPY } from './OfferBuilder';
+import { applyContractSpec } from '../utils/contractSpec';
 import { applyOfferSpec } from '../utils/offerSpec';
 import { openFileViewer, leadFileRef } from '../files/fileBox';
 import ContractTrackIcons, { ContractFileEye } from './ContractTrackIcons';
@@ -1779,7 +1780,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
     packageTotalIncl:       true,  // package price typed VAT-inclusive (false → excl., gross = typed * 1.18)
     packageExtraIncl:       true,  // extra-guest price typed VAT-inclusive
   });
-  const [contractType, setContractType] = useState(null); // null | 'regular' | 'package'
+  const [contractType, setContractType] = useState(null); // null | 'regular' | 'package' | 'custom'
   const [language, setLanguage]               = useState('he'); // 'he' | 'en'
   const [languageSelected, setLanguageSelected] = useState(false);
   const [translating, setTranslating]         = useState(false);
@@ -1942,8 +1943,13 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
   const setField = (k, v) => setFields(f => ({ ...f, [k]: v }));
 
   // Step calculations
-  const isPackage          = contractType === 'package';
-  const ACTIVE_FIELD_DEFS  = isPackage ? PKG_FIELD_DEFS : FIELD_DEFS;
+  // "הסכם מותאם" (Phase 114): no prices — the wizard asks only who / when, then the includes
+  // step and the preview, where costs and payment terms are free clauses. It follows the
+  // package step layout, so `isPackage` (layout) is true for it and `isPkgContract` is the real package.
+  const isCustom           = contractType === 'custom';
+  const isPkgContract      = contractType === 'package';
+  const isPackage          = isPkgContract || isCustom;
+  const ACTIVE_FIELD_DEFS  = isCustom ? PKG_FIELD_DEFS.slice(0, 6) : isPackage ? PKG_FIELD_DEFS : FIELD_DEFS;
   const ACTIVE_FIELD_STEPS = ACTIVE_FIELD_DEFS.length;
 
   const addRowStep        = ROW_START + rows.length;
@@ -1964,7 +1970,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
   const progressPct = Math.min(100, Math.round((step / (totalSteps || 1)) * 100));
 
   // Calculated values
-  const pkgTotalTyped      = Number(fields.packageTotal) || 0;
+  const pkgTotalTyped      = isCustom ? 0 : Number(fields.packageTotal) || 0;
   const pkgTotal           = fields.packageTotalIncl === false ? toGross(pkgTotalTyped) : pkgTotalTyped; // gross (incl. VAT)
   const pkgExtraTyped      = Number(fields.packageExtraGuestPrice) || 0;
   const pkgExtraGross      = fields.packageExtraIncl === false ? toGross(pkgExtraTyped) : pkgExtraTyped;
@@ -1994,7 +2000,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
   // only if guests / prices / VAT basis changed since they were last generated,
   // so manual edits survive going back and forth.
   useEffect(() => {
-    if (!isPreviewStep || !isPackage) return;
+    if (!isPreviewStep || !isPkgContract) return;
     const sig = [language, fields.packageGuests, fields.packageTotal, fields.packageTotalIncl !== false, fields.packageExtraGuestPrice, fields.packageExtraIncl !== false].join('|');
     if (contractTexts.packageLinesSig === sig && contractTexts.packageCostLine) return;
     const g = fields.packageGuests || '';
@@ -2008,7 +2014,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
       ? (en ? `Each additional guest above ${g} guests at ${extraTxt}` : `כל אורח נוסף מעל ${g} אורחים בתוספת של ${extraTxt}`)
       : '';
     setContractTexts(t => ({ ...t, packageCostLine: costLine, packageExtraLine: extraLine, packageLinesSig: sig }));
-  }, [isPreviewStep, isPackage, language, fields.packageGuests, fields.packageTotal, fields.packageTotalIncl, fields.packageExtraGuestPrice, fields.packageExtraIncl]);
+  }, [isPreviewStep, isPkgContract, language, fields.packageGuests, fields.packageTotal, fields.packageTotalIncl, fields.packageExtraGuestPrice, fields.packageExtraIncl]);
   const CL = en ? {
     eventH: 'The Event:', eventDateL: 'Event date:', venueL: 'Venue: Sharabiya, 3 Rabbi Pinchas Ben Yair St., Tel Aviv–Yafo',
     startL: 'Start time:', endL: 'End time:', costsH: 'Costs:',
@@ -2063,6 +2069,25 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
     }).finally(() => setTranslating(false));
   }, [isPreviewStep, en]);
 
+  // Phase 114: after the language question the user chooses "with the assistant" (the
+  // conversational builder — it proposes the template, asks before continuing, then asks
+  // only about what is missing) or "manually" (type → fields, as before).
+  const [modeChosen, setModeChosen]         = useState(false);
+  const [builderOn, setBuilderOn]           = useState(false);
+  const [builderSummary, setBuilderSummary] = useState(''); // "check before sending" line in the preview
+  function applyBuilderSpec(spec) {
+    // English: fill the English template directly and skip the preview's Hebrew→English swap
+    const next = applyContractSpec({ fields, rows, texts: contractTexts }, spec,
+      en ? { texts: JSON.parse(JSON.stringify(CONTRACT_TEXTS_EN)), rows: CONTRACT_ROWS_EN } : null);
+    if (en) translatedRef.current = true;
+    setFields(next.fields); setRows(next.rows); setContractTexts(next.texts);
+    setContractType(next.contractType);
+    // jump straight to the preview step of that type (same numbering as the wizard)
+    setStep(next.contractType === 'custom' ? 6 + 2 : next.contractType === 'package' ? PKG_FIELD_DEFS.length + 2 : ROW_START + next.rows.length + 2);
+    setBuilderSummary(next.summary);
+    setBuilderOn(false);
+  }
+
   // Import already ran as the first screen; choosing a type here (the "create
   // new" path) just enters the wizard at the first field step.
   function handleSelectType(type) {
@@ -2080,6 +2105,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
   // adopted type; this adopts language, closes the import screen, and enters the
   // wizard at the first field step.
   function beginImported(srcLang) {
+    setModeChosen(true); // an import continues in the wizard
     if (srcLang === 'en' || srcLang === 'he') { setLanguage(srcLang); setLanguageSelected(true); }
     setImportDone(true);
     setStep(1);
@@ -2131,8 +2157,8 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
     const data = latestContract;
     if (!data) return;
     const srcEn = data.language === 'en';
-    const srcPackage = data.offerType === 'package';
-    setContractType(srcPackage ? 'package' : 'regular');
+    const srcPackage = data.offerType === 'package' || data.offerType === 'custom'; // neither uses the cost rows
+    setContractType(data.offerType === 'custom' ? 'custom' : srcPackage ? 'package' : 'regular');
     if (data.fields) setFields(prev => ({ ...prev, ...data.fields }));
     if (!srcPackage && data.rows?.length) setRows(srcEn ? rowsWithHebrewLabels(data.rows) : data.rows);
     if (data.texts && !srcEn) setContractTexts(data.texts);
@@ -2144,7 +2170,9 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
   async function handleDownload() {
     setSending('download');
     try {
-      const calculated = { subtotal, vat, total, depositAmount, depositAmountVat, remainingBalance, cancellationDate };
+      const calculated = isCustom
+        ? { subtotal: 0, vat: 0, total: 0, depositAmount: null, depositAmountVat: null, remainingBalance: null, cancellationDate } // no sums: nothing is auto-recorded on the lead after signing
+        : { subtotal, vat, total, depositAmount, depositAmountVat, remainingBalance, cancellationDate };
       const res = await api.post(`/leads/${lead.id}/contracts`, {
         contract_data: { fields, rows, calculated, texts: contractTexts, offerType: contractType, language },
         download: true,
@@ -2166,7 +2194,9 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
     setSending(channel);
     setContractSendStep(null);
     try {
-      const calculated = { subtotal, vat, total, depositAmount, depositAmountVat, remainingBalance, cancellationDate };
+      const calculated = isCustom
+        ? { subtotal: 0, vat: 0, total: 0, depositAmount: null, depositAmountVat: null, remainingBalance: null, cancellationDate } // no sums: nothing is auto-recorded on the lead after signing
+        : { subtotal, vat, total, depositAmount, depositAmountVat, remainingBalance, cancellationDate };
       // Both channels may target several contact people. For email the first
       // address stays fields.clientEmail (it is printed on the contract) and the
       // rest ride in clientEmailExtra, so the signed copy goes back to all.
@@ -2259,8 +2289,33 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
             </div>
           )}
 
+          {/* Phase 114: with the assistant or manually (after the language) */}
+          {importDone && contractType === null && languageSelected && !modeChosen && (
+            <div className="flex flex-col items-center gap-4 py-8">
+              <p className="font-bold text-slate-700 text-base">איך להכין את החוזה?</p>
+              <button onClick={() => { setModeChosen(true); setBuilderOn(true); }}
+                className="w-full max-w-xs py-4 rounded-2xl font-black text-sm text-white"
+                style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+                ✦ עם העוזר
+                <span className="block text-xs font-semibold opacity-90 mt-0.5">מדביקים, כותבים או מקליטים מה סוכם, והעוזר שואל על החסר</span>
+              </button>
+              <button onClick={() => setModeChosen(true)}
+                className="w-full max-w-xs py-4 rounded-2xl font-black text-sm border-2 border-violet-400 text-violet-700 bg-white">
+                ידנית
+                <span className="block text-xs font-semibold text-slate-500 mt-0.5">שלב אחרי שלב, כמו עד עכשיו</span>
+              </button>
+            </div>
+          )}
+
+          {/* Phase 114: build the contract in a conversation */}
+          {builderOn && contractType === null && (
+            <OfferBuilder lead={lead} language={language} endpoint="contracts/build" copy={CONTRACT_COPY}
+              template={{ rows, includes: contractTexts.includes, cancellation: contractTexts.cancellationItems, obligations: contractTexts.obligations, eventDate: fields.eventDate }}
+              onDone={applyBuilderSpec} onManual={() => setBuilderOn(false)} />
+          )}
+
           {/* Type selection */}
-          {importDone && contractType === null && languageSelected && (
+          {importDone && contractType === null && languageSelected && modeChosen && !builderOn && (
             <div className="flex flex-col items-center gap-4 py-8">
               <p className="font-bold text-slate-700 text-base">בחר סוג חוזה</p>
               <button onClick={() => handleSelectType('regular')}
@@ -2271,6 +2326,11 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
               <button onClick={() => handleSelectType('package')}
                 className="w-full max-w-xs py-4 rounded-2xl font-black text-sm border-2 border-violet-400 text-violet-700 bg-white">
                 חוזה חבילה
+              </button>
+              <button onClick={() => handleSelectType('custom')}
+                className="w-full max-w-xs py-4 rounded-2xl font-black text-sm border-2 border-violet-400 text-violet-700 bg-white">
+                הסכם מותאם
+                <span className="block text-xs font-semibold text-slate-500 mt-0.5">בלי טבלת מחירים ומקדמה, התמורה והתשלום נכתבים כסעיפים</span>
               </button>
             </div>
           )}
@@ -2493,6 +2553,12 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
           {/* Preview step — full editable contract document */}
           {isPreviewStep && !sent && (
             <div>
+              {builderSummary && (
+                <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-slate-700 flex items-start gap-2">
+                  <div className="flex-1 min-w-0"><p className="font-black text-amber-700 text-xs">בדוק לפני שליחה — כך מילא העוזר</p><p className="wrap-anywhere">{builderSummary}</p></div>
+                  <button type="button" onClick={() => setBuilderSummary('')} className="text-amber-600 font-bold text-sm shrink-0" aria-label="סגור">✕</button>
+                </div>
+              )}
               <p className="text-xs text-slate-400 text-center mb-3">לחץ על כל טקסט לעריכה</p>
               {translating && <p className="text-xs text-amber-600 text-center mb-2 font-bold">ממיר לאנגלית…</p>}
               <div dir={docDir} style={{ fontFamily: 'Arial, sans-serif', fontSize: '10pt', color: '#222', background: '#fff', padding: '10px', lineHeight: 1.8, maxWidth: '100%', overflowWrap: 'anywhere' }}>
@@ -2541,7 +2607,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
 
                 <h3 style={{ fontWeight: 'bold', marginTop: 10, marginBottom: 4 }}>2. {CL.costsH}</h3>
 
-                {isPackage ? (
+                {isCustom ? null : isPackage ? (
                   <div style={{ marginBottom: 8 }}>
                     <p><EditableCell value={contractTexts.packageCostLine || ''} onChange={v => setTxt('packageCostLine', v)} multiline /></p>
                     {(contractTexts.packageExtraLine || '').trim() && (
@@ -2667,6 +2733,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                 <h3 style={{ fontWeight: 'bold', marginTop: 10, marginBottom: 4 }}>
                   4. <EditableCell value={contractTexts.paymentHeader} onChange={v => setTxt('paymentHeader', v)} />
                 </h3>
+                {!isCustom && (<>
                 <p>
                   <EditableCell value={contractTexts.depositLine} onChange={v => setTxt('depositLine', v)} multiline />{' '}
                   <strong>
@@ -2695,6 +2762,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
                 </p>
                 <p><EditableCell value={contractTexts.checksUsageNote} onChange={v => setTxt('checksUsageNote', v)} multiline /></p>
                 <p><EditableCell value={contractTexts.paymentNote} onChange={v => setTxt('paymentNote', v)} multiline /></p>
+                </>)}
                 {(contractTexts.paymentExtras || []).map((line, i) => (
                   <p key={i}><EditableCell value={line} onChange={v => setContractTexts(t => ({ ...t, paymentExtras: t.paymentExtras.map((x, j) => j === i ? v : x) }))} multiline /></p>
                 ))}
@@ -2803,6 +2871,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
               calculated: { subtotal, vat, total, depositAmount, depositAmountVat, remainingBalance, cancellationDate },
             })}
             onApply={next => { setFields(next.fields); setRows(next.rows); setContractTexts(next.texts); }}
+            reviewable
           />
           {sent ? (
             <button onClick={() => { onSaved(); onClose(); }}

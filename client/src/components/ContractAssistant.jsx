@@ -19,7 +19,11 @@ const KIND = {
 };
 
 // `endpoint` / `noun` let the price-offer preview use the same assistant (Phase 102).
-export default function ContractAssistant({ leadId, visible, getContract, onApply, endpoint = 'contracts/assistant', noun = 'החוזה', initialStatus = '' }) {
+// `reviewable` (contracts, Phase 114) adds "בדוק סתירות": the assistant reads the whole contract and
+// proposes what to drop or reword where clauses do not hold together; each suggestion can be
+// removed from the proposal before approving.
+const REVIEW_TEXT = 'בדוק אם יש בחוזה סעיפים שלא מסתדרים אחד עם השני, ותציע מה להוריד או לשנות.';
+export default function ContractAssistant({ leadId, visible, getContract, onApply, endpoint = 'contracts/assistant', noun = 'החוזה', initialStatus = '', reviewable = false }) {
   const [messages, setMessages] = useState([]);   // { role: 'user'|'assistant'|'system', content }
   const [pending, setPending]   = useState(null); // { ops, items, notes }
   const [input, setInput]       = useState('');
@@ -66,10 +70,11 @@ export default function ContractAssistant({ leadId, visible, getContract, onAppl
     setOpen(false);
   }
 
-  async function send() {
-    const text = input.trim();
+  async function send(review) {
+    const isReview = review === true;
+    const text = isReview ? REVIEW_TEXT : input.trim();
     if (!text || busy) return;
-    setInput('');
+    if (!isReview) setInput('');
     if (inputRef.current) inputRef.current.style.height = 'auto';
     setOpen(true);
     setStatus('');
@@ -80,11 +85,13 @@ export default function ContractAssistant({ leadId, visible, getContract, onAppl
       const { data } = await api.post(`/leads/${leadId}/${endpoint}`, {
         contract: getContract(),
         messages: history.filter(m => m.role !== 'system'),
-        pending: pending?.ops || null,
+        pending: isReview ? null : (pending?.ops || null),
         recentTexts: recent,
+        ...(isReview ? { review: true } : {}),
       });
       say('assistant', data.reply);
-      if (data.apply_pending && pending) applyPending(pending);
+      if (isReview) setPending(null);
+      if (data.apply_pending && pending && !isReview) applyPending(pending);
       else if (data.proposal) {
         setPending(data.proposal);
         setRecent(r => [...r, ...data.proposal.ops.map(o => o.text).filter(Boolean)].slice(-6));
@@ -137,6 +144,11 @@ export default function ContractAssistant({ leadId, visible, getContract, onAppl
                     <div className="flex items-start gap-1.5 flex-wrap">
                       <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full border ${k.cls}`}>{k.label}</span>
                       <span className="text-xs font-bold text-slate-600 flex-1 min-w-0">{it.where}</span>
+                      {pending.items.length > 1 && (
+                        <button type="button" disabled={busy} title="להשאיר את הסעיף הזה כמו שהוא"
+                          onClick={() => setPending(p => ({ ...p, ops: p.ops.filter((_, j) => j !== i), items: p.items.filter((_, j) => j !== i) }))}
+                          className="text-[11px] font-bold text-slate-500 underline shrink-0">הסר מההצעה</button>
+                      )}
                     </div>
                     {it.before != null && (
                       <p className="text-sm text-slate-400 line-through whitespace-pre-wrap wrap-anywhere bg-slate-50 rounded-lg px-2 py-1">{it.before}</p>
@@ -183,7 +195,7 @@ export default function ContractAssistant({ leadId, visible, getContract, onAppl
               ? <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
               : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>}
           </button>
-          <button type="button" onClick={send} disabled={busy || !input.trim()} aria-label="שלח לעוזר"
+          <button type="button" onClick={() => send()} disabled={busy || !input.trim()} aria-label="שלח לעוזר"
             className="w-8 h-8 mb-0.5 shrink-0 rounded-full bg-violet-600 text-white grid place-items-center disabled:opacity-40">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
           </button>
@@ -197,6 +209,13 @@ export default function ContractAssistant({ leadId, visible, getContract, onAppl
           title="מחזיר את החוזה למצב שלפני השינוי האחרון של העוזר">
           ↩ חזור לפני השינוי{undo.length > 1 ? ` (${undo.length})` : ''}
         </button>
+        {reviewable && (
+          <button type="button" onClick={() => send(true)} disabled={busy}
+            className="text-xs font-bold px-2.5 py-1 rounded-lg border border-violet-200 text-violet-700 disabled:opacity-40 hover:bg-violet-50"
+            title="העוזר קורא את כל החוזה ומציע מה להוריד או לשנות אם יש סעיפים שלא מסתדרים יחד">
+            בדוק סתירות
+          </button>
+        )}
       </div>
     </div>
   );
