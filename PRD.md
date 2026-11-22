@@ -1803,6 +1803,18 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 110 — Leads list: retry before showing "שגיאה בטעינת לידים" ✅ Built 2026-11-22 (1.28.7)
+Oran: sometimes the leads page first shows the error and then the leads. `loadLeads`
+(`LeadsPage.jsx`) set the error on a single failed `GET /leads` and nothing retried until the
+30-second background refresh. Now the first (non-silent) load retries after 0.8s and 2.5s while
+"טוען לידים…" stays up; a failed background refresh no longer replaces a list that is on screen; the
+error screen says the list reloads by itself and has a "נסה שוב עכשיו" button (the DevTools hint is
+gone). Why the first request fails at all is NOT established — likely the server restarting on a
+deploy (several a day now) or the 6-connection DB pool being busy on page load (eased in Phase 107);
+check the Railway log around such a moment if it keeps happening.
+Verified in headless Chromium with a stub server: fails once → list after 1.0s, no error; fails
+twice → list after 3.5s, no error; always fails → error after 3 tries, retry button loads the list.
+
 ### Phase 109 — Assistant states the build time with the hour ✅ Built 2026-11-22 (1.28.6)
 Oran: when the assistant says when the version was built it should include the hour. The prompt
 carried the raw UTC ISO build time, and the assistant answered with the date only. `utils/version.js`

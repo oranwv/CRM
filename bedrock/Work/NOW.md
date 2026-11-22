@@ -6,6 +6,10 @@ updated: 2026-11-22
 
 # Now
 
+## 2026-11-22 — Phase 110 (1.28.7): leads list retries before showing an error
+
+- `loadLeads` retries twice on the first load; silent refresh failures keep the list. Cause of the first failure not established (deploy restarts / busy pool suspected).
+
 ## 2026-11-22 — Phase 109 (1.28.6): assistant gives the build time with the hour
 
 - `buildTimeHe()` in `utils/version.js` (Israel time) + an instruction in the version section of the assistant prompt.

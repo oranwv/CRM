@@ -254,25 +254,38 @@ export default function LeadsPage() {
 
   const loadLeads = useCallback(async ({ silent = false } = {}) => {
     if (abortRef.current) abortRef.current.abort();
-    abortRef.current = new AbortController();
+    const ctrl = abortRef.current = new AbortController();
     if (!silent) setLoading(true);
-    try {
-      // When searching: search across ALL stages (incl. lost) — grouped into sections client-side.
-      // When activeFilter is set on new/in_process: fetch the combined 'active' group
-      const fetchTab = debouncedSearch
-        ? undefined
-        : inActiveFilterMode ? 'active' : tab;
-
-      const { data } = await api.get('/leads', {
-        params: { tab: fetchTab, search: debouncedSearch || undefined },
-        signal: abortRef.current.signal,
-      });
-      setLeads(data);
-      setApiError(false);
-    } catch (err) {
-      if (err.code === 'ERR_CANCELED') return;
-      console.error('Failed to load leads:', err);
-      setApiError(true);
+    // When searching: search across ALL stages (incl. lost) — grouped into sections client-side.
+    // When activeFilter is set on new/in_process: fetch the combined 'active' group
+    const fetchTab = debouncedSearch
+      ? undefined
+      : inActiveFilterMode ? 'active' : tab;
+    // A single failed request used to put "שגיאה בטעינת לידים" on screen until the next 30-second
+    // refresh brought the list — a blip (server restarting on a deploy, a busy DB pool, a network
+    // hiccup) looked like a fault. The first load now retries twice (after 0.8s and 2.5s) while
+    // still showing "טוען לידים…", and a failed background refresh keeps the list that is on screen.
+    const WAITS = silent ? [] : [800, 2500];
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const { data } = await api.get('/leads', {
+          params: { tab: fetchTab, search: debouncedSearch || undefined },
+          signal: ctrl.signal,
+        });
+        setLeads(data);
+        setApiError(false);
+        break;
+      } catch (err) {
+        if (err.code === 'ERR_CANCELED' || ctrl.signal.aborted) return;
+        if (attempt < WAITS.length) {
+          await new Promise(r => setTimeout(r, WAITS[attempt]));
+          if (ctrl.signal.aborted) return;
+          continue;
+        }
+        console.error('Failed to load leads:', err);
+        if (!silent) setApiError(true);
+        break;
+      }
     }
     if (!silent) setLoading(false);
   }, [tab, debouncedSearch, inActiveFilterMode]);
@@ -452,7 +465,8 @@ export default function LeadsPage() {
           <div className="text-center py-16 text-red-400">
             <p className="text-3xl mb-2">⚠️</p>
             <p className="text-sm font-bold">שגיאה בטעינת לידים</p>
-            <p className="text-xs mt-1 text-stone-400">בדוק שהשרת פועל ופתח DevTools (F12) לפרטים</p>
+            <p className="text-xs mt-1 text-stone-400">הרשימה תיטען מחדש אוטומטית בעוד כמה שניות</p>
+            <button type="button" onClick={() => loadLeads()} className="mt-3 text-sm font-bold text-violet-600 underline">נסה שוב עכשיו</button>
           </div>
         ) : sortedLeads.length === 0 ? (
           <div className="text-center py-16 text-stone-400">
