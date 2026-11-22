@@ -25,11 +25,22 @@ function versionInfo() {
 }
 const STARTED_AT = new Date().toISOString();
 
-function versionTextForAssistant() {
-  const v = versionInfo();
-  const log = readChangelog(5);
-  const lines = log.map(e => `- ${e.version} (${e.date}): ${e.notes.join(' | ')}`);
-  return `## גרסת התוכנה\nגרסה נוכחית: ${v.version}${v.commit ? ` (commit ${v.commit})` : ''}${v.buildTime ? `, נבנתה ${v.buildTime}` : ''}.\nגרסאות אחרונות:\n${lines.join('\n')}`;
+// Build time for people: date AND hour, Israel time ("22/11/2026 בשעה 12:55"). The raw value is a
+// UTC ISO string — given that, the assistant answered with the date only, or with the UTC hour.
+function buildTimeHe(iso) {
+  const d = new Date(iso);
+  if (!iso || isNaN(d)) return null;
+  const date = d.toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '/');
+  const time = d.toLocaleTimeString('he-IL', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hour12: false });
+  return `${date} בשעה ${time} (שעון ישראל)`;
 }
 
-module.exports = { versionInfo, readChangelog, versionTextForAssistant };
+function versionTextForAssistant() {
+  const v = versionInfo();
+  const built = buildTimeHe(v.buildTime);
+  const log = readChangelog(5);
+  const lines = log.map(e => `- ${e.version} (${e.date}): ${e.notes.join(' | ')}`);
+  return `## גרסת התוכנה\nגרסה נוכחית: ${v.version}${v.commit ? ` (commit ${v.commit})` : ''}${built ? `, נבנתה ב-${built}` : ''}.\nכששואלים מתי נבנתה או עלתה הגרסה — ענה תמיד עם התאריך וגם השעה, בדיוק כפי שכתוב כאן. לגרסאות קודמות ידוע רק התאריך.\nגרסאות אחרונות:\n${lines.join('\n')}`;
+}
+
+module.exports = { versionInfo, readChangelog, versionTextForAssistant, buildTimeHe };

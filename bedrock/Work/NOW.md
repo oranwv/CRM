@@ -6,6 +6,10 @@ updated: 2026-11-22
 
 # Now
 
+## 2026-11-22 — Phase 109 (1.28.6): assistant gives the build time with the hour
+
+- `buildTimeHe()` in `utils/version.js` (Israel time) + an instruction in the version section of the assistant prompt.
+
 ## 2026-11-22 — Phase 108 (1.28.5): logouts SOLVED — cached X-Refresh-Token of a previous user
 
 - API responses were cacheable (ETag, no Cache-Control); Chrome replayed an old response with the previous PC user's `X-Refresh-Token`, and the client adopted it → requests ran as that (blocked) user → logout. Fixed: `/api` is `no-store` + no ETag; client takes a refresh token only for the same user id and a later expiry. Oran to confirm on Emili's laptop after 1.28.5.

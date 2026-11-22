@@ -1803,6 +1803,13 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 109 — Assistant states the build time with the hour ✅ Built 2026-11-22 (1.28.6)
+Oran: when the assistant says when the version was built it should include the hour. The prompt
+carried the raw UTC ISO build time, and the assistant answered with the date only. `utils/version.js`
+`buildTimeHe()` formats it in Israel time ("22/11/2026 בשעה 12:55 (שעון ישראל)", DST-aware) and the
+"גרסת התוכנה" section tells the assistant to always give date and hour; older versions have a date
+only (CHANGELOG). Formatter checked for winter and summer time; not asked through the live assistant.
+
 ### Phase 108 — Root cause of the logouts: a previous user's session token served from the browser cache ✅ Built 2026-11-22 (1.28.5)
 The amber line from Phase 107 said "החשבון חסום" for Emili, who is not blocked and could log in.
 - **Cause.** Express puts an ETag on every `res.json()` and the API sent no `Cache-Control`, so
