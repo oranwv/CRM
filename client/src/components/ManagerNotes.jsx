@@ -217,6 +217,11 @@ export default function ManagerNotes({ leadId }) {
               <button onClick={() => lock('החלון ננעל')}
                 className="flex-1 bg-white border border-slate-300 text-slate-700 font-bold py-2 rounded-xl text-base">🔒 סיים ונעל</button>
             </div>
+            {/* Right under the buttons: after a save the field empties on purpose, so say what happened where the eye is. */}
+            {note === 'נשמר' && (
+              <p className="text-sm font-bold text-emerald-700 text-right">✓ נשמר. מה שנכתב מוסתר, וכדי לראות אותו מחזיקים את הכפתור למטה.</p>
+            )}
+            {error && <p className="text-sm text-red-600 text-right">{error}</p>}
 
             {/* The reading box keeps its place and size whether or not it is showing, so nothing moves under the finger. */}
             <div className="relative rounded-xl border border-slate-200 bg-white p-3 h-[40vh] overflow-y-auto" style={noSelect}>
@@ -246,8 +251,8 @@ export default function ManagerNotes({ leadId }) {
           </>
         )}
 
-        {panel === null && error && <p className="text-sm text-red-600 text-right">{error}</p>}
-        {note && <p className="text-sm text-slate-500 text-right">{note}</p>}
+        {!token && panel === null && error && <p className="text-sm text-red-600 text-right">{error}</p>}
+        {!token && note && <p className="text-sm text-slate-500 text-right">{note}</p>}
       </div>
     </div>
   );

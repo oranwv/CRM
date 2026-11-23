@@ -1803,6 +1803,13 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 123 — הערות מנהל: "נשמר" confirmation next to the save button ✅ Built 2026-11-23 (1.35.3)
+Oran (screenshot from the phone): "I wrote something, pressed שמור and it disappeared". The save
+worked — the field empties by design so saved text is never on screen — but the "נשמר" line was
+drawn at the bottom of the card, below the reading box and off the screen. Now the confirmation
+(and any save error) is drawn right under the שמור / סיים ונעל buttons and says the text is
+hidden and how to read it. Client build only.
+
 ### Phase 121 — הערות מנהל at every stage ✅ Built 2026-11-23 (1.35.1)
 Oran did not see the card on an employee's phone: it was shown only for deposit / production /
 completed, like ספקים. He asked for it at every stage of the event. The stage condition around

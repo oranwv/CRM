@@ -6,6 +6,10 @@ updated: 2026-11-23
 
 # Now
 
+## 2026-11-23 — Phase 123 (1.35.3): הערות מנהל — save confirmation moved under the buttons
+
+- Oran thought his text vanished after שמור; the "נשמר" line was off-screen. First real-phone use of the window: unlock + save worked on Android.
+
 ## 2026-11-23 — Phase 122 (1.35.2): calendar opens the lead card in production mode too
 
 - Removed the production-only "פתח סקיצת פריסה" sheet from `CalendarPage` (owner's choice); sketch is reached from the card.
