@@ -1940,6 +1940,17 @@ Oran (phone screenshot): pressing ✕ on a cost-table row in the price-offer pre
 Verified in the real `PriceOfferModal` in headless Chromium with a stubbed API: two ✕ presses and
 an assistant-added row, the table stays. Not run against production.
 
+### Phase 117 — Price-offer builder: start from the lead card ✅ Built 2026-11-23 (1.33.0)
+Oran opened the price-offer builder and asked why it does not ask whether to take the details
+from the card (Phase 115 was contracts only): "שיקח את הפרטים שהוא מבין מהכרטיס ואז ישאל עוד
+שאלות אם צריך ויוודא שהכל נכון". The offer modal now passes `cardStart` to `OfferBuilder` (same
+question screen). `offerBuilder.js` with `fromCard` on the first turn loads the full history
+(`searchLeadHistory`), and the model lists "זה מה שהבנתי מהכרטיס:" with a source per item, asks
+about what is missing and ends with "זה נכון?". That turn always returns an empty spec and
+`ready: false` (plus a "כן, זה נכון" quick reply); the details enter the spec on the user's
+confirmation / corrections. `RECENCY_RULE` moved to `offerBuilder.js` and is shared with the
+contract builder. Verified with a stubbed model; not run against the real model.
+
 ### Phase 109 — Assistant states the build time with the hour ✅ Built 2026-11-22 (1.28.6)
 Oran: when the assistant says when the version was built it should include the hour. The prompt
 carried the raw UTC ISO build time, and the assistant answered with the date only. `utils/version.js`

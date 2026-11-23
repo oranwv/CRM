@@ -6,6 +6,10 @@ updated: 2026-11-23
 
 # Now
 
+## 2026-11-23 — Phase 117 (1.33.0): price-offer builder starts from the lead card too
+
+- `cardStart` in the offer modal; `fromCard` in `/price-offer/build`; first turn lists what was understood + missing questions, spec stays empty until the user confirms. `RECENCY_RULE` now lives in `offerBuilder.js`.
+
 ## 2026-11-23 — Phase 116 (1.32.1): offer window went blank after ✕ on a cost row
 
 - Preview step number depends on `rows.length`; the offer preview's ✕ and both assistants' `onApply` now move `step` with the row count.

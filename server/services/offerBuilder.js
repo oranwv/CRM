@@ -21,6 +21,9 @@ const txt = (v, max = 600) => (isStr(v) ? v.trim().slice(0, max) : '');
 const time = (v) => (isStr(v) && /^([01]\d|2[0-3]):[0-5]\d$/.test(v.trim()) ? v.trim() : null);
 const strList = (v, max = 12) => (Array.isArray(v) ? v.filter(isStr).map(x => x.trim()).filter(Boolean).slice(0, max).map(x => x.slice(0, 400)) : []);
 
+// How to read a lead's history when the same detail was said more than once (shared with the contract builder).
+const RECENCY_RULE = `The sources are in time order, oldest first, and each header carries its date. When the same detail (a price, the number of guests, a date, an hour, a condition) appears more than once, the LATEST statement is the one that counts — an earlier figure that was later changed (a discount, an update, a correction) is superseded: use the later one, and mention the earlier one only in brackets so the user sees the change (e.g. "מחיר לאורח: 300 ש"ח (שיחה, 14.11; קודם דובר על 400)"). A later message that only asks about a change, or an offer the other side did not accept, does not supersede what was agreed before it. If you cannot tell which of two statements is the final one, say so and ask.`;
+
 // What the assistant may know about the lead: the card fields + recent notes / call summaries (capped).
 async function loadLeadContext(leadId) {
   const { rows } = await pool.query(
@@ -150,7 +153,8 @@ function missingOf(spec, tplRows = []) {
 }
 
 // messages: [{ role: 'user'|'assistant', content }], prevSpec: last normalized spec, template: { rows, includes }
-async function runOfferBuilder({ leadId, messages, prevSpec, template, language }) {
+// fromCard: true on the first turn = "start from what the lead card already holds" (Phase 117)
+async function runOfferBuilder({ leadId, messages, prevSpec, template, language, fromCard }) {
   const history = (Array.isArray(messages) ? messages : [])
     .filter(m => m && (m.role === 'user' || m.role === 'assistant') && isStr(m.content) && m.content.trim())
     .slice(-20)
@@ -173,23 +177,55 @@ async function runOfferBuilder({ leadId, messages, prevSpec, template, language 
       : 'DOCUMENT LANGUAGE: Hebrew.',
   ].join('\n\n');
 
-  const res = await openai('offer-builder').chat.completions.create({
-    model: MODEL,
-    temperature: 0.2,
-    response_format: { type: 'json_object' },
-    messages: [{ role: 'system', content: SYSTEM }, { role: 'system', content: context }, ...history],
-  });
-  let out = {};
-  try { out = JSON.parse(res.choices?.[0]?.message?.content || '{}'); } catch { out = {}; }
+  const ask = async (extra) => {
+    const res = await openai('offer-builder').chat.completions.create({
+      model: MODEL,
+      temperature: 0.2,
+      response_format: { type: 'json_object' },
+      messages: [{ role: 'system', content: SYSTEM }, { role: 'system', content: context }, ...history, ...(extra ? [{ role: 'system', content: extra }] : [])],
+    });
+    try { return JSON.parse(res.choices?.[0]?.message?.content || '{}'); } catch { return {}; }
+  };
+
+  // Start from the lead card (Phase 117): the user did not describe the offer — the assistant reads
+  // the card and the whole history (WhatsApp, call transcripts and summaries, notes), says what it
+  // understood (the latest statement winning), asks about what is missing and waits for the user to
+  // confirm. Nothing enters the spec before that.
+  const cardStart = fromCard === true && !prevSpec && history.length === 1;
+  let out, cardNote = '';
+  if (cardStart) {
+    let found = null;
+    try {
+      found = await require('./leadHistorySearch').searchLeadHistory({
+        leadId, leadName: lead?.card?.name || '', openai: openai('offer-builder'),
+        question: 'כל מה שנאמר או סוכם לגבי האירוע וההצעה: סוג האירוע, מחירים, מספר אורחים, תאריכים ושעות, תפריט ובר, מה כלול, תוספות ובקשות מיוחדות',
+      });
+    } catch (e) { console.error('[OfferBuilder] history load failed:', e.message); }
+    const text = found && found.text ? found.text.trim() : '';
+    if (!found) cardNote = 'לא הצלחתי לקרוא כרגע את הוואטסאפ והשיחות, אז זה רק לפי הפרטים הכלליים בכרטיס.';
+    out = await ask(
+      `The user asked you to START FROM THE LEAD CARD instead of describing the offer. Work only from the LEAD CARD above and from this LEAD FULL HISTORY (WhatsApp messages, call transcripts and summaries, notes; every source starts with a header "[מקור N] <kind> · <date>"${found && found.truncated ? '; only the most recent part is included' : ''}):\n\n${text || '(the card has no WhatsApp messages, call transcripts or notes)'}\n\n` +
+      `${RECENCY_RULE}
+Now, in one reply:
+1. Start with "זה מה שהבנתי מהכרטיס:" and a numbered list of what the offer should be as things stand now: the customer, the kind of event, date and hours, number of guests, package or price per guest, the price and its VAT basis if it was said, menu and bar, what is included, extras and special requests. For each item say where it comes from (kind of source and date; "כרטיס הליד" for card fields). Leave out what was only asked about and not settled. Do not fill gaps with guesses and never invent a price — what was not said is simply not in the list.
+2. If nothing useful is there, say so in one line and ask the user to describe the offer.
+3. Then ask, in the same reply, about everything that is still missing or unclear for the offer (the usual required items), as a short list.
+4. End with: "זה נכון? אפשר לתקן, ולענות על השאלות באותה הודעה."
+5. Do NOT put the listed details into the spec in this reply — return the spec with nulls. When the user confirms or corrects in the next message, put the (corrected) details and their answers into the spec and continue as usual.
+"open_questions" is true.`);
+  } else {
+    out = await ask(null);
+  }
 
   const spec = normalizeSpec(out.spec, tpl);
   const missing = missingOf(spec, tpl.rows);
-  const ready = missing.length === 0 && out.open_questions !== true;
+  const ready = !cardStart && missing.length === 0 && out.open_questions !== true; // a card start always waits for the user's confirmation
   let reply = isStr(out.reply) ? out.reply.trim() : '';
+  if (cardNote) reply = `${cardNote}${reply ? '\n' + reply : ''}`;
   // The model says "ready" but something required is missing → say so, the server decides.
-  if (out.open_questions !== true && missing.length) reply = `${reply ? reply + '\n' : ''}חסר לי עוד: ${missing.join(' · ')}.`;
+  if (!cardStart && out.open_questions !== true && missing.length) reply = `${reply ? reply + '\n' : ''}חסר לי עוד: ${missing.join(' · ')}.`;
   if (!reply) reply = ready ? 'יש לי הכול, מכין את ההצעה.' : 'לא הבנתי, אפשר לנסח שוב?';
-  return { reply, spec, missing, ready, lead: lead?.card || null };
+  return { reply, spec: cardStart ? normalizeSpec({}, tpl) : spec, missing, ready, lead: lead?.card || null, quickReplies: cardStart ? ['כן, זה נכון'] : [] };
 }
 
-module.exports = { runOfferBuilder, normalizeSpec, missingOf, loadLeadContext };
+module.exports = { runOfferBuilder, normalizeSpec, missingOf, loadLeadContext, RECENCY_RULE };

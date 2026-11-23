@@ -24,7 +24,7 @@ export const CONTRACT_COPY = {
   placeholder: 'כתוב או הדבק כאן את מה שסוכם… למשל: 100 איש, 395 לאורח לפני מע"מ, מקדמה 30%, ואם נכנס אירוע אחר נוכל לדחות',
 };
 
-// `cardStart` (contracts, Phase 115): before anything else the assistant asks whether to start from
+// `cardStart` (contracts Phase 115, price offers Phase 117): before anything else the assistant asks whether to start from
 // what the lead card already holds (general details, calls, transcripts, WhatsApp). "כן" sends
 // `fromCard: true` and the server reads the card itself; "לא" shows the usual record / write screen.
 export default function OfferBuilder({ lead, template, language = 'he', onDone, onManual, endpoint = 'price-offer/build', copy = OFFER_COPY, cardStart = false }) {

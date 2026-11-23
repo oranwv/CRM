@@ -3586,7 +3586,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
 
           {/* ── Phase 102: build the offer in a conversation ── */}
           {builderOn && (
-            <OfferBuilder lead={lead} language={language} template={{ rows, includes: texts.includes }}
+            <OfferBuilder lead={lead} language={language} cardStart template={{ rows, includes: texts.includes }}
               onDone={applyBuilderSpec} onManual={() => setBuilderOn(false)} />
           )}
 

@@ -14,7 +14,7 @@
 // spec (client/src/utils/contractSpec.js) and opens the normal preview.
 const { openai } = require('./openaiClient');
 const { MODEL } = require('./contractAssistant');
-const { loadLeadContext } = require('./offerBuilder');
+const { loadLeadContext, RECENCY_RULE } = require('./offerBuilder');
 const { searchLeadHistory } = require('./leadHistorySearch');
 
 const isStr = (v) => typeof v === 'string';
@@ -30,7 +30,6 @@ const strList = (v, max = 8, len = 1500) => (Array.isArray(v) ? v.filter(isStr).
 
 const TYPE_HE = { regular: 'חוזה רגיל', package: 'חוזה חבילה', custom: 'הסכם מותאם' };
 const TYPES = Object.keys(TYPE_HE);
-const RECENCY_RULE = `The sources are in time order, oldest first, and each header carries its date. When the same detail (a price, the number of guests, a date, an hour, a condition) appears more than once, the LATEST statement is the one that counts — an earlier figure that was later changed (a discount, an update, a correction) is superseded: use the later one, and mention the earlier one only in brackets so the user sees the change (e.g. "מחיר לאורח: 300 ש"ח (שיחה, 14.11; קודם דובר על 400)"). A later message that only asks about a change, or an offer the other side did not accept, does not supersede what was agreed before it. If you cannot tell which of two statements is the final one, say so and ask.`;
 const HISTORY_Q = 'לבדוק גם בוואטסאפ ובתמלולי השיחות אם נאמרו פרטים נוספים שכדאי להכניס לחוזה?';
 
 const SYSTEM = `You help venue staff build an EVENT CONTRACT (חוזה / הסכם הזמנת אירוע) by conversation in Hebrew. The contract is built from a fixed template; your job is to understand the deal and return it as a structured "spec". The system fills the template. Clause wording you add is written in formal Hebrew contract register ("המזמין", "הספק", "מובהר ומוסכם כי ...").
