@@ -1930,6 +1930,16 @@ rule; approval flow; history loaded once) and the new screen in the real modal i
 Chromium. Whether the model actually picks the later figure was NOT tested against the real
 model.
 
+### Phase 116 — Blank offer window after deleting a cost row in the preview ✅ Fixed 2026-11-23 (1.32.1)
+Oran (phone screenshot): pressing ✕ on a cost-table row in the price-offer preview left an empty
+"הצעת מחיר" window. Cause: the wizard's preview step number is counted after the rows
+(`previewStep = ROW_START + rows.length + 1`), and the preview's ✕ removed a row without moving
+`step`, so no step matched and nothing rendered (the contract preview's ✕ already did
+`setStep(s - 1)`). Fixed there, and the same gap in both assistants' `onApply`: an approved
+`add_row` / `delete_row` now shifts `step` by the change in row count (regular types only).
+Verified in the real `PriceOfferModal` in headless Chromium with a stubbed API: two ✕ presses and
+an assistant-added row, the table stays. Not run against production.
+
 ### Phase 109 — Assistant states the build time with the hour ✅ Built 2026-11-22 (1.28.6)
 Oran: when the assistant says when the version was built it should include the hour. The prompt
 carried the raw UTC ISO build time, and the assistant answered with the date only. `utils/version.js`

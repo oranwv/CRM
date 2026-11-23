@@ -2870,7 +2870,11 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
               fields, rows, texts: contractTexts, offerType: contractType, language,
               calculated: { subtotal, vat, total, depositAmount, depositAmountVat, remainingBalance, cancellationDate },
             })}
-            onApply={next => { setFields(next.fields); setRows(next.rows); setContractTexts(next.texts); }}
+            onApply={next => {
+              // rows added / removed by the assistant move the preview's step number with them
+              if (!isPackage && next.rows.length !== rows.length) setStep(s => s + (next.rows.length - rows.length));
+              setFields(next.fields); setRows(next.rows); setContractTexts(next.texts);
+            }}
             reviewable
           />
           {sent ? (
@@ -4059,7 +4063,8 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
                           {getRowTotal(row).toLocaleString()} {cur}
                         </td>
                         <td data-html2canvas-ignore="true" style={{ border: '1px solid #ccc', padding: '2px', textAlign: 'center' }}>
-                          <button onClick={() => setRows(prev => prev.filter((_, idx) => idx !== i))}
+                          {/* the preview's step number is counted after the rows — one row less means one step back, or the window goes blank */}
+                          <button onClick={() => { setRows(prev => prev.filter((_, idx) => idx !== i)); setStep(s => s - 1); }}
                             style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '12px', background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px' }}>✕</button>
                         </td>
                       </tr>
@@ -4227,7 +4232,11 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
               visible={!showWaExtraFiles && !showEmailForm && !translating}
               initialStatus={builderSummary ? '✓ ההצעה מוכנה. אפשר לבקש שינויים או לערוך ביד.' : ''}
               getContract={() => ({ fields, rows, texts, offerType, language, withVat, calculated: { subtotal, vat, total } })}
-              onApply={next => { setFields(next.fields); setRows(next.rows); setTexts(next.texts); }}
+              onApply={next => {
+                // rows added / removed by the assistant move the preview's step number with them
+                if (offerType === 'regular' && next.rows.length !== rows.length) setStep(s => s + (next.rows.length - rows.length));
+                setFields(next.fields); setRows(next.rows); setTexts(next.texts);
+              }}
             />
             {showWaExtraFiles ? (
               <div className="space-y-2">

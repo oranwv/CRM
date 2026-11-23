@@ -6,6 +6,10 @@ updated: 2026-11-23
 
 # Now
 
+## 2026-11-23 — Phase 116 (1.32.1): offer window went blank after ✕ on a cost row
+
+- Preview step number depends on `rows.length`; the offer preview's ✕ and both assistants' `onApply` now move `step` with the row count.
+
 ## 2026-11-23 — Phase 115 (1.32.0): contract builder starts from the lead card; latest statement wins
 
 - `cardStart` question screen in `OfferBuilder`; `fromCard` in `/contracts/build` loads the full history on the first turn; `RECENCY_RULE` in `contractBuilder.js`. Details enter the spec only after "זה נכון, ולהמשיך כך?". Real-model behaviour (picking 300 over an earlier 400) still to be confirmed by Oran on a real lead.
