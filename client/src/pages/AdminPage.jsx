@@ -1,6 +1,7 @@
 import UserTransferModal from '../components/UserTransferModal';
 import { useState, useEffect, useRef } from 'react';
 import api from '../api';
+import { ManagerNotesSettings } from '../components/ManagerNotes';
 
 const ROLE_LABELS = { admin: 'מנהל מערכת', manager: 'מנהל', sales_manager: 'מנהל מכירות', sales: 'מכירות', production: 'הפקה', suppliers: 'ספקים', rsvp: 'אישורי הגעה', operations: 'תפעול', finance: 'כספים', attendance: 'נוכחות בלבד' };
 const ALL_PERMISSIONS = ['admin','manager','sales_manager','sales','production','suppliers','rsvp','operations','finance','attendance'];
@@ -779,6 +780,9 @@ export default function AdminPage() {
             {transferUser && <UserTransferModal user={transferUser} users={users} onClose={() => setTransferUser(null)} onChanged={loadUsers} />}
           </div>
         </div>
+
+        {/* ── הערות מנהל: personal PIN + delete all (Phase 119) ── */}
+        <ManagerNotesSettings />
 
         {/* ── AI Instructions ── */}
         <div className="rounded-2xl p-4 bg-white border border-violet-100 shadow-sm">

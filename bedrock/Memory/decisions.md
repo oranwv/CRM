@@ -57,3 +57,9 @@ stable key across channels.
 
 ## 2026-11-19 — Readable passwords for the admin (Phase 104)
 - Oran wants to see employees' passwords in הגדרות. Decision: keep bcrypt for login, add an AES-256-GCM encrypted copy (`users.password_view`, key from `PASSWORD_VIEW_KEY` or `JWT_SECRET`) revealed one user at a time to system admins only. Alternative offered and declined: reset-password button with no readable copy. Do not change `JWT_SECRET` without knowing the copies become unreadable. Revisit for multi-business.
+
+## 2026-11-23 — הערות מנהל: code-locked private notes (Phase 119)
+- Oran wants a private window per event that only code holders and general managers (admin / manager) can open, deletable without a trace. Decisions: personal 6-digit PIN per manager; random 4-digit event code valid 8 hours, usable by anyone who holds it; phones only; entries signed with writer + time; old entries visible only while holding a button; auto-lock after 2 minutes.
+- "No trace" is done by crypto-shredding: the per-event key salt is kept in Supabase Storage, outside the database and its backups, and is deleted with the notes.
+- Screenshots cannot be blocked in a web app — told to Oran; he chose deterrence (hold-to-read, watermark, auto-lock) over turning the CRM into an installed app.
+- These tables must stay out of search, export, PDF, activity history and every AI context.

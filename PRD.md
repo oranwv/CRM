@@ -1951,6 +1951,51 @@ about what is missing and ends with "זה נכון?". That turn always returns a
 confirmation / corrections. `RECENCY_RULE` moved to `offerBuilder.js` and is shared with the
 contract builder. Verified with a stubbed model; not run against the real model.
 
+### Phase 119 — הערות מנהל: code-locked private notes in event production ✅ Built 2026-11-23 (1.34.0)
+Oran asked for a "secret window" inside הפקת אירוע for things that must not be seen by everyone:
+written by whoever manages that event, meant for the general managers. He chose the ordinary name
+"הערות מנהל" and its place — below the production block's הערות, above ספקים.
+
+**How it works (his decisions):**
+- Each general manager (roles `admin` / `manager`) has a personal 6-digit PIN, set in הגדרות.
+- "ייצר קוד" next to the window: the manager enters his PIN and gets a random 4-digit code, valid
+  for that one event for 8 hours. It is shown once. A new code replaces the old one.
+- Anyone who holds a valid code can open the window; a general manager can also open it with his PIN.
+- Phones only. A desktop browser sees "נפתח רק מהטלפון" (the server refuses too).
+- Free-hand writing. Every save is a separate entry with the writer's name and the time.
+- While writing, only the text being typed is visible. What is already written is shown only while
+  a finger is held on "החזק לקריאה" (fetched on press, dropped on release), with the reader's name
+  and the time printed across it.
+- The window never stays open: "סיים ונעל", 2 minutes without activity, or leaving the screen /
+  tab / app lock it (text typed and not yet saved is saved on the way out).
+- "מחק" next to the window (PIN) deletes everything written for the event. "מחק את כל הערות
+  המנהל" in הגדרות (typing "מחק" + PIN) deletes it for every event. PINs are kept.
+
+**Security (`server/services/managerNotes.js`, `server/routes/managerNotes.js`):**
+- Entries are AES-256-GCM encrypted. The key of an event = server secret (`MANAGER_NOTES_KEY`, or
+  `JWT_SECRET`) + a random per-event salt stored outside the database, in Supabase Storage
+  (`crm-files/manager-notes-keys/`). Deleting removes the rows and the salt, so a row that survives
+  in a database backup cannot be decrypted.
+- The code and the PIN are stored only as keyed hashes (HMAC; the PIN also through bcrypt).
+- Wrong attempts are counted atomically before comparing: 5 wrong codes cancel the code, 5 wrong
+  PINs lock the PIN for 15 minutes.
+- An opened window is a 10-minute token bound to the user and the event; a window opened with a
+  code dies when the code expires or is replaced.
+- A user who is not a general manager cannot learn whether a code exists or whether anything is written.
+- Note text, codes and PINs are never logged; the tables are not read by search, export, PDF or the AI.
+- A system admin can clear another manager's forgotten PIN (`DELETE /api/manager-notes/pin/:userId`, API only for now).
+
+**Known limits, told to Oran:** a web app cannot block screenshots (neither can it stop a second
+phone photographing the screen), and the hold-to-read button does not prevent pressing the
+phone's screenshot buttons with the other hand — it is deterrence. A real block needs an installed
+app (full on Android, partial on iPhone); he chose to stay with the web app for now. "Phones only"
+is a user-agent check, not a security boundary.
+
+**Verified:** server flow end to end against an in-memory Postgres with a stub key store (PIN,
+code, per-event binding, expiry, attempt limits, encryption at rest, delete one / delete all, a
+restored backup row is unreadable). Client builds. **Not verified:** the screen on a real phone,
+and the Supabase Storage key store against the live bucket.
+
 ### Phase 118 — Drive file picker: PDF preview on phones ✅ Built 2026-11-23 (1.33.1)
 Owner's screenshot: previewing a PDF (a menu) in the Drive picker inside הצעת מחיר on Android
 showed only Chrome's "Open" placeholder. `DriveFilePicker` put the PDF's URL straight into an

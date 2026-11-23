@@ -6,6 +6,12 @@ updated: 2026-11-23
 
 # Now
 
+## 2026-11-23 — Phase 119 (1.34.0): הערות מנהל — code-locked private notes per event
+
+- `ManagerNotes.jsx` in the lead card between `ProductionSection` and ספקים; settings card `ManagerNotesSettings` in `AdminPage`. Server: `routes/managerNotes.js` + `services/managerNotes.js`, tables `manager_note_pins / _codes / _entries`.
+- Per-event key salt lives in Supabase Storage (`manager-notes-keys/`), not in the DB — delete = rows + salt. Not yet verified on a real phone or against the live bucket.
+- Open: no UI yet for an admin clearing another manager's forgotten PIN (API exists).
+
 ## 2026-11-23 — Phase 118 (1.33.1): Drive picker PDF preview on phones
 
 - `DriveFilePicker` iframed the PDF directly (Android shows only "Open"); phones now go through Google's viewer like `FileBoxHost`. Not verified on a real phone.

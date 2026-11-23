@@ -959,6 +959,9 @@ migrate(`
   CREATE INDEX IF NOT EXISTS user_transfer_items_tid ON user_transfer_items(transfer_id);
 `).catch(err => console.error('[DB] user_transfers migration error:', err.message));
 
+// Phase 119 (2026-11-23): הערות מנהל — code-locked private notes per event (encrypted; see services/managerNotes.js)
+migrate(require('./services/managerNotes').MIGRATION).catch(err => console.error('[DB] manager_notes migration error:', err.message));
+
 // Phase 101 (2026-11-18): "שיחה חוזרת" — a lead task of kind 'callback' (customer asked to be called at a set time)
 migrate(`
   ALTER TABLE tasks ADD COLUMN IF NOT EXISTS kind TEXT;
@@ -1066,6 +1069,7 @@ const attendanceRoutes = require('./routes/attendance');
 migrate(attendanceRoutes.SCHEMA_SQL).catch(err => console.error('[Attendance] migration error:', err.message));
 app.use('/api/attendance',         requireAuth, attendanceRoutes);
 app.use('/api/callbacks',          requireAuth, require('./routes/callbacks')); // Phase 101: שיחה חוזרת
+app.use('/api/manager-notes',      requireAuth, require('./routes/managerNotes')); // Phase 119: הערות מנהל (code-locked)
 app.use('/api/calendar', (req, res, next) => {
   // ICS download and lead confirmation are public — no auth required
   if (/^\/meetings\/[^/]+\/(ics|confirm)$/.test(req.path)) return next();

@@ -119,3 +119,4 @@
 {"ts": "2026-11-23T15:20:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.32.1: price-offer preview no longer goes blank when a cost row is deleted with ✕ or rows are changed by the assistant (Phase 116)"}
 {"ts": "2026-11-23T15:40:00Z", "type": "feature", "tool": "cowork", "slug": "CRM", "summary": "1.33.0: price-offer builder can start from the lead card (calls, transcripts, WhatsApp), asks what is missing and confirms before building (Phase 117)"}
 {"ts": "2026-11-23T15:30:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.33.1: Drive file picker previews PDFs on phones through Google's viewer instead of a bare iframe"}
+{"ts": "2026-11-23T18:40:00Z", "type": "feature", "tool": "cowork", "slug": "CRM", "summary": "1.34.0: הערות מנהל — code-locked, encrypted private notes per event (manager PIN, 8-hour event code, hold-to-read, delete with key shredding) (Phase 119)"}

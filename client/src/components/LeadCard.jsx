@@ -6,6 +6,7 @@ import useBackGuard, { DIRTY_MSG } from '../hooks/useBackGuard';
 import DriveFilePicker from './DriveFilePicker';
 import { useAppMode } from '../context/AppModeContext';
 import ProductionChecklist from './ProductionChecklist';
+import ManagerNotes from './ManagerNotes';
 import EventBriefModal from './EventBriefModal';
 import SeatingChart from './SeatingChart';
 import InvoiceModal from './InvoiceModal';
@@ -776,6 +777,11 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
             {/* Production module — only for deposit/production/completed stage */}
             {(lead.stage === 'deposit' || lead.stage === 'production' || lead.stage === 'completed') && (
               <ProductionSection leadId={leadId} lead={lead} onUpdated={load} users={users} />
+            )}
+
+            {/* הערות מנהל (Phase 119) — code-locked private notes, between the production block and the suppliers */}
+            {(lead.stage === 'deposit' || lead.stage === 'production' || lead.stage === 'completed') && (
+              <ManagerNotes leadId={leadId} />
             )}
 
             {/* Suppliers — visible on deposit/production/completed */}
