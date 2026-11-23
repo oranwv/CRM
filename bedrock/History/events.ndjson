@@ -121,3 +121,4 @@
 {"ts": "2026-11-23T15:30:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.33.1: Drive file picker previews PDFs on phones through Google's viewer instead of a bare iframe"}
 {"ts": "2026-11-23T18:40:00Z", "type": "feature", "tool": "cowork", "slug": "CRM", "summary": "1.34.0: הערות מנהל — code-locked, encrypted private notes per event (manager PIN, 8-hour event code, hold-to-read, delete with key shredding) (Phase 119)"}
 {"ts": "2026-11-23T18:50:00Z", "type": "feature", "tool": "cowork", "slug": "CRM", "summary": "1.35.0: call summaries by the v2.0 guidelines, editable in settings, CRM background, cost breakdown (Phase 120; built 18/11, released 23/11)"}
+{"ts": "2026-11-23T18:50:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.35.1: הערות מנהל shown at every stage of the event (Phase 121)"}

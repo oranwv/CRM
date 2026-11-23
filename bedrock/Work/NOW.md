@@ -6,6 +6,10 @@ updated: 2026-11-23
 
 # Now
 
+## 2026-11-23 — Phase 121 (1.35.1): הערות מנהל shown at every lead stage
+
+- Stage condition around `<ManagerNotes>` in `LeadCard` removed at Oran's request.
+
 ## 2026-11-23 — Phase 120 (1.35.0, built 18/11 as "Phase 107", released 23/11): call summaries by Oran's v2.0 guidelines (NOT run against the real model)
 
 - Guidelines in `callAnalysisPrompt.md` (default) / `settings.call_analysis_prompt` (settings card with restore + "נסה על שיחה קיימת"); output format locked server-side. CRM background (lead fields + 5 earlier call summaries) sent with every summary. Costs panel splits a call summary into its parts (`ai_usage.meta.usd`).

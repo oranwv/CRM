@@ -779,10 +779,9 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
               <ProductionSection leadId={leadId} lead={lead} onUpdated={load} users={users} />
             )}
 
-            {/* הערות מנהל (Phase 119) — code-locked private notes, between the production block and the suppliers */}
-            {(lead.stage === 'deposit' || lead.stage === 'production' || lead.stage === 'completed') && (
-              <ManagerNotes leadId={leadId} />
-            )}
+            {/* הערות מנהל (Phase 119) — code-locked private notes, between the production block and the suppliers.
+                Shown at every stage of the event (Phase 121), not only from the deposit on. */}
+            <ManagerNotes leadId={leadId} />
 
             {/* Suppliers — visible on deposit/production/completed */}
             {(lead.stage === 'deposit' || lead.stage === 'production' || lead.stage === 'completed') && (
