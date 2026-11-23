@@ -1844,6 +1844,17 @@ mock-up with a blue (not red) dot; "opened" = anyone on the team opened the card
 Verified: migration + endpoints against a local Postgres; badge/dots/icon in headless Chromium
 (phone + desktop, incl. cross-tab update). Not run against production.
 
+### Phase 113 — Self-opening windows show above an open lead card ✅ Built 2026-11-23 (1.30.1)
+Owner's screenshot: an open lead card with a dimmed bottom bar and a strip of another window
+under the card. Cause: `OverdueTasksModal` (Phase 55) and `CallbackPopup` are rendered inside
+the top bar, which is `fixed z-40` — a stacking context, so their own z-79 / z-85 never rise
+above the card (z-50). Hidden completely until Phase 81 (1.11.0) made the card end above the
+bottom bar; since then the window's lower edge and backdrop showed under the card. Fix: both
+are rendered through `createPortal(…, document.body)`. Owner chose that the overdue window opens
+above the card (not deferred until the card closes). The header's click-opened modals
+(payments, unready events, pending docs) are unchanged. Verified in headless Chromium (phone +
+desktop): each window is the top element over the card and the bar; × returns to the card.
+
 ### Phase 109 — Assistant states the build time with the hour ✅ Built 2026-11-22 (1.28.6)
 Oran: when the assistant says when the version was built it should include the hour. The prompt
 carried the raw UTC ISO build time, and the assistant answered with the date only. `utils/version.js`

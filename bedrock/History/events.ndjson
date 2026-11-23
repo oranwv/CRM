@@ -113,3 +113,4 @@
 {"ts": "2026-11-22T11:20:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.28.7: leads list retries the first load twice before showing an error; failed background refresh keeps the list; retry button"}
 {"ts": "2026-11-22T12:10:00Z", "type": "feature", "tool": "cowork", "slug": "CRM", "summary": "1.29.0: after adding a lead its card opens automatically (phone in-page, desktop new tab)"}
 {"ts": "2026-11-22T15:55:00Z", "type": "feature", "tool": "cowork", "slug": "CRM", "summary": "1.30.0: badge on the leads tab for new leads nobody opened + blue dot in the list (leads.first_opened_at); WhatsApp tab icon"}
+{"ts": "2026-11-23T08:55:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.30.1: overdue-tasks and callback windows were trapped under an open lead card (rendered inside the fixed z-40 top bar); portaled to body"}

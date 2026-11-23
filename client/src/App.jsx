@@ -1,6 +1,7 @@
 import CallbackPopup from './components/CallbackPopup';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import LoginPage     from './pages/LoginPage';
 import LeadsPage     from './pages/LeadsPage';
 import LeadDetailPage from './pages/LeadDetailPage';
@@ -242,8 +243,11 @@ function GlobalHeader() {
         <UnreadyEventsModal onClose={() => { setShowUnready(false); loadUnreadyCount(); }} />
       )}
 
-      {showOverdue && !isPublic && <OverdueTasksModal onClose={closeOverdue} />}
-      {!isPublic && <CallbackPopup />}
+      {/* Phase 113 — rendered on <body>, not inside this bar: the bar is `fixed z-40`, so anything
+          inside it sits UNDER an open lead card (z-50) whatever its own z-index. These two open by
+          themselves, also while a card is open, and must show above it. */}
+      {showOverdue && !isPublic && createPortal(<OverdueTasksModal onClose={closeOverdue} />, document.body)}
+      {!isPublic && createPortal(<CallbackPopup />, document.body)}
 
       {showPending && (
         <PendingDocsModal

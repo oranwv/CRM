@@ -6,6 +6,10 @@ updated: 2026-11-22
 
 # Now
 
+## 2026-11-23 — Phase 113 (1.30.1): overdue-tasks + callback windows open above the lead card
+
+- They lived inside the `fixed z-40` top bar (stacking context) → under the card (z-50). Now portaled to `<body>`. Lesson: anything rendered inside the top bar cannot rise above a lead card.
+
 ## 2026-11-22 — Phase 112 (1.30.0): unopened-leads badge + blue dot, WhatsApp tab icon
 
 - `leads.first_opened_at` (one-time conditional add + backfill), `POST /leads/:id/opened`, `GET /leads/unopened-count`; badge on the לידים tab, blue dot in the list; "opened" = anyone opened the card (owner's choice). WhatsApp tab uses `WhatsAppIcon.jsx`.
