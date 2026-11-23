@@ -1951,6 +1951,13 @@ about what is missing and ends with "זה נכון?". That turn always returns a
 confirmation / corrections. `RECENCY_RULE` moved to `offerBuilder.js` and is shared with the
 contract builder. Verified with a stubbed model; not run against the real model.
 
+### Phase 118 — Drive file picker: PDF preview on phones ✅ Built 2026-11-23 (1.33.1)
+Owner's screenshot: previewing a PDF (a menu) in the Drive picker inside הצעת מחיר on Android
+showed only Chrome's "Open" placeholder. `DriveFilePicker` put the PDF's URL straight into an
+iframe, and phone browsers do not render PDFs inline. Now, like `FileBoxHost`, a non-desktop
+device loads the PDF through Google's viewer; desktop is unchanged. Built only — not tested on
+a real phone (the viewer needs the live signed file URL).
+
 ### Phase 109 — Assistant states the build time with the hour ✅ Built 2026-11-22 (1.28.6)
 Oran: when the assistant says when the version was built it should include the hour. The prompt
 carried the raw UTC ISO build time, and the assistant answered with the date only. `utils/version.js`

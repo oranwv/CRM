@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../api';
+import { isDesktop } from '../utils/device';
 
 export default function DriveFilePicker({ onSelect, onClose }) {
   const [folders, setFolders] = useState([]);
@@ -83,8 +84,10 @@ export default function DriveFilePicker({ onSelect, onClose }) {
             {previewFile.mimeType?.startsWith('image/')
               ? <img src={previewFile.previewUrl} alt={previewFile.name} className="max-w-full max-h-full object-contain p-2" />
               : (previewFile.mimeType === 'application/pdf' || previewFile.name?.toLowerCase().endsWith('.pdf'))
+                // Phones cannot show a PDF inside the page (Android Chrome draws only an "Open"
+                // button), so there the PDF goes through Google's viewer — same rule as FileBoxHost.
                 ? <iframe
-                    src={previewFile.previewUrl}
+                    src={isDesktop() ? previewFile.previewUrl : `https://docs.google.com/viewer?embedded=true&url=${encodeURIComponent(previewFile.previewUrl)}`}
                     className="w-full border-0"
                     style={{ minHeight: '50vh', height: '60vh' }}
                     title={previewFile.name}

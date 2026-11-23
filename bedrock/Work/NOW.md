@@ -6,6 +6,10 @@ updated: 2026-11-23
 
 # Now
 
+## 2026-11-23 — Phase 118 (1.33.1): Drive picker PDF preview on phones
+
+- `DriveFilePicker` iframed the PDF directly (Android shows only "Open"); phones now go through Google's viewer like `FileBoxHost`. Not verified on a real phone.
+
 ## 2026-11-23 — Phase 117 (1.33.0): price-offer builder starts from the lead card too
 
 - `cardStart` in the offer modal; `fromCard` in `/price-offer/build`; first turn lists what was understood + missing questions, spec stays empty until the user confirms. `RECENCY_RULE` now lives in `offerBuilder.js`.
