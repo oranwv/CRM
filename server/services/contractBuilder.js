@@ -30,6 +30,7 @@ const strList = (v, max = 8, len = 1500) => (Array.isArray(v) ? v.filter(isStr).
 
 const TYPE_HE = { regular: 'חוזה רגיל', package: 'חוזה חבילה', custom: 'הסכם מותאם' };
 const TYPES = Object.keys(TYPE_HE);
+const RECENCY_RULE = `The sources are in time order, oldest first, and each header carries its date. When the same detail (a price, the number of guests, a date, an hour, a condition) appears more than once, the LATEST statement is the one that counts — an earlier figure that was later changed (a discount, an update, a correction) is superseded: use the later one, and mention the earlier one only in brackets so the user sees the change (e.g. "מחיר לאורח: 300 ש"ח (שיחה, 14.11; קודם דובר על 400)"). A later message that only asks about a change, or an offer the other side did not accept, does not supersede what was agreed before it. If you cannot tell which of two statements is the final one, say so and ask.`;
 const HISTORY_Q = 'לבדוק גם בוואטסאפ ובתמלולי השיחות אם נאמרו פרטים נוספים שכדאי להכניס לחוזה?';
 
 const SYSTEM = `You help venue staff build an EVENT CONTRACT (חוזה / הסכם הזמנת אירוע) by conversation in Hebrew. The contract is built from a fixed template; your job is to understand the deal and return it as a structured "spec". The system fills the template. Clause wording you add is written in formal Hebrew contract register ("המזמין", "הספק", "מובהר ומוסכם כי ...").
@@ -53,6 +54,8 @@ If there is no fixed price the customer pays (ticket sales, revenue share, barte
 
 STEP 1b — once the template is confirmed, ask exactly this and nothing else: "לבדוק גם בוואטסאפ ובתמלולי השיחות אם נאמרו פרטים נוספים שכדאי להכניס לחוזה?" Record the answer in spec.historyCheck ("yes" / "no"; null until the user answers). You do not have the WhatsApp messages and transcripts until the user says yes — never claim to have checked them before a block named LEAD FULL HISTORY is given to you.
 
+If SPEC SO FAR already has historyCheck ("yes" or "no"), step 1b is done — never ask it again.
+
 STEP 2 (after the user answered about the history) — ask about what is missing, all open questions together in one short message. Do not ask about what you already know. You must know (ask if not said):
 1. Whether the prices are before VAT (לפני מע"מ) or include VAT (כולל מע"מ). Always confirm unless the user said it.
 2. Number of guests (use the LEAD CARD if it has one).
@@ -67,7 +70,8 @@ Special terms (anything beyond the template — "אם נכנס אירוע אחר
 - paymentAdd — payment terms; cancellationAdd — cancellation / postponement terms (these are ADDED after the standard cancellation clauses; you never change or remove the standard ones); obligationsAdd — obligations of the parties; eventAdd — facts about the event (section 1); costAdd — a cost line that is not a table row; includesAdd — things included in the price.
 If it is unclear where a term belongs, or what exactly it means in money or dates, ask. Do not add terms the user did not ask for.
 Clauses that do not hold together — be sharp about this. Before you say the contract is ready, check the special terms against each other and against the TEMPLATE cancellation and obligations clauses. If two provisions cannot both hold (e.g. the Vendor may postpone the event freely, while a standard clause charges the Orderer for any change of date; cancellation fees that are a percent of "the total sum" when the Orderer pays no sum; a promise of a fixed date next to a right to move it), say it plainly in your reply — which two, and why — and PROPOSE a way out: drop one of them (name it), or reword the added term. Ask the user to decide. Never settle it yourself. Only when the user agrees to drop a standard clause, put its exact text in standardRemove; otherwise the standard clauses are never changed or removed. The first cancellation clause (the one with the free-cancellation date) cannot be removed.
-The LEAD CARD and LEAD HISTORY are background. Card facts (name, date, hours, guests) are defaults. Something from the history is NOT agreed until the user says so here — ask about it instead of putting it in the spec.
+The basic details — the Orderer's name, the event date, the start and end hours, the number of guests — are ALWAYS taken into the spec (clientName, eventDate, startTime, endTime, guests), in every flow and without asking: from the user's description when it states them (a pasted summary that says "מועד: שבת 5.12, 19:00–00:00" gives the date and both hours), otherwise from the LEAD CARD. When the description and the card disagree, the description wins — and say so in one short line of your reply ("בכרטיס רשום 6.12, לקחתי 5.12 מהתיאור") so the user can correct it. A date without a year means its next occurrence after TODAY. An end hour after midnight ("עד 00:00", "עד 2 בלילה") is still the end hour of that event. Never leave one of these null when the description or the card has it.
+The LEAD CARD and LEAD HISTORY are background. Something from the history is NOT agreed until the user says so here — ask about it instead of putting it in the spec.
 
 The spec (always return the FULL current spec; null = not known yet):
 {
@@ -79,7 +83,7 @@ The spec (always return the FULL current spec; null = not known yet):
  "packagePrice": number | null,         // package only
  "extraGuestPrice": number | null,      // 0 = none; null = not discussed
  "depositPercent": number | null,
- "clientName": string | null, "eventDate": "YYYY-MM-DD" | null, "startTime": "HH:MM" | null, "endTime": "HH:MM" | null,   // only when the user changes or adds to what the card says
+ "clientName": string | null, "eventDate": "YYYY-MM-DD" | null, "startTime": "HH:MM" | null, "endTime": "HH:MM" | null,   // always filled — see "The basic details"
  "chefMenu": string, "barMenu": string,
  "serviceRows": [{"id": number, "include": true | false, "qty": number, "price": number}],   // regular
  "extraRows": [{"label": string, "desc": string, "qty": number, "price": number}],          // regular: new priced rows
@@ -167,7 +171,8 @@ function missingOf(spec, tplRows = [], hasEventDate = true) {
 }
 
 // messages: [{ role, content }], prevSpec: last normalized spec, template: { rows, includes, eventDate }
-async function runContractBuilder({ leadId, messages, prevSpec, template, language }) {
+// fromCard: true on the first turn = "start from what the lead card already holds" (Phase 115)
+async function runContractBuilder({ leadId, messages, prevSpec, template, language, fromCard }) {
   const history = (Array.isArray(messages) ? messages : [])
     .filter(m => m && (m.role === 'user' || m.role === 'assistant') && isStr(m.content) && m.content.trim())
     .slice(-20)
@@ -183,6 +188,7 @@ async function runContractBuilder({ leadId, messages, prevSpec, template, langua
   tpl.obligations  = (Array.isArray(template?.obligations)  ? template.obligations  : []).filter(isStr).slice(0, 40);
   const hasEventDate = !!(template?.eventDate || lead?.card?.eventDate);
   const context = [
+    `TODAY: ${new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' })} (YYYY-MM-DD, Israel)`,
     `LEAD CARD: ${JSON.stringify(lead?.card || {})}`,
     `LEAD HISTORY (background only, newest first — short notes; this is NOT the WhatsApp / transcripts check):\n${(lead?.history || []).join('\n') || '(none)'}`,
     `TEMPLATE rows (regular contract; row id 1 is the per-guest row and its default price is a placeholder, never an agreed price; the other rows are the optional service rows with their usual prices before VAT): ${JSON.stringify(tpl.rows)}`,
@@ -204,7 +210,30 @@ async function runContractBuilder({ leadId, messages, prevSpec, template, langua
     });
     try { return JSON.parse(res.choices?.[0]?.message?.content || '{}'); } catch { return {}; }
   };
-  let out = await ask(null);
+  const HISTORY_QUESTION = 'כל מה שסוכם או נאמר לגבי העסקה: מחירים, מספר אורחים, תאריכים ושעות, מה כלול, תשלומים ומקדמה, תנאים מיוחדים, ביטול ודחייה, הבטחות והתחייבויות של כל צד';
+  // Start from the lead card (Phase 115): the user did not describe the deal — the assistant reads
+  // the card and the whole history (WhatsApp, call transcripts and summaries, notes) and proposes
+  // the deal itself, the latest statement winning. Nothing enters the spec before the user approves.
+  const cardStart = fromCard === true && !prevSpec && history.length === 1;
+  let out, cardNote = '';
+  if (cardStart) {
+    let found = null;
+    try { found = await searchLeadHistory({ leadId, leadName: lead?.card?.name || '', openai: openai('contract-builder'), question: HISTORY_QUESTION }); }
+    catch (e) { console.error('[ContractBuilder] history load failed:', e.message); }
+    const text = found && found.text ? found.text.trim() : '';
+    if (!found) cardNote = 'לא הצלחתי לקרוא כרגע את הוואטסאפ והשיחות, אז זה רק לפי הפרטים הכלליים בכרטיס.';
+    out = await ask(
+      `The user asked you to START FROM THE LEAD CARD instead of describing the deal. Work only from the LEAD CARD above and from this LEAD FULL HISTORY (WhatsApp messages, call transcripts and summaries, notes; every source starts with a header "[מקור N] <kind> · <date>"${found && found.truncated ? '; only the most recent part is included' : ''}):\n\n${text || '(the card has no WhatsApp messages, call transcripts or notes)'}\n\n` +
+      `${RECENCY_RULE}
+Now, in one reply:
+1. Start with "זה מה שעולה מהכרטיס:" and a numbered list of the deal as it stands now: the kind of event, date and hours, number of guests, the price and its VAT basis if it was said, what is included, payment and deposit, and every special condition or promise. For each item say where it comes from (kind of source and date; "כרטיס הליד" for card fields). Leave out anything that was only asked about or offered and not accepted. Do not fill gaps with guesses and never invent a price — what was not said is simply not in the list.
+2. If nothing useful is there, say so in one line and ask the user to describe the deal.
+3. Then STEP 1: recommend the template with the reason, and end with "זה נכון, ולהמשיך כך?" Set spec.contractType and spec.typeReason, typeConfirmed false.
+4. Do NOT put the deal details into the spec in this reply. When the user approves in the next message ("כן"), that approves both the template and the listed details: put them into the spec then (corrected by whatever the user changed), and go straight to STEP 2 — step 1b is already done.
+"open_questions" is true.`);
+  } else {
+    out = await ask(null);
+  }
 
   // A confirmation counts only if the template was already proposed in an earlier turn (so the
   // user's last message is an answer to it), or the user named the template themselves.
@@ -218,10 +247,11 @@ async function runContractBuilder({ leadId, messages, prevSpec, template, langua
   const prevHC = prevSpec && (prevSpec.historyCheck === 'yes' || prevSpec.historyCheck === 'no') ? prevSpec.historyCheck : null;
   const mentionsHistory = /וו?אטסאפ|וו?א?צ.?אפ|ווטסאפ|שיחות|שיחה|תמלול|היסטורי/.test(lastUser);
   const modelHC = out.spec && (out.spec.historyCheck === 'yes' || out.spec.historyCheck === 'no') ? out.spec.historyCheck : null;
-  let historyCheck = prevHC;
-  if (!prevHC && modelHC && ((prevSpec && prevSpec.typeConfirmed) || mentionsHistory)) historyCheck = modelHC;
+  let historyCheck = cardStart ? 'yes' : prevHC;
+  if (cardStart) { /* the history was just read */ }
+  else if (!prevHC && modelHC && ((prevSpec && prevSpec.typeConfirmed) || mentionsHistory)) historyCheck = modelHC;
   else if (prevHC === 'no' && modelHC === 'yes' && mentionsHistory) historyCheck = 'yes'; // changed their mind
-  let historyDone = !!(prevSpec && prevSpec.historyDone);
+  let historyDone = cardStart || !!(prevSpec && prevSpec.historyDone);
   let historyNote = '';
 
   // The user said yes → load the whole history for this one turn and answer again with it.
@@ -232,13 +262,14 @@ async function runContractBuilder({ leadId, messages, prevSpec, template, langua
     try {
       found = await searchLeadHistory({
         leadId, leadName: lead?.card?.name || '', openai: openai('contract-builder'),
-        question: 'כל מה שסוכם או נאמר לגבי העסקה: מחירים, מספר אורחים, תאריכים ושעות, מה כלול, תשלומים ומקדמה, תנאים מיוחדים, ביטול ודחייה, הבטחות והתחייבויות של כל צד',
+        question: HISTORY_QUESTION,
       });
     } catch (e) { console.error('[ContractBuilder] history load failed:', e.message); }
     if (found && found.text && found.text.trim()) {
       const again = await ask(
         `LEAD FULL HISTORY — the user asked you to check the WhatsApp messages and call transcripts. Here they are (every source starts with a header "[מקור N] <kind> · <date>"${found.truncated ? '; only the most recent part is included' : ''}):\n\n${found.text}\n\n` +
         `Now do this, in one reply:
+0. ${RECENCY_RULE}
 1. Find details relevant to the contract that are NOT already in the user's description or in SPEC SO FAR: agreed prices, number of guests, dates and hours, what is included, payment arrangements, special conditions, promises made by either side. Something the customer only asked about, or that was offered and not accepted, is not agreed — leave it out, or mention it as unsure.
 2. Report them: start with "מצאתי בוואטסאפ ובשיחות:" and a numbered list. For each: the detail, where it was said (kind of source and date, e.g. "וואטסאפ מהלקוח, 12.11" / "שיחה, 14.11"), and how you would put it in the contract — which section and the wording in short, or which field it fills. If something contradicts what the user wrote, say so explicitly and ask which is right.
 3. Ask: "להכניס את כולם? אפשר גם לבחור (למשל: רק 1 ו-3) או לתקן."
@@ -259,7 +290,7 @@ Set spec.historyCheck to "yes". "open_questions" is true if you listed findings 
   const awaitingHistory = spec.typeConfirmed && spec.historyCheck == null;
   const ready = missing.length === 0 && out.open_questions !== true;
   let reply = isStr(out.reply) ? out.reply.trim() : '';
-  if (historyNote) reply = `${historyNote}${reply ? '\n' + reply : ''}`;
+  if (historyNote || cardNote) reply = `${historyNote || cardNote}${reply ? '\n' + reply : ''}`;
   if (awaitingType && !/להמשיך/.test(reply)) reply = `${reply ? reply + '\n' : ''}זה מתאים יותר לתבנית של ${TYPE_HE[spec.contractType]}${spec.typeReason ? ` (${spec.typeReason})` : ''}. להמשיך כך?`;
   else if (awaitingHistory && !/וו?אטסאפ/.test(reply)) reply = `${reply ? reply + '\n' : ''}${HISTORY_Q}`;
   else if (!awaitingType && !awaitingHistory && out.open_questions !== true && missing.length) reply = `${reply ? reply + '\n' : ''}חסר לי עוד: ${missing.join(' · ')}.`;

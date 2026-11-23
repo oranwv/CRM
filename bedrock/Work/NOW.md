@@ -6,6 +6,10 @@ updated: 2026-11-23
 
 # Now
 
+## 2026-11-23 — Phase 115 (1.32.0): contract builder starts from the lead card; latest statement wins
+
+- `cardStart` question screen in `OfferBuilder`; `fromCard` in `/contracts/build` loads the full history on the first turn; `RECENCY_RULE` in `contractBuilder.js`. Details enter the spec only after "זה נכון, ולהמשיך כך?". Real-model behaviour (picking 300 over an earlier 400) still to be confirmed by Oran on a real lead.
+
 ## 2026-11-23 — Phase 114 (1.31.0): contract by conversation + custom agreement + contradiction check
 
 - Builder (`contractBuilder.js`, `/contracts/build`): proposes regular / package / custom and asks; asks whether to check WhatsApp + call transcripts and reports findings for approval (history loaded for one turn only); special terms added as clauses; standard clause dropped only after approval (`standardRemove`).

@@ -24,7 +24,11 @@ export const CONTRACT_COPY = {
   placeholder: 'כתוב או הדבק כאן את מה שסוכם… למשל: 100 איש, 395 לאורח לפני מע"מ, מקדמה 30%, ואם נכנס אירוע אחר נוכל לדחות',
 };
 
-export default function OfferBuilder({ lead, template, language = 'he', onDone, onManual, endpoint = 'price-offer/build', copy = OFFER_COPY }) {
+// `cardStart` (contracts, Phase 115): before anything else the assistant asks whether to start from
+// what the lead card already holds (general details, calls, transcripts, WhatsApp). "כן" sends
+// `fromCard: true` and the server reads the card itself; "לא" shows the usual record / write screen.
+export default function OfferBuilder({ lead, template, language = 'he', onDone, onManual, endpoint = 'price-offer/build', copy = OFFER_COPY, cardStart = false }) {
+  const [askCard, setAskCard] = useState(cardStart);
   const [messages, setMessages] = useState([]); // { role: 'user'|'assistant'|'system', content, voice? }
   const [spec, setSpec]         = useState(null);
   const [input, setInput]       = useState('');
@@ -45,7 +49,7 @@ export default function OfferBuilder({ lead, template, language = 'he', onDone, 
 
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages, busy]);
 
-  async function send(preset) {
+  async function send(preset, fromCard = false) {
     const text = (typeof preset === 'string' ? preset : input).trim();
     if (!text || busy) return;
     const history = [...messages, { role: 'user', content: text, voice: typeof preset === 'string' ? false : viaVoice }];
@@ -53,7 +57,7 @@ export default function OfferBuilder({ lead, template, language = 'he', onDone, 
     try {
       const { data } = await api.post(`/leads/${lead.id}/${endpoint}`, {
         messages: history.filter(m => m.role !== 'system').map(({ role, content }) => ({ role, content })),
-        spec, template, language,
+        spec, template, language, ...(fromCard ? { fromCard: true } : {}),
       });
       setSpec(data.spec);
       setQuick(Array.isArray(data.quickReplies) ? data.quickReplies : []);
@@ -73,6 +77,24 @@ export default function OfferBuilder({ lead, template, language = 'he', onDone, 
   const recording = voice.state === 'recording', transcribing = voice.state === 'transcribing';
 
   /* ── Start screen: say what you want ── */
+  if (!started && askCard) {
+    return (
+      <div className="flex flex-col items-center gap-4 py-6" dir="rtl">
+        <p className="font-black text-slate-800 text-lg text-center">להתחיל את {copy.docWord} מהנתונים שבכרטיס הליד?</p>
+        <p className="text-sm text-slate-500 text-center -mt-2">המידע הכללי, סיכומי השיחות, התמלולים והוואטסאפ. אני אראה לך מה מצאתי לפני שמשהו נכנס ל{copy.docWord.replace(/^ה/, '')}, ואם משהו השתנה בדרך אקח את מה שנאמר אחרון.</p>
+        <button type="button" onClick={() => { setAskCard(false); send('תתחיל מהנתונים שבכרטיס הליד', true); }}
+          className="w-full max-w-xs py-4 rounded-2xl font-black text-sm text-white"
+          style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+          כן, להתחיל מהכרטיס
+        </button>
+        <button type="button" onClick={() => setAskCard(false)}
+          className="w-full max-w-xs py-4 rounded-2xl font-black text-sm border-2 border-violet-400 text-violet-700 bg-white">
+          לא, אספר בעצמי
+        </button>
+        <button type="button" onClick={onManual} className="text-sm font-bold text-slate-500 underline">מעדיף למלא לבד, שלב אחרי שלב</button>
+      </div>
+    );
+  }
   if (!started) {
     return (
       <div className="flex flex-col gap-3" dir="rtl">

@@ -1904,6 +1904,32 @@ server PDF HTML rendered for the saved custom contract. NOT run against the real
 the signing page was only built, not opened. Regular and package rendering re-checked on the
 server renderer only.
 
+### Phase 115 — Contract builder: start from the lead card, latest statement wins ✅ Built 2026-11-23 (1.32.0)
+Owner: when starting with the assistant it should ask whether to build the contract from what
+the lead card already holds (general details, calls, transcripts, WhatsApp), and be smart about
+it: the last thing said counts — an earlier call says 400 per person, a later one gives a
+discount to 300 → take 300.
+- `OfferBuilder` (`cardStart`, contracts only): the first screen is the question "להתחיל את
+  החוזה מהנתונים שבכרטיס הליד?" — "כן, להתחיל מהכרטיס" sends `fromCard: true`; "לא, אספר
+  בעצמי" shows the usual record / write screen.
+- `contractBuilder.js`: on a first turn with `fromCard` the server loads the full history
+  (`searchLeadHistory`, oldest first, every source with its date) and the model lists the deal
+  as it stands ("זה מה שעולה מהכרטיס:" + source per item), recommends a template and asks
+  "זה נכון, ולהמשיך כך?". The details enter the spec only after that approval; the WhatsApp /
+  calls question (step 1b) is skipped (`historyCheck: 'yes'`, `historyDone`), and the history
+  is not sent again on later turns.
+- `RECENCY_RULE` (shared by the card start and the step-1b check): when a detail appears more
+  than once the latest statement counts and the earlier value is shown in brackets; a later
+  question or an offer that was not accepted does not supersede; when unclear — ask.
+- Basic details (owner, same day: "בכל מקרה שיקח את המידע מהתיאור — השם, תאריך, שעות"): name, date,
+  hours and guests always go into the spec — from the user's description when stated, else
+  from the card; the description wins on a mismatch and the reply says so. The context now
+  carries `TODAY` (Israel) so a date without a year resolves to its next occurrence.
+Verified with a stubbed model (history reaches the model in time order with dates and the
+rule; approval flow; history loaded once) and the new screen in the real modal in headless
+Chromium. Whether the model actually picks the later figure was NOT tested against the real
+model.
+
 ### Phase 109 — Assistant states the build time with the hour ✅ Built 2026-11-22 (1.28.6)
 Oran: when the assistant says when the version was built it should include the hour. The prompt
 carried the raw UTC ISO build time, and the assistant answered with the date only. `utils/version.js`

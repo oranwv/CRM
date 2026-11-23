@@ -2309,7 +2309,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
 
           {/* Phase 114: build the contract in a conversation */}
           {builderOn && contractType === null && (
-            <OfferBuilder lead={lead} language={language} endpoint="contracts/build" copy={CONTRACT_COPY}
+            <OfferBuilder lead={lead} language={language} endpoint="contracts/build" copy={CONTRACT_COPY} cardStart
               template={{ rows, includes: contractTexts.includes, cancellation: contractTexts.cancellationItems, obligations: contractTexts.obligations, eventDate: fields.eventDate }}
               onDone={applyBuilderSpec} onManual={() => setBuilderOn(false)} />
           )}
