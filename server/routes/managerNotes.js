@@ -106,9 +106,13 @@ router.post('/:leadId/unlock', phoneOnly, async (req, res) => {
   } catch (err) { fail(res, 'unlock', err); }
 });
 
-// Read what is written (the client shows it only while a finger is held on the screen).
+// Read what is written (the client asks for it only while a finger is held on the screen).
+// ?outline=1 → only how much is written, for the blurred view; no text leaves the server.
 router.get('/:leadId/entries', phoneOnly, unlocked, async (req, res) => {
-  try { res.json(await mn.listEntries(pool, leadIdOf(req))); } catch (err) { fail(res, 'read', err); }
+  try {
+    const leadId = leadIdOf(req);
+    res.json(req.query.outline ? await mn.outlineEntries(pool, leadId) : await mn.listEntries(pool, leadId));
+  } catch (err) { fail(res, 'read', err); }
 });
 
 // Write: every save is a new entry, signed with the writer's name and the time.

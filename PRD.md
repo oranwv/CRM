@@ -1803,6 +1803,19 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 124 — הערות מנהל: written text shown blurred, long press reveals ✅ Built 2026-11-23 (1.36.0)
+Oran after trying it on the phone: he did not want saved text to vanish behind a separate
+"החזק לקריאה" button. He wants what is already written to stay in the window **blurred**, only
+the new line being typed readable, and a long press on the blurred text to reveal it.
+- The window now shows, top to bottom: the blurred text, the writing field, שמור / סיים ונעל.
+- The blur is not the real text: `GET /api/manager-notes/:leadId/entries?outline=1` returns only
+  an id and a rough length per entry (from the ciphertext size, nothing is decrypted) and the
+  phone draws blurred filler letters of that size. The real entries are still fetched only while
+  the finger is down (350 ms long press; moving the finger scrolls and hides) and dropped on release.
+- After שמור the outline is reloaded, so the new entry joins the blurred text at once.
+- The separate hold button and the fixed-height reading box were removed.
+Verified: outline query against an in-memory Postgres, client build. Not checked on a phone.
+
 ### Phase 123 — הערות מנהל: "נשמר" confirmation next to the save button ✅ Built 2026-11-23 (1.35.3)
 Oran (screenshot from the phone): "I wrote something, pressed שמור and it disappeared". The save
 worked — the field empties by design so saved text is never on screen — but the "נשמר" line was

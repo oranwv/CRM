@@ -6,13 +6,17 @@ import api from '../api';
 // on top of the lock, all of it deterrence and not a guarantee — a browser cannot stop a screenshot:
 // - phones only (the server refuses a desktop browser too);
 // - while writing you see only what you are typing now, never what is already saved;
-// - saved entries are fetched and shown only while a finger is held on "החזק לקריאה", with the
-//   reader's name and the time printed across them, and are dropped from memory on release;
+// - what is already written is drawn blurred — as filler of the same size, the real text is not
+//   on the phone; a long press on it fetches and shows the real entries, with the reader's name
+//   and the time printed across them, and they are dropped from memory on release;
 // - the window locks itself after 2 minutes without typing, and the moment the screen is left.
 const IDLE_SECONDS = 120;
 const me = () => { try { return JSON.parse(localStorage.getItem('crm_user') || '{}'); } catch { return {}; } };
 const errText = (e, fallback) => e?.response?.data?.error || fallback;
 const fmt = d => new Date(d).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+// Meaningless letters of a given length — what is drawn under the blur instead of the real text.
+const FILLER = 'אבגד הוזח טיכל מנסע פצקר שת לבד כגון ';
+const filler = n => FILLER.repeat(Math.ceil(n / FILLER.length)).slice(0, Math.max(n, 4));
 const noSelect = { WebkitUserSelect: 'none', userSelect: 'none', WebkitTouchCallout: 'none' };
 
 // One PIN field + confirm button, used by "ייצר קוד", "מחק" and the settings card.
@@ -50,6 +54,8 @@ export default function ManagerNotes({ leadId }) {
   const [left, setLeft]       = useState(IDLE_SECONDS);
   const [holding, setHolding] = useState(false);
   const [entries, setEntries] = useState(null);
+  const [outline, setOutline] = useState(null);   // [{ id, length }] — how much is written, never the text
+  const press = useRef(null);                     // long-press timer + where the finger went down
   const tokenRef = useRef(null), textRef = useRef(''), holdRef = useRef(false);
   tokenRef.current = token; textRef.current = text;
 
@@ -64,7 +70,7 @@ export default function ManagerNotes({ leadId }) {
     const t = tokenRef.current, pending = textRef.current.trim();
     if (!t) return;
     if (pending) send(t, pending).catch(() => {});
-    holdRef.current = false;
+    clearTimeout(press.current?.timer); press.current = null; holdRef.current = false;
     setToken(null); setText(''); setEntries(null); setHolding(false); setKey('');
     setNote(message || ''); setError('');
     loadStatus();
@@ -108,21 +114,33 @@ export default function ManagerNotes({ leadId }) {
     const body = text.trim();
     if (!body) return;
     setBusy(true); setError('');
-    try { await send(token, body); setText(''); setNote('נשמר'); setLeft(IDLE_SECONDS); }
+    try { await send(token, body); setText(''); setNote('נשמר'); setLeft(IDLE_SECONDS); loadOutline(token); }
     catch (e) { if (e?.response?.status === 423) lock('החלון ננעל. הקוד כבר לא בתוקף.'); else setError(errText(e, 'השמירה נכשלה')); }
     setBusy(false);
   }
 
-  async function startHold(e) {
-    e.preventDefault();
-    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* older browsers */ }
+  const loadOutline = t => api.get(`/manager-notes/${leadId}/entries?outline=1`, { headers: { 'X-Notes-Unlock': t } })
+    .then(r => setOutline(r.data)).catch(() => setOutline([]));
+  useEffect(() => { if (token) loadOutline(token); else setOutline(null); }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A long press on the blurred text shows it for as long as the finger stays down. Moving the
+  // finger scrolls instead (and hides the text again).
+  function pressStart(e) {
+    clearTimeout(press.current?.timer);
+    press.current = { x: e.clientX, y: e.clientY, timer: setTimeout(startHold, 350) };
+  }
+  function pressMove(e) {
+    const p = press.current;
+    if (p && !holdRef.current && Math.hypot(e.clientX - p.x, e.clientY - p.y) > 10) { clearTimeout(p.timer); press.current = null; }
+  }
+  async function startHold() {
     holdRef.current = true; setHolding(true); setLeft(IDLE_SECONDS);
     try {
-      const { data } = await api.get(`/manager-notes/${leadId}/entries`, { headers: { 'X-Notes-Unlock': token } });
+      const { data } = await api.get(`/manager-notes/${leadId}/entries`, { headers: { 'X-Notes-Unlock': tokenRef.current } });
       if (holdRef.current) setEntries(data);
     } catch (err) { if (err?.response?.status === 423) lock('החלון ננעל. הקוד כבר לא בתוקף.'); }
   }
-  function endHold() { holdRef.current = false; setHolding(false); setEntries(null); }
+  function endHold() { clearTimeout(press.current?.timer); press.current = null; holdRef.current = false; setHolding(false); setEntries(null); }
 
   async function makeCode(pin) {
     setBusy(true); setError('');
@@ -208,8 +226,41 @@ export default function ManagerNotes({ leadId }) {
 
         {token && (
           <>
+            {/* What is already written: blurred. It is filler of the same size, not the real text —
+                the real text is fetched only while a finger rests on it, and dropped on release. */}
+            {(outline === null || outline.length > 0) && (
+              <div onPointerDown={pressStart} onPointerMove={pressMove} onPointerUp={endHold} onPointerCancel={endHold} onPointerLeave={endHold}
+                onContextMenu={e => e.preventDefault()}
+                className="relative rounded-xl border border-slate-200 bg-white p-3 max-h-[40vh] overflow-y-auto"
+                style={{ ...noSelect, touchAction: 'pan-y' }}>
+                {holding && entries ? (
+                  <>
+                    <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-10 text-slate-900 text-sm font-bold leading-10 text-center" aria-hidden="true">
+                      {Array.from({ length: 12 }, (_, i) => <div key={i} className="-rotate-12 whitespace-nowrap">{stamp} · {stamp}</div>)}
+                    </div>
+                    {entries.map(en => (
+                      <div key={en.id} className="relative mb-3 last:mb-0 text-right">
+                        <p className="text-xs font-bold text-violet-700">{en.author} · {fmt(en.created_at)}</p>
+                        <p className="text-base text-slate-800 whitespace-pre-wrap break-words">{en.body ?? '(לא ניתן לקריאה)'}</p>
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <div aria-hidden="true" style={{ filter: 'blur(6px)' }}>
+                    {(outline || [{ id: 0, length: 60 }]).map(o => (
+                      <div key={o.id} className="mb-3 last:mb-0 text-right">
+                        <p className="text-xs font-bold text-violet-700">{filler(14)}</p>
+                        <p className="text-base text-slate-800 break-words">{filler(o.length)}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {outline && outline.length > 0 && <p className="text-xs text-slate-400 text-right">לחיצה ארוכה על הטקסט המטושטש מציגה אותו</p>}
+
             <textarea value={text} onChange={e => { setText(e.target.value); setLeft(IDLE_SECONDS); setNote(''); }}
-              rows={4} placeholder="כתיבה חופשית..." autoComplete="off" autoCorrect="off" spellCheck={false}
+              rows={3} placeholder="כתיבה חופשית..." autoComplete="off" autoCorrect="off" spellCheck={false}
               className="w-full border border-slate-200 rounded-xl px-3 py-2 text-base bg-white resize-none" />
             <div className="flex gap-2">
               <button onClick={save} disabled={busy || !text.trim()}
@@ -217,37 +268,8 @@ export default function ManagerNotes({ leadId }) {
               <button onClick={() => lock('החלון ננעל')}
                 className="flex-1 bg-white border border-slate-300 text-slate-700 font-bold py-2 rounded-xl text-base">🔒 סיים ונעל</button>
             </div>
-            {/* Right under the buttons: after a save the field empties on purpose, so say what happened where the eye is. */}
-            {note === 'נשמר' && (
-              <p className="text-sm font-bold text-emerald-700 text-right">✓ נשמר. מה שנכתב מוסתר, וכדי לראות אותו מחזיקים את הכפתור למטה.</p>
-            )}
+            {note === 'נשמר' && <p className="text-sm font-bold text-emerald-700 text-right">✓ נשמר</p>}
             {error && <p className="text-sm text-red-600 text-right">{error}</p>}
-
-            {/* The reading box keeps its place and size whether or not it is showing, so nothing moves under the finger. */}
-            <div className="relative rounded-xl border border-slate-200 bg-white p-3 h-[40vh] overflow-y-auto" style={noSelect}>
-              {!holding ? (
-                <p className="text-sm text-slate-400 text-center mt-[15vh]">מה שכבר נכתב מוסתר</p>
-              ) : (
-                <>
-                  <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-10 text-slate-900 text-sm font-bold leading-10 text-center" aria-hidden="true">
-                    {Array.from({ length: 12 }, (_, i) => <div key={i} className="-rotate-12 whitespace-nowrap">{stamp} · {stamp}</div>)}
-                  </div>
-                  {!entries ? <p className="text-sm text-slate-400 text-center">טוען...</p>
-                    : !entries.length ? <p className="text-sm text-slate-400 text-center">עוד לא נכתב כאן כלום</p>
-                    : entries.map(en => (
-                      <div key={en.id} className="relative mb-3 last:mb-0 text-right">
-                        <p className="text-xs font-bold text-violet-700">{en.author} · {fmt(en.created_at)}</p>
-                        <p className="text-base text-slate-800 whitespace-pre-wrap break-words">{en.body ?? '(לא ניתן לקריאה)'}</p>
-                      </div>
-                    ))}
-                </>
-              )}
-            </div>
-            <button onPointerDown={startHold} onPointerUp={endHold} onPointerCancel={endHold} onLostPointerCapture={endHold}
-              onContextMenu={e => e.preventDefault()} style={{ ...noSelect, touchAction: 'none' }}
-              className={`w-full font-bold py-3 rounded-xl text-base border ${holding ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-700 border-slate-300'}`}>
-              👁 החזק לקריאת מה שכבר נכתב
-            </button>
           </>
         )}
 

@@ -230,6 +230,13 @@ async function listEntries(pool, leadId) {
     body: key ? decrypt(key, r.body_enc) : null, // null = cannot be read any more
   }));
 }
+// The shape of what is written without any of it: one item per entry with a rough length, worked
+// out from the size of the ciphertext (nothing is decrypted). The phone draws blurred filler of
+// that size, so the real text is on the device only while a finger is held on it.
+async function outlineEntries(pool, leadId) {
+  const { rows } = await pool.query('SELECT id, body_enc FROM manager_note_entries WHERE lead_id = $1 ORDER BY created_at, id', [leadId]);
+  return rows.map(r => ({ id: r.id, length: Math.max(1, Math.round((String(r.body_enc).length - 45) * 0.75 / 1.7)) }));
+}
 async function countEntries(pool, leadId) {
   const { rows } = await pool.query('SELECT COUNT(*)::int AS n FROM manager_note_entries WHERE lead_id = $1', [leadId]);
   return rows[0].n;
@@ -284,6 +291,6 @@ module.exports = {
   hasPin, storePin, checkPin,
   createCode, activeCode, checkCode,
   signUnlock, verifyUnlock,
-  addEntry, listEntries, countEntries,
+  addEntry, listEntries, outlineEntries, countEntries,
   wipeEvent, wipeAll, setKeyStore,
 };

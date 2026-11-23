@@ -6,6 +6,10 @@ updated: 2026-11-23
 
 # Now
 
+## 2026-11-23 — Phase 124 (1.36.0): הערות מנהל — saved text shown blurred, long press reveals
+
+- `?outline=1` returns lengths only; the phone blurs filler text. Long press (350 ms) on the blurred box fetches the real entries. Not checked on a phone — long-press vs scroll behaviour on iOS/Android is the thing to watch.
+
 ## 2026-11-23 — Phase 123 (1.35.3): הערות מנהל — save confirmation moved under the buttons
 
 - Oran thought his text vanished after שמור; the "נשמר" line was off-screen. First real-phone use of the window: unlock + save worked on Android.
