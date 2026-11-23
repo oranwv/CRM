@@ -6,6 +6,10 @@ updated: 2026-11-23
 
 # Now
 
+## 2026-11-23 — Phase 122 (1.35.2): calendar opens the lead card in production mode too
+
+- Removed the production-only "פתח סקיצת פריסה" sheet from `CalendarPage` (owner's choice); sketch is reached from the card.
+
 ## 2026-11-23 — Phase 121 (1.35.1): הערות מנהל shown at every lead stage
 
 - Stage condition around `<ManagerNotes>` in `LeadCard` removed at Oran's request.

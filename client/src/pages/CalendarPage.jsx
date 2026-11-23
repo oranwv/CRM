@@ -2,8 +2,6 @@ import { useState, useEffect } from 'react';
 import api from '../api';
 import LeadCard from '../components/LeadCard';
 import AppCalendar from '../components/AppCalendar';
-import SeatingChart from '../components/SeatingChart';
-import { useAppMode } from '../context/AppModeContext';
 
 const IL = { timeZone: 'Asia/Jerusalem' };
 
@@ -22,8 +20,6 @@ const STAGE_LABELS = {
 export default function CalendarPage() {
   const [leads, setLeads]           = useState([]);
   const [openLeadId, setOpenLeadId] = useState(null);
-  const [showSketch, setShowSketch] = useState(false);
-  const { mode } = useAppMode();
 
   useEffect(() => {
     api.get('/calendar/leads').then(r => setLeads(r.data)).catch(() => {});
@@ -55,41 +51,9 @@ export default function CalendarPage() {
         )}
       </div>
 
-      {openLeadId && mode === 'הפקה' && (() => {
-        const opLead = leads.find(l => l.id === openLeadId);
-        return (
-          <>
-            <div className="fixed inset-0 z-[70] bg-black/50 flex items-end justify-center"
-                 onClick={() => { setOpenLeadId(null); setShowSketch(false); }}>
-              <div className="bg-white rounded-t-2xl w-full max-w-lg p-5 space-y-4" dir="rtl"
-                   onClick={e => e.stopPropagation()}>
-                <div className="flex items-center justify-between">
-                  <button onClick={() => { setOpenLeadId(null); setShowSketch(false); }}
-                    className="text-slate-400 text-2xl leading-none">×</button>
-                  <p className="font-black text-slate-800 text-base">{opLead?.name || 'אירוע'}</p>
-                  <div className="w-6" />
-                </div>
-                {opLead && (
-                  <div className="text-sm text-slate-600 space-y-1">
-                    <p>תאריך: <strong>{formatDate(opLead.event_date)}</strong></p>
-                    {opLead.event_type && <p>סוג: <strong>{opLead.event_type}</strong></p>}
-                  </div>
-                )}
-                <button onClick={() => setShowSketch(true)}
-                  className="w-full py-3 rounded-xl font-bold text-white text-sm"
-                  style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
-                  פתח סקיצת פריסה
-                </button>
-              </div>
-            </div>
-            {showSketch && (
-              <SeatingChart leadId={openLeadId} onClose={() => setShowSketch(false)} />
-            )}
-          </>
-        );
-      })()}
-
-      {openLeadId && mode !== 'הפקה' && (
+      {/* Phase 122 — the lead card opens in every mode. Production mode used to show a small sheet
+          with only "פתח סקיצת פריסה" here; the owner asked for the card itself (23.11). */}
+      {openLeadId && (
         <LeadCard leadId={openLeadId} onClose={() => setOpenLeadId(null)} onUpdated={() =>
           api.get('/calendar/leads').then(r => setLeads(r.data)).catch(() => {})
         } />

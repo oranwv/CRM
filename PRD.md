@@ -1809,6 +1809,12 @@ completed, like ספקים. He asked for it at every stage of the event. The sta
 `<ManagerNotes>` in `LeadCard` was removed; in earlier stages it sits right after the lead details.
 Nothing else changed. Client build only — not checked on a phone.
 
+### Phase 122 — Calendar in production mode opens the lead card ✅ Built 2026-11-23 (1.35.2)
+Owner: "אני לוחץ על פתח ליד מהיומן וזה כותב לי פתח סקיצת פריסה". In הפקה mode `CalendarPage`
+showed a small sheet with only "פתח סקיצת פריסה" instead of the card (old behaviour, undocumented).
+Owner chose to drop the sheet: the calendar now opens `LeadCard` in every mode; the layout sketch
+stays reachable from inside the card. Verified in headless Chromium (phone, both modes).
+
 ### Phase 120 — Call summaries: Oran's v2.0 guidelines, CRM background, editable in settings, cost breakdown ✅ Built 2026-11-18, released 2026-11-23 (1.35.0)
 
 _Built on the Mac on 18/11 as "Phase 107 / 1.29.0" and never pushed; both labels were later used by other work, so it was renumbered when Oran released it on 23/11._
