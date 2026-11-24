@@ -126,3 +126,4 @@
 {"ts": "2026-11-23T19:00:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.35.3: הערות מנהל — save confirmation shown under the save button (Phase 123)"}
 {"ts": "2026-11-23T19:10:00Z", "type": "feature", "tool": "cowork", "slug": "CRM", "summary": "1.36.0: הערות מנהל — written text shown blurred in the window, long press reveals (Phase 124)"}
 {"ts": "2026-11-24T12:40:00Z", "type": "feature", "tool": "cowork", "slug": "CRM", "summary": "1.37.0: new stage contract_signed (auto on digital signature, manual with upload question); process_no_answer moved last and side statuses no longer tick the whole chain"}
+{"ts": "2026-11-24T17:45:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.37.1: overdue-tasks window closes when a task's lead is opened (regression from 1.30.1 portal fix)"}

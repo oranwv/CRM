@@ -6,6 +6,7 @@ import { TaskRow } from './TaskItems';
 // the signed-in user has tasks whose date has passed. Each one has to be dealt with — בוצע /
 // דחייה / לא רלוונטי — and the window closes itself when the list is empty. The × closes it
 // for this visit; the red "משימות באיחור" badge in the header brings it back.
+// Tapping a task's lead opens the lead card and closes this window (it sits above the card).
 export default function OverdueTasksModal({ onClose }) {
   const [items, setItems] = useState(null);
   const [error, setError] = useState(null);
@@ -40,7 +41,7 @@ export default function OverdueTasksModal({ onClose }) {
           {items === null && !error && <p className="text-center text-slate-400 text-sm py-8">טוען...</p>}
           {error && <p className="text-center text-red-500 text-sm py-8">{error}</p>}
           {items && items.length === 0 && <p className="text-center text-emerald-600 font-bold text-sm py-8">הכול טופל ✅</p>}
-          {items?.map(t => <TaskRow key={`${t.kind}-${t.id}`} t={t} onChanged={changed} />)}
+          {items?.map(t => <TaskRow key={`${t.kind}-${t.id}`} t={t} onChanged={changed} onOpenLead={onClose} />)}
         </div>
       </div>
     </div>

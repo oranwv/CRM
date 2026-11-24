@@ -1840,6 +1840,12 @@ system: the click asks "האם העלית את החוזה החתום לקבצי�
 Verified: SQL (constraint, backfill once, signature move, progress_stage) on a local Postgres;
 chips, dialog and ticks in headless Chromium (phone). Not run against production.
 
+### Phase 126 — Overdue-tasks window closes when a task's lead is opened ✅ Built 2026-11-24 (1.37.1)
+Regression from Phase 113 (1.30.1): the window never closed itself on a lead tap — the lead card
+simply opened on top and hid it. Once Phase 113 lifted the window above the card it stayed in
+front of the card. `TaskRow` got an optional `onOpenLead` callback; `OverdueTasksModal` passes its
+`onClose`. The other task lists are unchanged. Verified in headless Chromium (phone).
+
 ### Phase 123 — הערות מנהל: "נשמר" confirmation next to the save button ✅ Built 2026-11-23 (1.35.3)
 Oran (screenshot from the phone): "I wrote something, pressed שמור and it disappeared". The save
 worked — the field empties by design so saved text is never on screen — but the "נשמר" line was

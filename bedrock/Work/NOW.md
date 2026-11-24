@@ -6,6 +6,10 @@ updated: 2026-11-23
 
 # Now
 
+## 2026-11-24 — Phase 126 (1.37.1): overdue window closes on lead tap
+
+- Regression of Phase 113 (window now above the card, so it no longer got hidden by it). `TaskRow.onOpenLead` → modal `onClose`.
+
 ## 2026-11-24 — Phase 125 (1.37.0): stage `contract_signed` (נחתם חוזה) + side statuses
 
 - New stage after `contract_sent`: auto on digital signature, manual click asks if the signed PDF was uploaded (לא → off). One-time backfill via `crm_one_time`.
