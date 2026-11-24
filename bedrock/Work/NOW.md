@@ -6,6 +6,12 @@ updated: 2026-11-23
 
 # Now
 
+## 2026-11-24 — Phase 125 (1.37.0): stage `contract_signed` (נחתם חוזה) + side statuses
+
+- New stage after `contract_sent`: auto on digital signature, manual click asks if the signed PDF was uploaded (לא → off). One-time backfill via `crm_one_time`.
+- `process_no_answer` shown last (before לא סגרו); it and `lost` no longer tick the whole chain — ticks follow `progress_stage` from `lead_stage_history`.
+- Adding a stage touches: DB constraint (index.js + db/migrate.js), `STAGE_TABS`, label maps (8 files), `stageOrder` arrays in LeadCard, chat.js enum.
+
 ## 2026-11-23 — Phase 124 (1.36.0): הערות מנהל — saved text shown blurred, long press reveals
 
 - `?outline=1` returns lengths only; the phone blurs filler text. Long press (350 ms) on the blurred box fetches the real entries. Not checked on a phone — long-press vs scroll behaviour on iOS/Android is the thing to watch.

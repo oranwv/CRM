@@ -70,8 +70,8 @@ const TOOL_DEFS = {
         properties: {
           stage: {
             type: 'string',
-            enum: ['new','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent','deposit','production','completed','lost'],
-            description: 'שלב לסינון — מפה עברית לערך DB: חדש=new, שיחה ראשונית=contacted, נקבעה פגישה=meeting_scheduled, בוצעה פגישה=meeting, הצעת מחיר נשלחה=offer_sent, מו"מ=negotiation, חוזה נשלח=contract_sent, מקדמה=deposit, הפקה=production, הסתיים=completed, לא סגרו=lost'
+            enum: ['new','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent','contract_signed','deposit','production','completed','lost'],
+            description: 'שלב לסינון — מפה עברית לערך DB: חדש=new, נחתם חוזה=contract_signed, שיחה ראשונית=contacted, נקבעה פגישה=meeting_scheduled, בוצעה פגישה=meeting, הצעת מחיר נשלחה=offer_sent, מו"מ=negotiation, חוזה נשלח=contract_sent, מקדמה=deposit, הפקה=production, הסתיים=completed, לא סגרו=lost'
           },
           priority:      { type: 'string', enum: ['דחוף','גבוה','רגיל'], description: 'עדיפות: דחוף, גבוה, רגיל' },
           search:        { type: 'string', description: 'חיפוש לפי שם' },

@@ -27,7 +27,7 @@ function categoryColor(cat) {
 const STAGE_LABELS = {
   new: 'חדש', contacted: 'יצירת קשר', meeting_scheduled: 'פגישה נקבעה',
   meeting: 'בוצעה פגישה', offer_sent: 'הצעת מחיר', negotiation: 'מו"מ',
-  contract_sent: 'חוזה נשלח', deposit: 'מקדמה', production: 'הפקה', completed: 'הסתיים',
+  contract_sent: 'חוזה נשלח', contract_signed: 'נחתם חוזה', deposit: 'מקדמה', production: 'הפקה', completed: 'הסתיים',
 };
 
 const SOURCE_LABELS = {

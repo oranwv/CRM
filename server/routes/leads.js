@@ -20,13 +20,13 @@ function syncCalendar(leadId, type = 'option', userId = null) {
 
 const STAGE_TABS = {
   new:           ['new','new_no_answer'],
-  in_process:    ['contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent','process_no_answer'],
-  active:        ['new','new_no_answer','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent','process_no_answer'],
+  in_process:    ['contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent','contract_signed','process_no_answer'],
+  active:        ['new','new_no_answer','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent','contract_signed','process_no_answer'],
   closed:        ['deposit','production','completed'],
   in_production: ['deposit','production'],
   event_done:    ['completed'],
   lost:          ['lost'],
-  all_active:    ['new','new_no_answer','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent','process_no_answer','deposit','production','completed'],
+  all_active:    ['new','new_no_answer','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent','contract_signed','process_no_answer','deposit','production','completed'],
 };
 
 // GET /api/leads?tab=new|in_process|closed|lost  (tab omitted = search all stages)
@@ -230,7 +230,13 @@ router.get('/:id', async (req, res) => {
               ob.display_name AS remaining_balance_override_name,
               pm.display_name AS production_manager_name,
               sc.signer_id_number, sc.orderer_name,
-              ctrk.contract_views, ctrk.contract_last_viewed_at, ctrk.contract_signed_at
+              ctrk.contract_views, ctrk.contract_last_viewed_at, ctrk.contract_signed_at,
+              -- Phase 125: how far the lead got before it was parked in "בתהליך ונעלם" / "לא סגרו" —
+              -- the card ticks the statuses up to here instead of every status.
+              (SELECT h.from_stage FROM lead_stage_history h
+                WHERE h.lead_id = l.id AND h.to_stage IN ('process_no_answer','lost')
+                  AND h.from_stage NOT IN ('process_no_answer','lost')
+                ORDER BY h.created_at DESC LIMIT 1) AS progress_stage
        FROM leads l
        LEFT JOIN users u  ON u.id  = l.assigned_to
        LEFT JOIN users c  ON c.id  = l.created_by
@@ -344,7 +350,7 @@ router.patch('/:id', async (req, res) => {
         new:'חדש', new_no_answer:'חדש ולא עונה', contacted:'בוצעה שיחה ראשונית',
         meeting_scheduled:'נקבעה פגישה', meeting:'בוצעה פגישה',
         offer_sent:'נשלחה הצעת מחיר', negotiation:'מו"מ',
-        contract_sent:'נשלח חוזה', process_no_answer:'בתהליך ונעלם / לא עונה',
+        contract_sent:'נשלח חוזה', contract_signed: 'נחתם חוזה', process_no_answer:'בתהליך ונעלם / לא עונה',
         deposit:'התקבלה מקדמה', production:'הפקה', completed:'אירוע הסתיים והתקבל תשלום', lost:'אבוד'
       };
       const from = STAGE_NAMES[oldStage]  || oldStage;

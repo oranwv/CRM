@@ -116,7 +116,11 @@ function classify(row) {
   // (contract record → tier 1, price offer → tier 2, otherwise tier 3), never by the stage
   // alone. Until 1.10.1 the stage itself forced tier 1, so leads that never got a contract
   // showed up under "חוזים שנשלחו וטרם נחתמו".
-  if ((hasUnsignedContract && !hasSignedContract) || stage === 'contract_sent') {
+  // 'contract_signed' (נחתם חוזה) may be a PDF signed outside the system — the stage itself says
+  // the contract is signed, whatever the contract records show.
+  if (stage === 'contract_signed') {
+    tier = 2; reason = 'נחתם חוזה — ממתין למקדמה';
+  } else if ((hasUnsignedContract && !hasSignedContract) || stage === 'contract_sent') {
     tier = 1; reason = 'חוזה נשלח וטרם נחתם';
   } else if (hasOffer || stage === 'offer_sent' || stage === 'negotiation') {
     tier = 2; reason = 'נשלחה הצעת מחיר';

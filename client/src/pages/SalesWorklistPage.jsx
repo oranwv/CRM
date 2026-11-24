@@ -25,7 +25,7 @@ const KIND_LABELS = {
 };
 const STAGE_LABELS = {
   new: 'חדש', new_no_answer: 'חדש – לא ענה', contacted: 'נוצר קשר', meeting_scheduled: 'נקבעה פגישה', meeting: 'פגישה',
-  offer_sent: 'נשלחה הצעה', negotiation: 'משא ומתן', contract_sent: 'נשלח חוזה', process_no_answer: 'בתהליך – לא עונה',
+  offer_sent: 'נשלחה הצעה', negotiation: 'משא ומתן', contract_sent: 'נשלח חוזה', contract_signed: 'נחתם חוזה', process_no_answer: 'בתהליך – לא עונה',
 };
 
 const SECTIONS = [

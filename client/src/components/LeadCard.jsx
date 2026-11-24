@@ -35,10 +35,13 @@ const STAGES = [
   { key: 'offer_sent',        label: 'נשלחה הצעת מחיר',    active: 'bg-blue-500 text-white border-blue-500',        past: 'bg-blue-100 text-blue-600 border-blue-200',         future: 'bg-white text-slate-400 border-slate-200 hover:border-blue-300 hover:text-blue-500' },
   { key: 'negotiation',       label: 'מו"מ',               active: 'bg-orange-500 text-white border-orange-500',    past: 'bg-orange-100 text-orange-600 border-orange-200',   future: 'bg-white text-slate-400 border-slate-200 hover:border-orange-300 hover:text-orange-500' },
   { key: 'contract_sent',     label: 'נשלח חוזה',           active: 'bg-indigo-500 text-white border-indigo-500',    past: 'bg-indigo-100 text-indigo-600 border-indigo-200',   future: 'bg-white text-slate-400 border-slate-200 hover:border-indigo-300 hover:text-indigo-500' },
-  { key: 'process_no_answer', label: 'בתהליך ונעלם / לא עונה', active: 'bg-zinc-500 text-white border-zinc-500',    past: 'bg-zinc-100 text-zinc-600 border-zinc-200',         future: 'bg-white text-slate-400 border-slate-200 hover:border-zinc-400 hover:text-zinc-600' },
+  { key: 'contract_signed',   label: 'נחתם חוזה',           active: 'bg-green-600 text-white border-green-600',      past: 'bg-green-100 text-green-700 border-green-200',      future: 'bg-white text-slate-400 border-slate-200 hover:border-indigo-300 hover:text-indigo-500' },
   { key: 'deposit',           label: 'התקבלה מקדמה',       active: 'bg-emerald-500 text-white border-emerald-500',  past: 'bg-emerald-100 text-emerald-600 border-emerald-200', future: 'bg-white text-slate-400 border-slate-200 hover:border-amber-300 hover:text-emerald-500' },
   { key: 'production',        label: 'הפקה',               active: 'bg-teal-500 text-white border-teal-500',        past: 'bg-teal-100 text-teal-600 border-teal-200',         future: 'bg-white text-slate-400 border-slate-200 hover:border-teal-300 hover:text-teal-500' },
   { key: 'completed',         label: 'אירוע הסתיים והתקבל תשלום', active: 'bg-slate-700 text-white border-slate-700', past: 'bg-slate-100 text-slate-600 border-slate-200',      future: 'bg-white text-slate-400 border-slate-200 hover:border-slate-400 hover:text-slate-600' },
+  // Last on purpose (owner, 24.11): "בתהליך ונעלם" sits right before "לא סגרו" and, like it, is a
+  // side status — choosing it does not tick the statuses before it (see `reachedIndex`).
+  { key: 'process_no_answer', label: 'בתהליך ונעלם / לא עונה', active: 'bg-zinc-500 text-white border-zinc-500',    past: 'bg-zinc-100 text-zinc-600 border-zinc-200',         future: 'bg-white text-slate-400 border-slate-200 hover:border-zinc-400 hover:text-zinc-600' },
 ];
 
 const LOST_REASONS = [
@@ -379,10 +382,16 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
 
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [showUncompleteConfirm, setShowUncompleteConfirm] = useState(false);
+  const [showSignedAsk, setShowSignedAsk] = useState(false);
   const fullPaymentRecorded = Number(lead?.full_payment_amount) > 0 && !!lead?.full_payment_date;
 
   async function changeStage(stageKey, extra = {}) {
     if (stageKey === 'lost') { setShowLostModal(true); return; }
+    // "נחתם חוזה" by hand (a PDF signed outside the system): first ask whether the signed
+    // contract was uploaded to the lead's files. כן → the status is set; לא → it is not (and if it
+    // was set, it comes off — back to "נשלח חוזה"). A digital signature sets it on the server.
+    if (stageKey === 'contract_signed' && !extra.confirmed) { setShowSignedAsk(true); return; }
+    delete extra.confirmed;
     // "אירוע הסתיים והתקבל תשלום" (26.10): tapping it while it is the current stage offers to
     // undo (back to הפקה); moving into it requires the full payment (amount + date) — collected
     // in a modal when missing. The server enforces the same rule.
@@ -439,6 +448,16 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
 
   const stageIndex = STAGES.findIndex(s => s.key === lead.stage);
   const isLost     = lead.stage === 'lost';
+  // Phase 125 — "בתהליך ונעלם" and "לא סגרו" are side statuses: while the lead is in one of them
+  // the chain shows ticks only up to the status it had reached before (progress_stage, from the
+  // stage history) — not on every status.
+  const isSideStage  = lead.stage === 'process_no_answer' || isLost;
+  const reachedIndex = isSideStage ? STAGES.findIndex(s => s.key === lead.progress_stage && s.key !== 'process_no_answer') : -1;
+  const chipState = (s, i) => {
+    if (s.key === 'process_no_answer') return lead.stage === s.key ? 'active' : 'future';
+    if (isSideStage) return i <= reachedIndex ? 'past' : 'future';
+    return i === stageIndex ? 'active' : i < stageIndex ? 'past' : 'future';
+  };
   const openTasks  = tasks.filter(t => !t.completed_at).length;
   const allPhones  = [lead.phone, ...contacts.filter(c => c.type === 'phone').map(c => c.value)].filter(Boolean);
   const allEmails  = [lead.email, ...contacts.filter(c => c.type === 'email').map(c => c.value)].filter(Boolean);
@@ -673,10 +692,8 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
                     <span key={s.key} className="inline-flex items-center gap-1">
                       <button onClick={() => !savingStage && changeStage(s.key)}
                         disabled={savingStage}
-                        className={`text-sm px-3 py-1.5 rounded-full font-bold transition border ${
-                          i === stageIndex ? s.active : i < stageIndex ? s.past : s.future
-                        }`}>
-                        {i < stageIndex && '✓ '}{s.label}
+                        className={`text-sm px-3 py-1.5 rounded-full font-bold transition border ${s[chipState(s, i)]}`}>
+                        {chipState(s, i) === 'past' && '✓ '}{s.label}
                       </button>
                       {s.key === 'contract_sent' && <ContractTrackIcons lead={lead} />}
                     </span>
@@ -989,6 +1006,20 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
             await changeStage('completed', { full_payment_amount: amount, full_payment_date: date, full_payment_confirmed: true });
           }} />
       )}
+      {showSignedAsk && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={() => setShowSignedAsk(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-5 w-80 mx-4" dir="rtl" onClick={e => e.stopPropagation()}>
+            <h3 className="font-black text-slate-800 text-lg text-right mb-4">האם העלית את החוזה החתום לקבצים?</h3>
+            <div className="flex gap-2">
+              <button onClick={async () => { setShowSignedAsk(false); await changeStage('contract_signed', { confirmed: true }); }}
+                className="flex-1 bg-green-600 text-white font-bold py-2 rounded-xl text-base">כן</button>
+              <button onClick={async () => { setShowSignedAsk(false); if (lead?.stage === 'contract_signed') await changeStage('contract_sent'); }}
+                className="flex-1 border-2 border-slate-200 text-slate-500 font-bold py-2 rounded-xl text-base">לא</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showUncompleteConfirm && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={() => setShowUncompleteConfirm(false)}>
           <div className="bg-white rounded-2xl shadow-2xl p-5 w-80 mx-4" onClick={e => e.stopPropagation()}>
@@ -2245,7 +2276,7 @@ function ContractModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailLab
           await api.post('/whatsapp/send-file', fd);
         }
       }
-      const stageOrder = ['new','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent','deposit','production','completed'];
+      const stageOrder = ['new','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent','contract_signed','deposit','production','completed'];
       if (stageOrder.indexOf(lead.stage) < stageOrder.indexOf('contract_sent')) {
         await api.patch(`/leads/${lead.id}`, { stage: 'contract_sent' });
       }
@@ -3470,7 +3501,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
       const fd2 = new FormData();
       fd2.append('file', blob, `הצעת מחיר - ${fields.name}.pdf`);
       await api.post(`/leads/${lead.id}/files`, fd2);
-      const stageOrder = ['new','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent','deposit','production','completed'];
+      const stageOrder = ['new','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent','contract_signed','deposit','production','completed'];
       if (stageOrder.indexOf(lead.stage) < stageOrder.indexOf('offer_sent')) {
         await api.patch(`/leads/${lead.id}`, { stage: 'offer_sent' });
       }
@@ -3494,7 +3525,7 @@ function PriceOfferModal({ lead, allEmails, allPhones, allPhoneLabels, allEmailL
       }
       if (driveIds.length) fd.append('driveFileIds', JSON.stringify(driveIds));
       await api.post(`/leads/${lead.id}/email/send`, fd);
-      const stageOrder = ['new','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent','deposit','production','completed'];
+      const stageOrder = ['new','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent','contract_signed','deposit','production','completed'];
       if (stageOrder.indexOf(lead.stage) < stageOrder.indexOf('offer_sent')) {
         await api.patch(`/leads/${lead.id}`, { stage: 'offer_sent' });
       }

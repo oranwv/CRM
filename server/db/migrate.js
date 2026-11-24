@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS leads (
   guest_count VARCHAR(50),
   budget VARCHAR(100),
   source VARCHAR(50) DEFAULT 'manual' CHECK (source IN ('website_popup','website_form','call_event','telekol','vonage','whatsapp','facebook','instagram','manual')),
-  stage VARCHAR(30) DEFAULT 'new' CHECK (stage IN ('new','new_no_answer','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent','process_no_answer','deposit','production','completed','lost')),
+  stage VARCHAR(30) DEFAULT 'new' CHECK (stage IN ('new','new_no_answer','contacted','meeting_scheduled','meeting','offer_sent','negotiation','contract_sent','contract_signed','process_no_answer','deposit','production','completed','lost')),
   lost_reason VARCHAR(100),
   lost_reason_text TEXT,
   priority VARCHAR(20) DEFAULT 'normal' CHECK (priority IN ('normal','hot','urgent','cold')),

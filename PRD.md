@@ -203,7 +203,8 @@ apply to non-FormSubmit senders.
 | 6 | offer_sent | נשלחה הצעת מחיר | Manual |
 | 7 | negotiation | מו"מ | Manual |
 | 8 | contract_sent | נשלח חוזה | Manual |
-| 9 | process_no_answer | בתהליך ונעלם / לא עונה | Manual |
+| 9 | process_no_answer | בתהליך ונעלם / לא עונה | Manual — side status, shown last (Phase 125) |
+| 8b | contract_signed | נחתם חוזה | Auto on digital signature / manual with question (Phase 125) |
 | 10 | deposit | התקבלה מקדמה | Manual |
 | 11 | production | הפקה | Manual |
 | 12 | completed | אירוע הסתיים והתקבל תשלום | Manual |
@@ -1815,6 +1816,29 @@ the new line being typed readable, and a long press on the blurred text to revea
 - After שמור the outline is reloaded, so the new entry joins the blurred text at once.
 - The separate hold button and the fixed-height reading box were removed.
 Verified: outline query against an in-memory Postgres, client build. Not checked on a phone.
+
+### Phase 125 — "נחתם חוזה" stage; "בתהליך ונעלם" as a side status ✅ Built 2026-11-24 (1.37.0)
+Owner (24.11): (1) "בתהליך ונעלם / לא עונה" must sit one before "לא סגרו", and choosing it or
+"לא סגרו" must not tick all the other statuses; (2) a status "נחתם חוזה" after "נשלח חוזה" —
+filled automatically on a digital signature, and clickable by hand for a PDF signed outside the
+system: the click asks "האם העלית את החוזה החתום לקבצים?" כן / לא; "לא" → the status comes off.
+(This replaces the 23.11 idea of an upload button inside the question.)
+- New stage key `contract_signed` (DB check constraint, `STAGE_TABS` in_process/active/all_active,
+  every label map, the three `stageOrder` arrays in LeadCard, the assistant's stage enum).
+- `contracts.js` sign route: stage → `contract_signed` unless already deposit/production/completed;
+  logged in `lead_stage_history` (source `signature`).
+- One-time backfill (marker row in new table `crm_one_time`): `contract_sent` leads that already
+  have a signed contract → `contract_signed`.
+- LeadCard: clicking the chip opens the question; כן → PATCH `contract_signed`; לא → nothing, or
+  back to `contract_sent` if it was set.
+- `process_no_answer` moved to the end of `STAGES`. It and `lost` are side statuses: the chain
+  ticks only up to `progress_stage` (new field on `GET /leads/:id`: the stage the lead left when it
+  was parked, from `lead_stage_history`); with no history nothing is ticked.
+- Advisors: `contract_signed` counts as signed (`dayPlanService`), worklist reason
+  "נחתם חוזה — ממתין למקדמה" (`salesAdvisor`). The 5-day "contract sent" reminder stays on
+  `contract_sent` only.
+Verified: SQL (constraint, backfill once, signature move, progress_stage) on a local Postgres;
+chips, dialog and ticks in headless Chromium (phone). Not run against production.
 
 ### Phase 123 — הערות מנהל: "נשמר" confirmation next to the save button ✅ Built 2026-11-23 (1.35.3)
 Oran (screenshot from the phone): "I wrote something, pressed שמור and it disappeared". The save

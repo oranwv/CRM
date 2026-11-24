@@ -86,7 +86,7 @@ async function loadLeads(user) {
            (SELECT MIN(start_time) FROM meetings mt WHERE mt.lead_id = l.id AND mt.start_time >= NOW()) AS next_meeting_at,
            EXISTS (SELECT 1 FROM lead_interactions i WHERE i.lead_id = l.id AND i.type = 'meeting') AS has_meeting_note,
            (SELECT MAX(created_at) FROM contracts c2 WHERE c2.lead_id = l.id AND c2.status <> 'signed') AS contract_sent_at,
-           EXISTS (SELECT 1 FROM contracts c WHERE c.lead_id = l.id AND c.status = 'signed') AS has_signed_contract,
+           (l.stage = 'contract_signed' OR EXISTS (SELECT 1 FROM contracts c WHERE c.lead_id = l.id AND c.status = 'signed')) AS has_signed_contract,
            -- views of the latest contract sent only: a newer, still unopened contract must not inherit the old one's "opened and did not sign"
            (SELECT MAX(v.viewed_at) FROM contract_views v JOIN contracts c ON c.id = v.contract_id
              WHERE c.status <> 'signed' AND c.id = (SELECT cc.id FROM contracts cc WHERE cc.lead_id = l.id ORDER BY (cc.sent_via IS NOT NULL) DESC, cc.created_at DESC, cc.id DESC LIMIT 1)) AS contract_viewed_at,

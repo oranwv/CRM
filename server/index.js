@@ -308,9 +308,35 @@ migrate(`
   ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_stage_check;
   ALTER TABLE leads ADD CONSTRAINT leads_stage_check
     CHECK (stage IN ('new','new_no_answer','contacted','meeting_scheduled','meeting',
-                     'offer_sent','negotiation','contract_sent','process_no_answer',
+                     'offer_sent','negotiation','contract_sent','contract_signed','process_no_answer',
                      'deposit','production','completed','lost'));
 `).catch(err => console.error('[DB] stage constraint migration error:', err.message));
+
+// Phase 125: stage 'contract_signed' (נחתם חוזה). One-time: leads that were waiting at "נשלח חוזה"
+// with a contract already signed in the system move to the new stage. Guarded by a marker row so
+// a later boot never re-moves a lead someone deliberately put back to "נשלח חוזה".
+migrate(`
+  -- the stage rule is repeated here so this block never depends on the order of the migrate() calls
+  ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_stage_check;
+  ALTER TABLE leads ADD CONSTRAINT leads_stage_check
+    CHECK (stage IN ('new','new_no_answer','contacted','meeting_scheduled','meeting',
+                     'offer_sent','negotiation','contract_sent','contract_signed','process_no_answer',
+                     'deposit','production','completed','lost'));
+  CREATE TABLE IF NOT EXISTS crm_one_time (key TEXT PRIMARY KEY, done_at TIMESTAMPTZ DEFAULT NOW());
+  DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM crm_one_time WHERE key = 'contract_signed_backfill') THEN
+      WITH moved AS (
+        UPDATE leads l SET stage = 'contract_signed'
+         WHERE l.stage = 'contract_sent'
+           AND EXISTS (SELECT 1 FROM contracts c WHERE c.lead_id = l.id AND c.status = 'signed')
+        RETURNING l.id
+      )
+      INSERT INTO lead_stage_history (lead_id, from_stage, to_stage, changed_by, source)
+      SELECT id, 'contract_sent', 'contract_signed', NULL, 'backfill' FROM moved;
+      INSERT INTO crm_one_time (key) VALUES ('contract_signed_backfill');
+    END IF;
+  END $$;
+`).catch(err => console.error('[DB] contract_signed backfill error:', err.message));
 
 // Allow the 'cold' priority (snowflake) alongside hot/urgent.
 migrate(`

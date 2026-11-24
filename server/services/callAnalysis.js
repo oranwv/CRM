@@ -59,7 +59,7 @@ async function transcribe(tmpPath, durationSec, call, recordingUrl) {
 
 const STAGE_LABELS = {
   new: 'חדש', new_no_answer: 'חדש — אין מענה', contacted: 'נוצר קשר', meeting_scheduled: 'נקבעה פגישה', meeting: 'פגישה',
-  offer_sent: 'נשלחה הצעה', negotiation: 'משא ומתן', contract_sent: 'נשלח חוזה', process_no_answer: 'בתהליך — אין מענה',
+  offer_sent: 'נשלחה הצעה', negotiation: 'משא ומתן', contract_sent: 'נשלח חוזה', contract_signed: 'נחתם חוזה', process_no_answer: 'בתהליך — אין מענה',
   deposit: 'מקדמה', production: 'הפקה', completed: 'הסתיים', lost: 'אבוד',
 };
 const MAX_TRANSCRIPT_CHARS = 60000;       // ~45 minutes of talk; longer calls are cut at the end

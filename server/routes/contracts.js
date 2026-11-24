@@ -471,6 +471,22 @@ contractPublicRouter.post('/:token/sign', async (req, res) => {
       [contract.lead_id, `החוזה נחתם על ידי ${ordererName} — חותם: ${signerName} (ת.ז: ${signerIdNumber})`]
     );
 
+    // Phase 125 — a digital signature moves the lead to "נחתם חוזה" by itself (unless it is
+    // already further along: deposit / production / completed).
+    try {
+      const { rows: moved } = await pool.query(
+        `WITH old AS (SELECT id, stage FROM leads WHERE id = $1 FOR UPDATE)
+         UPDATE leads l SET stage = 'contract_signed', updated_at = NOW()
+           FROM old
+          WHERE l.id = old.id AND old.stage NOT IN ('contract_signed','deposit','production','completed')
+         RETURNING old.stage AS from_stage`, [contract.lead_id]);
+      if (moved.length) {
+        await pool.query(
+          `INSERT INTO lead_stage_history (lead_id, from_stage, to_stage, changed_by, source) VALUES ($1, $2, 'contract_signed', NULL, 'signature')`,
+          [contract.lead_id, moved[0].from_stage]);
+      }
+    } catch (e) { console.error('[Contracts] stage → contract_signed failed:', e.message); }
+
     // Auto-fill the payment amounts from the signed contract (incl. VAT) — only where still empty,
     // so an amount someone already typed by hand is never overwritten. Both stay editable in the card.
     try {

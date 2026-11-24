@@ -37,7 +37,7 @@ const STAGE_LABELS = {
   new: 'חדש', new_no_answer: 'חדש ולא עונה', contacted: 'בוצעה שיחה ראשונית',
   meeting_scheduled: 'נקבעה פגישה', meeting: 'בוצעה פגישה',
   offer_sent: 'נשלחה הצעת מחיר', negotiation: 'מו"מ',
-  contract_sent: 'חוזה נשלח', process_no_answer: 'בתהליך ונעלם / לא עונה',
+  contract_sent: 'חוזה נשלח', contract_signed: 'נחתם חוזה', process_no_answer: 'בתהליך ונעלם / לא עונה',
   deposit: 'התקבלה מקדמה', production: 'הפקה', completed: 'הסתיים ושולם', lost: 'לא סגרו',
 };
 const stageLabel = k => STAGE_LABELS[k] || k || '—';
