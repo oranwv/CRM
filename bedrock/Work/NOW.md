@@ -6,6 +6,11 @@ updated: 2026-11-26
 
 # Now
 
+## 2026-11-25 — Phase 132 (1.38.5): call bar half off-screen after a drag
+
+- Tailwind 4 `-translate-x-1/2` uses the `translate` property; dragged style cleared only `transform` → fixed in `useDraggableBar` (`translate: 'none'`). Verified with the built CSS in Chromium.
+- OPEN (serious, Oran): "dialed Jess (lead ג'ס חתונה), Shiri's phone rang". Bar showed Jess. No mismatch path found in code; need: who Shiri is (other lead / contact on the same lead / employee), which call button, and `calls.to_number` of that call (≈25/11 19:40).
+
 ## 2026-11-26 — Phase 131 (1.38.4): "הכן עם מה שיש" builds only from the conversation
 
 - `finalize: true` on `/contracts/build` and `/price-offer/build` → `finalizeSpec` (conversation + spec only, no card/history) strips what the user did not state or approve. Contract builder context lost the background notes/call summaries. Unsettled per-guest price = 0. Real-model behaviour to be confirmed by Oran.

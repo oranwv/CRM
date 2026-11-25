@@ -80,7 +80,9 @@ function useDraggableBar() {
 
   const px = pos && ref.current ? toPx(pos, ref.current) : null;
   const style = px
-    ? { left: px.left, top: px.top, transform: 'none' }
+    // Tailwind 4 centres with the `translate` property (-translate-x-1/2), not `transform` — both
+    // must be cleared, or a dragged bar sits half its width off the left edge (Oran, 2026-11-25).
+    ? { left: px.left, top: px.top, transform: 'none', translate: 'none' }
     : { top: 60 };
   return { ref, style, onDragStart, dragged: !!pos };
 }

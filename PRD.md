@@ -1804,6 +1804,22 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 132 — Call bar half off-screen after a drag (phones) ✅ Built 2026-11-25 (1.38.5)
+
+Oran's screenshot (25/11): the dialer-call bar sat with its right edge at mid-screen, the rest
+off the left edge, and could not be moved.
+- Cause: the bar is centred with Tailwind's `left-1/2 -translate-x-1/2`. Tailwind 4 implements
+  that with the CSS `translate` property; the dragged-position style cleared only `transform`.
+  So once a position was saved (any drag), `left` was set in px and the −50% translate still
+  applied → the bar shifted left by half its width. Reproduced with the built CSS in Chromium
+  (400 px viewport: left −168 / right 200; with the fix: 16 / 384).
+- Fix: `useDraggableBar` style also sets `translate: 'none'` (`CallBar.jsx`). Applies to all
+  three bars that share the hook.
+- Open, same report: "dialed Jess, Shiri's phone rang". No code path found that sends a number
+  that differs from the lead whose name the bar shows (CRM link → app → `/twiml/outbound` all
+  pass `to` + name together); waiting for Oran's answers (who Shiri is, which button) before
+  changing anything.
+
 ### Phase 124 — הערות מנהל: written text shown blurred, long press reveals ✅ Built 2026-11-23 (1.36.0)
 Oran after trying it on the phone: he did not want saved text to vanish behind a separate
 "החזק לקריאה" button. He wants what is already written to stay in the window **blurred**, only
