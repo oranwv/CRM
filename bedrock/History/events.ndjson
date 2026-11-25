@@ -131,3 +131,4 @@
 {"ts": "2026-11-25T18:10:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.38.1: leads search folds apostrophe/quote look-alike characters (ג'ס vs ג׳ס)"}
 {"ts": "2026-11-25T18:25:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.38.2: calendar day view — short meetings showed only hours (title flex-shrunk to zero); now title only"}
 {"ts": "2026-11-25T19:20:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.38.3: file viewer closed the lead card underneath (own history handling vs useBackGuard); viewer + all card windows now on the guard stack"}
+{"ts": "2026-11-26T19:30:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.38.4: builders\u2019 \"prepare with what there is\" keeps only what was settled in the conversation; contract builder no longer gets background notes/call summaries; unsettled price stays empty (Phase 131)"}

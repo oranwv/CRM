@@ -54,9 +54,10 @@ export function applyContractSpec({ fields, rows, texts }, spec, en = null) {
     f.packageExtraGuestPrice = spec.extraGuestPrice ? String(spec.extraGuestPrice) : '';
     f.packageTotalIncl = incl; f.packageExtraIncl = incl;
   } else {
-    f.guests = spec.guests ? String(spec.guests) : '';
+    f.guests = spec.guests ? String(spec.guests) : (fields.guests ? String(fields.guests) : '');
     f.extraGuestPrice = spec.extraGuestPrice ? String(net(spec.extraGuestPrice)) : '';
-    r = r.map(row => (row.id === 1 ? { ...row, qty: spec.guests || 0, price: spec.perGuestPrice ? net(spec.perGuestPrice) : row.price } : row));
+    // a price that was not settled stays 0 — never the template's placeholder; guests fall back to what the card gave
+    r = r.map(row => (row.id === 1 ? { ...row, qty: spec.guests || Number(fields.guests) || 0, price: spec.perGuestPrice ? net(spec.perGuestPrice) : 0 } : row));
     // service rows are in the contract only when the user said so
     const decided = new Map((spec.serviceRows || []).map(e => [e.id, e]));
     r = r.filter(row => row.id === 1 || decided.get(row.id)?.include === true)

@@ -281,8 +281,8 @@ contractLeadRouter.get('/latest', async (req, res) => {
 contractLeadRouter.post('/build', async (req, res) => {
   try {
     const { runContractBuilder } = require('../services/contractBuilder');
-    const { messages, spec, template, language, fromCard } = req.body || {};
-    res.json(await runContractBuilder({ leadId: req.params.id, messages, prevSpec: spec || null, template, language, fromCard: fromCard === true }));
+    const { messages, spec, template, language, fromCard, finalize } = req.body || {};
+    res.json(await runContractBuilder({ leadId: req.params.id, messages, prevSpec: spec || null, template, language, fromCard: fromCard === true, finalize: finalize === true }));
   } catch (err) {
     console.error('[Contracts] build error:', err.response?.data || err.message);
     res.status(500).json({ error: 'העוזר לא זמין כרגע, נסה שוב' });

@@ -209,8 +209,8 @@ ${!withVat ? `<p style="font-size:9pt;font-weight:bold;">${esc(L.noVat)}</p>` : 
 router.post('/build', async (req, res) => {
   try {
     const { runOfferBuilder } = require('../services/offerBuilder');
-    const { messages, spec, template, language, fromCard } = req.body || {};
-    res.json(await runOfferBuilder({ leadId: req.params.id, messages, prevSpec: spec || null, template, language, fromCard: fromCard === true }));
+    const { messages, spec, template, language, fromCard, finalize } = req.body || {};
+    res.json(await runOfferBuilder({ leadId: req.params.id, messages, prevSpec: spec || null, template, language, fromCard: fromCard === true, finalize: finalize === true }));
   } catch (err) {
     console.error('[PriceOffer] build error:', err.response?.data || err.message);
     res.status(500).json({ error: 'העוזר לא זמין כרגע, נסה שוב' });

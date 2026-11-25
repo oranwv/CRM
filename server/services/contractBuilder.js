@@ -14,7 +14,7 @@
 // spec (client/src/utils/contractSpec.js) and opens the normal preview.
 const { openai } = require('./openaiClient');
 const { MODEL } = require('./contractAssistant');
-const { loadLeadContext, RECENCY_RULE } = require('./offerBuilder');
+const { loadLeadContext, RECENCY_RULE, finalizeSpec } = require('./offerBuilder');
 const { searchLeadHistory } = require('./leadHistorySearch');
 
 const isStr = (v) => typeof v === 'string';
@@ -70,7 +70,7 @@ Special terms (anything beyond the template — "אם נכנס אירוע אחר
 If it is unclear where a term belongs, or what exactly it means in money or dates, ask. Do not add terms the user did not ask for.
 Clauses that do not hold together — be sharp about this. Before you say the contract is ready, check the special terms against each other and against the TEMPLATE cancellation and obligations clauses. If two provisions cannot both hold (e.g. the Vendor may postpone the event freely, while a standard clause charges the Orderer for any change of date; cancellation fees that are a percent of "the total sum" when the Orderer pays no sum; a promise of a fixed date next to a right to move it), say it plainly in your reply — which two, and why — and PROPOSE a way out: drop one of them (name it), or reword the added term. Ask the user to decide. Never settle it yourself. Only when the user agrees to drop a standard clause, put its exact text in standardRemove; otherwise the standard clauses are never changed or removed. The first cancellation clause (the one with the free-cancellation date) cannot be removed.
 The basic details — the Orderer's name, the event date, the start and end hours, the number of guests — are ALWAYS taken into the spec (clientName, eventDate, startTime, endTime, guests), in every flow and without asking: from the user's description when it states them (a pasted summary that says "מועד: שבת 5.12, 19:00–00:00" gives the date and both hours), otherwise from the LEAD CARD. When the description and the card disagree, the description wins — and say so in one short line of your reply ("בכרטיס רשום 6.12, לקחתי 5.12 מהתיאור") so the user can correct it. A date without a year means its next occurrence after TODAY. An end hour after midnight ("עד 00:00", "עד 2 בלילה") is still the end hour of that event. Never leave one of these null when the description or the card has it.
-The LEAD CARD and LEAD HISTORY are background. Something from the history is NOT agreed until the user says so here — ask about it instead of putting it in the spec.
+The LEAD CARD gives only the basic details. Anything else about this lead (notes, calls, WhatsApp) is known to you only when a LEAD FULL HISTORY block is given, and enters the spec only after the user approved it in this conversation. Something from the history is NOT agreed until the user says so here — ask about it instead of putting it in the spec.
 
 The spec (always return the FULL current spec; null = not known yet):
 {
@@ -171,7 +171,23 @@ function missingOf(spec, tplRows = [], hasEventDate = true) {
 
 // messages: [{ role, content }], prevSpec: last normalized spec, template: { rows, includes, eventDate }
 // fromCard: true on the first turn = "start from what the lead card already holds" (Phase 115)
-async function runContractBuilder({ leadId, messages, prevSpec, template, language, fromCard }) {
+async function runContractBuilder({ leadId, messages, prevSpec, template, language, fromCard, finalize }) {
+  if (finalize === true) {
+    // "הכן את החוזה עם מה שיש" (Phase 131): only what was settled in the conversation — the model
+    // gets the conversation and the spec, no lead history, and removes what the user never approved.
+    const tplF = {
+      rows: (Array.isArray(template?.rows) ? template.rows : []).slice(0, 30),
+      includes: (Array.isArray(template?.includes) ? template.includes : []).filter(isStr).slice(0, 40),
+      cancellation: (Array.isArray(template?.cancellation) ? template.cancellation : []).filter(isStr).slice(0, 30),
+      obligations: (Array.isArray(template?.obligations) ? template.obligations : []).filter(isStr).slice(0, 40),
+    };
+    const p = prevSpec || {};
+    const raw = await finalizeSpec({ feature: 'contract-builder', messages, prevSpec, model: MODEL });
+    // the user chose to go on: the proposed template stands even if "להמשיך כך?" was never answered
+    const spec = normalizeSpec({ ...(raw || p), contractType: (raw && raw.contractType) || p.contractType, typeConfirmed: true }, tplF,
+      { mayConfirm: true, historyCheck: p.historyCheck === 'yes' || p.historyCheck === 'no' ? p.historyCheck : 'no', historyDone: !!p.historyDone });
+    return { reply: '', spec, missing: missingOf(spec, tplF.rows, true), ready: true, quickReplies: [] };
+  }
   const history = (Array.isArray(messages) ? messages : [])
     .filter(m => m && (m.role === 'user' || m.role === 'assistant') && isStr(m.content) && m.content.trim())
     .slice(-20)
@@ -188,8 +204,9 @@ async function runContractBuilder({ leadId, messages, prevSpec, template, langua
   const hasEventDate = !!(template?.eventDate || lead?.card?.eventDate);
   const context = [
     `TODAY: ${new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' })} (YYYY-MM-DD, Israel)`,
-    `LEAD CARD: ${JSON.stringify(lead?.card || {})}`,
-    `LEAD HISTORY (background only, newest first — short notes; this is NOT the WhatsApp / transcripts check):\n${(lead?.history || []).join('\n') || '(none)'}`,
+    // Only the card's basic fields. Notes, call summaries and messages reach the model solely through
+    // the explicit checks (step 1b / start from the card), where they are reported for approval (Phase 131).
+    `LEAD CARD: ${JSON.stringify((({ notes, budget, ...basic }) => basic)(lead?.card || {}))}`,
     `TEMPLATE rows (regular contract; row id 1 is the per-guest row and its default price is a placeholder, never an agreed price; the other rows are the optional service rows with their usual prices before VAT): ${JSON.stringify(tpl.rows)}`,
     `TEMPLATE includes ("המחיר כולל"): ${JSON.stringify(tpl.includes)}`,
     `TEMPLATE cancellation (section 5, standard clauses): ${JSON.stringify(tpl.cancellation)}`,

@@ -1884,6 +1884,29 @@ pushState / history.back().
 Verified in headless Chromium (phone): file ×, file back, repeated open/close, contract editor,
 add-task, lost window; then one back closes the card.
 
+### Phase 131 — "הכן עם מה שיש": only what was settled in the conversation ✅ Built 2026-11-26 (1.38.4)
+Oran (contract builder, phone): pressing "הכן את החוזה עם מה שיש" should continue with what was
+agreed in the conversation so far and not take something from the card or the history — a detail
+from the history he had not approved got into a contract. His choice for the basic details: name,
+phone, email, date, hours and guests keep coming from the lead card, as in the manual wizard.
+- The button used to hand over the last spec as it was. It now calls the build endpoint with
+  `finalize: true` (`finalizeSpec` in `offerBuilder.js`, shared by both builders): the model gets
+  only the conversation and the spec so far — no card, no history — and returns the spec with
+  every value the user neither stated nor approved removed (basic details stay; unanswered
+  questions stay unanswered; clause wording is kept). A template that was proposed but never
+  confirmed stands, since the user chose to go on. If the call fails the user sees an error and
+  stays in the conversation.
+- Contract builder context: the always-present "LEAD HISTORY" block (recent notes and call
+  summaries) and the card's free-text notes / budget were removed — the likely way an unapproved
+  detail reached the spec. History reaches the model only through step 1b or the card start,
+  where it is reported for approval. (The price-offer builder keeps its background notes, per the
+  earlier decision that it may read them and must ask before using.)
+- `contractSpec.js` / `offerSpec.js`: a per-guest price that was not settled is 0, not the
+  template's placeholder (395); guests fall back to the card's number.
+Verified with a stubbed model (context no longer carries notes/summaries; finalize sees only the
+conversation + spec; cleaned spec applied with empty price). Whether the real model removes
+exactly the unapproved items was NOT tested against the real model.
+
 ### Phase 123 — הערות מנהל: "נשמר" confirmation next to the save button ✅ Built 2026-11-23 (1.35.3)
 Oran (screenshot from the phone): "I wrote something, pressed שמור and it disappeared". The save
 worked — the field empties by design so saved text is never on screen — but the "נשמר" line was

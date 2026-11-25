@@ -1,10 +1,14 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-11-23
+updated: 2026-11-26
 ---
 
 # Now
+
+## 2026-11-26 — Phase 131 (1.38.4): "הכן עם מה שיש" builds only from the conversation
+
+- `finalize: true` on `/contracts/build` and `/price-offer/build` → `finalizeSpec` (conversation + spec only, no card/history) strips what the user did not state or approve. Contract builder context lost the background notes/call summaries. Unsettled per-guest price = 0. Real-model behaviour to be confirmed by Oran.
 
 ## 2026-11-25 — Phase 130 (1.38.3): closing a file/window inside a lead card no longer closes the card
 

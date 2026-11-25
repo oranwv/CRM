@@ -69,6 +69,24 @@ export default function OfferBuilder({ lead, template, language = 'he', onDone, 
     setBusy(false);
   }
 
+  // "הכן עם מה שיש" (Phase 131): the server goes over the conversation once more and returns the
+  // spec with only what was settled in it — nothing the user did not say or approve.
+  async function finishNow() {
+    if (!spec || busy) return;
+    setBusy(true); setQuick([]);
+    try {
+      const { data } = await api.post(`/leads/${lead.id}/${endpoint}`, {
+        messages: messages.filter(m => m.role !== 'system').map(({ role, content }) => ({ role, content })),
+        spec, template, language, finalize: true,
+      });
+      setSpec(data.spec);
+      onDone(data.spec);
+    } catch (e) {
+      setMessages(m => [...m, { role: 'system', content: e.response?.data?.error || 'לא הצלחתי להכין כרגע, נסה שוב' }]);
+    }
+    setBusy(false);
+  }
+
   const known = [lead.name, lead.event_name && lead.event_name !== lead.name ? lead.event_name : null, lead.event_type,
     lead.event_date_text || (lead.event_date ? String(lead.event_date).slice(0, 10).split('-').reverse().join('.') : null),
     lead.event_time ? `${lead.event_time}${lead.event_end_time ? '–' + lead.event_end_time : ''}` : null,
@@ -178,7 +196,7 @@ export default function OfferBuilder({ lead, template, language = 'he', onDone, 
         </button>
       </div>
       {voice.error && <p className="text-xs font-bold text-red-500">{voice.error}</p>}
-      <button type="button" onClick={() => spec && onDone(spec)} disabled={busy || !spec}
+      <button type="button" onClick={finishNow} disabled={busy || !spec}
         className="w-full py-2.5 rounded-xl font-black text-white disabled:opacity-40"
         style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
         {copy.done}

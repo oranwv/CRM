@@ -24,6 +24,34 @@ const strList = (v, max = 12) => (Array.isArray(v) ? v.filter(isStr).map(x => x.
 // How to read a lead's history when the same detail was said more than once (shared with the contract builder).
 const RECENCY_RULE = `The sources are in time order, oldest first, and each header carries its date. When the same detail (a price, the number of guests, a date, an hour, a condition) appears more than once, the LATEST statement is the one that counts — an earlier figure that was later changed (a discount, an update, a correction) is superseded: use the later one, and mention the earlier one only in brackets so the user sees the change (e.g. "מחיר לאורח: 300 ש"ח (שיחה, 14.11; קודם דובר על 400)"). A later message that only asks about a change, or an offer the other side did not accept, does not supersede what was agreed before it. If you cannot tell which of two statements is the final one, say so and ask.`;
 
+// "הכן עם מה שיש" (Phase 131): the user stops the questions and wants the document built from
+// what was settled in the conversation — and from nothing else. The model gets the conversation
+// and the spec so far WITHOUT the lead history, and returns the spec with everything the user
+// did not state or approve removed. Shared with the contract builder.
+const FINALIZE_SYSTEM = `You are closing a conversation in which venue staff built a document (a price offer or an event contract) with an assistant, in Hebrew. The user pressed "prepare it with what there is". You are given the conversation and SPEC SO FAR (the structured data collected so far). Return the final spec.
+
+The rule: the final spec contains ONLY what was settled in this conversation.
+- KEEP a value when the user stated it in the conversation, or the assistant stated or proposed it and the user approved it afterwards ("כן", "נכון", "מאשר", "להכניס", choosing it from a list...). An approval covers exactly what it answered; if the user approved only some items ("רק 1 ו-3"), keep only those.
+- REMOVE a value (set it to null, or drop it from its list) when it appears in SPEC SO FAR but the user never stated it and never approved it — for example something the assistant found in the lead's history, WhatsApp or call transcripts and listed, that the user did not confirm; or something the assistant assumed.
+- The basic details — the customer's name, the event date, the start and end hours, the number of guests — stay exactly as they are in SPEC SO FAR (they may come from the lead card).
+- A question the user did not answer stays unanswered: do not fill it with a default, a usual value or a guess. Never invent a price.
+- Do not add anything that is not in SPEC SO FAR, unless the user stated it in the conversation and it is plainly missing from the spec.
+- Keep the exact wording of every clause and text you keep. Keep the same JSON shape and field names as SPEC SO FAR.
+
+Answer with ONE JSON object and nothing else: {"spec": { ... }}`;
+async function finalizeSpec({ feature, messages, prevSpec, model }) {
+  const conv = (Array.isArray(messages) ? messages : [])
+    .filter(m => m && (m.role === 'user' || m.role === 'assistant') && isStr(m.content) && m.content.trim())
+    .slice(-30).map(m => ({ role: m.role, content: m.content.slice(0, 8000) }));
+  const res = await openai(feature).chat.completions.create({
+    model, temperature: 0, response_format: { type: 'json_object' },
+    messages: [{ role: 'system', content: FINALIZE_SYSTEM }, ...conv, { role: 'system', content: `SPEC SO FAR: ${JSON.stringify(prevSpec || {})}\n\nReturn the final spec now.` }],
+  });
+  let out = {};
+  try { out = JSON.parse(res.choices?.[0]?.message?.content || '{}'); } catch { out = {}; }
+  return out && typeof out.spec === 'object' && out.spec ? out.spec : null;
+}
+
 // What the assistant may know about the lead: the card fields + recent notes / call summaries (capped).
 async function loadLeadContext(leadId) {
   const { rows } = await pool.query(
@@ -154,7 +182,14 @@ function missingOf(spec, tplRows = []) {
 
 // messages: [{ role: 'user'|'assistant', content }], prevSpec: last normalized spec, template: { rows, includes }
 // fromCard: true on the first turn = "start from what the lead card already holds" (Phase 117)
-async function runOfferBuilder({ leadId, messages, prevSpec, template, language, fromCard }) {
+async function runOfferBuilder({ leadId, messages, prevSpec, template, language, fromCard, finalize }) {
+  if (finalize === true) {
+    // "הכן את ההצעה עם מה שיש": only what was settled in the conversation (see FINALIZE_SYSTEM)
+    const tplF = { rows: (Array.isArray(template?.rows) ? template.rows : []).slice(0, 30), includes: (Array.isArray(template?.includes) ? template.includes : []).filter(isStr).slice(0, 40) };
+    const raw = await finalizeSpec({ feature: 'offer-builder', messages, prevSpec, model: MODEL });
+    const spec = normalizeSpec(raw || prevSpec, tplF);
+    return { reply: '', spec, missing: missingOf(spec, tplF.rows), ready: true, quickReplies: [] };
+  }
   const history = (Array.isArray(messages) ? messages : [])
     .filter(m => m && (m.role === 'user' || m.role === 'assistant') && isStr(m.content) && m.content.trim())
     .slice(-20)
@@ -228,4 +263,4 @@ Now, in one reply:
   return { reply, spec: cardStart ? normalizeSpec({}, tpl) : spec, missing, ready, lead: lead?.card || null, quickReplies: cardStart ? ['כן, זה נכון'] : [] };
 }
 
-module.exports = { runOfferBuilder, normalizeSpec, missingOf, loadLeadContext, RECENCY_RULE };
+module.exports = { runOfferBuilder, normalizeSpec, missingOf, loadLeadContext, RECENCY_RULE, finalizeSpec };

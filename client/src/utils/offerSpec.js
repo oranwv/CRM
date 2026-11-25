@@ -51,9 +51,10 @@ export function applyOfferSpec({ fields, rows, texts }, spec, en = null) {
       : `כל אורח נוסף מעל ${spec.guests} אורחים בתוספת של - ${amt(spec.extraGuestPrice)}`);
     t.packageCostLines = [...lines, ...(spec.extraCostLines || [])];
   } else {
-    f.guests = spec.guests ? String(spec.guests) : '';
+    f.guests = spec.guests ? String(spec.guests) : (fields.guests ? String(fields.guests) : '');
     f.extraGuestPrice = spec.extraGuestPrice ? String(net(spec.extraGuestPrice)) : '';
-    r = r.map(row => (row.id === 1 ? { ...row, qty: spec.guests || 0, price: spec.perGuestPrice ? net(spec.perGuestPrice) : row.price } : row));
+    // a price that was not settled stays 0 — never the template's placeholder; guests fall back to what the card gave
+    r = r.map(row => (row.id === 1 ? { ...row, qty: spec.guests || Number(fields.guests) || 0, price: spec.perGuestPrice ? net(spec.perGuestPrice) : 0 } : row));
     // Service rows (waiters, bartenders, …) are in the offer only when the user said so:
     // every template row other than the per-guest one is dropped unless serviceRows includes it.
     const decided = new Map((spec.serviceRows || []).map(e => [e.id, e]));
