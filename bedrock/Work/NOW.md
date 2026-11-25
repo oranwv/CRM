@@ -6,6 +6,10 @@ updated: 2026-11-23
 
 # Now
 
+## 2026-11-25 — Phase 129 (1.38.2): calendar day view keeps the name of short meetings
+
+- `DayView`: title `shrink-0`; events under 45 min show the title only (the hours line does not fit a 32px box).
+
 ## 2026-11-25 — Phase 128 (1.38.1): leads search folds apostrophe/quote look-alikes
 
 - `TRANSLATE` on the text columns + JS fold of the term. Cause of the owner's "ג'ס" miss is assumed, not confirmed on production data. The AI assistant's own name searches (chat.js) still use a plain ILIKE.

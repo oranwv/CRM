@@ -129,3 +129,4 @@
 {"ts": "2026-11-24T17:45:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.37.1: overdue-tasks window closes when a task's lead is opened (regression from 1.30.1 portal fix)"}
 {"ts": "2026-11-25T13:55:00Z", "type": "feature", "tool": "cowork", "slug": "CRM", "summary": "1.38.0: profits list includes leads manually marked contract_signed (close date = stage change)"}
 {"ts": "2026-11-25T18:10:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.38.1: leads search folds apostrophe/quote look-alike characters (ג'ס vs ג׳ס)"}
+{"ts": "2026-11-25T18:25:00Z", "type": "fix", "tool": "cowork", "slug": "CRM", "summary": "1.38.2: calendar day view — short meetings showed only hours (title flex-shrunk to zero); now title only"}

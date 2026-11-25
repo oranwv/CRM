@@ -117,6 +117,14 @@ function DayView({ date, events, onClose, onSelectEvent }) {
     scrollRef.current.scrollTop = (scrollMins / 60) * HOUR_HEIGHT;
   }, [date.toDateString()]);
 
+  // Under 45 minutes the box (1px ≈ 1 minute) has room for one line of text only.
+  function isShort(ev) {
+    const startMins = toJerusalemMins(ev.start_time);
+    let   endMins   = toJerusalemMins(ev.end_time);
+    if (endMins <= startMins) endMins += 24 * 60;
+    return endMins - startMins < 45;
+  }
+
   function getEventStyle(ev) {
     const startMins = toJerusalemMins(ev.start_time);
     let   endMins   = toJerusalemMins(ev.end_time);
@@ -220,13 +228,18 @@ function DayView({ date, events, onClose, onSelectEvent }) {
                 onClick={() => onSelectEvent(ev)}
                 className={`text-right overflow-hidden cursor-pointer hover:opacity-90 transition rounded-lg ${getColor(ev.color_id, ev.source)}`}
               >
+                {/* The name never shrinks (shrink-0): in a short box (a 30-minute meeting is 32px high)
+                    the two lines do not fit, and the name line used to be squeezed to nothing while
+                    the hours stayed. A short box now shows the name only — like Google Calendar. */}
                 <div className="px-2 py-1 h-full flex flex-col justify-start gap-0.5">
-                  <p className="text-xs font-bold text-white truncate leading-tight">
+                  <p className="shrink-0 text-xs font-bold text-white truncate leading-tight">
                     {ev.title || '(ללא שם)'}
                   </p>
-                  <p className="text-xs text-white/80 leading-tight">
-                    {formatTime(ev.start_time)} – {formatTime(ev.end_time)}
-                  </p>
+                  {!isShort(ev) && (
+                    <p className="text-xs text-white/80 leading-tight">
+                      {formatTime(ev.start_time)} – {formatTime(ev.end_time)}
+                    </p>
+                  )}
                 </div>
               </button>
             ))}

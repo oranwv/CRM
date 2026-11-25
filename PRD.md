@@ -1862,6 +1862,14 @@ event_type, notes, contact label) through `TRANSLATE(col, …)` to the plain ' a
 and amount matching unchanged. Verified on a local Postgres with the route's own constants.
 Assumed cause — her record in production was not inspected.
 
+### Phase 129 — Calendar day view: short meetings keep their name ✅ Built 2026-11-25 (1.38.2)
+Owner's screenshots: a 14:40–15:10 meeting showed only its hours in the CRM day view while Google
+showed the full title. Cause: `DayView` boxes are 1px per minute; in a 32px box the two text lines
+do not fit, and the title line (`truncate` → `overflow:hidden` → may shrink to zero in the flex
+column) was squeezed away while the hours line kept its height. Fix in `AppCalendar.jsx`: the
+title is `shrink-0`, and events shorter than 45 minutes show the title only. Verified in headless
+Chromium with the same three events.
+
 ### Phase 123 — הערות מנהל: "נשמר" confirmation next to the save button ✅ Built 2026-11-23 (1.35.3)
 Oran (screenshot from the phone): "I wrote something, pressed שמור and it disappeared". The save
 worked — the field empties by design so saved text is never on screen — but the "נשמר" line was
