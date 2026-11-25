@@ -383,6 +383,17 @@ export default function LeadCard({ leadId, onClose, onUpdated = () => {} }) {
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [showUncompleteConfirm, setShowUncompleteConfirm] = useState(false);
   const [showSignedAsk, setShowSignedAsk] = useState(false);
+  // Phase 130 — every window the card opens is on the back-guard stack, so the phone's "back"
+  // closes that window and stays in the card (before, "back" on these closed the whole card).
+  useBackGuard(showMeetingModal,      () => setShowMeetingModal(false));
+  useBackGuard(showLostModal,         () => setShowLostModal(false));
+  useBackGuard(showCompleteModal,     () => setShowCompleteModal(false));
+  useBackGuard(showSignedAsk,         () => setShowSignedAsk(false));
+  useBackGuard(showUncompleteConfirm, () => setShowUncompleteConfirm(false));
+  useBackGuard(showAddSupplier,       () => setShowAddSupplier(false));
+  useBackGuard(showAddTask,           () => setShowAddTask(false));
+  useBackGuard(showDeleteModal,       () => setShowDeleteModal(false));
+  useBackGuard(showReviewModal,       () => setShowReviewModal(false));
   const fullPaymentRecorded = Number(lead?.full_payment_amount) > 0 && !!lead?.full_payment_date;
 
   async function changeStage(stageKey, extra = {}) {
@@ -4476,6 +4487,7 @@ function TimelineSection({ leadId, lead, timeline, allPhones, allEmails, allPhon
   const [dir, setDir]             = useState('outbound');
   const [saving, setSaving]       = useState(false);
   const [showFollowUp, setShowFollowUp] = useState(false);
+  useBackGuard(showFollowUp, () => setShowFollowUp(false));
 
   const [translations, setTranslations]   = useState({}); // itemId → translated text
   const [translating, setTranslating]     = useState({}); // itemId → bool
@@ -5563,6 +5575,7 @@ function CalendarSection({ lead, leadId, editForm, calStatus, onUpdated, allPhon
   const [pendingUnmark, setPendingUnmark] = useState(false);
   const [meeting, setMeeting] = useState(null);
   const [showMeetingAction, setShowMeetingAction] = useState(false);
+  useBackGuard(showMeetingAction, () => setShowMeetingAction(false));
 
   useEffect(() => {
     if (!lead?.meeting_event_id) { setMeeting(null); return; }

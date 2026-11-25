@@ -6,6 +6,7 @@
 // email, or the phone's share sheet to anyone).
 import { useEffect, useRef, useState } from 'react';
 import api from '../api';
+import useBackGuard from '../hooks/useBackGuard';
 import { isDesktop } from '../utils/device';
 import { downloadFile, shareFile, canShareFiles, isHtmlName } from '../files/fileBox';
 
@@ -49,14 +50,15 @@ function Viewer({ fileRef, hint, onClose, onSend }) {
     return () => { alive = false; };
   }, [fileRef]);
 
-  // Back button / Escape closes the viewer (phones: the system back gesture)
+  // Back button / Escape closes the viewer (phones: the system back gesture).
+  // Phase 130 — through the shared back-guard stack. The viewer used to push and pop its own
+  // history entry: its `history.back()` on × (and a real back gesture) reached the guard of the
+  // lead card underneath as well, so closing a file also closed the card.
+  useBackGuard(true, onClose);
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
-    try { history.pushState({ crmFileViewer: true }, ''); } catch {}
-    const onPop = () => onClose(true);
-    window.addEventListener('popstate', onPop);
-    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('popstate', onPop); };
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   const filename = info?.filename || hint?.filename || '';
@@ -291,7 +293,6 @@ function SendSheet({ fileRef, hint, onClose }) {
 export default function FileBoxHost() {
   const [viewer, setViewer] = useState(null); // { ref, hint }
   const [send, setSend]     = useState(null); // { ref, hint }
-  const closingFromPop = useRef(false);
 
   useEffect(() => {
     const onOpen = (e) => setViewer({ ref: e.detail.ref, hint: e.detail.hint || {} });
@@ -301,11 +302,7 @@ export default function FileBoxHost() {
     return () => { window.removeEventListener('crm:file-open', onOpen); window.removeEventListener('crm:file-send', onSend); };
   }, []);
 
-  function closeViewer(fromPop) {
-    setViewer(null);
-    // We pushed a history entry when opening; drop it unless the back button already did
-    if (!fromPop && !closingFromPop.current) { try { if (history.state?.crmFileViewer) history.back(); } catch {} }
-  }
+  function closeViewer() { setViewer(null); }
 
   return (
     <>

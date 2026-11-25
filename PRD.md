@@ -1870,6 +1870,20 @@ column) was squeezed away while the hours line kept its height. Fix in `AppCalen
 title is `shrink-0`, and events shorter than 45 minutes show the title only. Verified in headless
 Chromium with the same three events.
 
+### Phase 130 — Whatever is opened inside a lead card closes back to the card ✅ Built 2026-11-25 (1.38.3)
+Owner: "פתחתי חוזה מתוך כרטיס ליד ואז סגרתי את החוזה ואז זה יצא מהכרטיס ליד".
+Cause (reproduced in Chromium on the old build): the in-app file viewer (`FileBoxHost`, Phase 62)
+managed its own history entry. Its `history.back()` on × — and a real back gesture — produced a
+popstate that the lead card's `useBackGuard` (topmost on the guard stack) took as "back", closing
+the card too. Fix: the viewer uses `useBackGuard` like every other overlay.
+Sweep: the card's windows that had no guard (meeting, lost, complete, signed-ask, uncomplete,
+add supplier, add task, delete, review, follow-up, meeting action) now have one, so the phone's
+back closes the window and not the card.
+Rule: an overlay that can sit above a lead card must use `useBackGuard` — never its own
+pushState / history.back().
+Verified in headless Chromium (phone): file ×, file back, repeated open/close, contract editor,
+add-task, lost window; then one back closes the card.
+
 ### Phase 123 — הערות מנהל: "נשמר" confirmation next to the save button ✅ Built 2026-11-23 (1.35.3)
 Oran (screenshot from the phone): "I wrote something, pressed שמור and it disappeared". The save
 worked — the field empties by design so saved text is never on screen — but the "נשמר" line was

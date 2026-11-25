@@ -6,6 +6,10 @@ updated: 2026-11-23
 
 # Now
 
+## 2026-11-25 — Phase 130 (1.38.3): closing a file/window inside a lead card no longer closes the card
+
+- `FileBoxHost` viewer moved to `useBackGuard` (its own history.back() was read by the card's guard as a back gesture). All LeadCard windows now guarded. Rule: overlays above a card must use `useBackGuard`.
+
 ## 2026-11-25 — Phase 129 (1.38.2): calendar day view keeps the name of short meetings
 
 - `DayView`: title `shrink-0`; events under 45 min show the title only (the hours line does not fit a 32px box).
