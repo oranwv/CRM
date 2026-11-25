@@ -1420,7 +1420,10 @@ function FilesSection({ leadId, files, onChanged, isAdmin }) {
 // nothing happened within 1.5s (app not installed) so the caller can dial from the browser.
 export function tryOpenDialerApp(lead) {
   return new Promise(resolve => {
-    const params = new URLSearchParams({ to: lead.phone || '', lead: String(lead.id || ''), name: lead.name || '' });
+    // ts = the moment of this press. The app dials a link only while it is fresh and only once:
+    // Android hands the app its old launch link again whenever the app restarts, and without the
+    // stamp an earlier lead's link was re-dialed (wrong customer rang — Oran, 2026-11-25).
+    const params = new URLSearchParams({ to: lead.phone || '', lead: String(lead.id || ''), name: lead.name || '', ts: String(Date.now()) });
     let done = false;
     const finish = (v) => { if (done) return; done = true; document.removeEventListener('visibilitychange', onHide); clearTimeout(t); resolve(v); };
     const onHide = () => { if (document.visibilityState === 'hidden') finish(true); };

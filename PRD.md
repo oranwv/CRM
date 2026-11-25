@@ -1804,6 +1804,27 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 133 — Dial links: fresh and once only (wrong customer was called) ✅ Built 2026-11-25 (1.38.6 + dialer app `f39d1ae`) — not device-tested
+
+Oran (25/11): "I called Jess and it called Shiri — serious". Facts he gave: Shiri is another lead;
+he pressed "התקשר" in Jess's lead card; his previous call from the system that day was to Shiri.
+The CRM bar showed Jess.
+- **Cause (from the code + those facts; not reproduced on a device):** the app reads
+  `Linking.getInitialURL()` at JS start and dials it. On Android that is the launch intent of the
+  activity, and the system restores it whenever the app's process is restarted (the phone had put
+  the app to sleep). The app had been opened earlier by the Shiri link, so the press on Jess
+  restarted the app with initial URL = Shiri link **and** delivered the Jess link as a `url`
+  event. Both were dialed: the app's state showed the later one (Jess) while the Shiri call rang.
+  The bundle on Oran's phone (16/11) has no "one dial at a time" guard.
+- **Fix, app (`App.tsx`, OTA):** `claimLink()` — a link is dialed only if its `ts` is within 60 s
+  of now, never twice (last dialed link kept in SecureStore), and an initial URL without `ts` is
+  never dialed; a `url` event makes a pending initial URL void; no dial while another is in flight
+  (`voice.isDialing()`). A rejected link does nothing at all.
+- **Fix, CRM:** `tryOpenDialerApp` adds `ts=Date.now()` to `proeventdialer://call?...`.
+- **Needs the app update to take effect** — and Oran's Android was still on the 16/11 bundle on
+  18/11 (OTA to `preview` not arriving, cause unknown). Until his phone shows a newer bundle
+  date the bug can recur; workaround: open the dialer app first, then press "התקשר".
+
 ### Phase 132 — Call bar half off-screen after a drag (phones) ✅ Built 2026-11-25 (1.38.5)
 
 Oran's screenshot (25/11): the dialer-call bar sat with its right edge at mid-screen, the rest
@@ -1815,10 +1836,7 @@ off the left edge, and could not be moved.
   (400 px viewport: left −168 / right 200; with the fix: 16 / 384).
 - Fix: `useDraggableBar` style also sets `translate: 'none'` (`CallBar.jsx`). Applies to all
   three bars that share the hook.
-- Open, same report: "dialed Jess, Shiri's phone rang". No code path found that sends a number
-  that differs from the lead whose name the bar shows (CRM link → app → `/twiml/outbound` all
-  pass `to` + name together); waiting for Oran's answers (who Shiri is, which button) before
-  changing anything.
+- The "dialed Jess, Shiri rang" part of the same report: see Phase 133.
 
 ### Phase 124 — הערות מנהל: written text shown blurred, long press reveals ✅ Built 2026-11-23 (1.36.0)
 Oran after trying it on the phone: he did not want saved text to vanish behind a separate

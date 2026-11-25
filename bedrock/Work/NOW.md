@@ -6,10 +6,15 @@ updated: 2026-11-26
 
 # Now
 
+## 2026-11-25 — Phase 133 (1.38.6 + app f39d1ae): wrong customer called — stale Android launch link re-dialed
+
+- App: `claimLink` (ts ≤ 60 s, once only, unstamped initial URL never dialed, url event voids the initial URL, one dial at a time). CRM: `ts` on the dial link. Not device-tested.
+- BLOCKER: Oran's Android must actually receive the OTA (was stuck on the 16/11 bundle). Ask for the `eas update` output / the bundle date on the app's home screen; if OTA still does not arrive → new APK build.
+
 ## 2026-11-25 — Phase 132 (1.38.5): call bar half off-screen after a drag
 
 - Tailwind 4 `-translate-x-1/2` uses the `translate` property; dragged style cleared only `transform` → fixed in `useDraggableBar` (`translate: 'none'`). Verified with the built CSS in Chromium.
-- OPEN (serious, Oran): "dialed Jess (lead ג'ס חתונה), Shiri's phone rang". Bar showed Jess. No mismatch path found in code; need: who Shiri is (other lead / contact on the same lead / employee), which call button, and `calls.to_number` of that call (≈25/11 19:40).
+- (Resolved in Phase 133: the wrong-customer call.)
 
 ## 2026-11-26 — Phase 131 (1.38.4): "הכן עם מה שיש" builds only from the conversation
 
