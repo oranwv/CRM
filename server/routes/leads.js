@@ -56,7 +56,16 @@ router.get('/', async (req, res) => {
       params.push(isoDate);
       conditions.push(`l.event_date = $${params.length}`);
     } else {
-      params.push(`%${search}%`);
+      // Phase 128 — apostrophes and quotes come in several look-alike characters (ג'ס / ג׳ס / ג’ס,
+      // מו"מ / מו״מ) depending on the keyboard. Both the typed text and the stored text are
+      // folded to the plain ' and " before comparing, so any of them finds any of them.
+      const QUOTE_FROM = '\u05F3\u2019\u2018`\u00B4\u05F4\u201D\u201C';
+      const QUOTE_TO   = "'''''" + '"""';
+      const foldQuotes = str => String(str).replace(/[\u05F3\u2019\u2018`\u00B4]/g, "'").replace(/[\u05F4\u201D\u201C]/g, '"');
+      params.push(QUOTE_FROM); const qFromIdx = params.length;
+      params.push(QUOTE_TO);   const qToIdx   = params.length;
+      const txt = col => `TRANSLATE(${col}, $${qFromIdx}, $${qToIdx})`;
+      params.push(`%${foldQuotes(search)}%`);
       const likeIdx = params.length;
       const normalizedSearch = normalizePhone(search);
       const digitCount = search.replace(/\D/g, '').length;
@@ -81,7 +90,7 @@ router.get('/', async (req, res) => {
       const contactsMatch = `EXISTS (
         SELECT 1 FROM lead_contacts lc
         WHERE lc.lead_id = l.id
-          AND (lc.value ILIKE $${likeIdx} OR lc.label ILIKE $${likeIdx}${contactNormCondition})
+          AND (lc.value ILIKE $${likeIdx} OR ${txt('lc.label')} ILIKE $${likeIdx}${contactNormCondition})
       )`;
       // Amount search: "15000", "15,000", "₪15,000", "15000.5" → match payment amounts (±1 ₪) in the
       // lead's contract (signed, else latest) and in the deposit / full-payment / manual-balance fields.
@@ -122,17 +131,17 @@ router.get('/', async (req, res) => {
       } else {
         matchSelect = `NULL::text[] AS amount_matches, ${phoneMatchExpr} AS phone_match`;
       }
-      conditions.push(`(l.name ILIKE $${likeIdx} OR l.phone ILIKE $${likeIdx} OR l.email ILIKE $${likeIdx} OR l.event_name ILIKE $${likeIdx} OR l.event_type ILIKE $${likeIdx} OR l.notes ILIKE $${likeIdx}${phoneNormCondition} OR ${contactsMatch}${amountCondition})`);
+      conditions.push(`(${txt('l.name')} ILIKE $${likeIdx} OR l.phone ILIKE $${likeIdx} OR l.email ILIKE $${likeIdx} OR ${txt('l.event_name')} ILIKE $${likeIdx} OR ${txt('l.event_type')} ILIKE $${likeIdx} OR ${txt('l.notes')} ILIKE $${likeIdx}${phoneNormCondition} OR ${contactsMatch}${amountCondition})`);
       // Rank: a hit on the lead/event name is the most likely intended lead; a hit
       // only in the free-text notes is the least likely. Contact fields sit between.
       rankSelect = `(
-        (CASE WHEN l.name       ILIKE $${likeIdx} THEN 100 ELSE 0 END) +
-        (CASE WHEN l.event_name ILIKE $${likeIdx} THEN 80  ELSE 0 END) +
+        (CASE WHEN ${txt('l.name')}       ILIKE $${likeIdx} THEN 100 ELSE 0 END) +
+        (CASE WHEN ${txt('l.event_name')} ILIKE $${likeIdx} THEN 80  ELSE 0 END) +
         (CASE WHEN l.phone      ILIKE $${likeIdx} THEN 60  ELSE 0 END) +
         (CASE WHEN ${contactsMatch}               THEN 55  ELSE 0 END) +
         (CASE WHEN l.email      ILIKE $${likeIdx} THEN 50  ELSE 0 END) +
-        (CASE WHEN l.event_type ILIKE $${likeIdx} THEN 40  ELSE 0 END) +
-        (CASE WHEN l.notes      ILIKE $${likeIdx} THEN 20  ELSE 0 END)${amountRank}
+        (CASE WHEN ${txt('l.event_type')} ILIKE $${likeIdx} THEN 40  ELSE 0 END) +
+        (CASE WHEN ${txt('l.notes')}      ILIKE $${likeIdx} THEN 20  ELSE 0 END)${amountRank}
       ) AS search_rank`;
     }
   }

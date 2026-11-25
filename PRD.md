@@ -1854,6 +1854,14 @@ Owner: "כרגע ברווחים מופיעים רק חוזים שנחתמו די
 Close date = digital signature → manual mark → deposit note. Amount still comes from the latest
 contract record (none → "אין חוזה"). Verified on a local Postgres through the real route.
 
+### Phase 128 — Leads search ignores which apostrophe / quote character was typed ✅ Built 2026-11-25 (1.38.1)
+Owner: searching "ג'ס" did not find an existing lead. The search is an exact `ILIKE`, and the
+apostrophe has look-alikes (' U+0027, ׳ U+05F3, ’ U+2019, ` , ´) — likewise " / ״ / ” / “.
+`GET /api/leads?search=`: the typed text is folded in JS and the text columns (name, event_name,
+event_type, notes, contact label) through `TRANSLATE(col, …)` to the plain ' and ". Phone, email
+and amount matching unchanged. Verified on a local Postgres with the route's own constants.
+Assumed cause — her record in production was not inspected.
+
 ### Phase 123 — הערות מנהל: "נשמר" confirmation next to the save button ✅ Built 2026-11-23 (1.35.3)
 Oran (screenshot from the phone): "I wrote something, pressed שמור and it disappeared". The save
 worked — the field empties by design so saved text is never on screen — but the "נשמר" line was

@@ -6,6 +6,10 @@ updated: 2026-11-23
 
 # Now
 
+## 2026-11-25 — Phase 128 (1.38.1): leads search folds apostrophe/quote look-alikes
+
+- `TRANSLATE` on the text columns + JS fold of the term. Cause of the owner's "ג'ס" miss is assumed, not confirmed on production data. The AI assistant's own name searches (chat.js) still use a plain ILIKE.
+
 ## 2026-11-25 — Phase 127 (1.38.0): רווחים includes manually marked "נחתם חוזה"
 
 - `fetchClosedEvents`: `manual_signed` CTE from `lead_stage_history`; amount still from the contract record.
