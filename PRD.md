@@ -1846,6 +1846,14 @@ simply opened on top and hid it. Once Phase 113 lifted the window above the card
 front of the card. `TaskRow` got an optional `onOpenLead` callback; `OverdueTasksModal` passes its
 `onClose`. The other task lists are unchanged. Verified in headless Chromium (phone).
 
+### Phase 127 — רווחים: manually marked "נחתם חוזה" counts as a closed event ✅ Built 2026-11-25 (1.38.0)
+Owner: "כרגע ברווחים מופיעים רק חוזים שנחתמו דיגיטלית... שגם אם השתנה הסטטוס לחוזה חתום אז
+זה יופיע שם". `fetchClosedEvents` (`server/routes/sales.js`) got a `manual_signed` CTE: first
+`lead_stage_history` row into `contract_signed`, used only while the lead is still in
+`contract_signed` / deposit / production / completed (a lead reverted to "נשלח חוזה" drops out).
+Close date = digital signature → manual mark → deposit note. Amount still comes from the latest
+contract record (none → "אין חוזה"). Verified on a local Postgres through the real route.
+
 ### Phase 123 — הערות מנהל: "נשמר" confirmation next to the save button ✅ Built 2026-11-23 (1.35.3)
 Oran (screenshot from the phone): "I wrote something, pressed שמור and it disappeared". The save
 worked — the field empties by design so saved text is never on screen — but the "נשמר" line was

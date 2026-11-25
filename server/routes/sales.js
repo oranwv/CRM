@@ -15,8 +15,8 @@ function sumLines(lines) {
   return (Array.isArray(lines) ? lines : []).reduce((s, l) => s + (Number(l.amount) || 0), 0);
 }
 
-// An event "closes" in the month its contract was signed; closed-stage leads
-// without a signed contract fall back to the deposit stage-change note time.
+// An event "closes" in the month its contract was signed — digitally, or by hand through the
+// "נחתם חוזה" status; closed-stage leads without either fall back to the deposit stage-change note time.
 async function fetchClosedEvents(year, month) {
   const monthStart = new Date(year, month - 1, 1);
   const monthEnd   = new Date(year, month, 1);
@@ -34,13 +34,22 @@ async function fetchClosedEvents(year, month) {
         WHERE type = 'note' AND body LIKE '%שינוי שלב%' AND body LIKE '%← התקבלה מקדמה'
         GROUP BY lead_id
       ),
+      manual_signed AS (
+        -- Phase 127: the lead was moved to "נחתם חוזה" by hand (a PDF signed outside the system).
+        -- It counts from the day the status was set, as long as the lead is still there or further.
+        SELECT lead_id, MIN(created_at) AS close_date
+        FROM lead_stage_history
+        WHERE to_stage = 'contract_signed'
+        GROUP BY lead_id
+      ),
       closed AS (
-        SELECT l.id AS lead_id, COALESCE(s.close_date, dn.close_date) AS close_date
+        SELECT l.id AS lead_id, COALESCE(s.close_date, ms.close_date, dn.close_date) AS close_date
         FROM leads l
-        LEFT JOIN signed s        ON s.lead_id  = l.id
-        LEFT JOIN deposit_note dn ON dn.lead_id = l.id
-        WHERE COALESCE(s.close_date, dn.close_date) IS NOT NULL
-          AND (s.lead_id IS NOT NULL OR l.stage IN ('deposit','production','completed'))
+        LEFT JOIN signed s         ON s.lead_id  = l.id
+        LEFT JOIN manual_signed ms ON ms.lead_id = l.id AND l.stage IN ('contract_signed','deposit','production','completed')
+        LEFT JOIN deposit_note dn  ON dn.lead_id = l.id
+        WHERE COALESCE(s.close_date, ms.close_date, dn.close_date) IS NOT NULL
+          AND (s.lead_id IS NOT NULL OR l.stage IN ('contract_signed','deposit','production','completed'))
       ),
       latest_contract AS (
         SELECT DISTINCT ON (lead_id) lead_id, contract_data

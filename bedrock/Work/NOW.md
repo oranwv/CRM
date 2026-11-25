@@ -6,6 +6,10 @@ updated: 2026-11-23
 
 # Now
 
+## 2026-11-25 — Phase 127 (1.38.0): רווחים includes manually marked "נחתם חוזה"
+
+- `fetchClosedEvents`: `manual_signed` CTE from `lead_stage_history`; amount still from the contract record.
+
 ## 2026-11-24 — Phase 126 (1.37.1): overdue window closes on lead tap
 
 - Regression of Phase 113 (window now above the card, so it no longer got hidden by it). `TaskRow.onOpenLead` → modal `onClose`.
