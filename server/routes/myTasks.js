@@ -236,4 +236,7 @@ router.post('/:kind/:id/cancel', async (req, res) => {
   }
 });
 
+// Phase 134: the task hub (routes/taskHub.js) reads the same normalised rows.
+router.SQL = { LEAD_TASK_SQL, OP_TASK_SQL, MAINT_SQL, FAULT_SQL, sortRows };
+
 module.exports = router;

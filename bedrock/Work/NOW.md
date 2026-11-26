@@ -6,6 +6,13 @@ updated: 2026-11-26
 
 # Now
 
+## 2026-11-26 — Phase 134 (1.39.0): ניהול משימות, stage 1 (היום שלי + לוח הפקה)
+
+- New screen `/task-hub` (top-bar ✓ button + first row of the mode dropdown); `routes/taskHub.js`, table `task_focus`. Existing משימות tab untouched. Full agreed design and the stage list are in PRD Phase 134.
+- Not tried on production data — after deploy check with Oran: היום שלי buckets, the 3-task focus limit, the production board columns and the "לסגירה" columns.
+- Waiting on Oran: the real list for the event task template (what happens before/after an event and when). Next stage: personal tasks + giving tasks + quick add.
+- Built in a cloud session (Mac was offline) — the Mac folder needs `git pull`.
+
 ## 2026-11-25 — Phase 133 (1.38.6 + app f39d1ae): wrong customer called — stale Android launch link re-dialed
 
 - App: `claimLink` (ts ≤ 60 s, once only, unstamped initial URL never dialed, url event voids the initial URL, one dial at a time). CRM: `ts` on the dial link. Not device-tested.

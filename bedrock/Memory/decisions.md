@@ -63,3 +63,9 @@ stable key across channels.
 - "No trace" is done by crypto-shredding: the per-event key salt is kept in Supabase Storage, outside the database and its backups, and is deleted with the notes.
 - Screenshots cannot be blocked in a web app — told to Oran; he chose deterrence (hold-to-read, watermark, auto-lock) over turning the CRM into an installed app.
 - These tables must stay out of search, export, PDF, activity history and every AI context.
+
+## 2026-11-26 — ניהול משימות (Phase 134)
+- A task hub beside the existing משימות tab, built in stages. Principle from the research Oran asked for: the screen must not become a warehouse — short "today" list, max 3 in progress, everything else folded and surfacing by date.
+- Boards: the system places cards in הפקה (column per event) and מכירות (column per urgency tier, card = lead); free dragging only in personal/shared boards.
+- Personal tasks are visible to their owner only (not managers, not admin). Anyone can give a task to anyone; optional "requires my approval". Hierarchy by a "direct manager" field per user.
+- The hub reads the existing task tables through `routes/myTasks.js` queries; no table merge.

@@ -963,6 +963,17 @@ migrate(`
   ALTER TABLE op_faults ADD COLUMN IF NOT EXISTS extra_assignees INT[] NOT NULL DEFAULT '{}';
 `).catch(err => console.error('[DB] extra_assignees migration error:', err.message));
 
+// Phase 134 (2026-11-26): ניהול משימות — "בטיפול עכשיו" marks (up to 3 per user) on any task kind.
+migrate(`
+  CREATE TABLE IF NOT EXISTS task_focus (
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind VARCHAR(20) NOT NULL,
+    task_id INT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, kind, task_id)
+  );
+`).catch(err => console.error('[DB] task_focus migration error:', err.message));
+
 // Phase 92 (2026-11-18): handing a blocked user's leads / tasks to someone else, restorable.
 migrate(`
   CREATE TABLE IF NOT EXISTS user_transfers (
@@ -1050,6 +1061,7 @@ app.use('/api/rsvp',      rsvpRoutes);  // webhook endpoints inside are public; 
 app.use('/api/tasks',     require('./routes/tasks'));       // global task list (auth per-route)
 app.use('/api/tasks',     require('./routes/taskPostpone')); // public postpone links (WhatsApp)
 app.use('/api/my-tasks',  requireAuth, require('./routes/myTasks')); // Phase 55: my tasks + overdue gate
+app.use('/api/task-hub',  requireAuth, require('./routes/taskHub')); // Phase 134: ניהול משימות (היום שלי + לוח הפקה)
 
 // Protected
 app.use('/api/files',               requireAuth, fileDownloadRoutes);

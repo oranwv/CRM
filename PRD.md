@@ -1804,6 +1804,58 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 134 — ניהול משימות, stage 1: היום שלי + לוח הפקה ✅ Built 2026-11-26 (1.39.0) — not tried on production data
+Oran: tasks get lost and no task app ever worked for him; he wants one convenient screen for all tasks,
+personal and shared tasks, categories, managers following the people under them, each event handled on
+its own by urgency, and the Trello-like columns of his wiwi-personal-assistant. Research conclusion that
+shaped the design: task tools fail when they become a warehouse — so the screen opens on a short "today"
+list, everything else is folded, and work in progress is capped.
+
+**Agreed design (whole feature; built in stages, each shipped separately):**
+- New screen **beside** the existing משימות tab (not replacing it for now). Tabs: היום שלי · לוחות · הצוות שלי.
+- היום שלי: "בטיפול עכשיו" (max 3) → today + late → folded בקרוב / אחר כך / מחכה למישהו. Tasks surface by
+  themselves when their time comes. Quick add by one written or spoken line.
+- Boards, the columns mean the natural queue of each area: **הפקה** = a column per event, nearest first;
+  an ended event moves to "לסגירה" and leaves only when everything is closed; events in the next 60 days,
+  the rest in one "רחוק יותר" column. **מכירות** = a column per urgency tier in the morning-briefing order,
+  the card is a **lead** with its next task, first column "עכשיו" (callbacks, late, today), each lead once.
+  **תפעול/אחזקה** = columns by type. **אישי / משותף / כספים** = free columns like wiwi. In הפקה and מכירות
+  the system places the cards (no dragging between columns).
+- Personal tasks: only the owner sees them — not managers, not admin, not briefings — with the line
+  "אלה משימות אישיות שלך, אף אחד אחר לא רואה אותן".
+- Tasks given to someone else: one line ("מאור, לסדר את הרמקול עד חמישי"), WhatsApp to the receiver, no
+  accept step, they sit in the giver's "מחכה למישהו"; optional "דורש אישור שלי" (the task returns to the
+  giver for approval instead of closing); anyone may give a task to anyone.
+- Managers: a "מנהל ישיר" field per user; the manager view shows exceptions first (late, postponed again
+  and again, overloaded, near event with open tasks), a person's full list only on click.
+- Event task templates per event type, created when the lead reaches deposit, offsets before **and** after
+  the event date; Oran still has to give the real list.
+- Design preview (4 phone screens) approved by Oran 25/11: claude.ai artifact "ניהול משימות ב-CRM: תצוגה מקדימה".
+
+**Stage 1 — what was built:**
+- **Entry**: a ✓ button in the top bar (label "משימות" from `sm` up) and "✅ ניהול משימות" as the first row
+  of the mode dropdown (Oran, 26/11). It is a screen, not a mode — the current mode and its bottom tabs stay.
+  Route `/task-hub` → `pages/TaskHubPage.jsx`.
+- **`server/routes/taskHub.js`** (`/api/task-hub`, auth): reuses the normalised queries of `routes/myTasks.js`
+  (exported as `router.SQL`) and the existing actions `/api/my-tasks/:kind/:id/complete|postpone|cancel`.
+  - `GET /today` → `{ focus, today, soon, later, waiting, focus_limit }`. today = overdue or due ≤ today
+    (Israel); soon = due within 7 days, plus open faults (they have no date); later = the rest; waiting =
+    open items the user created for others. Each row carries `category` (מכירות / הפקה / תפעול / אחזקה).
+  - `POST /focus { kind, id }`, `DELETE /focus/:kind/:id` — table `task_focus (user_id, kind, task_id)`, max 3;
+    marks on closed tasks are removed on read.
+  - `GET /board/production` → `{ upcoming[], closing[], far[] }`. Leads in deposit/production with an event
+    date, plus completed leads that still have open tasks. Column: countdown, progress = (done tasks +
+    checked production-checklist items) / (all tasks + 8), missing labels (same rules as `eventReadiness`,
+    plus full payment once the date passed), open lead tasks of every assignee. admin / manager / production /
+    operations see all events; others only events they manage or have an open task in.
+- **Client**: rows are the existing `TaskRow` with a category chip and the focus toggle; faults get a row
+  that sends to תפעול (they have no my-tasks actions). Board columns scroll sideways (one column per swipe
+  on a phone); tasks due more than 14 days ahead are folded under "עוד N בהמשך".
+- **Tested**: client build; the three endpoints against an in-memory Postgres (pglite) with seeded data.
+  Not run against production data or in the real UI.
+- **Next stages**: (2) personal + given tasks, quick add, "דורש אישור שלי", free columns; (3) מנהל ישיר +
+  manager view; (4) event templates; (5) sales board and תפעול board; then WhatsApp morning/evening ritual.
+
 ### Phase 133 — Dial links: fresh and once only (wrong customer was called) ✅ Built 2026-11-25 (1.38.6 + dialer app `f39d1ae`) — not device-tested
 
 Oran (25/11): "I called Jess and it called Shiri — serious". Facts he gave: Shiri is another lead;
