@@ -69,3 +69,4 @@ stable key across channels.
 - Boards: the system places cards in הפקה (column per event) and מכירות (column per urgency tier, card = lead); free dragging only in personal/shared boards.
 - Personal tasks are visible to their owner only (not managers, not admin). Anyone can give a task to anyone; optional "requires my approval". Hierarchy by a "direct manager" field per user.
 - The hub reads the existing task tables through `routes/myTasks.js` queries; no table merge.
+- 2026-11-27 (Phase 135): the hub's main view is a kanban of all my tasks by context, showing only non-empty columns; given tasks get their own column "נתתי לאחרים" and finished-awaiting-approval ones "לאישור שלי". Tasks that belong to no lead live in `hub_tasks`; personal ones are filtered to their owner in every query (admins included).

@@ -1804,6 +1804,42 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 135 — ניהול משימות, stage 2+3: הלוח שלי, personal + given tasks, הצוות שלי ✅ Built 2026-11-27 (1.40.0) — not tried on production data
+Oran after stage 1: "build everything"; the tasks did not look good; he still did not understand how to
+see **all** his tasks; he wants a kanban board of all his tasks by context — a queue for הפקה, מכירות,
+אחזקה, אישי — showing only where there are tasks, and the tasks he gave should be there too.
+- **הלוח שלי** (new default tab of `/task-hub`): `MyBoard` groups the `/today` rows by `category` — a column
+  per context in the order מכירות · הפקה · תפעול · אחזקה · כספים · כללי · אישי, only non-empty ones, each with
+  its late count. Before them "לאישור שלי" (when any), after them "נתתי לאחרים" (sorted by holder). Tabs now:
+  הלוח שלי · היום שלי · לוח הפקה · הצוות שלי (the last only with `has_team`).
+- **One card everywhere** (`HubCard` in `TaskHubPage.jsx`, replaces the stage-1 chip row + `TaskRow`):
+  title, due pill, a meta line (lead link / 🔒 אישי / מאת / אצל / נדחתה N×), text buttons בוצע · דחייה ·
+  לא רלוונטי, the focus pin. Modes `mine | given | approve | view`. `TaskRow` (הפעילות שלי, the overdue
+  window) is unchanged.
+- **Hub tasks** — table `hub_tasks` (title, notes, category, is_private, assigned_to, created_by, lead_id
+  (unused yet), due_date, requires_approval, status `open | pending_approval | done | cancelled`, result,
+  postpone_count…). They are tasks that belong to no lead. `kind = 'hub'` in the normalised rows.
+  - `POST /api/task-hub/tasks` — anyone may give a task to anyone; the receiver gets a WhatsApp (`queueNudge`).
+  - **Personal** (`is_private`): always the creator's own, category `personal`. Every read filters them to
+    the owner; `loadHub` answers 404 to anyone else, admins included; never in the team view or its counts.
+    The screen says "אלה משימות אישיות שלך, אף אחד אחר לא רואה אותן" (board column + add window).
+  - **דורש אישור שלי** (`requires_approval`, only when given to someone else): `complete` by the receiver →
+    `pending_approval` + WhatsApp to the giver; `approve` closes, `reject { reason }` reopens + WhatsApp.
+  - `postpone` (the giver is told from the 3rd time), `cancel` (the other side is told).
+  - May act: assignee, creator, or admin/manager on a non-personal task.
+- **`/today`** now also returns `approve[]`, `has_team`, `me`; `loadToday(uid, { own })` — `own: false` is a
+  manager's look (no personal tasks, no clean-up side effects).
+- **הצוות שלי** — `users.manager_id` ("מנהל ישיר"). `GET /team`: an admin gets every active user, anyone else
+  the people below him (recursive). Per person: open, overdue, closed in the last 7 days, postponed 3+;
+  `exceptions` = tasks 3+ days late and tasks postponed 3+ times. `GET /team/:id` = that person's open
+  tasks (read-only cards). `PUT /team/manager` (admins; loops refused) — edited inside the tab under
+  "מי מנהל את מי", not in הגדרות.
+- **Tested**: client build; every endpoint against pglite with the real migration text (privacy, approval
+  flow, postpone notice, focus on hub tasks, manager tree, loop refusal). Not on production data.
+- **Not yet**: hub tasks are not in the overdue gate / daily nudge digest / הפעילות שלי / AI assistant;
+  near-event exceptions in the team view; one-line or voice add; linking a hub task to an event;
+  sales board, תפעול board, free columns; event templates (waiting for Oran's list); WhatsApp ritual.
+
 ### Phase 134 — ניהול משימות, stage 1: היום שלי + לוח הפקה ✅ Built 2026-11-26 (1.39.0) — not tried on production data
 Oran: tasks get lost and no task app ever worked for him; he wants one convenient screen for all tasks,
 personal and shared tasks, categories, managers following the people under them, each event handled on

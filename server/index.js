@@ -974,6 +974,33 @@ migrate(`
   );
 `).catch(err => console.error('[DB] task_focus migration error:', err.message));
 
+// Phase 135 (2026-11-27): hub tasks (personal + given to others) and the "מנהל ישיר" of each user.
+migrate(`
+  CREATE TABLE IF NOT EXISTS hub_tasks (
+    id SERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    notes TEXT,
+    category VARCHAR(20) NOT NULL DEFAULT 'general',
+    is_private BOOLEAN NOT NULL DEFAULT FALSE,
+    assigned_to INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_by INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    lead_id INT REFERENCES leads(id) ON DELETE SET NULL,
+    due_date DATE,
+    requires_approval BOOLEAN NOT NULL DEFAULT FALSE,
+    status VARCHAR(20) NOT NULL DEFAULT 'open',
+    result TEXT,
+    completed_at TIMESTAMPTZ,
+    cancelled_at TIMESTAMPTZ,
+    cancel_reason TEXT,
+    postpone_count INT NOT NULL DEFAULT 0,
+    postpone_reason TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS idx_hub_tasks_assigned ON hub_tasks(assigned_to, status);
+  CREATE INDEX IF NOT EXISTS idx_hub_tasks_created ON hub_tasks(created_by, status);
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS manager_id INT REFERENCES users(id) ON DELETE SET NULL;
+`).catch(err => console.error('[DB] hub_tasks migration error:', err.message));
+
 // Phase 92 (2026-11-18): handing a blocked user's leads / tasks to someone else, restorable.
 migrate(`
   CREATE TABLE IF NOT EXISTS user_transfers (

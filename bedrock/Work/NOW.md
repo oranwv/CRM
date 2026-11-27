@@ -6,6 +6,14 @@ updated: 2026-11-26
 
 # Now
 
+## 2026-11-27 — Phase 135 (1.40.0): ניהול משימות — הלוח שלי, personal + given tasks, הצוות שלי
+
+- `/task-hub` opens on "הלוח שלי" (column per context, only non-empty, + לאישור שלי + נתתי לאחרים). New `hub_tasks` (personal / given, "דורש אישור שלי"), `users.manager_id`, team tab. New `HubCard` everywhere in the hub. Details: PRD Phase 135.
+- Oran said the stage-1 tasks "did not look good" without saying what exactly — the card was redesigned on a guess; ask him to look and say what still bothers him.
+- To do with Oran after deploy: set "מי מנהל את מי" in the team tab; try giving a task with approval.
+- Remaining stages: sales board + תפעול board, event templates (still waiting for his list), hub tasks into the overdue gate / daily digest, one-line/voice add, WhatsApp morning/evening ritual.
+- Built in the cloud — the Mac folder needs `git pull`.
+
 ## 2026-11-26 — Phase 134 (1.39.0): ניהול משימות, stage 1 (היום שלי + לוח הפקה)
 
 - New screen `/task-hub` (top-bar ✓ button + first row of the mode dropdown); `routes/taskHub.js`, table `task_focus`. Existing משימות tab untouched. Full agreed design and the stage list are in PRD Phase 134.
