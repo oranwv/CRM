@@ -1105,7 +1105,7 @@ app.get('/api/version', (req, res) => {
   res.json({ ...versionInfo(), changelog: readChangelog(10) });
 });
 app.use('/api/admin',               requireAuth, adminRoutes);
-app.get('/api/drive/debug',         driveDebugHandler);
+app.get('/api/drive/debug',         requireAuth, driveDebugHandler); // Phase 136: was open to anyone
 app.use('/api/drive',               requireAuth, driveRoutes);
 app.use('/api/users',               requireAuth, usersRoutes);
 app.use('/api/analytics',           requireAuth, analyticsRoutes);

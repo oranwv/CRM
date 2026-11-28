@@ -1,10 +1,17 @@
 ---
 note_type: work-now
 project: CRM
-updated: 2026-11-26
+updated: 2026-11-28
 ---
 
 # Now
+
+## 2026-11-28 — Phase 136 (1.40.1): multi-business plan agreed + security stage 0, first batch
+
+- Plan for selling the CRM to other businesses is agreed in outline (separate installation per business, one codebase, ProEvent itself first, one login at proevent.co.il by email). Docs are in the claude.ai Project (`proevent-build-plan.md`, `proevent-onboarding.md`); summary + decisions in PRD Phase 136.
+- Built: login attempt limit (8 per user+IP / 40 per IP in 15 min) and `/api/drive/debug` behind login. Limiter tested with a stubbed DB only.
+- Open with Oran: the rest of stage 0 (list in PRD Phase 136 — several items need his action or his OK); preview for stage 1 (business profile, stage names and lead fields for ProEvent) before any build; Google verification route for customers; a real cost breakdown of what Sharviya's installation costs (needs his Gmail / Drive connected, or the Mac with Chrome).
+- Built in the cloud from a phone session — the Mac folder needs `git pull`.
 
 ## 2026-11-27 — Phase 135 (1.40.0): ניהול משימות — הלוח שלי, personal + given tasks, הצוות שלי
 

@@ -1804,6 +1804,30 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 136 — Multi-business plan + security stage 0, first batch ✅ Built 2026-11-28 (1.40.1) — limiter tested with a stubbed DB, not on production
+Oran wants to sell the CRM to other businesses, with no data ever leaking between businesses. Agreed with
+him (19–28 Nov): a separate installation per business (own DB, storage, server, secrets) on ONE codebase,
+differences by settings / module flags, never a per-customer branch; the first separate business is ProEvent
+itself (the CRM for selling the CRM); everyone logs in at `proevent.co.il` with **email** + password and lands
+on `<business>.proevent.co.il`; Sharviya's home-screen shortcut must not change for now (Sharviya moves to its
+own address last, after a real-phone check); ProEvent's WhatsApp = Green API with a new number as a WhatsApp
+Business account on his existing phone; the finance module is part of every customer's onboarding (off in
+ProEvent's own installation for now — paid from Sharviya's accounts). The full plan lives in the claude.ai
+Project docs: `proevent-build-plan.md` (stages 0–9, the 13 isolation layers), `proevent-onboarding.md`
+(the in-app "מסלול ההקמה" setup checklist), `proevent-multi-business-architecture.md`. He approved starting
+with stage 0 (security).
+- **Login attempt limit** (`routes/auth.js`): failed logins counted in memory per user name + IP (8 in 15 min)
+  and per IP (40 in 15 min); over the limit → 429 "יותר מדי ניסיונות כניסה. נסו שוב בעוד N דקות". A successful
+  login clears that user's counter. IP from `x-forwarded-for` (Railway proxy). Counters reset on restart.
+- **`/api/drive/debug`** now behind `requireAuth` (it answered anyone with the OAuth client-id prefix and token scopes).
+- **Stage 0 still open** (need Oran or more checking): rotate the Green API token and untrack
+  `greenapi-credentials.txt.txt` (untracking deletes the file from the Mac folder on pull — ask first);
+  `server/scripts/seedUsers.js` (default passwords + phones in git); `cors()` open to every origin (check who
+  posts cross-origin before closing: the Sharviya site forms, the dialer app); no security headers;
+  `/api/whatsapp/webhook` accepts any POST (Green API can send a webhook token — needs the instance setting);
+  legacy public file URLs; `users.password_view` (admin-readable passwords, Phase 104) is a decision for
+  customer installations; login log.
+
 ### Phase 135 — ניהול משימות, stage 2+3: הלוח שלי, personal + given tasks, הצוות שלי ✅ Built 2026-11-27 (1.40.0) — not tried on production data
 Oran after stage 1: "build everything"; the tasks did not look good; he still did not understand how to
 see **all** his tasks; he wants a kanban board of all his tasks by context — a queue for הפקה, מכירות,
