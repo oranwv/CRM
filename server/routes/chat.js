@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const { biz } = require('../services/businessProfile');
 const { OpenAI } = require('openai');
 const pool = require('../db/pool');
 const requireAuth = require('../middleware/auth');
@@ -449,7 +450,7 @@ async function bookMeetingForLead({ lead, date, start_time, end_time, host_user_
     const to = normalizePhone(lead.phone);
     if (to) {
       const dateHe = new Date(start).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Jerusalem' });
-      const text = `שלום! קישור לפגישה שנקבעה לך ל-${dateHe} בשעה ${st} בשרביה:\n${booked.icsUrl}`;
+      const text = `שלום! קישור לפגישה שנקבעה לך ל-${dateHe} בשעה ${st} ב${biz().name}:\n${booked.icsUrl}`;
       const sent = await sendTextToPhones([to], text);
       if (sent.length) {
         await pool.query(
@@ -1205,13 +1206,13 @@ router.post('/', requireAuth, async (req, res) => {
         + sendableFiles.map(f => `- [[file:${f.id}]] — ${f.filename}`).join('\n')
       : '';
     const knowledgeParts = [
-      knowledgeRow?.value?.trim() ? `## מידע כללי על שרביה:\n${knowledgeRow.value.trim()}` : '',
+      knowledgeRow?.value?.trim() ? `## מידע כללי על ${biz().name}:\n${knowledgeRow.value.trim()}` : '',
       ...kbFiles.map(f => `## מסמך${f.stored_name ? ` [[file:${f.id}]]` : ''}: ${f.filename}\n${f.content_text}`)
     ].filter(Boolean);
     const knowledgeSection = (knowledgeParts.length ? '\n\n' + knowledgeParts.join('\n\n') : '') + mediaSection + filesSection;
 
     const versionSection = '\n\n' + require('../utils/version').versionTextForAssistant();
-    const systemPrompt = `אתה עוזר AI של מערכת CRM שרביה.
+    const systemPrompt = `אתה עוזר AI של מערכת CRM ${biz().name}.
 אתה מסייע ל-${user.display_name || user.username} (תפקיד: ${userRoles.join(', ')}).${modeHint}${leadContext}
 תאריך היום: ${today}
 

@@ -1,4 +1,5 @@
 const pool = require('../db/pool');
+const { biz } = require('./businessProfile');
 const { sendWhatsApp } = require('./reminderService');
 const { getWorklist } = require('./salesAdvisor');
 
@@ -144,7 +145,7 @@ function counts(items) {
 
 // Factual header: what/when/for whom + the three counts. No AI-generated text.
 function briefingHeader(kind, scopeLabel, c) {
-  const title = kind === 'morning' ? '☀️ פתיחת יום — שרביה' : '🌙 סיכום יום — שרביה';
+  const title = kind === 'morning' ? `☀️ פתיחת יום — ${biz().name}` : `🌙 סיכום יום — ${biz().name}`;
   const parts = [];
   if (c.tier1) parts.push(c.tier1 === 1 ? '📝 חוזה אחד ממתין לחתימה' : `📝 ${c.tier1} חוזים ממתינים לחתימה`);
   if (c.tier2) parts.push(c.tier2 === 1 ? '💰 הצעת מחיר אחת פתוחה' : `💰 ${c.tier2} הצעות מחיר פתוחות`);

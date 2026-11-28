@@ -1,4 +1,5 @@
 const express = require('express');
+const { biz } = require('../services/businessProfile');
 const router  = express.Router();
 const crypto  = require('crypto');
 const axios   = require('axios');
@@ -151,7 +152,7 @@ async function bookLeadMeeting({ lead, title, start, end, guestEmail, guestName,
       const baseUrl0 = process.env.SERVER_URL || 'http://localhost:3001';
       const who = actor?.display_name || 'מישהו מהצוות';
       await notifyHost(hostUserId, actor?.id,
-        `📅 ${who} קבע/ה לך פגישה עם ${lead.name || 'לקוח'}${lead.event_type ? ` (${lead.event_type})` : ''}\n${fmtWhen(start, end)} בשרביה\n🔗 ${baseUrl0}/?lead=${lead.id}&src=wa`);
+        `📅 ${who} קבע/ה לך פגישה עם ${lead.name || 'לקוח'}${lead.event_type ? ` (${lead.event_type})` : ''}\n${fmtWhen(start, end)} ב${biz().name}\n🔗 ${baseUrl0}/?lead=${lead.id}&src=wa`);
     }
 
     // Auto-advance stage to meeting_scheduled when a meeting is booked (only from 'contacted', not 'new')
@@ -210,7 +211,7 @@ router.get('/meetings/:eventId/ics', async (req, res) => {
 
     const fmt = (dt) => new Date(dt).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
     const uid = `${req.params.eventId}@proevent`;
-    const location = meeting.location || 'שרביה, פנחס בן יאיר 3, תל אביב';
+    const location = meeting.location || biz().location;
 
     const ics = [
       'BEGIN:VCALENDAR',

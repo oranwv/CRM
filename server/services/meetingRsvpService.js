@@ -17,13 +17,11 @@
 //
 // runMeetingReminderTick() runs every 15 minutes from index.js.
 const pool  = require('../db/pool');
+const { biz } = require('./businessProfile');
 const axios = require('axios');
 const { sendWhatsApp } = require('./reminderService');
 
 const IL = 'Asia/Jerusalem';
-const VENUE_ADDRESS = 'רבי פנחס בן יאיר 3, תל אביב-יפו';
-const MAPS_URL      = 'https://maps.google.com/?q=Pinhas+Ben+Yair+3,+Tel+Aviv-Yafo';
-const PARKING_URL   = 'https://sharabiya.co.il/%D7%97%D7%A0%D7%99%D7%94-%D7%95%D7%93%D7%A8%D7%9B%D7%99-%D7%94%D7%92%D7%A2%D7%94/';
 const CUSTOMER_REMINDER_HOUR = 10; // day before
 const DAY_OF_HOUR            = 9;  // meeting day (customer + host nudge)
 
@@ -90,15 +88,15 @@ function dayBeforeText(m) {
   const when = ilDate(m.start_time) === ilParts().date ? 'היום' : 'מחר';
   return [
     `היי ${firstName(m.name)} 🙂`,
-    `תזכורת: ${when}, ${fmtDay(m.start_time)} ${fmtDate(m.start_time)} בשעה ${fmtTime(m.start_time)}, יש לנו פגישה בשרביה.`,
+    `תזכורת: ${when}, ${fmtDay(m.start_time)} ${fmtDate(m.start_time)} בשעה ${fmtTime(m.start_time)}, יש לנו פגישה ב${biz().name}.`,
     '',
-    `📍 ${VENUE_ADDRESS}`,
-    `🗺️ ניווט בגוגל מפס: ${MAPS_URL}`,
-    `🅿️ חניה ודרכי הגעה: ${PARKING_URL}`,
+    `📍 ${biz().venueAddress}`,
+    `🗺️ ניווט בגוגל מפס: ${biz().mapsUrl}`,
+    `🅿️ חניה ודרכי הגעה: ${biz().parkingUrl}`,
     '',
     'נשמח שתאשרו הגעה 👇',
     `נתראה ${when}!`,
-    'צוות שרביה',
+    `צוות ${biz().name}`,
   ].join('\n');
 }
 function dayBeforeLinksText(m) {
@@ -109,11 +107,11 @@ function dayBeforeLinksText(m) {
 function dayOfText(m) {
   return [
     `בוקר טוב ${firstName(m.name)} 🙂`,
-    `תזכורת לפגישה שלנו היום בשעה ${fmtTime(m.start_time)} בשרביה, ${VENUE_ADDRESS}.`,
-    `🗺️ ניווט: ${MAPS_URL}`,
-    `🅿️ חניה ודרכי הגעה: ${PARKING_URL}`,
+    `תזכורת לפגישה שלנו היום בשעה ${fmtTime(m.start_time)} ב${biz().name}, ${biz().venueAddress}.`,
+    `🗺️ ניווט: ${biz().mapsUrl}`,
+    `🅿️ חניה ודרכי הגעה: ${biz().parkingUrl}`,
     'נתראה!',
-    'צוות שרביה',
+    `צוות ${biz().name}`,
   ].join('\n');
 }
 const STATUS_HE = { confirmed: 'הלקוח אישר הגעה ✅', declined: 'הלקוח ביטל ❌' };
@@ -284,7 +282,7 @@ async function runMeetingReminderTick() {
       if (!claim.rows.length) continue;
       const when = ilDate(m.start_time) === today ? 'היום' : `${fmtDay(m.start_time)} ${fmtDate(m.start_time)}`;
       await sendWhatsApp(m.host_phone,
-        `⏰ תזכורת: ${when} בשעה ${fmtTime(m.start_time)} יש לך פגישה עם ${m.name || 'לקוח'}${m.event_type ? ` (${m.event_type})` : ''} בשרביה\n${statusLine(m)}${m.lead_phone ? `\n📞 ${m.lead_phone}` : ''}\n🔗 ${b}/?lead=${m.lead_id}&src=wa`);
+        `⏰ תזכורת: ${when} בשעה ${fmtTime(m.start_time)} יש לך פגישה עם ${m.name || 'לקוח'}${m.event_type ? ` (${m.event_type})` : ''} ב${biz().name}\n${statusLine(m)}${m.lead_phone ? `\n📞 ${m.lead_phone}` : ''}\n🔗 ${b}/?lead=${m.lead_id}&src=wa`);
     }
   } catch (err) { console.error('[MeetingRSVP] tick/host error:', err.message); }
 

@@ -6,6 +6,12 @@ updated: 2026-11-28
 
 # Now
 
+## 2026-11-28 — Phase 138 (1.40.3): business profile for server texts
+
+- `biz()` replaces the hard-coded "שרביה" in server messages and AI prompts; Sharviya (no INSTANCE_ID) gets the identical strings. New installation: `setBusiness.js`. What is still Sharviya-specific is listed in PRD Phase 138 (contract legal lines, transcription vocabulary, client screens).
+- Next: module switches, per-business stage/field labels (needs Oran's preview), setup checklist, email login.
+- Twilio costs: ~$164 in Nov (2,412 min at ~6 cents — outbound to Israeli mobiles); Oran finds it expensive — he may want a cheaper telephony route checked. Twilio 2FA phone change waits for him (reset logs him out).
+
 ## 2026-11-28 — Phase 137 (1.40.2): a new installation can boot (self-building DB, instance guard, first admin)
 
 - Oran wants to start bringing up the ProEvent installation on 29 Nov. What exists: empty DB builds itself (restart once after first deploy), `INSTANCE_ID` guard + RLS on all tables for new installations, `createAdmin.js`. Steps to bring one up are in PRD Phase 137.

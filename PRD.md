@@ -1804,6 +1804,27 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 138 — Business profile (server texts) ✅ Built 2026-11-28 (1.40.3) — boots checked in both modes; texts not exercised end to end
+Stage 1 of the multi-business plan, server side only (no screen changed).
+- `services/businessProfile.js` → `biz()` = `{ name, kind, city, address, location, venueAddress, mapsUrl,
+  parkingUrl, email }`. **Without `INSTANCE_ID` (Sharviya) it returns the exact strings that were hard-coded
+  and ignores the settings table**, so every message / prompt is unchanged word for word. With
+  `INSTANCE_ID` it reads `settings` keys `biz_name` (fallback `business_name`), `biz_kind`, `biz_city`,
+  `biz_address`, `biz_email`, `biz_maps_url`, `biz_parking_url`, refreshed every minute.
+- `node server/scripts/setBusiness.js name="..." kind="..." city="..." address="..." email="..."`.
+- Replaced in: salesAdvisor, openAsksService, financeInvoiceScanner, salesBriefingService, dayPlanService,
+  meetingRsvpService (address / maps / parking constants too), calendarService + routes/calendar (meeting
+  location), accountantSendService, routes/calls (voicemail greeting), routes/contracts (signed-contract
+  email + the copy sent to the business), routes/chat (assistant system prompt), routes/ai, routes/candidates.
+- **Still Sharviya-specific** (to do): the legal lines in the contract HTML (`routes/contracts.js` ~114/126),
+  `WHISPER_PROMPT` / `DICTATION_PROMPT` vocabulary, `CALENDAR_ID` in calendarService, the FormSubmit subject
+  match in gmailService, `meetings.location` column default, `callAnalysisPrompt.md`, and all client screens
+  (LeadCard, SignaturePage, FileBoxHost, AdminPage, SendInviteForm, RSVPsPage).
+- Also on 28 Nov (no code): Twilio "Monthly invoice receipt" email switched on (invoice PDF + payment
+  receipt, to the account owner oranwv@gmail.com); fixed subscriptions entered in ניהול → עלויות
+  (Supabase $25, Railway ~$11, Green API $12). OpenAI only emails "account has been funded" notices with
+  no invoice attached — the invoices exist only on its billing-history page.
+
 ### Phase 137 — New-installation basics: self-building DB, instance guard, first admin ✅ Built 2026-11-28 (1.40.2) — tested on a local empty Postgres, not on Supabase/Railway
 Stage 3 of the multi-business plan, pulled forward because Oran wants to start bringing up the ProEvent
 installation on 29 Nov.

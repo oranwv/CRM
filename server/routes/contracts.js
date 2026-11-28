@@ -1,4 +1,5 @@
 const path      = require('path');
+const { biz } = require('../services/businessProfile');
 const fs        = require('fs');
 const crypto    = require('crypto');
 const puppeteer = require('puppeteer-core');
@@ -506,7 +507,7 @@ contractPublicRouter.post('/:token/sign', async (req, res) => {
     // Send to Sharabiya
     try {
       await sendEmail({
-        to: 'sharabiyajaffa@gmail.com',
+        to: biz().email,
         subject: `חוזה חתום — ${ordererName}`,
         body: `החוזה נחתם.\nמזמין: ${ordererName}\nחותם: ${signerName} (ת.ז: ${signerIdNumber})\nתאריך: ${signingDate}.`,
         attachmentBuffer: pdfBuffer,
@@ -536,14 +537,14 @@ contractPublicRouter.post('/:token/sign', async (req, res) => {
       ...(customBody   ? ['', customBody]               : []),
       ...(bankDetails  ? ['', 'פרטי חשבון לביצוע העברה:', bankDetails] : []),
       '',
-      'בברכה, צוות שרביה',
+      `בברכה, צוות ${biz().name}`,
     ].join('\n');
 
     if (clientEmail) {
       try {
         await sendEmail({
           to: clientEmailTo,
-          subject: 'החוזה החתום שלך — שרביה',
+          subject: `החוזה החתום שלך — ${biz().name}`,
           body: clientMessage,
           attachmentBuffer: pdfBuffer,
           attachmentName: filename,

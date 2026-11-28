@@ -8,6 +8,7 @@
 // upload to the month folder in Drive → record in finance_invoice_files.
 // De-dupe: finance_scanned_emails tracks every scanned gmail message id.
 const fs     = require('fs');
+const { biz } = require('./businessProfile');
 const path   = require('path');
 const stream = require('stream');
 const axios  = require('axios');
@@ -189,9 +190,9 @@ function extractLinks(text, html) {
 async function classifyEmail({ subject, from, snippet, attachments, links }) {
   if (!process.env.OPENAI_API_KEY) return null; // caller falls back to keyword-only
   const openai = require('./openaiClient').openai('invoice-classifier');
-  const prompt = `אתה מסווג מיילים עבור עסק אירועים בשם "שרביה". קבע האם המייל הבא הוא חשבונית/קבלה שספק שלח לעסק (הוצאה של העסק).
+  const prompt = `אתה מסווג מיילים עבור עסק אירועים בשם "${biz().name}". קבע האם המייל הבא הוא חשבונית/קבלה שספק שלח לעסק (הוצאה של העסק).
 
-חשוב: חשבוניות שהעסק עצמו הוציא ללקוחות שלו (למשל דרך GreenInvoice של שרביה, או מיילים שנשלחו על ידי שרביה) הן לא חשבוניות ספק — סווג אותן כ-false. מיילים שיווקיים שמזכירים "חשבונית" הם false. חשבון חודשי/תקופתי של ספק שירות (בזק, חברת חשמל, מים, סלולר, אינטרנט, ארנונה, ביטוח) עם קובץ מצורף או קישור לצפייה הוא true — גם כשהוא פונה לבעל העסק בשמו הפרטי.
+חשוב: חשבוניות שהעסק עצמו הוציא ללקוחות שלו (למשל דרך GreenInvoice של ${biz().name}, או מיילים שנשלחו על ידי ${biz().name}) הן לא חשבוניות ספק — סווג אותן כ-false. מיילים שיווקיים שמזכירים "חשבונית" הם false. חשבון חודשי/תקופתי של ספק שירות (בזק, חברת חשמל, מים, סלולר, אינטרנט, ארנונה, ביטוח) עם קובץ מצורף או קישור לצפייה הוא true — גם כשהוא פונה לבעל העסק בשמו הפרטי.
 
 מאת: ${from}
 נושא: ${subject}

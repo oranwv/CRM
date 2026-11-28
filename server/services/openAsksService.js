@@ -7,6 +7,7 @@
 // dayPlanService for section 4 of the day plan.
 const pool = require('../db/pool');
 
+const { biz } = require('./businessProfile');
 const LOOKBACK_DAYS = 7;
 const MAX_LEADS_PER_RUN = 60;
 
@@ -41,7 +42,7 @@ async function recentText(leadId) {
   const KIND = { note: 'הערה פנימית', call: 'שיחה', call_attempt: 'ניסיון שיחה', meeting: 'פגישה', whatsapp: 'וואטסאפ', email: 'אימייל' };
   return [...msgs, ...ints, ...calls]
     .sort((a, b) => new Date(a.ts) - new Date(b.ts))
-    .map(r => `[${new Date(r.ts).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })} ${r.kind === 'note' ? 'הערה פנימית של הנציג' : (r.direction === 'inbound' ? 'לקוח' : 'שרביה')} · ${KIND[r.kind] || r.kind}]: ${String(r.body || '').slice(0, 600)}`)
+    .map(r => `[${new Date(r.ts).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })} ${r.kind === 'note' ? 'הערה פנימית של הנציג' : (r.direction === 'inbound' ? 'לקוח' : biz().name)} · ${KIND[r.kind] || r.kind}]: ${String(r.body || '').slice(0, 600)}`)
     .join('\n');
 }
 
@@ -56,12 +57,12 @@ async function extractForLead(lead) {
     response_format: { type: 'json_object' },
     messages: [{
       role: 'user',
-      content: `אתה עוזר מכירות באולם אירועים "שרביה". לפניך התכתבות/שיחות/הערות של 7 הימים האחרונים עם ליד (${lead.name || ''}, ${lead.event_type || ''}).
-מצא רק דברים ש"הכדור אצלנו" — כלומר פעולה שאנחנו (שרביה) צריכים לעשות ועדיין לא עשינו:
+      content: `אתה עוזר מכירות ב${biz().kind} "${biz().name}". לפניך התכתבות/שיחות/הערות של 7 הימים האחרונים עם ליד (${lead.name || ''}, ${lead.event_type || ''}).
+מצא רק דברים ש"הכדור אצלנו" — כלומר פעולה שאנחנו (${biz().name}) צריכים לעשות ועדיין לא עשינו:
 - שאלה שהלקוח שאל ולא קיבלה מענה (למשל: אפשר הנחה? אפשר תפריט אחר? התאריך פנוי?)
 - דבר שהבטחנו לעשות ולא נראה שנעשה (לשלוח הצעה/חוזה/תמונות, לחזור אליו, לבדוק משהו)
 - בקשה בהערה פנימית של הנציג שעדיין פתוחה (למשל "לשלוח לו הצעה ביום ראשון")
-אל תמציא. אם שרביה כבר ענתה/עשתה — לא לכלול. עד 3 פריטים, כל אחד משפט קצר בעברית.
+אל תמציא. אם ${biz().name} כבר ענתה/עשתה — לא לכלול. עד 3 פריטים, כל אחד משפט קצר בעברית.
 
 הטקסט:
 ${text}

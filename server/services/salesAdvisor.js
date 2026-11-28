@@ -1,4 +1,5 @@
 const pool = require('../db/pool');
+const { biz } = require('./businessProfile');
 const { OpenAI } = require('openai');
 
 // Stage groupings
@@ -27,7 +28,7 @@ async function buildLeadContext(leadId) {
 
   const timeline = [...messages, ...interactions].sort((a, b) => new Date(a.ts) - new Date(b.ts));
   const history = timeline
-    .map(r => `[${fmtDate(r.ts)} ${r.direction === 'inbound' ? 'לקוח' : 'שרביה'}${r.kind && r.kind !== 'whatsapp' ? ' · ' + r.kind : ''}]: ${r.body}`)
+    .map(r => `[${fmtDate(r.ts)} ${r.direction === 'inbound' ? 'לקוח' : biz().name}${r.kind && r.kind !== 'whatsapp' ? ' · ' + r.kind : ''}]: ${r.body}`)
     .join('\n');
 
   // Response-time signals: how fast the customer answers us, and who spoke last
@@ -266,9 +267,9 @@ async function analyzeLead(leadId, userId = null) {
     response_format: { type: 'json_object' },
     messages: [{
       role: 'user',
-      content: `אתה יועץ מכירות מקצועי של אולם אירועים "שרביה" בתל אביב. נתח את הליד והמלץ לנציג המכירות על הצעד הבא.
+      content: `אתה יועץ מכירות מקצועי של ${biz().kind} "${biz().name}"${biz().city ? ' ב' + biz().city : ''}. נתח את הליד והמלץ לנציג המכירות על הצעד הבא.
 בסס את ההמלצה על ראיות מהנתונים (מה הלקוח אמר, כמה זמן עבר, מה נשלח, כמה פעמים נפתח החוזה, האם יש פגישה). אל תמציא עובדות.
-${aiInstructions ? '\nהנחיות המכירות של שרביה:\n' + aiInstructions + '\n' : ''}${knowledge ? '\nמידע על שרביה:\n' + knowledge + '\n' : ''}${lossLessons ? '\nמה למדנו מעסקאות שלא נסגרו:\n' + lossLessons + '\n' : ''}
+${aiInstructions ? '\nהנחיות המכירות של ' + biz().name + ':\n' + aiInstructions + '\n' : ''}${knowledge ? '\nמידע על ' + biz().name + ':\n' + knowledge + '\n' : ''}${lossLessons ? '\nמה למדנו מעסקאות שלא נסגרו:\n' + lossLessons + '\n' : ''}
 פרטי הליד והעסקה:
 ${info}
 
@@ -356,7 +357,7 @@ async function lossInsights(from, to) {
     response_format: { type: 'json_object' },
     messages: [{
       role: 'user',
-      content: `אתה אנליסט מכירות של אולם אירועים "שרביה". להלן לידים שלא נסגרו (אבודים). זהה דפוסים והתנגדויות חוזרות, והמלץ איך לשפר את שיעור הסגירה.
+      content: `אתה אנליסט מכירות של ${biz().kind} "${biz().name}". להלן לידים שלא נסגרו (אבודים). זהה דפוסים והתנגדויות חוזרות, והמלץ איך לשפר את שיעור הסגירה.
 
 לידים אבודים (${lost.length}):
 ${digest}

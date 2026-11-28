@@ -8,6 +8,7 @@
 //
 // Authenticated routes (JWT) and Twilio webhooks (signature-validated) live in two routers.
 const express = require('express');
+const { biz } = require('../services/businessProfile');
 const pool    = require('../db/pool');
 const requireAuth = require('../middleware/auth');
 const tw      = require('../services/twilioService');
@@ -518,7 +519,7 @@ async function continueInbound(res, callId, fromIndex) {
   }
   // Nobody answered → voicemail
   await pool.query(`UPDATE calls SET status = 'voicemail' WHERE id = $1`, [callId]);
-  say(vr, 'הגעתם לשרביה. כרגע אין מי שיענה. השאירו הודעה ונחזור אליכם בהקדם.');
+  say(vr, `הגעתם ל${biz().name}. כרגע אין מי שיענה. השאירו הודעה ונחזור אליכם בהקדם.`);
   vr.record({
     maxLength: 120, playBeep: true, timeout: 5,
     action: `${tw.serverUrl()}/api/calls/twiml/inbound/voicemail-done?callId=${callId}`, method: 'POST',

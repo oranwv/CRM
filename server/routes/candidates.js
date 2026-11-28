@@ -5,6 +5,7 @@
 // Integrations reuse the CRM's own: Google Calendar (calendarService), WhatsApp (Green API via
 // reminderService.sendWhatsApp), resumes in the crm-files Supabase bucket (storageService).
 const router = require('express').Router();
+const { biz } = require('../services/businessProfile');
 const multer = require('multer');
 const pool   = require('../db/pool');
 const { uploadBuffer, getSignedUrl, storedNameFromUrl } = require('../services/storageService');
@@ -275,7 +276,7 @@ router.post('/:id/meeting/whatsapp', async (req, res) => {
     const msg =
       `היי ${c.name || ''},\n` +
       `נשמח להיפגש איתך${title ? ` — ${title}` : ''}${when ? ` ב-${when}` : ''}.\n` +
-      `הפגישה בשרביה, פנחס בן יאיר 3, תל אביב.\n` +
+      `הפגישה ב${biz().location}.\n` +
       (eventLink ? `פרטי הפגישה: ${eventLink}\n` : '') +
       `נא לאשר הגעה. תודה!`;
     await sendWhatsApp(c.phone, msg);

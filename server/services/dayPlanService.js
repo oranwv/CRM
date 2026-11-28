@@ -14,6 +14,7 @@
 //
 // Scoring weights live in WEIGHTS so they can be tuned in one place.
 const pool = require('../db/pool');
+const { biz } = require('./businessProfile');
 const { offerAmounts, contractTotal } = require('./salesAdvisor');
 
 const ACTIVE_EXCLUDE   = ['deposit', 'production', 'completed', 'lost'];
@@ -324,7 +325,7 @@ function factLine(l, section) {
 function buildDayOpenerText(plan, baseUrl, scopeLabel = '') {
   const c = plan.counts;
   const head = [
-    `☀️ פתיחת יום — שרביה · ${israelDayName()} ${fmtDate(new Date())}`,
+    `☀️ פתיחת יום — ${biz().name} · ${israelDayName()} ${fmtDate(new Date())}`,
     scopeLabel,
     [c.contracts ? (c.contracts === 1 ? '📝 חוזה אחד ממתין' : `📝 ${c.contracts} חוזים ממתינים`) : null,
      c.nearEvents ? (c.nearEvents === 1 ? '📅 אירוע אחד ב-60 יום' : `📅 ${c.nearEvents} אירועים ב-60 יום`) : null,

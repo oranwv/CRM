@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const { biz } = require('../services/businessProfile');
 const multer = require('multer');
 const pool   = require('../db/pool');
 const { OpenAI, toFile } = require('openai');
@@ -85,7 +86,7 @@ router.post('/reply', async (req, res) => {
 
     const history = [...messages, ...interactions]
       .sort((a, b) => new Date(a.ts) - new Date(b.ts))
-      .map(r => `[${r.direction === 'inbound' ? 'לקוח' : 'שרביה'}]: ${r.body}`)
+      .map(r => `[${r.direction === 'inbound' ? 'לקוח' : biz().name}]: ${r.body}`)
       .join('\n');
 
     const leadContext = [
@@ -104,7 +105,7 @@ ${history || '(אין היסטוריה)'}
 
     const { rows: aiRows } = await pool.query("SELECT value FROM settings WHERE key = 'ai_instructions'");
     const aiInstructions = aiRows[0]?.value?.trim() || '';
-    const replySystem = `אתה איש מכירות מקצועי של אולם אירועים שרביה בתל אביב. אתה כותב תגובות חמות, מקצועיות ומשכנעות ללקוחות פוטנציאליים בעברית. החזר רק את טקסט ההודעה ללא כותרות או הסברים.${aiInstructions ? '\n\n' + aiInstructions : ''}`;
+    const replySystem = `אתה איש מכירות מקצועי של ${biz().kind} ${biz().name}${biz().city ? ' ב' + biz().city : ''}. אתה כותב תגובות חמות, מקצועיות ומשכנעות ללקוחות פוטנציאליים בעברית. החזר רק את טקסט ההודעה ללא כותרות או הסברים.${aiInstructions ? '\n\n' + aiInstructions : ''}`;
 
     const completion = await getClient().chat.completions.create({
       model: 'gpt-4o',
@@ -129,7 +130,7 @@ router.post('/improve', async (req, res) => {
   try {
     const { rows: aiRows2 } = await pool.query("SELECT value FROM settings WHERE key = 'ai_instructions'");
     const aiInstructions2 = aiRows2[0]?.value?.trim() || '';
-    const improveSystem = `אתה עוזר לאיש מכירות של אולם אירועים שרביה לשפר הודעות ללקוחות. שפר את ההודעה הבאה — תהיה מקצועי יותר, חם ומשכנע, תוך שמירה על הכוונה המקורית. החזר רק את טקסט ההודעה המשופרת ללא הסברים.${aiInstructions2 ? '\n\n' + aiInstructions2 : ''}`;
+    const improveSystem = `אתה עוזר לאיש מכירות של ${biz().kind} ${biz().name} לשפר הודעות ללקוחות. שפר את ההודעה הבאה — תהיה מקצועי יותר, חם ומשכנע, תוך שמירה על הכוונה המקורית. החזר רק את טקסט ההודעה המשופרת ללא הסברים.${aiInstructions2 ? '\n\n' + aiInstructions2 : ''}`;
     const completion = await getClient().chat.completions.create({
       model: 'gpt-4o-mini',
       max_tokens: 1024,

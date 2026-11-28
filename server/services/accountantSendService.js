@@ -3,6 +3,7 @@
 // Gmail. Gmail caps a message at ~25MB, so files are packed into as many
 // emails as needed (~18MB of raw files each, base64 adds ~33%).
 const { google } = require('googleapis');
+const { biz } = require('./businessProfile');
 const pool = require('../db/pool');
 const { sendEmail } = require('./gmailService');
 const { primaryAuth, getRootFolderId } = require('./financeInvoiceScanner');
@@ -95,9 +96,9 @@ async function sendToAccountant({ months, email, note, userId, mailboxes = 'all'
 
     const period = chosen.length === 1 ? monthLabel(chosen[0].key)
       : `${monthLabel(chosen[chosen.length - 1].key)} – ${monthLabel(chosen[0].key)}`;
-    const subjectBase = `חשבוניות שרביה — ${period}`;
+    const subjectBase = `חשבוניות ${biz().name} — ${period}`;
     const { rows: srows } = await pool.query("SELECT value FROM settings WHERE key = 'business_name'").catch(() => ({ rows: [] }));
-    const businessName = srows[0]?.value || 'שרביה';
+    const businessName = srows[0]?.value || biz().name;
 
     let emailsSent = 0;
     for (let i = 0; i < batches.length; i++) {

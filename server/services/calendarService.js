@@ -1,4 +1,5 @@
 const { google } = require('googleapis');
+const { biz } = require('./businessProfile');
 const fs = require('fs');
 const path = require('path');
 const pool = require('../db/pool');
@@ -265,7 +266,7 @@ async function createMeeting({ leadId, title, start, end, guestEmail, guestName,
     requestBody: {
       summary: title,
       colorId: '3',
-      location: 'שרביה, פנחס בן יאיר 3, תל אביב',
+      location: biz().location,
       description: `🔗 פתח ליד ב-CRM:\n${baseUrl}/?lead=${leadId}&src=cal`,
       start: { dateTime: start, timeZone: 'Asia/Jerusalem' },
       end:   { dateTime: end,   timeZone: 'Asia/Jerusalem' },
@@ -292,7 +293,7 @@ async function createCandidateMeeting({ candidateId, title, start, end, guestEma
     requestBody: {
       summary: title,
       colorId: '7',
-      location: 'שרביה, פנחס בן יאיר 3, תל אביב',
+      location: biz().location,
       description: `🧑‍💼 ראיון מועמד/ת\n🔗 פתח ב-CRM:\n${baseUrl}/candidates/all?candidate=${candidateId}&src=cal`,
       start: { dateTime: start, timeZone: 'Asia/Jerusalem' },
       end:   { dateTime: end,   timeZone: 'Asia/Jerusalem' },
