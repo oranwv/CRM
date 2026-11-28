@@ -6,6 +6,12 @@ updated: 2026-11-28
 
 # Now
 
+## 2026-11-28 — Phase 137 (1.40.2): a new installation can boot (self-building DB, instance guard, first admin)
+
+- Oran wants to start bringing up the ProEvent installation on 29 Nov. What exists: empty DB builds itself (restart once after first deploy), `INSTANCE_ID` guard + RLS on all tables for new installations, `createAdmin.js`. Steps to bring one up are in PRD Phase 137.
+- NOT built yet, so a new installation still looks and talks like Sharviya: business profile, module switches, per-business stage/field labels, the setup checklist, email login / front door. Next in that order; UI parts need his preview.
+- Open with Oran: OpenAI + Twilio real costs and why no invoice emails arrive (he must sign in to both in the Claude desktop browser pane — it has its own profile, not his Chrome); RLS on Sharviya's tables; Green API token rotation; webhook token.
+
 ## 2026-11-28 — Phase 136 (1.40.1): multi-business plan agreed + security stage 0, first batch
 
 - Plan for selling the CRM to other businesses is agreed in outline (separate installation per business, one codebase, ProEvent itself first, one login at proevent.co.il by email). Docs are in the claude.ai Project (`proevent-build-plan.md`, `proevent-onboarding.md`); summary + decisions in PRD Phase 136.

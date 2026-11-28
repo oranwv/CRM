@@ -223,7 +223,7 @@ async function runReminders() {
             r.due_date = CURRENT_DATE
             AND (
               r.due_time IS NULL
-              OR r.due_time <= (NOW() AT TIME ZONE 'Asia/Jerusalem')::time
+              OR NULLIF(r.due_time::text, '')::time <= (NOW() AT TIME ZONE 'Asia/Jerusalem')::time
             )
           )
         )

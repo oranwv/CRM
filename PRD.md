@@ -1804,6 +1804,32 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by INT REFERENCES users(id) O
 
 ## Build Phases — Status
 
+### Phase 137 — New-installation basics: self-building DB, instance guard, first admin ✅ Built 2026-11-28 (1.40.2) — tested on a local empty Postgres, not on Supabase/Railway
+Stage 3 of the multi-business plan, pulled forward because Oran wants to start bringing up the ProEvent
+installation on 29 Nov.
+- **Empty database builds itself.** `server/db/baseSchema.js` (the base tables, moved out of `db/migrate.js`,
+  which now requires it) runs first in the boot migration chain; a step that failed is run again after the
+  chain (2 passes). Tested: empty DB → first boot creates all 76 tables; two init blocks that run outside
+  the chain (`pending_documents`, the holiday import) settle on the next boot — **restart once after the
+  first deploy**, a third boot is quiet. On an existing DB nothing changes (all `IF NOT EXISTS`).
+- **Instance guard** (`services/instanceGuard.js`): with `INSTANCE_ID` in the env the first boot stamps
+  `settings.instance_id`; a later boot whose env id differs from the stamped one logs and `process.exit(1)`
+  (protects against a server pointed at another business's `DATABASE_URL`). The same step turns on row
+  level security on every public table (Supabase serves tables without RLS through its REST API; the CRM
+  connects as table owner so it is unaffected). Without `INSTANCE_ID` (Sharviya today) nothing runs.
+  **Sharviya's own tables beyond the first 14 probably have no RLS — to check with Oran and switch on.**
+- **`node server/scripts/createAdmin.js <username> "<name>" [email] [phone]`** — first admin with a random
+  password printed once.
+- Fix found by the empty-DB run: `reminderService` compared `op_reminders.due_time` (TEXT) with a `time`
+  → "operator does not exist"; now `NULLIF(due_time::text,'')::time`.
+- `server/scripts/seedUsers.js` deleted (default passwords + phone numbers; unused).
+- **Bringing up a new installation** (until the provisioning script exists): new Supabase project + private
+  bucket `crm-files`; new Railway service on this repo with `DATABASE_URL`, `SUPABASE_URL`,
+  `SUPABASE_SERVICE_KEY`, a NEW random `JWT_SECRET`, `SERVER_URL`, `INSTANCE_ID`, `OPENAI_API_KEY`; deploy,
+  restart once; run `createAdmin.js`; then the integrations (Green API instance, Google, Twilio).
+- Not built yet: business profile (the name "שרביה" is still in ~25 server + 6 client files), module
+  switches, stage/field labels per business, the in-app setup checklist, login by email / front door.
+
 ### Phase 136 — Multi-business plan + security stage 0, first batch ✅ Built 2026-11-28 (1.40.1) — limiter tested with a stubbed DB, not on production
 Oran wants to sell the CRM to other businesses, with no data ever leaking between businesses. Agreed with
 him (19–28 Nov): a separate installation per business (own DB, storage, server, secrets) on ONE codebase,

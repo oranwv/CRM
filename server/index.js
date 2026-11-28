@@ -64,11 +64,28 @@ const pool = require('./db/pool');
 // still running during a Railway deploy pushed Supabase over its client limit
 // ("max clients reached"). `migrate()` keeps the same fire-and-forget shape.
 let migrationChain = Promise.resolve();
+const failedMigrations = [];
 function migrate(sql, params) {
   const run = migrationChain.then(() => pool.query(sql, params));
-  migrationChain = run.catch(() => {});   // one failure never blocks the next statement
+  migrationChain = run.catch(() => { failedMigrations.push({ sql, params }); });   // one failure never blocks the next statement
   return run;                             // callers keep their own .catch() logging
 }
+
+// Phase 137: a brand-new (empty) database builds itself. The base tables come first; a step that
+// failed only because a later step creates the table it needs is run again once the chain is done.
+migrate(require('./db/baseSchema')).catch(err => console.error('[DB] base schema error:', err.message));
+setImmediate(async () => {
+  await migrationChain;
+  for (let pass = 1; pass <= 2 && failedMigrations.length; pass++) {
+    const again = failedMigrations.splice(0);
+    for (const m of again) {
+      try { await pool.query(m.sql, m.params); }
+      catch (err) { failedMigrations.push(m); if (pass === 2) console.error('[DB] migration step still failing after retries:', err.message); }
+    }
+    console.log(`[DB] migration retry pass ${pass}: ${again.length - failedMigrations.length} of ${again.length} steps completed`);
+  }
+  await require('./services/instanceGuard').run();
+});
 
 // Ensure runtime tables exist (safe to run every boot)
 migrate(`
